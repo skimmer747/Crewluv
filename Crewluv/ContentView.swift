@@ -1,61 +1,247 @@
 //
 //  ContentView.swift
-//  Crewluv
+//  CrewLuv
 //
-//  Created by Todd Anderson on 2/5/26.
+//  Main view coordinator for CrewLuv app
+//  100% free app - requires share invitation from Duty app pilot
 //
 
 import SwiftUI
-import SwiftData
+import CloudKit
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var statusReceiver = PartnerStatusReceiver()
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        NavigationStack {
+            Group {
+                if statusReceiver.isLoading {
+                    LoadingView()
+                } else if let status = statusReceiver.pilotStatus {
+                    PilotStatusView(status: status)
+                } else {
+                    NoShareView()
                 }
-                .onDelete(perform: deleteItems)
             }
+            .navigationTitle("CrewLuv")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                    Button(action: {
+                        Task {
+                            await statusReceiver.refresh()
+                        }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(statusReceiver.isLoading)
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+            }
+        }
+        .refreshable {
+            await statusReceiver.refresh()
+        }
+    }
+}
+
+// MARK: - Loading View
+
+struct LoadingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+            Text("Loading pilot status...")
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - No Share View
+
+struct NoShareView: View {
+    @State private var showPasteAlert = false
+    @State private var pastedURL = ""
+
+    var body: some View {
+        VStack(spacing: 32) {
+            Image(systemName: "heart.circle")
+                .font(.system(size: 80))
+                .foregroundStyle(.red.gradient)
+
+            VStack(spacing: 12) {
+                Text("Welcome to CrewLuv")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+
+                Text("Stay connected with your pilot")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+
+            VStack(spacing: 16) {
+                InstructionRow(
+                    number: "1",
+                    title: "Pilot Setup",
+                    description: "Your pilot needs the Duty app with Duty Plus subscription"
+                )
+
+                InstructionRow(
+                    number: "2",
+                    title: "Share Invitation",
+                    description: "Ask them to go to Settings → Partner Sharing → Invite Partner"
+                )
+
+                InstructionRow(
+                    number: "3",
+                    title: "Accept & Connect",
+                    description: "Accept the invitation and you'll see their status here"
+                )
+            }
+            .padding(.horizontal, 32)
+
+            VStack(spacing: 8) {
+                Text("CrewLuv is 100% free")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Text("Requires pilot to have Duty Plus subscription")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(12)
+            .padding(.horizontal, 32)
+
+            VStack(spacing: 16) {
+                Button(action: {
+                    showPasteAlert = true
+                }) {
+                    Label("Paste Share Link", systemImage: "link")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+
+                Divider()
+
+                Button(action: {
+                    // Clear stored share data to start fresh
+                    UserDefaults.standard.removeObject(forKey: "SharedZoneOwner")
+                    debugLog("[CrewLuv] Cleared stored zone owner")
+                }) {
+                    Label("Reset Share Data", systemImage: "trash")
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .padding(.vertical, 8)
+                }
+            }
+            .padding(.horizontal, 32)
+        }
+        .padding()
+        .alert("Paste Share Link", isPresented: $showPasteAlert) {
+            TextField("Share URL", text: $pastedURL)
+            Button("Cancel", role: .cancel) { }
+            Button("Accept") {
+                acceptShareFromURL()
+            }
+        } message: {
+            Text("Paste the CloudKit share link from your pilot")
+        }
+    }
+
+    private func acceptShareFromURL() {
+        guard let url = URL(string: pastedURL) else {
+            debugLog("[CrewLuv] Invalid URL: \(pastedURL)")
+            return
+        }
+
+        debugLog("[CrewLuv] Manual share URL: \(url)")
+
+        let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
+
+        Task {
+            do {
+                let metadata = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare.Metadata, Error>) in
+                    container.fetchShareMetadata(with: url) { metadata, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else if let metadata = metadata {
+                            continuation.resume(returning: metadata)
+                        } else {
+                            continuation.resume(throwing: NSError(domain: "CrewLuv", code: -1, userInfo: [NSLocalizedDescriptionKey: "No metadata returned"]))
+                        }
                     }
                 }
+
+                debugLog("[CrewLuv] Share metadata fetched")
+
+                let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
+                    container.accept(metadata) { acceptedShare, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else if let acceptedShare = acceptedShare {
+                            continuation.resume(returning: acceptedShare)
+                        } else {
+                            continuation.resume(throwing: NSError(domain: "CrewLuv", code: -1, userInfo: [NSLocalizedDescriptionKey: "No share returned"]))
+                        }
+                    }
+                }
+
+                debugLog("[CrewLuv] ✅ Share accepted from manual paste")
+
+                let ownerName = acceptedShare.recordID.zoneID.ownerName
+                UserDefaults.standard.set(ownerName, forKey: "SharedZoneOwner")
+                debugLog("[CrewLuv] Stored zone owner: \(ownerName)")
+
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .shareAccepted, object: nil)
+                }
+                debugLog("[CrewLuv] Posted share acceptance notification")
+
+                pastedURL = ""
+            } catch {
+                debugLog("[CrewLuv] ❌ Error accepting manual share: \(error)")
             }
-        } detail: {
-            Text("Select an item")
         }
     }
+}
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+// MARK: - Instruction Row
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+struct InstructionRow: View {
+    let number: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 32, height: 32)
+
+                Text(number)
+                    .font(.headline)
+                    .foregroundColor(.white)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
