@@ -13,50 +13,53 @@ struct PilotStatusView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                // Status Header - Shows pilot name + current state
-                StatusHeaderView(status: status)
+            GlassEffectContainer(spacing: 20) {
+                VStack(spacing: 24) {
+                    // Status Header - Shows pilot name + current state
+                    StatusHeaderView(status: status)
 
-                // Countdown Timer (if not home)
-                if let homeTime = status.homeArrivalTime, !status.isHome {
-                    CountdownCardView(
-                        title: "Home In",
-                        targetDate: homeTime,
-                        icon: "house.fill",
-                        color: .green
-                    )
+                    // Countdown Timer (if not home)
+                    if let homeTime = status.homeArrivalTime, !status.isHome {
+                        CountdownCardView(
+                            title: "Home In",
+                            targetDate: homeTime,
+                            icon: "house.fill",
+                            color: .green
+                        )
+                    }
+
+                    // Next Departure (if at home)
+                    if status.isHome, let departureTime = status.nextDepartureTime {
+                        CountdownCardView(
+                            title: "Leaves In",
+                            targetDate: departureTime,
+                            icon: "airplane.departure",
+                            color: .blue
+                        )
+                    }
+
+                    // Location Card
+                    LocationCardView(status: status)
+
+                    // Trip Overview (if on trip)
+                    if let dayNumber = status.tripDayNumber,
+                       let totalDays = status.tripTotalDays {
+                        TripProgressView(
+                            dayNumber: dayNumber,
+                            totalDays: totalDays,
+                            upcomingCities: status.upcomingCities
+                        )
+                    }
+
+                    // Last Updated
+                    Text("Updated \(status.lastUpdated.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-
-                // Next Departure (if at home)
-                if status.isHome, let departureTime = status.nextDepartureTime {
-                    CountdownCardView(
-                        title: "Leaves In",
-                        targetDate: departureTime,
-                        icon: "airplane.departure",
-                        color: .blue
-                    )
-                }
-
-                // Location Card
-                LocationCardView(status: status)
-
-                // Trip Overview (if on trip)
-                if let dayNumber = status.tripDayNumber,
-                   let totalDays = status.tripTotalDays {
-                    TripProgressView(
-                        dayNumber: dayNumber,
-                        totalDays: totalDays,
-                        upcomingCities: status.upcomingCities
-                    )
-                }
-
-                // Last Updated
-                Text("Updated \(status.lastUpdated.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .padding()
             }
-            .padding()
         }
+        .scrollEdgeEffectStyle(.soft, for: .vertical)
     }
 }
 
@@ -83,9 +86,7 @@ struct StatusHeaderView: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 
     private var statusColor: Color {
@@ -133,9 +134,7 @@ struct CountdownCardView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
         .onReceive(timer) { _ in
             updateTimeRemaining()
         }
@@ -214,9 +213,7 @@ struct LocationCardView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 }
 
@@ -265,11 +262,10 @@ struct TripProgressView: View {
                         ForEach(upcomingCities, id: \.self) { city in
                             Text(city)
                                 .font(.caption)
+                                .foregroundColor(.blue)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(Color.blue.opacity(0.1))
-                                .foregroundColor(.blue)
-                                .cornerRadius(8)
+                                .glassEffect(.regular, in: .capsule)
                         }
                     }
                 }
@@ -277,9 +273,7 @@ struct TripProgressView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 }
 

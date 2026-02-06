@@ -32,6 +32,7 @@ struct ContentView: View {
                     }) {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .buttonStyle(.glass)
                     .disabled(statusReceiver.isLoading)
                 }
             }
@@ -62,83 +63,84 @@ struct NoShareView: View {
     @State private var pastedURL = ""
 
     var body: some View {
-        VStack(spacing: 32) {
-            Image(systemName: "heart.circle")
-                .font(.system(size: 80))
-                .foregroundStyle(.red.gradient)
+        ScrollView {
+            GlassEffectContainer(spacing: 20) {
+                VStack(spacing: 32) {
+                    Image(systemName: "heart.circle")
+                        .font(.system(size: 80))
+                        .foregroundStyle(.red.gradient)
 
-            VStack(spacing: 12) {
-                Text("Welcome to CrewLuv")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    VStack(spacing: 12) {
+                        Text("Welcome to CrewLuv")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
 
-                Text("Stay connected with your pilot")
-                    .font(.title3)
-                    .foregroundColor(.secondary)
-            }
+                        Text("Stay connected with your pilot")
+                            .font(.title3)
+                            .foregroundColor(.secondary)
+                    }
 
-            VStack(spacing: 16) {
-                InstructionRow(
-                    number: "1",
-                    title: "Pilot Setup",
-                    description: "Your pilot needs the Duty app with Duty Plus subscription"
-                )
+                    VStack(spacing: 16) {
+                        InstructionRow(
+                            number: "1",
+                            title: "Pilot Setup",
+                            description: "Your pilot needs the Duty app with Duty Plus subscription"
+                        )
 
-                InstructionRow(
-                    number: "2",
-                    title: "Share Invitation",
-                    description: "Ask them to go to Settings → Partner Sharing → Invite Partner"
-                )
+                        InstructionRow(
+                            number: "2",
+                            title: "Share Invitation",
+                            description: "Ask them to go to Settings → Partner Sharing → Invite Partner"
+                        )
 
-                InstructionRow(
-                    number: "3",
-                    title: "Accept & Connect",
-                    description: "Accept the invitation and you'll see their status here"
-                )
-            }
-            .padding(.horizontal, 32)
+                        InstructionRow(
+                            number: "3",
+                            title: "Accept & Connect",
+                            description: "Accept the invitation and you'll see their status here"
+                        )
+                    }
+                    .padding(.horizontal, 32)
 
-            VStack(spacing: 8) {
-                Text("CrewLuv is 100% free")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    VStack(spacing: 8) {
+                        Text("CrewLuv is 100% free")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
 
-                Text("Requires pilot to have Duty Plus subscription")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
-            .padding(.horizontal, 32)
+                        Text("Requires pilot to have Duty Plus subscription")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                    .padding(.horizontal, 32)
 
-            VStack(spacing: 16) {
-                Button(action: {
-                    showPasteAlert = true
-                }) {
-                    Label("Paste Share Link", systemImage: "link")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                    VStack(spacing: 16) {
+                        Button(action: {
+                            showPasteAlert = true
+                        }) {
+                            Label("Paste Share Link", systemImage: "link")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .padding(.horizontal, 32)
+
+                        Divider()
+
+                        Button(action: {
+                            CloudKitShareManager.shared.resetShareData()
+                        }) {
+                            Label("Reset Share Data", systemImage: "trash")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.glass)
+                        .tint(.red)
+                    }
+                    .padding(.horizontal, 32)
                 }
-
-                Divider()
-
-                Button(action: {
-                    CloudKitShareManager.shared.resetShareData()
-                }) {
-                    Label("Reset Share Data", systemImage: "trash")
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                        .padding(.vertical, 8)
-                }
+                .padding()
             }
-            .padding(.horizontal, 32)
         }
-        .padding()
         .alert("Paste Share Link", isPresented: $showPasteAlert) {
             TextField("Share URL", text: $pastedURL)
             Button("Cancel", role: .cancel) { }
@@ -180,13 +182,14 @@ struct InstructionRow: View {
         HStack(alignment: .top, spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.blue)
+                    .fill(.blue)
                     .frame(width: 32, height: 32)
-
+                
                 Text(number)
                     .font(.headline)
                     .foregroundColor(.white)
             }
+            .glassEffect(.regular, in: .circle)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -198,6 +201,8 @@ struct InstructionRow: View {
 
             Spacer()
         }
+        .padding()
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
     }
 }
 
