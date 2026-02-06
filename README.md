@@ -41,6 +41,23 @@ CrewLuv uses CloudKit sharing to receive read-only status updates from the Duty 
 - **Separate CloudKit Zone**: Uses `PartnerBeaconZone` (isolated from Duty's SwiftData sync)
 - **One-way Sync**: Duty app generates status snapshots, CrewLuv receives them
 - **Lightweight Model**: `SharedPilotStatus` struct optimized for CloudKit sharing
+- **Service Layer Pattern**: Clean separation between UI, business logic, and data access
+- **Scalable Structure**: Organized by feature for easy expansion
+
+### Project Structure
+
+```
+Crewluv/
+├── App/              # Application lifecycle and configuration
+├── Views/            # SwiftUI views organized by feature
+│   ├── Welcome/     # Onboarding screens
+│   └── Status/      # Status display screens
+├── Models/           # Data models
+├── Services/         # Business logic and CloudKit integration
+└── Utils/            # Utilities and helpers
+```
+
+See [STRUCTURE.md](Crewluv/STRUCTURE.md) for detailed documentation.
 
 ## Installation
 
