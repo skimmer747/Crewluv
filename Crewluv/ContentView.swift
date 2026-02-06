@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import CloudKit
 
 struct ContentView: View {
     @State private var statusReceiver = PartnerStatusReceiver()
@@ -129,9 +128,7 @@ struct NoShareView: View {
                 Divider()
 
                 Button(action: {
-                    // Clear stored share data to start fresh
-                    UserDefaults.standard.removeObject(forKey: "SharedZoneOwner")
-                    debugLog("[CrewLuv] Cleared stored zone owner")
+                    CloudKitShareManager.shared.resetShareData()
                 }) {
                     Label("Reset Share Data", systemImage: "trash")
                         .font(.subheadline)
@@ -161,47 +158,9 @@ struct NoShareView: View {
 
         debugLog("[CrewLuv] Manual share URL: \(url)")
 
-        let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
-
         Task {
             do {
-                let metadata = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare.Metadata, Error>) in
-                    container.fetchShareMetadata(with: url) { metadata, error in
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                        } else if let metadata = metadata {
-                            continuation.resume(returning: metadata)
-                        } else {
-                            continuation.resume(throwing: NSError(domain: "CrewLuv", code: -1, userInfo: [NSLocalizedDescriptionKey: "No metadata returned"]))
-                        }
-                    }
-                }
-
-                debugLog("[CrewLuv] Share metadata fetched")
-
-                let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
-                    container.accept(metadata) { acceptedShare, error in
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                        } else if let acceptedShare = acceptedShare {
-                            continuation.resume(returning: acceptedShare)
-                        } else {
-                            continuation.resume(throwing: NSError(domain: "CrewLuv", code: -1, userInfo: [NSLocalizedDescriptionKey: "No share returned"]))
-                        }
-                    }
-                }
-
-                debugLog("[CrewLuv] ✅ Share accepted from manual paste")
-
-                let ownerName = acceptedShare.recordID.zoneID.ownerName
-                UserDefaults.standard.set(ownerName, forKey: "SharedZoneOwner")
-                debugLog("[CrewLuv] Stored zone owner: \(ownerName)")
-
-                await MainActor.run {
-                    NotificationCenter.default.post(name: .shareAccepted, object: nil)
-                }
-                debugLog("[CrewLuv] Posted share acceptance notification")
-
+                try await CloudKitShareManager.shared.acceptShare(from: url)
                 pastedURL = ""
             } catch {
                 debugLog("[CrewLuv] ❌ Error accepting manual share: \(error)")
