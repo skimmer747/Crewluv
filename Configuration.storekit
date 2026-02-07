@@ -1,0 +1,35 @@
+{
+  "identifier" : "0D8E1E43",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "6738832743",
+      "localizations" : [
+        {
+          "description" : "Unlock CrewLuv to stay connected with your pilot. One-time purchase, no subscriptions.",
+          "displayName" : "CrewLuv Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.toddanderson.crewluv.unlock",
+      "referenceName" : "CrewLuv Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6738832743",
+    "_developerTeamID" : "YOUR_TEAM_ID",
+    "_lastSynchronizedDate" : 759636464.58634496
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

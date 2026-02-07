@@ -14,6 +14,8 @@ extension Notification.Name {
 
 @main
 struct CrewluvApp: App {
+    @State private var purchaseManager = PurchaseManager.shared
+    
     init() {
         debugLog("[CrewLuv] 🚀 App launching...")
     }
@@ -21,6 +23,7 @@ struct CrewluvApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(purchaseManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
                     debugLog("[CrewLuv] 📲 onContinueUserActivity triggered")
                     handleIncomingShare(userActivity)

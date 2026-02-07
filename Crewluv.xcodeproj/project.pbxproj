@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		48CD21E12F36ADFC00A7AA32 /* Configuration.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 48CD21E02F36ADFC00A7AA32 /* Configuration.storekit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		48CD21A02F354C9300A7AA32 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		48CD218E2F354C9100A7AA32 /* Crewluv.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Crewluv.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		48CD219F2F354C9300A7AA32 /* CrewluvTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrewluvTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		48CD21A92F354C9300A7AA32 /* CrewluvUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrewluvUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		48CD21E02F36ADFC00A7AA32 /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -92,6 +97,7 @@
 				48CD21A22F354C9300A7AA32 /* CrewluvTests */,
 				48CD21AC2F354C9300A7AA32 /* CrewluvUITests */,
 				48CD218F2F354C9100A7AA32 /* Products */,
+				48CD21E02F36ADFC00A7AA32 /* Configuration.storekit */,
 			);
 			sourceTree = "<group>";
 		};
@@ -225,6 +231,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				48CD21E12F36ADFC00A7AA32 /* Configuration.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

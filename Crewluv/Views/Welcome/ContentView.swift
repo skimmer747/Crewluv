@@ -10,35 +10,44 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var statusReceiver = PartnerStatusReceiver()
+    @Environment(PurchaseManager.self) private var purchaseManager
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if statusReceiver.isLoading {
-                    LoadingView()
-                } else if let status = statusReceiver.pilotStatus {
-                    PilotStatusView(status: status)
-                } else {
-                    NoShareView()
-                }
-            }
-            .navigationTitle("CrewLuv")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        Task {
-                            await statusReceiver.refresh()
+        Group {
+            if !purchaseManager.hasUnlockedApp {
+                // Show paywall if not purchased
+                PaywallView()
+            } else {
+                // Show main app content if purchased
+                NavigationStack {
+                    Group {
+                        if statusReceiver.isLoading {
+                            LoadingView()
+                        } else if let status = statusReceiver.pilotStatus {
+                            PilotStatusView(status: status)
+                        } else {
+                            NoShareView()
                         }
-                    }) {
-                        Image(systemName: "arrow.clockwise")
                     }
-                    .buttonStyle(.glass)
-                    .disabled(statusReceiver.isLoading)
+                    .navigationTitle("CrewLuv")
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button(action: {
+                                Task {
+                                    await statusReceiver.refresh()
+                                }
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.glass)
+                            .disabled(statusReceiver.isLoading)
+                        }
+                    }
+                }
+                .refreshable {
+                    await statusReceiver.refresh()
                 }
             }
-        }
-        .refreshable {
-            await statusReceiver.refresh()
         }
     }
 }
@@ -84,7 +93,7 @@ struct NoShareView: View {
                         InstructionRow(
                             number: "1",
                             title: "Pilot Setup",
-                            description: "Your pilot needs the Duty app with Duty Plus subscription"
+                            description: "Your pilot needs the Duty app to create a status share"
                         )
 
                         InstructionRow(
@@ -99,19 +108,6 @@ struct NoShareView: View {
                             description: "Accept the invitation and you'll see their status here"
                         )
                     }
-                    .padding(.horizontal, 32)
-
-                    VStack(spacing: 8) {
-                        Text("CrewLuv is 100% free")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
-                        Text("Requires pilot to have Duty Plus subscription")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding()
-                    .glassEffect(.regular, in: .rect(cornerRadius: 16))
                     .padding(.horizontal, 32)
 
                     VStack(spacing: 16) {
@@ -208,4 +204,5 @@ struct InstructionRow: View {
 
 #Preview {
     ContentView()
+        .environment(PurchaseManager.shared)
 }
