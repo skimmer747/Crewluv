@@ -169,6 +169,9 @@ struct CountdownCardView: View {
 
 struct LocationCardView: View {
     let status: SharedPilotStatus
+    
+    @State private var liveLocalTime: String = ""
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -191,13 +194,14 @@ struct LocationCardView: View {
                 }
             }
 
-            if let localTime = status.localTimeAtPilot {
+            if status.currentTimezone != nil {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.secondary)
-                    Text("Local time: \(localTime)")
+                    Text("Local time: \(liveLocalTime)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .monospacedDigit()
                 }
             }
 
@@ -214,6 +218,26 @@ struct LocationCardView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .onReceive(timer) { _ in
+            updateLiveLocalTime()
+        }
+        .onAppear {
+            updateLiveLocalTime()
+        }
+    }
+    
+    private func updateLiveLocalTime() {
+        guard let timezoneIdentifier = status.currentTimezone,
+              let timezone = TimeZone(identifier: timezoneIdentifier) else {
+            liveLocalTime = status.localTimeAtPilot ?? ""
+            return
+        }
+        
+        let formatter = DateFormatter()
+        formatter.timeZone = timezone
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        liveLocalTime = formatter.string(from: Date())
     }
 }
 

@@ -16,6 +16,8 @@ class PartnerStatusReceiver {
     var isLoading: Bool = true
     var errorMessage: String? = nil
     var hasAcceptedShare: Bool = false
+    var lastSyncTime: Date? = nil
+    var lastSyncError: String? = nil
 
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
     private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
@@ -65,12 +67,16 @@ class PartnerStatusReceiver {
         isLoading = true
         defer { isLoading = false }
 
+        let syncStartTime = Date()
+        debugLog("[CrewLuv] 🔄 Starting sync at \(syncStartTime.formatted(date: .omitted, time: .standard))")
+
         do {
             // Use the account status to check if we have iCloud access
             let accountStatus = try await container.accountStatus()
             guard accountStatus == .available else {
                 debugLog("[CrewLuv] iCloud account not available: \(accountStatus.rawValue)")
                 errorMessage = "Please sign in to iCloud to access shared pilot status."
+                lastSyncError = "iCloud unavailable"
                 hasAcceptedShare = false
                 return
             }
@@ -80,6 +86,7 @@ class PartnerStatusReceiver {
             guard let ownerName = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
                 debugLog("[CrewLuv] No stored zone owner - share not yet accepted")
                 hasAcceptedShare = false
+                lastSyncError = "No share accepted"
                 errorMessage = "Please accept the share invitation from your pilot."
                 return
             }
@@ -108,13 +115,41 @@ class PartnerStatusReceiver {
             }
 
             debugLog("[CrewLuv] Found shared record: \(statusRecord.recordID.recordName)")
+            debugLog("[CrewLuv] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
 
-            pilotStatus = SharedPilotStatus.from(record: statusRecord)
+            guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
+                throw NSError(domain: "CrewLuv", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
+            }
+            
+            // Check if data actually changed
+            if let oldStatus = pilotStatus {
+                let changed = oldStatus.lastUpdated != newStatus.lastUpdated
+                debugLog("[CrewLuv] Data changed: \(changed ? "YES" : "NO")")
+                debugLog("[CrewLuv] Old lastUpdated: \(oldStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
+                debugLog("[CrewLuv] New lastUpdated: \(newStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
+                
+                // Log key time fields
+                debugLog("[CrewLuv] Old nextDepartureTime: \(oldStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuv] New nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuv] Old homeArrivalTime: \(oldStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuv] New homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+            } else {
+                debugLog("[CrewLuv] First time loading status")
+                debugLog("[CrewLuv] nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuv] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+            }
+            
+            pilotStatus = newStatus
             hasAcceptedShare = true
-            debugLog("[CrewLuv] ✅ Successfully loaded pilot status")
+            lastSyncTime = syncStartTime
+            lastSyncError = nil
+            
+            let syncDuration = Date().timeIntervalSince(syncStartTime)
+            debugLog("[CrewLuv] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
         } catch {
             debugLog("[CrewLuv] ❌ Error fetching status: \(error)")
             errorMessage = "Unable to load pilot status. Make sure you've accepted the share invitation."
+            lastSyncError = error.localizedDescription
             hasAcceptedShare = false
         }
     }

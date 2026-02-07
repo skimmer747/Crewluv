@@ -43,6 +43,15 @@ struct ContentView: View {
                             .disabled(statusReceiver.isLoading)
                         }
                     }
+                    .safeAreaInset(edge: .bottom) {
+                        if let lastSync = statusReceiver.lastSyncTime {
+                            SyncDebugView(
+                                lastSyncTime: lastSync,
+                                lastSyncError: statusReceiver.lastSyncError,
+                                isLoading: statusReceiver.isLoading
+                            )
+                        }
+                    }
                 }
                 .refreshable {
                     await statusReceiver.refresh()
@@ -199,6 +208,50 @@ struct InstructionRow: View {
         }
         .padding()
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
+    }
+}
+
+// MARK: - Sync Debug View
+
+struct SyncDebugView: View {
+    let lastSyncTime: Date
+    let lastSyncError: String?
+    let isLoading: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Syncing...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                Image(systemName: lastSyncError == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundColor(lastSyncError == nil ? .green : .orange)
+                    .font(.caption)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Last sync: \(lastSyncTime.formatted(date: .omitted, time: .standard))")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    if let error = lastSyncError {
+                        Text("Error: \(error)")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 }
 
