@@ -24,23 +24,28 @@ class PartnerStatusReceiver {
     private var subscriptionID: String? = nil
     private var refreshTask: Task<Void, Never>? = nil
 
-    init() {
+    init(shareManager: CloudKitShareManager) {
         // Listen for share acceptance notification FIRST, before initial check
         NotificationCenter.default.addObserver(
             forName: .shareAccepted,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            debugLog("[CrewLuv] Received share acceptance notification, refreshing...")
+            debugLog("[StatusReceiver] Received share acceptance notification, refreshing...")
             Task { @MainActor in
                 await self?.refresh()
             }
         }
 
-        // Then do initial check with a small delay to allow share acceptance to complete
+        // Wait for any in-progress share acceptance to complete before checking
         Task {
-            // Give share acceptance a moment to complete if app just launched from link
-            try? await Task.sleep(for: .seconds(1))
+            // Wait for share acceptance if currently in progress
+            while shareManager.shareState == .accepting {
+                debugLog("[StatusReceiver] Waiting for share acceptance...")
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+
+            debugLog("[StatusReceiver] Share state is \(shareManager.shareState), proceeding to check for data")
             await checkForSharedData()
 
             // Start automatic refresh every 2 minutes

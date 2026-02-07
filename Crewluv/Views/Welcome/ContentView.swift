@@ -9,8 +9,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var statusReceiver = PartnerStatusReceiver()
+    @State private var statusReceiver: PartnerStatusReceiver?
+    @State private var showShareError = false
     @Environment(PurchaseManager.self) private var purchaseManager
+    @Environment(CloudKitShareManager.self) private var shareManager
 
     var body: some View {
         Group {
@@ -19,44 +21,76 @@ struct ContentView: View {
                 PaywallView()
             } else {
                 // Show main app content if purchased
-                NavigationStack {
-                    Group {
-                        if statusReceiver.isLoading {
-                            LoadingView()
-                        } else if let status = statusReceiver.pilotStatus {
-                            PilotStatusView(status: status)
-                        } else {
-                            NoShareView()
-                        }
+                ZStack {
+                    mainContent
+
+                    if shareManager.isAcceptingShare {
+                        ShareAcceptingOverlay()
                     }
-                    .navigationTitle("CrewLuv")
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button(action: {
-                                Task {
-                                    await statusReceiver.refresh()
-                                }
-                            }) {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .buttonStyle(.glass)
-                            .disabled(statusReceiver.isLoading)
-                        }
-                    }
-                    .safeAreaInset(edge: .bottom) {
-                        if let lastSync = statusReceiver.lastSyncTime {
-                            SyncDebugView(
-                                lastSyncTime: lastSync,
-                                lastSyncError: statusReceiver.lastSyncError,
-                                isLoading: statusReceiver.isLoading
-                            )
-                        }
-                    }
-                }
-                .refreshable {
-                    await statusReceiver.refresh()
                 }
             }
+        }
+        .onAppear {
+            if statusReceiver == nil {
+                statusReceiver = PartnerStatusReceiver(shareManager: shareManager)
+            }
+        }
+        .alert("Share Error", isPresented: $showShareError) {
+            Button("OK") { shareManager.resetShareState() }
+        } message: {
+            if case .error(let msg) = shareManager.shareState {
+                Text(msg)
+            }
+        }
+        .onChange(of: shareManager.shareState) { _, newValue in
+            if case .error = newValue {
+                showShareError = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if let receiver = statusReceiver {
+            NavigationStack {
+                Group {
+                    if receiver.isLoading {
+                        LoadingView()
+                    } else if let status = receiver.pilotStatus {
+                        PilotStatusView(status: status)
+                    } else {
+                        NoShareView()
+                    }
+                }
+                .navigationTitle("CrewLuv")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            Task {
+                                await receiver.refresh()
+                            }
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(receiver.isLoading)
+                    }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if let lastSync = receiver.lastSyncTime {
+                        SyncDebugView(
+                            lastSyncTime: lastSync,
+                            lastSyncError: receiver.lastSyncError,
+                            isLoading: receiver.isLoading
+                        )
+                    }
+                }
+            }
+            .refreshable {
+                await receiver.refresh()
+            }
+        } else {
+            LoadingView()
         }
     }
 }
@@ -211,13 +245,40 @@ struct InstructionRow: View {
     }
 }
 
+// MARK: - Share Accepting Overlay
+
+struct ShareAcceptingOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(.white)
+
+                Text("Accepting Share Invitation...")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Text("This may take a moment")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding(40)
+            .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        }
+    }
+}
+
 // MARK: - Sync Debug View
 
 struct SyncDebugView: View {
     let lastSyncTime: Date
     let lastSyncError: String?
     let isLoading: Bool
-    
+
     var body: some View {
         HStack(spacing: 12) {
             if isLoading {
@@ -230,20 +291,21 @@ struct SyncDebugView: View {
                 Image(systemName: lastSyncError == nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                     .foregroundColor(lastSyncError == nil ? .green : .orange)
                     .font(.caption)
-                
+                    .accessibilityLabel(lastSyncError == nil ? "Sync successful" : "Sync error")
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Last sync: \(lastSyncTime.formatted(date: .omitted, time: .standard))")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
+
                     if let error = lastSyncError {
-                        Text("Error: \(error)")
+                        Text(sanitizedErrorMessage(error))
                             .font(.caption2)
                             .foregroundColor(.orange)
                     }
                 }
             }
-            
+
             Spacer()
         }
         .padding(.horizontal, 16)
@@ -253,9 +315,48 @@ struct SyncDebugView: View {
         .padding(.horizontal)
         .padding(.bottom, 8)
     }
+
+    /// Converts technical error strings into user-friendly messages
+    private func sanitizedErrorMessage(_ error: String) -> String {
+        let lowercased = error.lowercased()
+
+        // Network-related errors
+        if lowercased.contains("network") || lowercased.contains("connection") || lowercased.contains("internet") {
+            return "Network unavailable"
+        }
+
+        // CloudKit-specific errors
+        if lowercased.contains("not authenticated") || lowercased.contains("authentication") {
+            return "Sign in required"
+        }
+
+        if lowercased.contains("permission") || lowercased.contains("not permitted") {
+            return "Permission denied"
+        }
+
+        if lowercased.contains("zone not found") || lowercased.contains("share not found") {
+            return "Share not found"
+        }
+
+        if lowercased.contains("quota") || lowercased.contains("storage") {
+            return "Storage limit reached"
+        }
+
+        if lowercased.contains("timeout") || lowercased.contains("timed out") {
+            return "Request timed out"
+        }
+
+        if lowercased.contains("server") || lowercased.contains("service unavailable") {
+            return "Service unavailable"
+        }
+
+        // Generic fallback for any other errors
+        return "Sync failed"
+    }
 }
 
 #Preview {
     ContentView()
         .environment(PurchaseManager.shared)
+        .environment(CloudKitShareManager.shared)
 }

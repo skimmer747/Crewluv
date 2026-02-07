@@ -15,7 +15,8 @@ extension Notification.Name {
 @main
 struct CrewluvApp: App {
     @State private var purchaseManager = PurchaseManager.shared
-    
+    @State private var shareManager = CloudKitShareManager.shared
+
     init() {
         debugLog("[CrewLuv] 🚀 App launching...")
     }
@@ -24,44 +25,30 @@ struct CrewluvApp: App {
         WindowGroup {
             ContentView()
                 .environment(purchaseManager)
+                .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
                     debugLog("[CrewLuv] 📲 onContinueUserActivity triggered")
-                    handleIncomingShare(userActivity)
+                    if let url = userActivity.webpageURL {
+                        handleShareURL(url)
+                    } else {
+                        debugLog("[CrewLuv] No URL in user activity")
+                    }
                 }
                 .onOpenURL { url in
                     debugLog("[CrewLuv] 🔗 onOpenURL triggered with: \(url)")
-                    handleIncomingShareURL(url)
-                }
-                .task {
-                    // Check for recently accepted shares on launch
-                    await CloudKitShareManager.shared.checkForAcceptedShares()
+                    handleShareURL(url)
                 }
         }
     }
 
-    private func handleIncomingShare(_ userActivity: NSUserActivity) {
-        guard let url = userActivity.webpageURL else {
-            debugLog("[CrewLuv] No URL in user activity")
-            return
-        }
-
-        debugLog("[CrewLuv] Received share URL from user activity: \(url)")
+    private func handleShareURL(_ url: URL) {
+        debugLog("[CrewLuv] 🔗 Processing share URL: \(url)")
         Task {
             do {
-                try await CloudKitShareManager.shared.acceptShare(from: url)
+                try await shareManager.acceptShare(from: url)
             } catch {
-                debugLog("[CrewLuv] ❌ Error accepting share: \(error)")
-            }
-        }
-    }
-
-    private func handleIncomingShareURL(_ url: URL) {
-        debugLog("[CrewLuv] Received URL: \(url)")
-        Task {
-            do {
-                try await CloudKitShareManager.shared.acceptShare(from: url)
-            } catch {
-                debugLog("[CrewLuv] ❌ Error accepting share: \(error)")
+                debugLog("[CrewLuv] ❌ Share acceptance failed: \(error)")
+                // Error is already set in shareManager.shareState
             }
         }
     }

@@ -11,8 +11,21 @@ import Foundation
 
 /// Manages CloudKit share acceptance and zone owner persistence
 @MainActor
+@Observable
 final class CloudKitShareManager {
     static let shared = CloudKitShareManager()
+
+    // MARK: - Share State
+
+    enum ShareState: Equatable {
+        case idle
+        case accepting
+        case accepted
+        case error(String)
+    }
+
+    var shareState: ShareState = .idle
+    var isAcceptingShare: Bool { shareState == .accepting }
 
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
     private let zoneOwnerKey = "SharedZoneOwner"
@@ -23,46 +36,57 @@ final class CloudKitShareManager {
     /// - Parameter url: The CloudKit share URL
     /// - Throws: CloudKit errors or custom errors if metadata/share acceptance fails
     func acceptShare(from url: URL) async throws {
-        debugLog("[CrewLuv] Accepting share from URL: \(url)")
+        shareState = .accepting
+        debugLog("[ShareManager] Starting share acceptance from URL: \(url)")
 
-        // Fetch share metadata
-        let metadata = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare.Metadata, Error>) in
-            container.fetchShareMetadata(with: url) { metadata, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let metadata = metadata {
-                    continuation.resume(returning: metadata)
-                } else {
-                    continuation.resume(throwing: CloudKitShareError.noMetadata)
+        do {
+            // Fetch share metadata
+            let metadata = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare.Metadata, Error>) in
+                container.fetchShareMetadata(with: url) { metadata, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else if let metadata = metadata {
+                        continuation.resume(returning: metadata)
+                    } else {
+                        continuation.resume(throwing: CloudKitShareError.noMetadata)
+                    }
                 }
             }
-        }
 
-        debugLog("[CrewLuv] Share metadata fetched: \(metadata.share.recordID)")
+            debugLog("[ShareManager] Share metadata fetched: \(metadata.share.recordID)")
 
-        // Accept the share
-        let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
-            container.accept(metadata) { acceptedShare, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let acceptedShare = acceptedShare {
-                    continuation.resume(returning: acceptedShare)
-                } else {
-                    continuation.resume(throwing: CloudKitShareError.noShare)
+            // Accept the share
+            let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
+                container.accept(metadata) { acceptedShare, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else if let acceptedShare = acceptedShare {
+                        continuation.resume(returning: acceptedShare)
+                    } else {
+                        continuation.resume(throwing: CloudKitShareError.noShare)
+                    }
                 }
             }
+
+            debugLog("[ShareManager] ✅ Share accepted: \(acceptedShare.recordID)")
+
+            // Store the zone owner name for future access
+            let ownerName = acceptedShare.recordID.zoneID.ownerName
+            UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
+            debugLog("[ShareManager] Stored zone owner: \(ownerName)")
+
+            // Update state to accepted
+            shareState = .accepted
+
+            // Notify the app to refresh the status
+            NotificationCenter.default.post(name: .shareAccepted, object: nil)
+            debugLog("[ShareManager] Posted share acceptance notification")
+        } catch {
+            let message = userFriendlyError(error)
+            shareState = .error(message)
+            debugLog("[ShareManager] ❌ Share acceptance failed: \(error.localizedDescription)")
+            throw error
         }
-
-        debugLog("[CrewLuv] ✅ Share accepted: \(acceptedShare.recordID)")
-
-        // Store the zone owner name for future access
-        let ownerName = acceptedShare.recordID.zoneID.ownerName
-        UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
-        debugLog("[CrewLuv] Stored zone owner: \(ownerName)")
-
-        // Notify the app to refresh the status
-        NotificationCenter.default.post(name: .shareAccepted, object: nil)
-        debugLog("[CrewLuv] Posted share acceptance notification")
     }
 
     /// Checks for recently accepted shares in the shared CloudKit database
@@ -118,6 +142,37 @@ final class CloudKitShareManager {
     func resetShareData() {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
         debugLog("[CrewLuv] Cleared stored zone owner")
+    }
+
+    /// Resets the share state to idle
+    func resetShareState() {
+        shareState = .idle
+    }
+
+    /// Converts CloudKit errors to user-friendly messages
+    private func userFriendlyError(_ error: Error) -> String {
+        let nsError = error as NSError
+
+        if nsError.domain == CKErrorDomain {
+            switch CKError.Code(rawValue: nsError.code) {
+            case .networkUnavailable, .networkFailure:
+                return "No internet connection. Please check your network and try again."
+            case .notAuthenticated:
+                return "Please sign in to iCloud in Settings."
+            case .permissionFailure:
+                return "You don't have permission to access this share."
+            case .serverRejectedRequest:
+                return "The share invitation is invalid or has expired."
+            case .quotaExceeded:
+                return "iCloud storage is full. Please free up space."
+            case .participantMayNeedVerification:
+                return "Please verify your iCloud account in Settings."
+            default:
+                return "Unable to connect to iCloud. Please try again later."
+            }
+        }
+
+        return "Unable to accept share. Please try again."
     }
 }
 
