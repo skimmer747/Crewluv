@@ -19,7 +19,7 @@ struct PilotStatusView: View {
                     StatusHeaderView(status: status)
 
                     // Countdown Timer (if not home)
-                    if let homeTime = status.homeArrivalTime, !status.isHome {
+                    if let homeTime = status.homeArrivalTime, status.computedStatus != .home {
                         CountdownCardView(
                             title: "Home In",
                             targetDate: homeTime,
@@ -29,7 +29,7 @@ struct PilotStatusView: View {
                     }
 
                     // Next Departure (if at home)
-                    if status.isHome, let departureTime = status.nextDepartureTime {
+                    if status.computedStatus == .home, let departureTime = status.nextDepartureTime {
                         CountdownCardView(
                             title: "Leaves In",
                             targetDate: departureTime,
@@ -42,7 +42,8 @@ struct PilotStatusView: View {
                     LocationCardView(status: status)
 
                     // Trip Overview (if on trip)
-                    if let dayNumber = status.tripDayNumber,
+                    if status.computedStatus != .home,
+                       let dayNumber = status.tripDayNumber,
                        let totalDays = status.tripTotalDays {
                         TripProgressView(
                             dayNumber: dayNumber,
@@ -68,6 +69,9 @@ struct PilotStatusView: View {
 struct StatusHeaderView: View {
     let status: SharedPilotStatus
 
+    @State private var currentTime = Date()
+    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
     var body: some View {
         VStack(spacing: 12) {
             Text(status.pilotFirstName)
@@ -87,19 +91,35 @@ struct StatusHeaderView: View {
         .padding()
         .frame(maxWidth: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .onReceive(timer) { time in
+            currentTime = time
+            // This will trigger view refresh and recompute status
+        }
     }
 
     private var statusColor: Color {
-        if status.isHome { return .green }
-        if status.isInFlight { return .blue }
-        return .orange
+        // Use computed status based on actual flight times
+        return status.computedStatus.color
     }
 
     private var statusText: String {
-        if status.isHome { return "Home" }
-        if status.isInFlight { return "In Flight" }
-        if status.isOnDuty { return "On Duty" }
-        return "On Layover"
+        // Use computed status based on actual flight times
+        let computed = status.computedStatus.displayText
+
+        #if DEBUG
+        // Debug: Log if Duty app's flags differ from computed status
+        let dutyStatus: String
+        if status.isHome { dutyStatus = "Home" }
+        else if status.isInFlight { dutyStatus = "In Flight" }
+        else if status.isOnDuty { dutyStatus = "On Duty" }
+        else { dutyStatus = "On Layover" }
+
+        if computed != dutyStatus {
+            debugLog("[Status] Duty says '\(dutyStatus)' but computed is '\(computed)'")
+        }
+        #endif
+
+        return computed
     }
 }
 
@@ -127,10 +147,9 @@ struct CountdownCardView: View {
             }
             .foregroundColor(.primary)
 
-            Text(timeRemaining)
-                .font(.system(size: 52, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundColor(color)
+            formattedTimeText
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
         }
         .padding(24)
         .frame(maxWidth: .infinity)
@@ -143,6 +162,46 @@ struct CountdownCardView: View {
         }
     }
 
+    private var formattedTimeText: Text {
+        if timeRemaining == "Now!" {
+            return Text(timeRemaining)
+                .font(.system(size: 52, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+        }
+        
+        var attributedString = AttributedString()
+        let components = timeRemaining.split(separator: " ")
+        
+        for (index, component) in components.enumerated() {
+            let str = String(component)
+            
+            // Find where the unit letter starts (d, h, or m)
+            if let unitIndex = str.firstIndex(where: { $0.isLetter }) {
+                let number = String(str[..<unitIndex])
+                let unit = String(str[unitIndex...])
+                
+                // Add the number in large, colored font
+                var numberAttr = AttributedString(number)
+                numberAttr.font = .system(size: 52, weight: .bold, design: .rounded)
+                numberAttr.foregroundColor = color
+                attributedString.append(numberAttr)
+                
+                // Add the unit in smaller, primary color font
+                var unitAttr = AttributedString(unit)
+                unitAttr.font = .system(size: 32, weight: .medium, design: .rounded)
+                unitAttr.foregroundColor = .primary
+                attributedString.append(unitAttr)
+                
+                // Add space between components
+                if index < components.count - 1 {
+                    attributedString.append(AttributedString("  "))
+                }
+            }
+        }
+        
+        return Text(attributedString)
+    }
+    
     private func updateTimeRemaining() {
         let interval = targetDate.timeIntervalSinceNow
 
@@ -170,10 +229,120 @@ struct CountdownCardView: View {
 struct LocationCardView: View {
     let status: SharedPilotStatus
     
+    @Environment(\.colorScheme) private var colorScheme
     @State private var liveLocalTime: String = ""
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        if status.computedStatus == .inFlight {
+            inFlightView
+        } else {
+            standardLocationView
+        }
+    }
+    
+    // MARK: - In-Flight View (Widget Style)
+    
+    private var inFlightView: some View {
+        VStack(spacing: 0) {
+            // Flight route display with gradient background
+            ZStack {
+                // Background gradient
+                flightGradient
+                
+                // Route information
+                HStack(spacing: 12) {
+                    // Departure
+                    VStack(spacing: 4) {
+                        Text(status.currentFlightDeparture ?? "---")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(primaryTextColor)
+                        
+                        if let depTime = status.currentFlightDepartureTime {
+                            Text(formatFlightTime(depTime))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(secondaryTextColor)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Arrow with flight progress
+                    Image(systemName: "airplane")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(urgencyColor)
+                    
+                    Spacer()
+                    
+                    // Arrival
+                    VStack(spacing: 4) {
+                        Text(status.currentFlightArrival ?? "---")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundColor(primaryTextColor)
+                        
+                        if let arrTime = status.currentFlightArrivalTime {
+                            Text(formatFlightTime(arrTime))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(secondaryTextColor)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .frame(height: 110)
+            
+            // Info bar (matching widget style)
+            HStack(spacing: 0) {
+                // Left: Flight info
+                VStack(alignment: .leading, spacing: 2) {
+                    if let flightNumber = status.currentFlightNumber {
+                        Text("FLT \(flightNumber)")
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
+                            .foregroundColor(primaryTextColor)
+                    }
+                    
+                    Text(status.currentCity ?? "In Flight")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(secondaryTextColor)
+                }
+                
+                Spacer()
+                
+                // Right: Local time at current position
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 12))
+                        Text(liveLocalTime)
+                            .font(.system(size: 16, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                    .foregroundColor(primaryTextColor)
+                    
+                    if let airport = status.currentAirport {
+                        Text(airport)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(secondaryTextColor)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(infoBarBackground)
+        }
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .onReceive(timer) { _ in
+            updateLiveLocalTime()
+        }
+        .onAppear {
+            updateLiveLocalTime()
+        }
+    }
+    
+    // MARK: - Standard Location View (Not In Flight)
+    
+    private var standardLocationView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "mappin.circle.fill")
@@ -224,6 +393,81 @@ struct LocationCardView: View {
         .onAppear {
             updateLiveLocalTime()
         }
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var primaryTextColor: Color {
+        colorScheme == .dark ? .white : Color(red: 0.1, green: 0.15, blue: 0.25)
+    }
+    
+    private var secondaryTextColor: Color {
+        colorScheme == .dark ? .gray : Color(red: 0.3, green: 0.38, blue: 0.5)
+    }
+    
+    private var urgencyColor: Color {
+        guard let arrivalTime = status.currentFlightArrivalTime else {
+            return colorScheme == .dark ? .yellow : Color(red: 0.1, green: 0.2, blue: 0.5)
+        }
+        
+        let timeRemaining = arrivalTime.timeIntervalSince(Date())
+        
+        if colorScheme == .light {
+            if timeRemaining <= 0 {
+                return Color(red: 0.4, green: 0.4, blue: 0.4)
+            } else if timeRemaining <= 900 {
+                return Color(red: 0.0, green: 0.6, blue: 0.0)
+            } else if timeRemaining <= 3600 {
+                return Color(red: 0.8, green: 0.0, blue: 0.0)
+            } else if timeRemaining <= 7200 {
+                return Color(red: 0.9, green: 0.5, blue: 0.0)
+            } else {
+                return Color(red: 0.1, green: 0.2, blue: 0.5)
+            }
+        } else {
+            if timeRemaining <= 0 {
+                return .gray
+            } else if timeRemaining <= 900 {
+                return .green
+            } else if timeRemaining <= 3600 {
+                return .red
+            } else if timeRemaining <= 7200 {
+                return .orange
+            } else {
+                return .yellow
+            }
+        }
+    }
+    
+    private var flightGradient: LinearGradient {
+        let dayColors: [Color] = colorScheme == .dark ? [
+            Color(red: 0.12, green: 0.20, blue: 0.35),
+            Color(red: 0.08, green: 0.14, blue: 0.28)
+        ] : [
+            Color(red: 0.80, green: 0.90, blue: 0.98),
+            Color(red: 0.70, green: 0.84, blue: 0.96)
+        ]
+        
+        return LinearGradient(colors: dayColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    
+    private var infoBarBackground: Color {
+        colorScheme == .dark
+            ? Color(red: 0.08, green: 0.12, blue: 0.25).opacity(0.6)
+            : Color(red: 0.65, green: 0.78, blue: 0.90).opacity(0.6)
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func formatFlightTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        if let timezone = status.currentTimezone,
+           let tz = TimeZone(identifier: timezone) {
+            formatter.timeZone = tz
+        }
+        return formatter.string(from: date) + "L"
     }
     
     private func updateLiveLocalTime() {
