@@ -26,6 +26,13 @@ struct PilotStatusView: View {
                             icon: "house.fill",
                             color: .green
                         )
+                    } else if status.displayStatus != "Home",
+                              let dayNumber = status.tripDayNumber,
+                              let totalDays = status.tripTotalDays {
+                        EstimatedReturnCardView(
+                            tripDayNumber: dayNumber,
+                            tripTotalDays: totalDays
+                        )
                     }
 
                     // Next Departure (if at home)
