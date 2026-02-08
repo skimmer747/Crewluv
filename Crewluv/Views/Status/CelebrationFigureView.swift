@@ -11,6 +11,7 @@ struct CelebrationFigureView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isAnimating = false
     @State private var isVisible = false
+    @State private var fadeOutTask: Task<Void, Never>?
 
     struct AnimationValues {
         var scale: Double = 1.0
@@ -63,12 +64,17 @@ struct CelebrationFigureView: View {
     }
 
     private func startAnimation() {
+        fadeOutTask?.cancel()
+        fadeOutTask = nil
         isVisible = true
         isAnimating.toggle()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        fadeOutTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.0))
+            guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.4)) {
                 isVisible = false
             }
+            fadeOutTask = nil
         }
     }
 }
