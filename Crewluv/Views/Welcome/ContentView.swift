@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showPasteShareAlert = false
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(CloudKitShareManager.self) private var shareManager
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -85,7 +86,7 @@ struct ContentView: View {
                             Image(systemName: "arrow.clockwise")
                         }
                         .buttonStyle(.glass)
-                        .disabled(receiver.isLoading)
+                        .disabled(receiver.isSyncing)
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
@@ -93,13 +94,18 @@ struct ContentView: View {
                         SyncDebugView(
                             lastSyncTime: lastSync,
                             lastSyncError: receiver.lastSyncError,
-                            isLoading: receiver.isLoading
+                            isSyncing: receiver.isSyncing
                         )
                     }
                 }
             }
             .refreshable {
                 await receiver.refresh()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active, !receiver.isSyncing {
+                    Task { await receiver.refresh() }
+                }
             }
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
         } else {
@@ -263,11 +269,11 @@ struct ShareAcceptingOverlay: View {
 struct SyncDebugView: View {
     let lastSyncTime: Date
     let lastSyncError: String?
-    let isLoading: Bool
+    let isSyncing: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            if isLoading {
+            if isSyncing {
                 ProgressView()
                     .controlSize(.small)
                 Text("Syncing...")

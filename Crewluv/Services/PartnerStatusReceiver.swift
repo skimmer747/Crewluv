@@ -14,6 +14,7 @@ import Observation
 class PartnerStatusReceiver {
     var pilotStatus: SharedPilotStatus? = nil
     var isLoading: Bool = true
+    var isSyncing: Bool = false
     var errorMessage: String? = nil
     var hasAcceptedShare: Bool = false
     var lastSyncTime: Date? = nil
@@ -22,7 +23,6 @@ class PartnerStatusReceiver {
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
     private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
     private var subscriptionID: String? = nil
-    private var refreshTask: Task<Void, Never>? = nil
 
     init(shareManager: CloudKitShareManager) {
         // Listen for share acceptance notification FIRST, before initial check
@@ -47,30 +47,19 @@ class PartnerStatusReceiver {
 
             debugLog("[StatusReceiver] Share state is \(shareManager.shareState), proceeding to check for data")
             await checkForSharedData()
-
-            // Start automatic refresh every 2 minutes
-            await startAutoRefresh()
-        }
-    }
-
-    /// Start automatic refresh every 2 minutes
-    private func startAutoRefresh() async {
-        refreshTask?.cancel()
-        refreshTask = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(120)) // Refresh every 2 minutes
-                if !Task.isCancelled {
-                    debugLog("[CrewLuv] Auto-refreshing status...")
-                    await refresh()
-                }
-            }
         }
     }
 
     /// Check if user has accepted a share and can access pilot status
     func checkForSharedData() async {
-        isLoading = true
-        defer { isLoading = false }
+        if pilotStatus == nil {
+            isLoading = true
+        }
+        isSyncing = true
+        defer {
+            isLoading = false
+            isSyncing = false
+        }
 
         let syncStartTime = Date()
         debugLog("[CrewLuv] 🔄 Starting sync at \(syncStartTime.formatted(date: .omitted, time: .standard))")
