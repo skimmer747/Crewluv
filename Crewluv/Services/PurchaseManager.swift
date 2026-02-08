@@ -22,6 +22,10 @@ class PurchaseManager {
     var product: Product?
     
     private var updateListenerTask: Task<Void, Never>?
+
+    #if DEBUG
+    private var debugUnlocked = false
+    #endif
     
     private init() {
         // Start listening for transaction updates in a detached task
@@ -60,6 +64,9 @@ class PurchaseManager {
             }
         }
         
+        #if DEBUG
+        if debugUnlocked { return }
+        #endif
         hasUnlockedApp = false
         debugLog("[PurchaseManager] 🔒 App locked, purchase required")
     }
@@ -142,6 +149,7 @@ class PurchaseManager {
     #if DEBUG
     func simulateUnlock() {
         hasUnlockedApp = true
+        debugUnlocked = true
         debugLog("[PurchaseManager] 🧪 DEBUG: Simulated unlock")
     }
     

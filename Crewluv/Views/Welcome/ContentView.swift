@@ -11,6 +11,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var statusReceiver: PartnerStatusReceiver?
     @State private var showShareError = false
+    @State private var showPasteShareAlert = false
     @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(CloudKitShareManager.self) private var shareManager
 
@@ -31,6 +32,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            #if DEBUG
+            purchaseManager.simulateUnlock()
+            #endif
             if statusReceiver == nil {
                 statusReceiver = PartnerStatusReceiver(shareManager: shareManager)
             }
@@ -66,6 +70,14 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(action: {
+                            showPasteShareAlert = true
+                        }) {
+                            Image(systemName: "link.badge.plus")
+                        }
+                        .buttonStyle(.glass)
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
                             Task {
                                 await receiver.refresh()
                             }
@@ -89,6 +101,7 @@ struct ContentView: View {
             .refreshable {
                 await receiver.refresh()
             }
+            .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
         } else {
             LoadingView()
         }
@@ -112,7 +125,6 @@ struct LoadingView: View {
 
 struct NoShareView: View {
     @State private var showPasteAlert = false
-    @State private var pastedURL = ""
 
     var body: some View {
         ScrollView {
@@ -180,33 +192,7 @@ struct NoShareView: View {
                 .padding()
             }
         }
-        .alert("Paste Share Link", isPresented: $showPasteAlert) {
-            TextField("Share URL", text: $pastedURL)
-            Button("Cancel", role: .cancel) { }
-            Button("Accept") {
-                acceptShareFromURL()
-            }
-        } message: {
-            Text("Paste the CloudKit share link from your pilot")
-        }
-    }
-
-    private func acceptShareFromURL() {
-        guard let url = URL(string: pastedURL) else {
-            debugLog("[CrewLuv] Invalid URL: \(pastedURL)")
-            return
-        }
-
-        debugLog("[CrewLuv] Manual share URL: \(url)")
-
-        Task {
-            do {
-                try await CloudKitShareManager.shared.acceptShare(from: url)
-                pastedURL = ""
-            } catch {
-                debugLog("[CrewLuv] ❌ Error accepting manual share: \(error)")
-            }
-        }
+        .pasteShareLinkAlert(isPresented: $showPasteAlert)
     }
 }
 
@@ -352,6 +338,48 @@ struct SyncDebugView: View {
 
         // Generic fallback for any other errors
         return "Sync failed"
+    }
+}
+
+// MARK: - Paste Share Link Modifier
+
+struct PasteShareLinkModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    @State private var pastedURL = ""
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Paste Share Link", isPresented: $isPresented) {
+                TextField("Share URL", text: $pastedURL)
+                Button("Cancel", role: .cancel) { }
+                Button("Accept") { acceptShareFromURL() }
+            } message: {
+                Text("Paste the CloudKit share link from your pilot")
+            }
+    }
+
+    private func acceptShareFromURL() {
+        guard let url = URL(string: pastedURL) else {
+            debugLog("[CrewLuv] Invalid URL: \(pastedURL)")
+            return
+        }
+
+        debugLog("[CrewLuv] Manual share URL: \(url)")
+
+        Task {
+            do {
+                try await CloudKitShareManager.shared.acceptShare(from: url)
+                pastedURL = ""
+            } catch {
+                debugLog("[CrewLuv] ❌ Error accepting manual share: \(error)")
+            }
+        }
+    }
+}
+
+extension View {
+    func pasteShareLinkAlert(isPresented: Binding<Bool>) -> some View {
+        modifier(PasteShareLinkModifier(isPresented: isPresented))
     }
 }
 
