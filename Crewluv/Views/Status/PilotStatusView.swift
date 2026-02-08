@@ -8,6 +8,13 @@
 import SwiftUI
 import Combine
 
+struct HomeCardBoundsKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>?
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
+    }
+}
+
 struct PilotStatusView: View {
     let status: SharedPilotStatus
 
@@ -26,6 +33,7 @@ struct PilotStatusView: View {
                             icon: "house.fill",
                             color: .green
                         )
+                        .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
                     } else if status.displayStatus != "Home",
                               let dayNumber = status.tripDayNumber,
                               let totalDays = status.tripTotalDays {
@@ -68,6 +76,18 @@ struct PilotStatusView: View {
             }
         }
         .scrollEdgeEffectStyle(.soft, for: .vertical)
+        .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
+            if let anchor,
+               let homeTime = status.homeArrivalTime,
+               homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
+                GeometryReader { proxy in
+                    let rect = proxy[anchor]
+                    CelebrationFigureView()
+                        .position(x: rect.maxX - 24, y: rect.minY + 12)
+                }
+                .allowsHitTesting(false)
+            }
+        }
     }
 }
 
