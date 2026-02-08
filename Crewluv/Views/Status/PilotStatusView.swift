@@ -19,7 +19,7 @@ struct PilotStatusView: View {
                     StatusHeaderView(status: status)
 
                     // Countdown Timer (if not home)
-                    if let homeTime = status.homeArrivalTime, status.computedStatus != .home {
+                    if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
                         CountdownCardView(
                             title: "Home In",
                             targetDate: homeTime,
@@ -29,7 +29,7 @@ struct PilotStatusView: View {
                     }
 
                     // Next Departure (if at home)
-                    if status.computedStatus == .home, let departureTime = status.nextDepartureTime {
+                    if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
                         CountdownCardView(
                             title: "Leaves In",
                             targetDate: departureTime,
@@ -42,7 +42,7 @@ struct PilotStatusView: View {
                     LocationCardView(status: status)
 
                     // Trip Overview (if on trip)
-                    if status.computedStatus != .home,
+                    if status.displayStatus != "Home",
                        let dayNumber = status.tripDayNumber,
                        let totalDays = status.tripTotalDays {
                         TripProgressView(
@@ -98,28 +98,17 @@ struct StatusHeaderView: View {
     }
 
     private var statusColor: Color {
-        // Use computed status based on actual flight times
-        return status.computedStatus.color
+        switch status.displayStatus {
+        case "Home": return .green
+        case "In Flight": return .blue
+        case "Turn": return .orange
+        case "Layover": return .purple
+        default: return .gray
+        }
     }
 
     private var statusText: String {
-        // Use computed status based on actual flight times
-        let computed = status.computedStatus.displayText
-
-        #if DEBUG
-        // Debug: Log if Duty app's flags differ from computed status
-        let dutyStatus: String
-        if status.isHome { dutyStatus = "Home" }
-        else if status.isInFlight { dutyStatus = "In Flight" }
-        else if status.isOnDuty { dutyStatus = "On Duty" }
-        else { dutyStatus = "On Layover" }
-
-        if computed != dutyStatus {
-            debugLog("[Status] Duty says '\(dutyStatus)' but computed is '\(computed)'")
-        }
-        #endif
-
-        return computed
+        return status.displayStatus
     }
 }
 
@@ -234,7 +223,7 @@ struct LocationCardView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        if status.computedStatus == .inFlight {
+        if status.displayStatus == "In Flight" {
             inFlightView
         } else {
             standardLocationView
@@ -549,6 +538,7 @@ struct TripProgressView: View {
     PilotStatusView(status: SharedPilotStatus(
         pilotId: "test",
         pilotFirstName: "Todd",
+        displayStatus: "In Flight",
         isHome: false,
         isInFlight: true,
         isOnDuty: true,

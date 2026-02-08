@@ -26,6 +26,9 @@ struct SharedPilotStatus: Codable, Sendable {
 
     // MARK: - Current State
 
+    let displayStatus: String        // "Home", "In Flight", "Turn", or "Layover"
+
+    // DEPRECATED: Use displayStatus instead
     let isHome: Bool
     let isInFlight: Bool
     let isOnDuty: Bool
@@ -66,70 +69,6 @@ struct SharedPilotStatus: Codable, Sendable {
     let lastUpdated: Date
     let appVersion: String
 
-    // MARK: - Computed Current Status
-
-    /// Calculates the actual current status based on flight times and current time
-    /// This provides real-time status updates even if the Duty app's boolean flags are stale
-    var computedStatus: StatusType {
-        let now = Date()
-
-        // Priority 1: Check if currently in flight
-        if let departureTime = currentFlightDepartureTime,
-           let arrivalTime = currentFlightArrivalTime {
-            if departureTime <= now && now < arrivalTime {
-                return .inFlight
-            }
-        }
-
-        // Priority 2: Check if at home
-        // Pilot is home if homeArrivalTime has passed and next departure hasn't happened yet
-        if let homeTime = homeArrivalTime {
-            if homeTime <= now {
-                // Check if next departure hasn't started yet
-                if let nextDep = nextDepartureTime, nextDep > now {
-                    return .home
-                }
-                // Or if there's no next departure scheduled
-                if nextDepartureTime == nil {
-                    return .home
-                }
-            }
-        }
-
-        // Priority 3: Check if on duty (has upcoming flights but not currently flying)
-        if nextDepartureTime != nil || currentFlightDepartureTime != nil {
-            return .onDuty
-        }
-
-        // Default: On layover
-        return .onLayover
-    }
-
-    /// Status type enum for cleaner computed status
-    enum StatusType {
-        case home
-        case inFlight
-        case onDuty
-        case onLayover
-
-        var displayText: String {
-            switch self {
-            case .home: return "Home"
-            case .inFlight: return "In Flight"
-            case .onDuty: return "On Duty"
-            case .onLayover: return "On Layover"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .home: return .green
-            case .inFlight: return .blue
-            case .onDuty, .onLayover: return .orange
-            }
-        }
-    }
-
     // MARK: - CKRecord Conversion
 
     /// Convert to CloudKit record for storage in PartnerBeaconZone
@@ -140,6 +79,7 @@ struct SharedPilotStatus: Codable, Sendable {
         // Encode all fields to record
         record["pilotId"] = pilotId as CKRecordValue
         record["pilotFirstName"] = pilotFirstName as CKRecordValue
+        record["displayStatus"] = displayStatus as CKRecordValue
         record["isHome"] = (isHome ? 1 : 0) as CKRecordValue
         record["isInFlight"] = (isInFlight ? 1 : 0) as CKRecordValue
         record["isOnDuty"] = (isOnDuty ? 1 : 0) as CKRecordValue
@@ -221,6 +161,7 @@ struct SharedPilotStatus: Codable, Sendable {
         return SharedPilotStatus(
             pilotId: pilotId,
             pilotFirstName: pilotFirstName,
+            displayStatus: record["displayStatus"] as? String ?? "Home",
             isHome: (record["isHome"] as? Int ?? 0) == 1,
             isInFlight: (record["isInFlight"] as? Int ?? 0) == 1,
             isOnDuty: (record["isOnDuty"] as? Int ?? 0) == 1,
