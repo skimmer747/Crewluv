@@ -29,6 +29,8 @@ struct CrewluvApp: App {
                 .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
                     debugLog("[CrewLuv] 📲 onContinueUserActivity triggered")
+                    debugLog("[CrewLuv]   activityType: \(userActivity.activityType)")
+                    debugLog("[CrewLuv]   webpageURL: \(userActivity.webpageURL?.absoluteString ?? "nil")")
                     if let url = userActivity.webpageURL {
                         handleShareURL(url)
                     } else {

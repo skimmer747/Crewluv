@@ -73,9 +73,13 @@ final class CloudKitShareManager {
         do {
             try await acceptAndStore(metadata: metadata)
         } catch {
-            let message = userFriendlyError(error)
-            shareState = .error(message)
-            debugLog("[ShareManager] ❌ Share acceptance failed: \(error.localizedDescription)")
+            debugLog("[ShareManager] accept(metadata) failed, scanning for zone: \(error)")
+            await checkForAcceptedShares()
+            // If scanning found the zone, we're good; otherwise report error
+            if UserDefaults.standard.string(forKey: zoneOwnerKey) == nil {
+                let message = userFriendlyError(error)
+                shareState = .error(message)
+            }
         }
     }
 

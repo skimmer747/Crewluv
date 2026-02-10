@@ -47,6 +47,12 @@ class PartnerStatusReceiver {
 
             debugLog("[StatusReceiver] Share state is \(shareManager.shareState), proceeding to check for data")
             await checkForSharedData()
+
+            // If no data found, scan shared database for accepted shares
+            // Handles: cold launch from share link, shares accepted outside the app
+            if !hasAcceptedShare {
+                await shareManager.checkForAcceptedShares()
+            }
         }
     }
 
