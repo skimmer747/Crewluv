@@ -76,9 +76,10 @@ final class CloudKitShareManager {
             debugLog("[ShareManager] accept(metadata) failed, scanning for zone: \(error)")
             await checkForAcceptedShares()
             // If scanning found the zone, we're good; otherwise report error
-            if UserDefaults.standard.string(forKey: zoneOwnerKey) == nil {
-                let message = userFriendlyError(error)
-                shareState = .error(message)
+            if UserDefaults.standard.string(forKey: zoneOwnerKey) != nil {
+                shareState = .accepted
+            } else {
+                shareState = .error(userFriendlyError(error))
             }
         }
     }

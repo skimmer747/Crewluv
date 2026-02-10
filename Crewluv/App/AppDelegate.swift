@@ -35,25 +35,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 await CloudKitShareManager.shared.acceptShare(with: metadata)
             }
         }
-
         // Path B: iCloud share URL in urlContexts
-        for ctx in options.urlContexts {
-            if ctx.url.absoluteString.contains("icloud.com/share") {
-                debugLog("[AppDelegate] Found share URL in urlContexts — accepting share")
-                let url = ctx.url
-                Task { @MainActor in
-                    try? await CloudKitShareManager.shared.acceptShare(from: url)
-                }
+        else if let shareCtx = options.urlContexts.first(where: { $0.url.absoluteString.contains("icloud.com/share") }) {
+            debugLog("[AppDelegate] Found share URL in urlContexts — accepting share")
+            let url = shareCtx.url
+            Task { @MainActor in
+                try? await CloudKitShareManager.shared.acceptShare(from: url)
             }
         }
-
         // Path C: Share URL in user activities
-        for activity in options.userActivities {
-            if let url = activity.webpageURL, url.absoluteString.contains("icloud.com/share") {
-                debugLog("[AppDelegate] Found share URL in userActivities — accepting share")
-                Task { @MainActor in
-                    try? await CloudKitShareManager.shared.acceptShare(from: url)
-                }
+        else if let shareURL = options.userActivities.compactMap({ $0.webpageURL }).first(where: { $0.absoluteString.contains("icloud.com/share") }) {
+            debugLog("[AppDelegate] Found share URL in userActivities — accepting share")
+            Task { @MainActor in
+                try? await CloudKitShareManager.shared.acceptShare(from: shareURL)
             }
         }
 
