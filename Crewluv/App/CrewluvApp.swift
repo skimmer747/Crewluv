@@ -14,6 +14,7 @@ extension Notification.Name {
 
 @main
 struct CrewluvApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var purchaseManager = PurchaseManager.shared
     @State private var shareManager = CloudKitShareManager.shared
 

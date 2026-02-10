@@ -55,38 +55,57 @@ final class CloudKitShareManager {
 
             debugLog("[ShareManager] Share metadata fetched: \(metadata.share.recordID)")
 
-            // Accept the share
-            let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
-                container.accept(metadata) { acceptedShare, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else if let acceptedShare = acceptedShare {
-                        continuation.resume(returning: acceptedShare)
-                    } else {
-                        continuation.resume(throwing: CloudKitShareError.noShare)
-                    }
-                }
-            }
-
-            debugLog("[ShareManager] ✅ Share accepted: \(acceptedShare.recordID)")
-
-            // Store the zone owner name for future access
-            let ownerName = acceptedShare.recordID.zoneID.ownerName
-            UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
-            debugLog("[ShareManager] Stored zone owner: \(ownerName)")
-
-            // Update state to accepted
-            shareState = .accepted
-
-            // Notify the app to refresh the status
-            NotificationCenter.default.post(name: .shareAccepted, object: nil)
-            debugLog("[ShareManager] Posted share acceptance notification")
+            try await acceptAndStore(metadata: metadata)
         } catch {
             let message = userFriendlyError(error)
             shareState = .error(message)
             debugLog("[ShareManager] ❌ Share acceptance failed: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    /// Accepts a CloudKit share from system-provided metadata (called by AppDelegate)
+    /// - Parameter metadata: The CKShare.Metadata delivered by iOS after the user accepted a share
+    func acceptShare(with metadata: CKShare.Metadata) async {
+        shareState = .accepting
+        debugLog("[ShareManager] Starting share acceptance from metadata")
+
+        do {
+            try await acceptAndStore(metadata: metadata)
+        } catch {
+            let message = userFriendlyError(error)
+            shareState = .error(message)
+            debugLog("[ShareManager] ❌ Share acceptance failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Accepts the share and stores zone owner info
+    private func acceptAndStore(metadata: CKShare.Metadata) async throws {
+        let acceptedShare = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare, Error>) in
+            container.accept(metadata) { acceptedShare, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let acceptedShare = acceptedShare {
+                    continuation.resume(returning: acceptedShare)
+                } else {
+                    continuation.resume(throwing: CloudKitShareError.noShare)
+                }
+            }
+        }
+
+        debugLog("[ShareManager] ✅ Share accepted: \(acceptedShare.recordID)")
+
+        // Store the zone owner name for future access
+        let ownerName = acceptedShare.recordID.zoneID.ownerName
+        UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
+        debugLog("[ShareManager] Stored zone owner: \(ownerName)")
+
+        // Update state to accepted
+        shareState = .accepted
+
+        // Notify the app to refresh the status
+        NotificationCenter.default.post(name: .shareAccepted, object: nil)
+        debugLog("[ShareManager] Posted share acceptance notification")
     }
 
     /// Checks for recently accepted shares in the shared CloudKit database
