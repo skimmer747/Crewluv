@@ -22,8 +22,8 @@ struct PilotStatusView: View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
                 VStack(spacing: 24) {
-                    // Status Header - Shows pilot name + current state
-                    StatusHeaderView(status: status)
+                    // Narrative Card - "What's happening now"
+                    NarrativeCardView(status: status)
 
                     // Countdown Timer (if not home)
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
@@ -88,54 +88,6 @@ struct PilotStatusView: View {
                 .allowsHitTesting(false)
             }
         }
-    }
-}
-
-// MARK: - Status Header View
-
-struct StatusHeaderView: View {
-    let status: SharedPilotStatus
-
-    @State private var currentTime = Date()
-    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text(status.pilotFirstName)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 12, height: 12)
-                Text(statusText)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(statusColor)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
-        .onReceive(timer) { time in
-            currentTime = time
-            // This will trigger view refresh and recompute status
-        }
-    }
-
-    private var statusColor: Color {
-        switch status.displayStatus {
-        case "Home": return .green
-        case "In Flight": return .blue
-        case "Turn": return .orange
-        case "Layover": return .purple
-        default: return .gray
-        }
-    }
-
-    private var statusText: String {
-        return status.displayStatus
     }
 }
 
@@ -588,6 +540,7 @@ struct TripProgressView: View {
         tripDayNumber: 2,
         tripTotalDays: 4,
         upcomingCities: ["Anchorage", "Hong Kong", "Shanghai"],
+        tripLegsJSON: nil,
         lastUpdated: Date(),
         appVersion: "1.0"
     ))

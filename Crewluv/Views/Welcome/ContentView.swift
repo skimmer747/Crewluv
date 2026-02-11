@@ -63,11 +63,13 @@ struct ContentView: View {
                         LoadingView()
                     } else if let status = receiver.pilotStatus {
                         PilotStatusView(status: status)
+                    } else if receiver.hasAcceptedShare {
+                        ConnectionErrorView(receiver: receiver)
                     } else {
                         NoShareView()
                     }
                 }
-                .navigationTitle("CrewLuv")
+                .navigationTitle(receiver.pilotStatus?.pilotFirstName ?? "CrewLuv")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(action: {
@@ -103,14 +105,54 @@ struct ContentView: View {
                 await receiver.refresh()
             }
             .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .active, !receiver.isSyncing {
-                    Task { await receiver.refresh() }
+                if newPhase == .active {
+                    receiver.reResolve()
+                    if !receiver.isSyncing {
+                        Task { await receiver.refresh() }
+                    }
                 }
             }
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
         } else {
             LoadingView()
         }
+    }
+}
+
+// MARK: - Connection Error View
+
+struct ConnectionErrorView: View {
+    var receiver: PartnerStatusReceiver
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "icloud.slash")
+                .font(.system(size: 60))
+                .foregroundStyle(.orange.gradient)
+
+            VStack(spacing: 8) {
+                Text("Unable to Reach iCloud")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Text(receiver.errorMessage ?? "Check your connection and try again.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: {
+                Task { await receiver.refresh() }
+            }) {
+                Label("Try Again", systemImage: "arrow.clockwise")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+            .disabled(receiver.isSyncing)
+            .padding(.horizontal, 48)
+        }
+        .padding()
     }
 }
 

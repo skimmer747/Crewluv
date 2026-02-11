@@ -64,10 +64,27 @@ struct SharedPilotStatus: Codable, Sendable {
     let tripTotalDays: Int?
     let upcomingCities: [String]     // Next few cities
 
+    // MARK: - Trip Schedule
+
+    let tripLegsJSON: Data?      // JSON-encoded [TripLeg], nil for old Duty versions
+
     // MARK: - Metadata
 
     let lastUpdated: Date
     let appVersion: String
+
+    // MARK: - Trip Legs Convenience
+
+    var tripLegs: [TripLeg] {
+        guard let data = tripLegsJSON else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return (try? decoder.decode([TripLeg].self, from: data)) ?? []
+    }
+
+    var hasTripLegs: Bool {
+        !tripLegs.isEmpty
+    }
 
     // MARK: - CKRecord Conversion
 
@@ -143,6 +160,9 @@ struct SharedPilotStatus: Codable, Sendable {
         }
 
         record["upcomingCities"] = upcomingCities as CKRecordValue
+        if let tripLegsJSON = tripLegsJSON {
+            record["tripLegsJSON"] = tripLegsJSON as CKRecordValue
+        }
         record["lastUpdated"] = lastUpdated as CKRecordValue
         record["appVersion"] = appVersion as CKRecordValue
 
@@ -184,6 +204,7 @@ struct SharedPilotStatus: Codable, Sendable {
             tripDayNumber: record["tripDayNumber"] as? Int,
             tripTotalDays: record["tripTotalDays"] as? Int,
             upcomingCities: record["upcomingCities"] as? [String] ?? [],
+            tripLegsJSON: record["tripLegsJSON"] as? Data,
             lastUpdated: lastUpdated,
             appVersion: appVersion
         )

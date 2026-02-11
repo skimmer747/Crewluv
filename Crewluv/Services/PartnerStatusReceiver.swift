@@ -23,6 +23,8 @@ class PartnerStatusReceiver {
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
     private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
     private var subscriptionID: String? = nil
+    private var rawPilotStatus: SharedPilotStatus?
+    private var transitionTask: Task<Void, Never>?
 
     init(shareManager: CloudKitShareManager) {
         // Listen for share acceptance notification FIRST, before initial check
@@ -139,7 +141,8 @@ class PartnerStatusReceiver {
                 debugLog("[CrewLuv] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
             }
             
-            pilotStatus = newStatus
+            rawPilotStatus = newStatus
+            resolveAndSchedule()
             hasAcceptedShare = true
             lastSyncTime = syncStartTime
             lastSyncError = nil
@@ -148,14 +151,88 @@ class PartnerStatusReceiver {
             debugLog("[CrewLuv] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
         } catch {
             debugLog("[CrewLuv] ❌ Error fetching status: \(error)")
-            errorMessage = "Unable to load pilot status. Make sure you've accepted the share invitation."
             lastSyncError = error.localizedDescription
-            hasAcceptedShare = false
+            // Only mark as no-share if there's no stored zone owner
+            // A stored owner means share was accepted; we just can't fetch right now
+            if UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
+                hasAcceptedShare = true
+                errorMessage = "Unable to load pilot status. Please try again."
+            } else {
+                hasAcceptedShare = false
+                errorMessage = "Please accept the share invitation from your pilot."
+            }
         }
     }
 
     /// Refresh pilot status manually
     func refresh() async {
         await checkForSharedData()
+    }
+
+    /// Instant local re-resolve from cached trip legs (no network)
+    func reResolve() {
+        resolveAndSchedule()
+    }
+
+    // MARK: - Trip State Resolution
+
+    /// Resolve current state from trip legs and schedule next transition
+    private func resolveAndSchedule() {
+        guard let raw = rawPilotStatus else {
+            pilotStatus = nil
+            return
+        }
+
+        guard raw.hasTripLegs else {
+            // No trip legs — use the status as-is (backward compat)
+            pilotStatus = raw
+            return
+        }
+
+        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, at: Date())
+
+        // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
+        pilotStatus = SharedPilotStatus(
+            pilotId: raw.pilotId,
+            pilotFirstName: raw.pilotFirstName,
+            displayStatus: resolved.displayStatus,
+            isHome: resolved.isHome,
+            isInFlight: resolved.isInFlight,
+            isOnDuty: resolved.isOnDuty,
+            currentAirport: resolved.currentAirport,
+            currentCity: resolved.currentCity,
+            currentTimezone: resolved.currentTimezone,
+            localTimeAtPilot: nil,
+            currentLatitude: nil,
+            currentLongitude: nil,
+            currentFlightNumber: resolved.currentFlightNumber,
+            currentFlightDeparture: resolved.currentFlightDeparture,
+            currentFlightArrival: resolved.currentFlightArrival,
+            currentFlightDepartureTime: resolved.currentFlightDepartureTime,
+            currentFlightArrivalTime: resolved.currentFlightArrivalTime,
+            homeArrivalTime: resolved.homeArrivalTime,
+            nextDepartureTime: resolved.nextDepartureTime,
+            nextFlightNumber: resolved.nextFlightNumber,
+            nextFlightDestination: resolved.nextFlightDestination,
+            currentTripId: raw.currentTripId,
+            tripDayNumber: resolved.tripDayNumber,
+            tripTotalDays: resolved.tripTotalDays,
+            upcomingCities: resolved.upcomingCities,
+            tripLegsJSON: raw.tripLegsJSON,
+            lastUpdated: raw.lastUpdated,
+            appVersion: raw.appVersion
+        )
+
+        debugLog("[CrewLuv] Resolved status: \(resolved.displayStatus), next transition in \(resolved.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil")s")
+
+        // Schedule re-resolve at next leg boundary
+        transitionTask?.cancel()
+        if let delay = resolved.timeUntilNextTransition, delay > 0 {
+            transitionTask = Task {
+                try? await Task.sleep(for: .seconds(delay + 0.5))
+                guard !Task.isCancelled else { return }
+                resolveAndSchedule()
+            }
+        }
     }
 }
