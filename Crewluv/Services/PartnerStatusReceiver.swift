@@ -228,10 +228,11 @@ class PartnerStatusReceiver {
         // Schedule re-resolve at next leg boundary
         transitionTask?.cancel()
         if let delay = resolved.timeUntilNextTransition, delay > 0 {
-            transitionTask = Task {
+            transitionTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(delay + 0.5))
                 guard !Task.isCancelled else { return }
-                resolveAndSchedule()
+                guard let self else { return }
+                self.resolveAndSchedule()
             }
         }
     }

@@ -53,7 +53,7 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var homeNarrative: some View {
-        if let departureTime = status.nextDepartureTime, let dest = nextDepartureCity() {
+        if let departureTime = status.nextDepartureTime, let dest = nextFlightCity() {
             Text("Home sweet home! Heads out for \(Text(dest).bold()) in \(countdownText(to: departureTime))")
         } else if let departureTime = status.nextDepartureTime {
             Text("Home sweet home! Heads out in \(countdownText(to: departureTime))")
@@ -137,19 +137,6 @@ struct NarrativeCardView: View {
             }
         }
         return status.currentFlightArrival
-    }
-
-    private func nextDepartureCity() -> String? {
-        let legs = status.tripLegs
-        if !legs.isEmpty {
-            let nextFlight = legs.first(where: { (leg: TripLeg) in
-                leg.type == .flight && leg.startTime > now
-            })
-            if let city = nextFlight?.arrivalCity, !city.isEmpty {
-                return city
-            }
-        }
-        return status.nextFlightDestination
     }
 
     private func nextFlightCity() -> String? {
