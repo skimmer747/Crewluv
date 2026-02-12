@@ -225,31 +225,31 @@ struct LocationCardView: View {
                         Text(status.currentFlightDeparture ?? "---")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(primaryTextColor)
-                        
+
                         if let depTime = status.currentFlightDepartureTime {
-                            Text(formatFlightTime(depTime))
+                            Text(formatFlightTime(depTime, timezoneId: status.currentTimezone))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(secondaryTextColor)
                         }
                     }
-                    
+
                     Spacer()
-                    
+
                     // Arrow with flight progress
                     Image(systemName: "airplane")
                         .font(.system(size: 24, weight: .medium))
                         .foregroundColor(urgencyColor)
-                    
+
                     Spacer()
-                    
+
                     // Arrival
                     VStack(spacing: 4) {
                         Text(status.currentFlightArrival ?? "---")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(primaryTextColor)
-                        
+
                         if let arrTime = status.currentFlightArrivalTime {
-                            Text(formatFlightTime(arrTime))
+                            Text(formatFlightTime(arrTime, timezoneId: status.currentFlightArrivalTimezone))
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundColor(secondaryTextColor)
                         }
@@ -277,7 +277,7 @@ struct LocationCardView: View {
                 
                 Spacer()
                 
-                // Right: Local time at current position
+                // Right: Local time at arrival airport
                 VStack(alignment: .trailing, spacing: 2) {
                     HStack(spacing: 4) {
                         Image(systemName: "location.fill")
@@ -287,8 +287,8 @@ struct LocationCardView: View {
                             .monospacedDigit()
                     }
                     .foregroundColor(primaryTextColor)
-                    
-                    if let airport = status.currentAirport {
+
+                    if let airport = status.currentFlightArrival {
                         Text(airport)
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(secondaryTextColor)
@@ -335,20 +335,10 @@ struct LocationCardView: View {
                 HStack {
                     Image(systemName: "clock.fill")
                         .foregroundColor(.secondary)
-                    Text("Local time: \(liveLocalTime)")
+                    Text("Local time: \(liveLocalTime) \(timezoneAbbreviation)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .monospacedDigit()
-                }
-            }
-
-            if let timezone = status.currentTimezone {
-                HStack {
-                    Image(systemName: "globe")
-                        .foregroundColor(.secondary)
-                    Text(timezone)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -425,26 +415,36 @@ struct LocationCardView: View {
             : Color(red: 0.65, green: 0.78, blue: 0.90).opacity(0.6)
     }
     
+    private var timezoneAbbreviation: String {
+        guard let id = status.currentTimezone,
+              let tz = TimeZone(identifier: id) else { return "" }
+        return tz.abbreviation(for: Date())?.lowercased() ?? ""
+    }
+
     // MARK: - Helper Methods
-    
-    private func formatFlightTime(_ date: Date) -> String {
+
+    private func formatFlightTime(_ date: Date, timezoneId: String?) -> String {
         let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        if let timezone = status.currentTimezone,
-           let tz = TimeZone(identifier: timezone) {
-            formatter.timeZone = tz
-        }
-        return formatter.string(from: date) + "L"
+        formatter.dateFormat = "h:mm a"
+        let tz: TimeZone? = timezoneId.flatMap { TimeZone(identifier: $0) }
+        if let tz { formatter.timeZone = tz }
+        let time = formatter.string(from: date).lowercased()
+        let tzAbbr = (tz ?? .current).abbreviation(for: date)?.lowercased() ?? ""
+        return "\(time) \(tzAbbr)"
     }
     
     private func updateLiveLocalTime() {
-        guard let timezoneIdentifier = status.currentTimezone,
+        // When in-flight, show arrival airport's local time; otherwise departure/current
+        let tzId = status.isInFlight
+            ? (status.currentFlightArrivalTimezone ?? status.currentTimezone)
+            : status.currentTimezone
+
+        guard let timezoneIdentifier = tzId,
               let timezone = TimeZone(identifier: timezoneIdentifier) else {
             liveLocalTime = status.localTimeAtPilot ?? ""
             return
         }
-        
+
         let formatter = DateFormatter()
         formatter.timeZone = timezone
         formatter.timeStyle = .short
@@ -532,6 +532,7 @@ struct TripProgressView: View {
         currentFlightArrival: "ANC",
         currentFlightDepartureTime: Date(),
         currentFlightArrivalTime: Date().addingTimeInterval(14400),
+        currentFlightArrivalTimezone: "America/Anchorage",
         homeArrivalTime: Date().addingTimeInterval(172800),
         nextDepartureTime: nil,
         nextFlightNumber: nil,

@@ -210,6 +210,7 @@ class PartnerStatusReceiver {
             currentFlightArrival: resolved.currentFlightArrival,
             currentFlightDepartureTime: resolved.currentFlightDepartureTime,
             currentFlightArrivalTime: resolved.currentFlightArrivalTime,
+            currentFlightArrivalTimezone: resolved.currentFlightArrivalTimezone,
             homeArrivalTime: resolved.homeArrivalTime,
             nextDepartureTime: resolved.nextDepartureTime,
             nextFlightNumber: resolved.nextFlightNumber,

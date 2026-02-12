@@ -49,6 +49,7 @@ struct SharedPilotStatus: Codable, Sendable {
     let currentFlightArrival: String?
     let currentFlightDepartureTime: Date?
     let currentFlightArrivalTime: Date?
+    let currentFlightArrivalTimezone: String?
 
     // MARK: - Countdown Timers
 
@@ -135,6 +136,9 @@ struct SharedPilotStatus: Codable, Sendable {
         if let currentFlightArrivalTime = currentFlightArrivalTime {
             record["currentFlightArrivalTime"] = currentFlightArrivalTime as CKRecordValue
         }
+        if let currentFlightArrivalTimezone = currentFlightArrivalTimezone {
+            record["currentFlightArrivalTimezone"] = currentFlightArrivalTimezone as CKRecordValue
+        }
 
         if let homeArrivalTime = homeArrivalTime {
             record["homeArrivalTime"] = homeArrivalTime as CKRecordValue
@@ -196,6 +200,7 @@ struct SharedPilotStatus: Codable, Sendable {
             currentFlightArrival: record["currentFlightArrival"] as? String,
             currentFlightDepartureTime: record["currentFlightDepartureTime"] as? Date,
             currentFlightArrivalTime: record["currentFlightArrivalTime"] as? Date,
+            currentFlightArrivalTimezone: record["currentFlightArrivalTimezone"] as? String,
             homeArrivalTime: record["homeArrivalTime"] as? Date,
             nextDepartureTime: record["nextDepartureTime"] as? Date,
             nextFlightNumber: record["nextFlightNumber"] as? String,
