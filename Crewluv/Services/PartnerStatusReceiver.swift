@@ -20,13 +20,31 @@ class PartnerStatusReceiver {
     var lastSyncTime: Date? = nil
     var lastSyncError: String? = nil
 
+    // MARK: - Data Source
+
+    enum DataSource: String {
+        case shared
+        case privateDB
+    }
+
+    var dataSource: DataSource? = nil
+
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
     private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
+    private var privateDatabase: CKDatabase { container.privateCloudDatabase }
+    private let dataSourceKey = "PilotDataSource"
     private var subscriptionID: String? = nil
     private var rawPilotStatus: SharedPilotStatus?
     private var transitionTask: Task<Void, Never>?
 
     init(shareManager: CloudKitShareManager) {
+        // Restore persisted data source
+        if let raw = UserDefaults.standard.string(forKey: dataSourceKey),
+           let source = DataSource(rawValue: raw) {
+            dataSource = source
+            debugLog("[StatusReceiver] Restored data source: \(raw)")
+        }
+
         // Listen for share acceptance notification FIRST, before initial check
         NotificationCenter.default.addObserver(
             forName: .shareAccepted,
@@ -54,6 +72,11 @@ class PartnerStatusReceiver {
             // Handles: cold launch from share link, shares accepted outside the app
             if !hasAcceptedShare {
                 await shareManager.checkForAcceptedShares()
+            }
+
+            // If still no data found, check private database (same-account scenario)
+            if !hasAcceptedShare {
+                await checkPrivateDatabase()
             }
         }
     }
@@ -83,17 +106,27 @@ class PartnerStatusReceiver {
                 return
             }
 
-            // Get the stored zone owner name from when the share was accepted
-            // This is set by CrewluvApp when the user taps the share link
-            guard let ownerName = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                debugLog("[CrewLuv] No stored zone owner - share not yet accepted")
-                hasAcceptedShare = false
-                lastSyncError = "No share accepted"
-                errorMessage = "Please accept the share invitation from your pilot."
-                return
-            }
+            // Determine which database and owner to use
+            let database: CKDatabase
+            let ownerName: String
 
-            debugLog("[CrewLuv] Using stored zone owner: \(ownerName)")
+            if dataSource == .privateDB {
+                database = privateDatabase
+                ownerName = CKCurrentUserDefaultName
+                debugLog("[CrewLuv] Using private database (same-account mode)")
+            } else {
+                // Get the stored zone owner name from when the share was accepted
+                guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
+                    debugLog("[CrewLuv] No stored zone owner - share not yet accepted")
+                    hasAcceptedShare = false
+                    lastSyncError = "No share accepted"
+                    errorMessage = "Please accept the share invitation from your pilot."
+                    return
+                }
+                database = sharedDatabase
+                ownerName = storedOwner
+                debugLog("[CrewLuv] Using shared database with zone owner: \(ownerName)")
+            }
 
             // Construct the zone ID with the owner name
             let zoneID = CKRecordZone.ID(zoneName: "PartnerBeaconZone", ownerName: ownerName)
@@ -105,7 +138,7 @@ class PartnerStatusReceiver {
             debugLog("[CrewLuv] Fetching SharedPilotStatus record: \(statusRecordID.recordName)")
 
             let statusRecord = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
-                sharedDatabase.fetch(withRecordID: statusRecordID) { record, error in
+                database.fetch(withRecordID: statusRecordID) { record, error in
                     if let error = error {
                         continuation.resume(throwing: error)
                     } else if let record = record {
@@ -152,9 +185,8 @@ class PartnerStatusReceiver {
         } catch {
             debugLog("[CrewLuv] ❌ Error fetching status: \(error)")
             lastSyncError = error.localizedDescription
-            // Only mark as no-share if there's no stored zone owner
-            // A stored owner means share was accepted; we just can't fetch right now
-            if UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
+            // Keep hasAcceptedShare true if we have a known data source
+            if dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
                 hasAcceptedShare = true
                 errorMessage = "Unable to load pilot status. Please try again."
             } else {
@@ -167,6 +199,35 @@ class PartnerStatusReceiver {
     /// Refresh pilot status manually
     func refresh() async {
         await checkForSharedData()
+
+        // If shared path found nothing and we're not already in private mode, try private DB
+        if !hasAcceptedShare && dataSource != .privateDB {
+            await checkPrivateDatabase()
+        }
+    }
+
+    /// Check the private database for PartnerBeaconZone (same-account scenario)
+    private func checkPrivateDatabase() async {
+        debugLog("[CrewLuv] Checking private database for PartnerBeaconZone...")
+
+        do {
+            let allZones = try await privateDatabase.allRecordZones()
+            debugLog("[CrewLuv] Found \(allZones.count) private zones")
+
+            for zone in allZones {
+                if zone.zoneID.zoneName == "PartnerBeaconZone" {
+                    debugLog("[CrewLuv] ✅ Found PartnerBeaconZone in private database!")
+                    dataSource = .privateDB
+                    UserDefaults.standard.set(DataSource.privateDB.rawValue, forKey: dataSourceKey)
+                    await checkForSharedData()
+                    return
+                }
+            }
+
+            debugLog("[CrewLuv] No PartnerBeaconZone in private database")
+        } catch {
+            debugLog("[CrewLuv] Error checking private database: \(error)")
+        }
     }
 
     /// Instant local re-resolve from cached trip legs (no network)

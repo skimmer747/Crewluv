@@ -165,7 +165,8 @@ final class CloudKitShareManager {
     /// Useful for resetting the app to accept a new share
     func resetShareData() {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
-        debugLog("[CrewLuv] Cleared stored zone owner")
+        UserDefaults.standard.removeObject(forKey: "PilotDataSource")
+        debugLog("[CrewLuv] Cleared stored zone owner and data source")
     }
 
     /// Resets the share state to idle
