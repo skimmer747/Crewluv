@@ -22,9 +22,10 @@ struct TimelineRowView: View {
                         .fill(iconColor.opacity(0.2))
                         .frame(width: 36, height: 36)
 
-                    Image(systemName: iconName)
+                    Image(systemName: iconName(isActive: isActive))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(iconColor)
+                        .symbolEffect(.pulse, isActive: isActive)
                 }
 
                 // Title + subtitle
@@ -52,16 +53,20 @@ struct TimelineRowView: View {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular, in: .rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
+            )
         }
     }
 
     // MARK: - Icon
 
-    private var iconName: String {
+    private func iconName(isActive: Bool) -> String {
         switch leg.type {
-        case .flight:     return "airplane"
+        case .flight:     return isActive ? "airplane.departure" : "airplane"
         case .turn:       return "clock.arrow.circlepath"
-        case .layover:    return "bed.double.fill"
+        case .layover:    return isActive ? "moon.zzz.fill" : "bed.double.fill"
         case .home:       return "house.fill"
         default:          return "clock"
         }
