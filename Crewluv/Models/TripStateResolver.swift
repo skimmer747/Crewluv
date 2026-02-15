@@ -86,7 +86,7 @@ enum TripStateResolver {
             ? (airportTimezone(leg.departureAirport) ?? leg.timezoneIdentifier)
             : (airportTimezone(leg.airportCode) ?? leg.timezoneIdentifier)
         let arrivalTimezone: String? = isInFlight
-            ? (airportTimezone(leg.arrivalAirport) ?? futureLegs.first?.timezoneIdentifier)
+            ? airportTimezone(leg.arrivalAirport)
             : nil
 
         return ResolvedPilotState(

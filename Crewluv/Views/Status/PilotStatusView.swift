@@ -18,6 +18,18 @@ struct HomeCardBoundsKey: PreferenceKey {
 struct PilotStatusView: View {
     let status: SharedPilotStatus
 
+    private var scheduleChevron: some View {
+        HStack(spacing: 2) {
+            Text("Schedule")
+                .font(.caption2)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundColor(.secondary)
+        .padding(.trailing, 12)
+        .padding(.top, 12)
+    }
+
     var body: some View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
@@ -25,32 +37,72 @@ struct PilotStatusView: View {
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status)
 
-                    // Countdown Timer (if not home)
+                    // Countdown Timer (if not home) — taps open schedule
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
-                        CountdownCardView(
-                            title: "Home In",
-                            targetDate: homeTime,
-                            icon: "house.fill",
-                            color: .green
-                        )
-                        .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
+                        NavigationLink(destination: EventTimelineView(status: status)) {
+                            CountdownCardView(
+                                title: "Home In",
+                                targetDate: homeTime,
+                                icon: "house.fill",
+                                color: .green
+                            )
+                            .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
+                            .overlay(alignment: .topTrailing) {
+                                scheduleChevron
+                            }
+                        }
+                        .buttonStyle(.plain)
                     } else if status.displayStatus != "Home",
                               let dayNumber = status.tripDayNumber,
                               let totalDays = status.tripTotalDays {
-                        EstimatedReturnCardView(
-                            tripDayNumber: dayNumber,
-                            tripTotalDays: totalDays
-                        )
+                        NavigationLink(destination: EventTimelineView(status: status)) {
+                            EstimatedReturnCardView(
+                                tripDayNumber: dayNumber,
+                                tripTotalDays: totalDays
+                            )
+                            .overlay(alignment: .topTrailing) {
+                                scheduleChevron
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
 
-                    // Next Departure (if at home)
+                    // Next Departure (if at home) — taps open schedule
                     if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
-                        CountdownCardView(
-                            title: "Leaves In",
-                            targetDate: departureTime,
-                            icon: "airplane.departure",
-                            color: .blue
-                        )
+                        NavigationLink(destination: EventTimelineView(status: status)) {
+                            CountdownCardView(
+                                title: "Leaves In",
+                                targetDate: departureTime,
+                                icon: "airplane.departure",
+                                color: .blue
+                            )
+                            .overlay(alignment: .topTrailing) {
+                                scheduleChevron
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Schedule card when home with no departure time
+                    if status.displayStatus == "Home" && status.nextDepartureTime == nil {
+                        NavigationLink(destination: EventTimelineView(status: status)) {
+                            HStack {
+                                Image(systemName: "calendar")
+                                    .font(.title2)
+                                    .foregroundColor(.blue)
+                                Text("View Schedule")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     // Location Card

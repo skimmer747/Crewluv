@@ -20,6 +20,7 @@ struct TripLeg: Codable, Sendable {
     }
 
     let id: String
+    let tripId: String?
     let type: LegType
     let startTime: Date
     let endTime: Date
