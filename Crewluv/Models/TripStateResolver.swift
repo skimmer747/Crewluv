@@ -64,10 +64,18 @@ enum TripStateResolver {
         // Find the boundary: the first .home leg after the current leg marks the trip end
         let homeArrivalTime: Date? = {
             guard !isHome else { return nil }
+
+            // Scope to current trip by tripId
+            if let tripId = leg.tripId {
+                let tripLegs = sorted.filter { $0.tripId == tripId && $0.type != .home }
+                if let lastLeg = tripLegs.last {
+                    return lastLeg.endTime
+                }
+            }
+
+            // Fallback: segment-based logic for legs without tripId
             guard let currentIndex = sorted.firstIndex(where: { $0.id == leg.id }) else { return nil }
-            // Find where this trip segment ends (next .home leg or end of array)
             let segmentEnd = sorted[currentIndex...].firstIndex { $0.type == .home } ?? sorted.endIndex
-            // Last non-home leg within this segment
             return sorted[currentIndex..<segmentEnd].last { $0.type != .home }?.endTime
         }()
 
