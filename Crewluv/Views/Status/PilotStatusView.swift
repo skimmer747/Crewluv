@@ -265,52 +265,8 @@ struct LocationCardView: View {
     
     private var inFlightView: some View {
         VStack(spacing: 0) {
-            // Flight route display with gradient background
-            ZStack {
-                // Background gradient
-                flightGradient
-                
-                // Route information
-                HStack(spacing: 12) {
-                    // Departure
-                    VStack(spacing: 4) {
-                        Text(status.currentFlightDeparture ?? "---")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(primaryTextColor)
-
-                        if let depTime = status.currentFlightDepartureTime {
-                            Text(formatFlightTime(depTime, timezoneId: status.currentTimezone))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(secondaryTextColor)
-                        }
-                    }
-
-                    Spacer()
-
-                    // Arrow with flight progress
-                    Image(systemName: "airplane")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(urgencyColor)
-
-                    Spacer()
-
-                    // Arrival
-                    VStack(spacing: 4) {
-                        Text(status.currentFlightArrival ?? "---")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(primaryTextColor)
-
-                        if let arrTime = status.currentFlightArrivalTime {
-                            Text(formatFlightTime(arrTime, timezoneId: status.currentFlightArrivalTimezone))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(secondaryTextColor)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-            }
-            .frame(height: 110)
+            // Flight route map visualization
+            FlightRouteMapView(status: status)
             
             // Info bar (matching widget style)
             HStack(spacing: 0) {
@@ -350,6 +306,7 @@ struct LocationCardView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(infoBarBackground)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 0))
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .onReceive(timer) { _ in
@@ -415,52 +372,6 @@ struct LocationCardView: View {
         colorScheme == .dark ? .gray : Color(red: 0.3, green: 0.38, blue: 0.5)
     }
     
-    private var urgencyColor: Color {
-        guard let arrivalTime = status.currentFlightArrivalTime else {
-            return colorScheme == .dark ? .yellow : Color(red: 0.1, green: 0.2, blue: 0.5)
-        }
-        
-        let timeRemaining = arrivalTime.timeIntervalSince(Date())
-        
-        if colorScheme == .light {
-            if timeRemaining <= 0 {
-                return Color(red: 0.4, green: 0.4, blue: 0.4)
-            } else if timeRemaining <= 900 {
-                return Color(red: 0.0, green: 0.6, blue: 0.0)
-            } else if timeRemaining <= 3600 {
-                return Color(red: 0.8, green: 0.0, blue: 0.0)
-            } else if timeRemaining <= 7200 {
-                return Color(red: 0.9, green: 0.5, blue: 0.0)
-            } else {
-                return Color(red: 0.1, green: 0.2, blue: 0.5)
-            }
-        } else {
-            if timeRemaining <= 0 {
-                return .gray
-            } else if timeRemaining <= 900 {
-                return .green
-            } else if timeRemaining <= 3600 {
-                return .red
-            } else if timeRemaining <= 7200 {
-                return .orange
-            } else {
-                return .yellow
-            }
-        }
-    }
-    
-    private var flightGradient: LinearGradient {
-        let dayColors: [Color] = colorScheme == .dark ? [
-            Color(red: 0.12, green: 0.20, blue: 0.35),
-            Color(red: 0.08, green: 0.14, blue: 0.28)
-        ] : [
-            Color(red: 0.80, green: 0.90, blue: 0.98),
-            Color(red: 0.70, green: 0.84, blue: 0.96)
-        ]
-        
-        return LinearGradient(colors: dayColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
     private var infoBarBackground: Color {
         colorScheme == .dark
             ? Color(red: 0.08, green: 0.12, blue: 0.25).opacity(0.6)
@@ -475,16 +386,6 @@ struct LocationCardView: View {
 
     // MARK: - Helper Methods
 
-    private func formatFlightTime(_ date: Date, timezoneId: String?) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let tz: TimeZone? = timezoneId.flatMap { TimeZone(identifier: $0) }
-        if let tz { formatter.timeZone = tz }
-        let time = formatter.string(from: date).lowercased()
-        let tzAbbr = (tz ?? .current).abbreviation(for: date)?.lowercased() ?? ""
-        return "\(time) \(tzAbbr)"
-    }
-    
     private func updateLiveLocalTime() {
         // When in-flight, show arrival airport's local time; otherwise departure/current
         let tzId = status.isInFlight
