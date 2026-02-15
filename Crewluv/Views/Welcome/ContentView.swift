@@ -62,42 +62,26 @@ struct ContentView: View {
                     if receiver.isLoading {
                         LoadingView()
                     } else if let status = receiver.pilotStatus {
-                        PilotStatusView(status: status)
+                        PilotStatusView(
+                            status: status,
+                            lastSyncTime: receiver.lastSyncTime,
+                            lastSyncError: receiver.lastSyncError,
+                            isSyncing: receiver.isSyncing,
+                            onPasteShareLink: { showPasteShareAlert = true },
+                            onRefresh: { Task { await receiver.refresh() } }
+                        )
                     } else if receiver.hasAcceptedShare {
                         ConnectionErrorView(receiver: receiver)
                     } else {
                         NoShareView()
                     }
                 }
-                .navigationTitle(receiver.pilotStatus?.pilotFirstName ?? "CrewLuv")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            showPasteShareAlert = true
-                        }) {
-                            Image(systemName: "link.badge.plus")
-                        }
-                        .buttonStyle(.glass)
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            Task {
-                                await receiver.refresh()
-                            }
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .buttonStyle(.glass)
-                        .disabled(receiver.isSyncing)
-                    }
-                }
-                .safeAreaInset(edge: .bottom) {
-                    if let lastSync = receiver.lastSyncTime {
-                        SyncDebugView(
-                            lastSyncTime: lastSync,
-                            lastSyncError: receiver.lastSyncError,
-                            isSyncing: receiver.isSyncing
-                        )
+                    ToolbarItem(placement: .principal) {
+                        Text(receiver.pilotStatus != nil ? "Where's \(receiver.pilotStatus!.pilotFirstName)?" : "CrewLuv")
+                            .font(.title2)
+                            .fontWeight(.bold)
                     }
                 }
             }

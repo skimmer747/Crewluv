@@ -523,7 +523,8 @@ struct FlightRouteMapView: View {
         let lat2 = end.latitude * .pi / 180
         let lon2 = end.longitude * .pi / 180
 
-        let d = acos(sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(lon2 - lon1))
+        let cosD = sin(lat1) * sin(lat2) + cos(lat1) * cos(lat2) * cos(lon2 - lon1)
+        let d = acos(min(1.0, max(-1.0, cosD)))
         if d < 0.0001 { return start }
 
         let a = sin((1 - fraction) * d) / sin(d)
