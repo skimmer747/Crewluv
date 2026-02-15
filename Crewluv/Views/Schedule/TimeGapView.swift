@@ -13,9 +13,9 @@ struct TimeGapView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Dashed line
+            // Dashed line connecting timeline legs across the gap
             Rectangle()
-                .fill(gapColor.opacity(0.4))
+                .stroke(gapColor.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4]))
                 .frame(width: 1, height: 20)
                 .padding(.leading, 18) // align with icon center (12 padding + 18 half of 36)
 

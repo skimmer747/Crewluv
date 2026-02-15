@@ -175,11 +175,11 @@ struct TripCalendarView: View {
             case .flight:
                 return .flying  // Highest priority, return immediately
             case .turn, .layover:
-                if result != .home { result = .away }
+                result = .away
             case .home:
                 if result == .none { result = .home }
             default:
-                if result == .none { result = .away }
+                result = .away
             }
         }
 

@@ -17,28 +17,26 @@ struct EventTimelineView: View {
     }
 
     var body: some View {
-        ScrollView {
-            GlassEffectContainer(spacing: 16) {
-                VStack(spacing: 0) {
-                    // Calendar grid
-                    TripCalendarView(
-                        tripLegs: legs,
-                        selectedDate: $selectedDate
-                    )
+        VStack(spacing: 0) {
+            // Calendar grid – pinned at top
+            TripCalendarView(
+                tripLegs: legs,
+                selectedDate: $selectedDate
+            )
 
-                    Divider()
-                        .padding(.horizontal)
+            Divider()
+                .padding(.horizontal)
 
-                    // Leg list
-                    if legs.isEmpty {
-                        emptyState
-                    } else {
-                        legList
-                    }
+            // Leg list – scrollable
+            ScrollView {
+                if legs.isEmpty {
+                    emptyState
+                } else {
+                    legList
                 }
             }
+            .scrollEdgeEffectStyle(.soft, for: .vertical)
         }
-        .scrollEdgeEffectStyle(.soft, for: .vertical)
         .navigationTitle("Schedule")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -102,9 +100,13 @@ struct EventTimelineView: View {
             ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
                 TimelineRowView(leg: leg)
 
-                // Gap between consecutive legs
+                // Gap between consecutive legs (hide when < 1 minute)
                 if index < section.legs.count - 1 {
-                    TimeGapView(fromLeg: leg, toLeg: section.legs[index + 1])
+                    let nextLeg = section.legs[index + 1]
+                    let gap = nextLeg.startTime.timeIntervalSince(leg.endTime)
+                    if gap >= 60 {
+                        TimeGapView(fromLeg: leg, toLeg: nextLeg)
+                    }
                 }
             }
         }

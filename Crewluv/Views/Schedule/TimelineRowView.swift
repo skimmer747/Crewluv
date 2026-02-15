@@ -11,36 +11,48 @@ struct TimelineRowView: View {
     let leg: TripLeg
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Icon circle
-            ZStack {
-                Circle()
-                    .fill(iconColor.opacity(0.2))
-                    .frame(width: 36, height: 36)
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let now = context.date
+            let isActive = leg.startTime <= now && now <= leg.endTime
 
-                Image(systemName: iconName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(iconColor)
-            }
+            HStack(spacing: 12) {
+                // Icon circle
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.2))
+                        .frame(width: 36, height: 36)
 
-            // Title + subtitle
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    Image(systemName: iconName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
 
-                Text(subtitle)
+                // Title + subtitle
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Duration / countdown
+                Text(durationText(now: now))
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .fontWeight(isActive ? .semibold : .regular)
+                    .foregroundColor(isActive ? iconColor : .secondary)
+                    .monospacedDigit()
             }
-
-            Spacer()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular, in: .rect(cornerRadius: 14))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
     }
 
     // MARK: - Icon
@@ -129,5 +141,37 @@ struct TimelineRowView: View {
         let start = fmt.string(from: leg.startTime).lowercased()
         let end = fmt.string(from: leg.endTime).lowercased()
         return "\(start) \(tzAbbr) – \(end) \(tzAbbr)"
+    }
+
+    // MARK: - Duration
+
+    private func durationText(now: Date) -> String {
+        let isActive = leg.startTime <= now && now <= leg.endTime
+        let interval = isActive
+            ? leg.endTime.timeIntervalSince(now)
+            : leg.endTime.timeIntervalSince(leg.startTime)
+        return formattedDuration(max(interval, 0), showSeconds: isActive)
+    }
+
+    private func formattedDuration(_ interval: TimeInterval, showSeconds: Bool = false) -> String {
+        let total = Int(interval)
+        let days = total / 86400
+        let hours = (total % 86400) / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+
+        if days > 0 {
+            return hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+        } else if hours > 0 {
+            if showSeconds {
+                return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            }
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        } else {
+            if showSeconds {
+                return String(format: "%d:%02d", minutes, seconds)
+            }
+            return "\(minutes)m"
+        }
     }
 }
