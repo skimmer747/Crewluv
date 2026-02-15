@@ -98,18 +98,36 @@ struct TimelineRowView: View {
 
     // MARK: - Subtitle (local times)
 
-    private static let timeFormatter: DateFormatter = {
+    // Thread-safe cache of DateFormatters keyed by timezone identifier.
+    // DateFormatter is expensive to create, so we cache one per timezone.
+    // NSLock protects the dictionary from concurrent access.
+    private static var formatterCache: [String: DateFormatter] = [:]
+    private static let formatterLock = NSLock()
+
+    /// Returns a cached DateFormatter configured for "h:mm a" in the given timezone.
+    /// Creates and caches a new one if none exists yet for that timezone.
+    private static func formatter(for timeZone: TimeZone) -> DateFormatter {
+        let key = timeZone.identifier
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+
+        if let cached = formatterCache[key] {
+            return cached
+        }
+
         let fmt = DateFormatter()
-        fmt.dateFormat = "h:mm a"
+        fmt.dateFormat = "h:mma"
+        fmt.timeZone = timeZone
+        formatterCache[key] = fmt
         return fmt
-    }()
+    }
 
     private var subtitle: String {
-        let tz: TimeZone = leg.timezoneIdentifier
-            .flatMap { TimeZone(identifier: $0) } ?? .current
-        Self.timeFormatter.timeZone = tz
-        let start = Self.timeFormatter.string(from: leg.startTime).lowercased()
-        let end = Self.timeFormatter.string(from: leg.endTime).lowercased()
-        return "\(start) – \(end)"
+        let tz = TimeZone.current
+        let fmt = Self.formatter(for: tz)
+        let tzAbbr = (tz.abbreviation() ?? "").lowercased()
+        let start = fmt.string(from: leg.startTime).lowercased()
+        let end = fmt.string(from: leg.endTime).lowercased()
+        return "\(start) \(tzAbbr) – \(end) \(tzAbbr)"
     }
 }
