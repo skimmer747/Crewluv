@@ -735,10 +735,12 @@ struct TripProgressView: View {
                                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                                 .foregroundColor(.secondary)
                             HStack(spacing: 1.5) {
-                                ForEach(0..<8, id: \.self) { _ in
+                                ForEach(0..<8, id: \.self) { i in
+                                    let seed = city.hashValue &+ i
+                                    let width = CGFloat(2 + abs(seed) % 5)
                                     Rectangle()
                                         .fill(Color.primary.opacity(0.4))
-                                        .frame(width: CGFloat.random(in: 2...6), height: 10)
+                                        .frame(width: width, height: 10)
                                 }
                             }
                             .padding(.top, 2)
