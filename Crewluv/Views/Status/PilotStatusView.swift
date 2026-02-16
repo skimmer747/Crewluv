@@ -280,9 +280,10 @@ struct CountdownCardView: View {
 
 struct LocationCardView: View {
     let status: SharedPilotStatus
-    
+
     @Environment(\.colorScheme) private var colorScheme
     @State private var liveLocalTime: String = ""
+    @State private var currentWeather: WeatherSnapshot? = nil
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -352,35 +353,76 @@ struct LocationCardView: View {
     // MARK: - Standard Location View (Not In Flight)
     
     private var standardLocationView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "mappin.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.red)
-                Text(status.currentCity ?? "Unknown Location")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-            }
-
-            if let airport = status.currentAirport {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Image(systemName: "airplane")
-                        .foregroundColor(.secondary)
-                    Text(airport)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.red)
+                    Text(status.currentCity ?? "Unknown Location")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    if let flag = countryFlagEmoji {
+                        Text(flag)
+                            .font(.title)
+                    }
+                }
+
+                if let weather = currentWeather {
+                    HStack(spacing: 8) {
+                        Image(systemName: weather.conditionSymbol)
+                            .symbolRenderingMode(.multicolor)
+                            .font(.title2)
+                        Text(weather.temperature)
+                            .font(.title3)
+                            .fontWeight(.bold)
+                        Text(weather.conditionDescription)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let airport = status.currentAirport {
+                    HStack {
+                        Image(systemName: "airplane")
+                            .foregroundColor(.secondary)
+                        Text(airport)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if status.currentTimezone != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "clock.fill")
+                                .foregroundColor(.secondary)
+                            Text("Current local time: \(liveLocalTime) \(timezoneAbbreviation)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        if let diff = timeDifferenceText {
+                            Text(diff)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.leading, 24)
+                        }
+                    }
                 }
             }
 
-            if status.currentTimezone != nil {
-                HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(.secondary)
-                    Text("Local time: \(liveLocalTime) \(timezoneAbbreviation)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                }
+            // Sun arc in upper right
+            if let weather = currentWeather,
+               let sunrise = weather.sunrise,
+               let sunset = weather.sunset {
+                SunArcView(
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    isDaylight: weather.isDaylight,
+                    timezone: status.currentTimezone,
+                    conditionSymbol: weather.conditionSymbol
+                )
+                .offset(x: -4, y: -2)
             }
         }
         .padding()
@@ -391,6 +433,9 @@ struct LocationCardView: View {
         }
         .onAppear {
             updateLiveLocalTime()
+        }
+        .task(id: status.currentAirport) {
+            await loadWeather()
         }
     }
     
@@ -416,7 +461,47 @@ struct LocationCardView: View {
         return tz.abbreviation(for: Date())?.lowercased() ?? ""
     }
 
+    private var countryFlagEmoji: String? {
+        guard let iata = status.currentAirport else { return nil }
+        return AirportDataProvider.shared.airportInfo(forIataCode: iata)?.countryFlagEmoji
+    }
+
+    private var timeDifferenceText: String? {
+        guard let id = status.currentTimezone,
+              let pilotTZ = TimeZone(identifier: id) else { return nil }
+        let now = Date()
+        let pilotOffset = pilotTZ.secondsFromGMT(for: now)
+        let localOffset = TimeZone.current.secondsFromGMT(for: now)
+        let diffSeconds = pilotOffset - localOffset
+
+        if diffSeconds == 0 { return "same time as you" }
+
+        let absDiff = abs(diffSeconds)
+        let hours = absDiff / 3600
+        let minutes = (absDiff % 3600) / 60
+        let direction = diffSeconds > 0 ? "ahead of you" : "behind you"
+
+        if minutes == 0 {
+            return "\(hours)h \(direction)"
+        } else {
+            return "\(hours)h \(minutes)m \(direction)"
+        }
+    }
+
     // MARK: - Helper Methods
+
+    private func loadWeather() async {
+        guard let iata = status.currentAirport,
+              let airport = AirportDataProvider.shared.airportInfo(forIataCode: iata) else {
+            currentWeather = nil
+            return
+        }
+        currentWeather = await WeatherService.shared.currentWeather(
+            forAirport: iata,
+            latitude: airport.latitude,
+            longitude: airport.longitude
+        )
+    }
 
     private func updateLiveLocalTime() {
         // When in-flight, show arrival airport's local time; otherwise departure/current
@@ -435,6 +520,125 @@ struct LocationCardView: View {
         formatter.timeStyle = .short
         formatter.dateStyle = .none
         liveLocalTime = formatter.string(from: Date())
+    }
+}
+
+// MARK: - Sun Arc View
+
+struct SunArcView: View {
+    let sunrise: Date
+    let sunset: Date
+    let isDaylight: Bool
+    let timezone: String?
+    var conditionSymbol: String = "sun.max.fill"
+
+    private let viewWidth: CGFloat = 80
+    private let viewHeight: CGFloat = 52
+
+    var body: some View {
+        let horizonY: CGFloat = viewHeight * 0.68
+        let centerX = viewWidth / 2
+        let radius: CGFloat = 30
+        let centerY = horizonY
+
+        ZStack {
+            Canvas { context, size in
+                // Horizon line
+                let horizonPath = Path { p in
+                    p.move(to: CGPoint(x: 4, y: horizonY))
+                    p.addLine(to: CGPoint(x: viewWidth - 4, y: horizonY))
+                }
+                context.stroke(horizonPath, with: .color(.gray.opacity(0.3)), lineWidth: 1)
+
+                // Arc path
+                let arcPath = Path { p in
+                    p.addArc(
+                        center: CGPoint(x: centerX, y: centerY),
+                        radius: radius,
+                        startAngle: .degrees(180),
+                        endAngle: .degrees(0),
+                        clockwise: false
+                    )
+                }
+
+                let colors = isDaylight
+                    ? [Color.orange.opacity(0.7), Color.yellow.opacity(0.9), Color.orange.opacity(0.7)]
+                    : [Color.blue.opacity(0.35), Color.gray.opacity(0.45), Color.blue.opacity(0.35)]
+
+                context.stroke(
+                    arcPath,
+                    with: .linearGradient(
+                        Gradient(colors: colors),
+                        startPoint: CGPoint(x: centerX - radius, y: centerY),
+                        endPoint: CGPoint(x: centerX + radius, y: centerY)),
+                    style: StrokeStyle(lineWidth: 2.5, dash: [4, 2])
+                )
+            }
+
+            // Sun or moon icon
+            let iconPos = sunIconPosition(centerX: centerX, centerY: centerY, radius: radius)
+
+            if isDaylight {
+                Image(systemName: conditionSymbol)
+                    .symbolRenderingMode(.multicolor)
+                    .font(.system(size: 12))
+                    .shadow(color: .orange.opacity(0.4), radius: 3)
+                    .position(iconPos)
+            } else {
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .position(iconPos)
+            }
+
+            // Sunrise label
+            Text(formatTime(sunrise))
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+                .position(x: centerX - radius + 2, y: horizonY + 10)
+
+            // Sunset label
+            Text(formatTime(sunset))
+                .font(.system(size: 8))
+                .foregroundColor(.secondary)
+                .position(x: centerX + radius - 2, y: horizonY + 10)
+        }
+        .frame(width: viewWidth, height: viewHeight)
+    }
+
+    private func sunIconPosition(centerX: CGFloat, centerY: CGFloat, radius: CGFloat) -> CGPoint {
+        let now = Date()
+        let totalDaylight = sunset.timeIntervalSince(sunrise)
+        guard totalDaylight > 0 else {
+            return CGPoint(x: centerX, y: centerY - radius)
+        }
+
+        let elapsed = now.timeIntervalSince(sunrise)
+        let progress = max(0, min(1, elapsed / totalDaylight))
+
+        if isDaylight {
+            let angle = Double.pi * (1 - progress)
+            let x = centerX + radius * cos(angle)
+            let y = centerY - radius * sin(angle)
+            return CGPoint(x: x, y: y)
+        } else {
+            if now < sunrise {
+                return CGPoint(x: centerX - radius, y: centerY + 4)
+            } else {
+                return CGPoint(x: centerX + radius, y: centerY + 4)
+            }
+        }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mma"
+        formatter.amSymbol = "a"
+        formatter.pmSymbol = "p"
+        if let tzId = timezone, let tz = TimeZone(identifier: tzId) {
+            formatter.timeZone = tz
+        }
+        return formatter.string(from: date)
     }
 }
 
