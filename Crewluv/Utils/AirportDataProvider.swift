@@ -33,6 +33,13 @@ class AirportDataProvider {
 
     // MARK: - Airport Database
 
+    /// Look up airport info by city name (returns first match)
+    func airportInfo(forCity city: String) -> AirportData? {
+        airports.values.first { $0.city == city }
+    }
+
+    // MARK: - Airport Database
+
     private static func buildAirportDatabase() -> [String: AirportData] {
         let entries: [(String, String, String, Double, Double)] = [
             // UPS Hubs
@@ -323,4 +330,65 @@ class AirportDataProvider {
         }
         return dict
     }
+}
+
+// MARK: - Country Flag Support
+
+extension AirportData {
+    /// Returns flag emoji for non-USA countries, nil for USA
+    var countryFlagEmoji: String? {
+        guard country != "USA" else { return nil }
+        return Self.countryFlags[country]
+    }
+
+    var isInternational: Bool {
+        country != "USA"
+    }
+
+    private static let countryFlags: [String: String] = [
+        "Canada": "\u{1F1E8}\u{1F1E6}",
+        "Mexico": "\u{1F1F2}\u{1F1FD}",
+        "Germany": "\u{1F1E9}\u{1F1EA}",
+        "China": "\u{1F1E8}\u{1F1F3}",
+        "UK": "\u{1F1EC}\u{1F1E7}",
+        "Puerto Rico": "\u{1F1F5}\u{1F1F7}",
+        "South Korea": "\u{1F1F0}\u{1F1F7}",
+        "Japan": "\u{1F1EF}\u{1F1F5}",
+        "Taiwan": "\u{1F1F9}\u{1F1FC}",
+        "Singapore": "\u{1F1F8}\u{1F1EC}",
+        "Thailand": "\u{1F1F9}\u{1F1ED}",
+        "India": "\u{1F1EE}\u{1F1F3}",
+        "UAE": "\u{1F1E6}\u{1F1EA}",
+        "France": "\u{1F1EB}\u{1F1F7}",
+        "Netherlands": "\u{1F1F3}\u{1F1F1}",
+        "Belgium": "\u{1F1E7}\u{1F1EA}",
+        "Spain": "\u{1F1EA}\u{1F1F8}",
+        "Italy": "\u{1F1EE}\u{1F1F9}",
+        "US Virgin Islands": "\u{1F1FB}\u{1F1EE}",
+        "Bahamas": "\u{1F1E7}\u{1F1F8}",
+        "Jamaica": "\u{1F1EF}\u{1F1F2}",
+        "Aruba": "\u{1F1E6}\u{1F1FC}",
+        "Curaçao": "\u{1F1E8}\u{1F1FC}",
+        "Sint Maarten": "\u{1F1F8}\u{1F1FD}",
+        "Barbados": "\u{1F1E7}\u{1F1E7}",
+        "Trinidad and Tobago": "\u{1F1F9}\u{1F1F9}",
+        "Dominican Republic": "\u{1F1E9}\u{1F1F4}",
+        "Turks and Caicos": "\u{1F1F9}\u{1F1E8}",
+        "Cayman Islands": "\u{1F1F0}\u{1F1FE}",
+        "Panama": "\u{1F1F5}\u{1F1E6}",
+        "Costa Rica": "\u{1F1E8}\u{1F1F7}",
+        "Guatemala": "\u{1F1EC}\u{1F1F9}",
+        "El Salvador": "\u{1F1F8}\u{1F1FB}",
+        "Honduras": "\u{1F1ED}\u{1F1F3}",
+        "Nicaragua": "\u{1F1F3}\u{1F1EE}",
+        "Belize": "\u{1F1E7}\u{1F1FF}",
+        "Colombia": "\u{1F1E8}\u{1F1F4}",
+        "Brazil": "\u{1F1E7}\u{1F1F7}",
+        "Argentina": "\u{1F1E6}\u{1F1F7}",
+        "Chile": "\u{1F1E8}\u{1F1F1}",
+        "Peru": "\u{1F1F5}\u{1F1EA}",
+        "Ecuador": "\u{1F1EA}\u{1F1E8}",
+        "Venezuela": "\u{1F1FB}\u{1F1EA}",
+        "Uruguay": "\u{1F1FA}\u{1F1FE}",
+    ]
 }

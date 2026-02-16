@@ -481,7 +481,9 @@ struct LocationCardView: View {
         let minutes = (absDiff % 3600) / 60
         let direction = diffSeconds > 0 ? "ahead of you" : "behind you"
 
-        if minutes == 0 {
+        if hours == 0 {
+            return "\(minutes)m \(direction)"
+        } else if minutes == 0 {
             return "\(hours)h \(direction)"
         } else {
             return "\(hours)h \(minutes)m \(direction)"
