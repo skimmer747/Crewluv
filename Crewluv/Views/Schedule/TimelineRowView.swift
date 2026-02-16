@@ -133,6 +133,7 @@ struct TimelineRowView: View {
         }
 
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "h:mma"
         fmt.timeZone = timeZone
         formatterCache[key] = fmt
