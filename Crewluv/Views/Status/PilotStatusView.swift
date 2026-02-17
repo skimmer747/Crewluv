@@ -679,7 +679,7 @@ struct TripProgressView: View {
         "Amsterdam": "🇳🇱", "Seoul": "🇰🇷", "Shanghai": "🇨🇳", "Beijing": "🇨🇳",
         "Shenzhen": "🇨🇳", "Hong Kong": "🇭🇰", "Taipei": "🇹🇼",
         "Sydney": "🇦🇺", "Melbourne": "🇦🇺", "Singapore": "🇸🇬",
-        "Dubai": "🇦🇪", "Delhi": "🇮🇳", "Mumbai": "🇮🇳",
+        "Dubai": "🇦🇪", "Delhi": "🇮🇳", "Mumbai": "🇮🇳", "Bangalore": "🇮🇳",
         "São Paulo": "🇧🇷", "Rio de Janeiro": "🇧🇷", "Bogota": "🇨🇴",
         "Lima": "🇵🇪", "Buenos Aires": "🇦🇷", "Santiago": "🇨🇱",
         "Rome": "🇮🇹", "Milan": "🇮🇹", "Madrid": "🇪🇸", "Barcelona": "🇪🇸",
