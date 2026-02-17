@@ -715,7 +715,7 @@ struct TripProgressView: View {
         "Amsterdam": "AMS", "Seoul": "ICN", "Shanghai": "PVG", "Beijing": "PEK",
         "Shenzhen": "SZX", "Hong Kong": "HKG", "Taipei": "TPE",
         "Sydney": "SYD", "Melbourne": "MEL", "Singapore": "SIN",
-        "Dubai": "DXB", "Delhi": "DEL", "Mumbai": "BOM",
+        "Dubai": "DXB", "Delhi": "DEL", "Mumbai": "BOM", "Bangalore": "BLR",
         "São Paulo": "GRU", "Rio de Janeiro": "GIG", "Bogota": "BOG",
         "Lima": "LIM", "Buenos Aires": "EZE", "Santiago": "SCL",
         "Rome": "FCO", "Milan": "MXP", "Madrid": "MAD", "Barcelona": "BCN",
@@ -750,7 +750,7 @@ struct TripProgressView: View {
         "Beijing": "Ni hao!", "Shenzhen": "Ni hao!", "Hong Kong": "Ni hao!",
         "Taipei": "Ni hao!",
         "Sydney": "G'day!", "Melbourne": "G'day!", "Singapore": "Hello!",
-        "Dubai": "Marhaba!", "Delhi": "Namaste!", "Mumbai": "Namaste!",
+        "Dubai": "Marhaba!", "Delhi": "Namaste!", "Mumbai": "Namaste!", "Bangalore": "Namaste!",
         "São Paulo": "Ola!", "Rio de Janeiro": "Ola!", "Bogota": "Hola!",
         "Lima": "Hola!", "Buenos Aires": "Hola!", "Santiago": "Hola!",
         "Rome": "Ciao!", "Milan": "Ciao!", "Madrid": "Hola!",
@@ -1090,7 +1090,7 @@ struct TripProgressView: View {
 
                             // City dots and labels
                             ForEach(Array(upcomingCities.enumerated()), id: \.offset) { index, city in
-                                let showGreeting = index > 0 && index <= landedCity
+                                let showGreeting = index <= landedCity
                                 VStack(spacing: 3) {
                                     Circle()
                                         .fill(Color.blue)
@@ -1103,6 +1103,7 @@ struct TripProgressView: View {
                                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                                         .foregroundColor(.orange)
                                         .fixedSize()
+                                        .frame(width: 0)
                                 }
                                 .offset(x: 16 + spacing * CGFloat(index) - 5)
                             }
