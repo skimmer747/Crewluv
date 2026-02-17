@@ -282,6 +282,7 @@ struct LocationCardView: View {
     let status: SharedPilotStatus
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var liveLocalTime: String = ""
     @State private var currentWeather: WeatherSnapshot? = nil
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -419,8 +420,7 @@ struct LocationCardView: View {
                     sunrise: sunrise,
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
-                    timezone: status.currentTimezone,
-                    conditionSymbol: weather.conditionSymbol
+                    timezone: status.currentTimezone
                 )
                 .offset(x: -4, y: -2)
             }
@@ -436,6 +436,11 @@ struct LocationCardView: View {
         }
         .task(id: status.currentAirport) {
             await loadWeather()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await loadWeather() }
+            }
         }
     }
     
@@ -532,8 +537,6 @@ struct SunArcView: View {
     let sunset: Date
     let isDaylight: Bool
     let timezone: String?
-    var conditionSymbol: String = "sun.max.fill"
-
     private let viewWidth: CGFloat = 80
     private let viewHeight: CGFloat = 52
 
@@ -581,7 +584,7 @@ struct SunArcView: View {
             let iconPos = sunIconPosition(centerX: centerX, centerY: centerY, radius: radius)
 
             if isDaylight {
-                Image(systemName: conditionSymbol)
+                Image(systemName: "sun.max.fill")
                     .symbolRenderingMode(.multicolor)
                     .font(.system(size: 12))
                     .shadow(color: .orange.opacity(0.4), radius: 3)
