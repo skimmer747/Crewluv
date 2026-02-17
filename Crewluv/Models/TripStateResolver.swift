@@ -97,6 +97,26 @@ enum TripStateResolver {
             ? airportTimezone(leg.arrivalAirport)
             : nil
 
+        // Compute trip day dynamically using calendar days in base airport timezone
+        let computedDayNumber: Int? = {
+            guard let tripId = leg.tripId,
+                  let total = leg.tripTotalDays else { return leg.tripDayNumber }
+            let tripLegs = sorted.filter { $0.tripId == tripId && $0.type != .home }
+            guard let firstLeg = tripLegs.first else { return leg.tripDayNumber }
+
+            // Base timezone = first leg's departure airport (trips always start from base)
+            let tzId = airportTimezone(firstLeg.departureAirport ?? firstLeg.airportCode)
+            var calendar = Calendar.current
+            if let tzId, let tz = TimeZone(identifier: tzId) {
+                calendar.timeZone = tz
+            }
+
+            let tripStartDay = calendar.startOfDay(for: firstLeg.startTime)
+            let today = calendar.startOfDay(for: now)
+            let elapsed = calendar.dateComponents([.day], from: tripStartDay, to: today).day ?? 0
+            return min(max(elapsed + 1, 1), total)
+        }()
+
         return ResolvedPilotState(
             displayStatus: displayStatus,
             isHome: isHome,
@@ -115,7 +135,7 @@ enum TripStateResolver {
             nextDepartureTime: nextDepartureTime,
             nextFlightNumber: nextFlightLeg?.flightNumber,
             nextFlightDestination: nextFlightLeg?.arrivalAirport,
-            tripDayNumber: leg.tripDayNumber,
+            tripDayNumber: computedDayNumber,
             tripTotalDays: leg.tripTotalDays,
             upcomingCities: upcomingCities,
             timeUntilNextTransition: timeUntilNextTransition > 0 ? timeUntilNextTransition : nil
