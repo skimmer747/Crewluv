@@ -43,7 +43,8 @@ final class WeatherService {
                 .measurement(width: .narrow, usage: .weather,
                              numberFormatStyle: .number.precision(.fractionLength(0)))
             )
-            let today = daily.first
+            let calendar = Calendar.current
+            let today = daily.first { calendar.isDateInToday($0.date) }
             let snapshot = WeatherSnapshot(
                 temperature: temp,
                 conditionSymbol: current.symbolName,

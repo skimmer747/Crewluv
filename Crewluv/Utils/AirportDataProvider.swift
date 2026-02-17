@@ -1,3 +1,4 @@
+
 //
 //  AirportDataProvider.swift
 //  CrewLuv
@@ -33,13 +34,12 @@ class AirportDataProvider {
 
     // MARK: - Airport Database
 
-    /// Look up airport info by city name (returns first match)
-    func airportInfo(forCity city: String) -> AirportData? {
-        airports.values.first { $0.city == city }
+    /// Look up airport info by city name (returns all matches)
+    func airportInfo(forCity city: String) -> [AirportData] {
+        airports.values.filter { $0.city.caseInsensitiveCompare(city) == .orderedSame }
     }
 
     // MARK: - Airport Database
-
     private static func buildAirportDatabase() -> [String: AirportData] {
         let entries: [(String, String, String, Double, Double)] = [
             // UPS Hubs
