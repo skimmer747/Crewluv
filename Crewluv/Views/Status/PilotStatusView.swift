@@ -285,6 +285,8 @@ struct LocationCardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var liveLocalTime: String = ""
     @State private var currentWeather: WeatherSnapshot? = nil
+    @State private var timeDiffStyle: TimeDiffStyle = .odometer
+    @State private var timeDiffAnimationID = UUID()
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -397,32 +399,37 @@ struct LocationCardView: View {
                         HStack {
                             Image(systemName: "clock.fill")
                                 .foregroundColor(.secondary)
-                            Text("Current local time: \(liveLocalTime) \(timezoneAbbreviation)")
+                            Text("Current time: \(liveLocalTime) \(timezoneAbbreviation)")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .monospacedDigit()
                         }
-                        if let diff = timeDifferenceText {
-                            Text(diff)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        if let diff = timeDifference {
+                            TimeDiffAnimatedView(diff: diff, style: timeDiffStyle)
+                                .id(timeDiffAnimationID)
                                 .padding(.leading, 24)
+                                .onTapGesture {
+                                    let all = TimeDiffStyle.allCases
+                                    let idx = all.firstIndex(of: timeDiffStyle)!
+                                    timeDiffStyle = all[(idx + 1) % all.count]
+                                    timeDiffAnimationID = UUID()
+                                }
                         }
                     }
                 }
             }
 
-            // Sun arc in upper right
+            // Sun circle clock in upper right
             if let weather = currentWeather,
                let sunrise = weather.sunrise,
                let sunset = weather.sunset {
-                SunArcView(
+                SunCircleView(
                     sunrise: sunrise,
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone
                 )
-                .offset(x: -4, y: -2)
+                .offset(x: 0, y: -6)
             }
         }
         .padding()
@@ -471,7 +478,7 @@ struct LocationCardView: View {
         return AirportDataProvider.shared.airportInfo(forIataCode: iata)?.countryFlagEmoji
     }
 
-    private var timeDifferenceText: String? {
+    private var timeDifference: TimeDifference? {
         guard let id = status.currentTimezone,
               let pilotTZ = TimeZone(identifier: id) else { return nil }
         let now = Date()
@@ -479,20 +486,18 @@ struct LocationCardView: View {
         let localOffset = TimeZone.current.secondsFromGMT(for: now)
         let diffSeconds = pilotOffset - localOffset
 
-        if diffSeconds == 0 { return "same time as you" }
-
         let absDiff = abs(diffSeconds)
         let hours = absDiff / 3600
         let minutes = (absDiff % 3600) / 60
         let direction = diffSeconds > 0 ? "ahead of you" : "behind you"
 
-        if hours == 0 {
-            return "\(minutes)m \(direction)"
-        } else if minutes == 0 {
-            return "\(hours)h \(direction)"
-        } else {
-            return "\(hours)h \(minutes)m \(direction)"
-        }
+        return TimeDifference(
+            hours: hours,
+            minutes: minutes,
+            totalSeconds: diffSeconds,
+            direction: direction,
+            isSameTime: diffSeconds == 0
+        )
     }
 
     // MARK: - Helper Methods
@@ -530,109 +535,307 @@ struct LocationCardView: View {
     }
 }
 
-// MARK: - Sun Arc View
+// MARK: - Time Difference Model & Animations
 
-struct SunArcView: View {
+private struct TimeDifference {
+    let hours: Int
+    let minutes: Int
+    let totalSeconds: Int   // positive = ahead, negative = behind
+    let direction: String   // "ahead of you" / "behind you"
+    let isSameTime: Bool
+    var isAhead: Bool { totalSeconds > 0 }
+    var color: Color { isSameTime ? .secondary : (isAhead ? .blue : .orange) }
+
+    var formattedText: String {
+        if isSameTime { return "same time as you" }
+        if hours == 0 {
+            return "\(minutes)m \(direction)"
+        } else if minutes == 0 {
+            return "\(hours)h \(direction)"
+        } else {
+            return "\(hours)h \(minutes)m \(direction)"
+        }
+    }
+}
+
+private enum TimeDiffStyle: CaseIterable {
+    case odometer, clockIcon, rubberBand
+}
+
+private struct TimeDiffAnimatedView: View {
+    let diff: TimeDifference
+    let style: TimeDiffStyle
+
+    var body: some View {
+        if diff.isSameTime {
+            Text("same time as you")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        } else {
+            switch style {
+            case .odometer:
+                OdometerTimeDiffView(diff: diff)
+            case .clockIcon:
+                SpinningClockTimeDiffView(diff: diff)
+            case .rubberBand:
+                RubberBandTimeDiffView(diff: diff)
+            }
+        }
+    }
+}
+
+// MARK: Style 1 — Counting Odometer
+
+private struct OdometerTimeDiffView: View {
+    let diff: TimeDifference
+
+    @State private var displayedHours: Int = 0
+    @State private var showMinutes: Bool = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("\(displayedHours)")
+                .foregroundColor(diff.color)
+                .fontWeight(.semibold)
+                .contentTransition(.numericText())
+                .monospacedDigit()
+            Text("h")
+                .foregroundColor(.secondary)
+            if diff.minutes > 0 {
+                Text(" \(diff.minutes)")
+                    .foregroundColor(diff.color)
+                    .fontWeight(.semibold)
+                    .contentTransition(.numericText())
+                    .monospacedDigit()
+                    .opacity(showMinutes ? 1 : 0)
+                Text("m")
+                    .foregroundColor(.secondary)
+                    .opacity(showMinutes ? 1 : 0)
+            }
+            Text(" \(diff.direction)")
+                .foregroundColor(.secondary)
+        }
+        .font(.caption)
+        .onAppear {
+            guard diff.hours > 0 else {
+                displayedHours = 0
+                showMinutes = true
+                return
+            }
+            var step = 0
+            func tick() {
+                step += 1
+                if step <= diff.hours {
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        displayedHours = step
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { tick() }
+                } else {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        showMinutes = true
+                    }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { tick() }
+        }
+    }
+}
+
+// MARK: Style 2 — Spinning Clock Icon
+
+private struct SpinningClockTimeDiffView: View {
+    let diff: TimeDifference
+
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .foregroundColor(diff.color)
+                .rotationEffect(.degrees(rotation))
+            Text(diff.formattedText)
+                .foregroundColor(.secondary)
+        }
+        .font(.caption)
+        .onAppear {
+            let target: Double = diff.isAhead ? 360 : -360
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.5)) {
+                rotation = target
+            }
+        }
+    }
+}
+
+// MARK: Style 3 — Rubber-band Snap
+
+private struct RubberBandTimeDiffView: View {
+    let diff: TimeDifference
+
+    @State private var appeared: Bool = false
+
+    var body: some View {
+        Text(diff.formattedText)
+            .font(.caption)
+            .fontWeight(.medium)
+            .foregroundColor(diff.color)
+            .offset(x: appeared ? 0 : (diff.isAhead ? 80 : -80))
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.55)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+// MARK: - Sun Circle View (24-Hour Clock)
+
+struct SunCircleView: View {
     let sunrise: Date
     let sunset: Date
     let isDaylight: Bool
     let timezone: String?
-    private let viewWidth: CGFloat = 80
-    private let viewHeight: CGFloat = 52
+
+    private let viewWidth: CGFloat = 160
+    private let viewHeight: CGFloat = 160
+    private let radius: CGFloat = 42
 
     var body: some View {
-        let horizonY: CGFloat = viewHeight * 0.68
-        let centerX = viewWidth / 2
-        let radius: CGFloat = 30
-        let centerY = horizonY
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let center = CGPoint(x: viewWidth / 2, y: viewHeight / 2 + 2)
+            let sunriseAngle = angleForTime(sunrise)
+            let sunsetAngle = angleForTime(sunset)
+            let currentAngle = angleForTime(timeline.date)
 
-        ZStack {
-            Canvas { context, size in
-                // Horizon line
-                let horizonPath = Path { p in
-                    p.move(to: CGPoint(x: 4, y: horizonY))
-                    p.addLine(to: CGPoint(x: viewWidth - 4, y: horizonY))
+            ZStack {
+                Canvas { context, size in
+                    // Daytime filled wedge (sunrise → sunset, visually clockwise)
+                    let dayWedge = Path { p in
+                        p.move(to: center)
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunriseAngle, endAngle: sunsetAngle,
+                                 clockwise: false)
+                        p.closeSubpath()
+                    }
+                    context.fill(dayWedge, with: .color(.orange.opacity(0.15)))
+
+                    // Nighttime filled wedge (sunset → sunrise, visually clockwise)
+                    let nightWedge = Path { p in
+                        p.move(to: center)
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunsetAngle, endAngle: sunriseAngle,
+                                 clockwise: false)
+                        p.closeSubpath()
+                    }
+                    context.fill(nightWedge, with: .color(.blue.opacity(0.1)))
+
+                    // Daytime arc stroke (orange/yellow gradient)
+                    let dayArc = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunriseAngle, endAngle: sunsetAngle,
+                                 clockwise: false)
+                    }
+                    context.stroke(dayArc, with: .linearGradient(
+                        Gradient(colors: [.orange, .yellow, .orange]),
+                        startPoint: pointOnCircle(angle: sunriseAngle, radius: radius, center: center),
+                        endPoint: pointOnCircle(angle: sunsetAngle, radius: radius, center: center)
+                    ), style: StrokeStyle(lineWidth: 2.5))
+
+                    // Nighttime arc stroke (blue/gray, dashed)
+                    let nightArc = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunsetAngle, endAngle: sunriseAngle,
+                                 clockwise: false)
+                    }
+                    context.stroke(nightArc, with: .linearGradient(
+                        Gradient(colors: [.blue.opacity(0.5), .gray.opacity(0.4), .blue.opacity(0.5)]),
+                        startPoint: pointOnCircle(angle: sunsetAngle, radius: radius, center: center),
+                        endPoint: pointOnCircle(angle: sunriseAngle, radius: radius, center: center)
+                    ), style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+
+                    // Tick marks at sunrise and sunset
+                    let tickLen: CGFloat = 6
+                    for angle in [sunriseAngle, sunsetAngle] {
+                        let inner = pointOnCircle(angle: angle, radius: radius - tickLen / 2, center: center)
+                        let outer = pointOnCircle(angle: angle, radius: radius + tickLen / 2, center: center)
+                        var tick = Path()
+                        tick.move(to: inner)
+                        tick.addLine(to: outer)
+                        context.stroke(tick, with: .color(.primary.opacity(0.5)), lineWidth: 1.5)
+                    }
+
+                    // Noon marker triangle at top of circle (270°)
+                    let noonAngle = Angle.degrees(270)
+                    let noonTip = pointOnCircle(angle: noonAngle, radius: radius, center: center)
+                    let noonBase = pointOnCircle(angle: noonAngle, radius: radius + 6, center: center)
+                    let noonTriangle = Path { p in
+                        p.move(to: noonTip)
+                        p.addLine(to: CGPoint(x: noonBase.x - 3.5, y: noonBase.y))
+                        p.addLine(to: CGPoint(x: noonBase.x + 3.5, y: noonBase.y))
+                        p.closeSubpath()
+                    }
+                    context.fill(noonTriangle, with: .color(.primary.opacity(0.4)))
                 }
-                context.stroke(horizonPath, with: .color(.gray.opacity(0.3)), lineWidth: 1)
 
-                // Arc path
-                let arcPath = Path { p in
-                    p.addArc(
-                        center: CGPoint(x: centerX, y: centerY),
-                        radius: radius,
-                        startAngle: .degrees(180),
-                        endAngle: .degrees(0),
-                        clockwise: false
-                    )
+                // Sun or moon icon at current time position
+                if isDaylight {
+                    Image(systemName: "sun.max.fill")
+                        .symbolRenderingMode(.multicolor)
+                        .font(.system(size: 14))
+                        .shadow(color: .orange.opacity(0.5), radius: 4)
+                        .position(pointOnCircle(angle: currentAngle, radius: radius, center: center))
+                } else {
+                    Image(systemName: "moon.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .position(pointOnCircle(angle: currentAngle, radius: radius, center: center))
                 }
 
-                let colors = isDaylight
-                    ? [Color.orange.opacity(0.7), Color.yellow.opacity(0.9), Color.orange.opacity(0.7)]
-                    : [Color.blue.opacity(0.35), Color.gray.opacity(0.45), Color.blue.opacity(0.35)]
+                // Noon label above triangle
+                Text("Noon")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+                    .position(x: center.x, y: center.y - radius - 14)
 
-                context.stroke(
-                    arcPath,
-                    with: .linearGradient(
-                        Gradient(colors: colors),
-                        startPoint: CGPoint(x: centerX - radius, y: centerY),
-                        endPoint: CGPoint(x: centerX + radius, y: centerY)),
-                    style: StrokeStyle(lineWidth: 2.5, dash: [4, 2])
-                )
+                // Sunrise time label
+                let sunriseLabelPos = pointOnCircle(angle: sunriseAngle, radius: radius + 38, center: center)
+                Text(formatTime(sunrise))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.primary)
+                    .position(x: max(22, min(viewWidth - 22, sunriseLabelPos.x)),
+                              y: max(8, min(viewHeight - 8, sunriseLabelPos.y)))
+
+                // Sunset time label
+                let sunsetLabelPos = pointOnCircle(angle: sunsetAngle, radius: radius + 38, center: center)
+                Text(formatTime(sunset))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.primary)
+                    .position(x: max(22, min(viewWidth - 22, sunsetLabelPos.x)),
+                              y: max(8, min(viewHeight - 8, sunsetLabelPos.y)))
             }
-
-            // Sun or moon icon
-            let iconPos = sunIconPosition(centerX: centerX, centerY: centerY, radius: radius)
-
-            if isDaylight {
-                Image(systemName: "sun.max.fill")
-                    .symbolRenderingMode(.multicolor)
-                    .font(.system(size: 12))
-                    .shadow(color: .orange.opacity(0.4), radius: 3)
-                    .position(iconPos)
-            } else {
-                Image(systemName: "moon.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .position(iconPos)
-            }
-
-            // Sunrise label
-            Text(formatTime(sunrise))
-                .font(.system(size: 8))
-                .foregroundColor(.secondary)
-                .position(x: centerX - radius + 2, y: horizonY + 10)
-
-            // Sunset label
-            Text(formatTime(sunset))
-                .font(.system(size: 8))
-                .foregroundColor(.secondary)
-                .position(x: centerX + radius - 2, y: horizonY + 10)
+            .frame(width: viewWidth, height: viewHeight)
         }
-        .frame(width: viewWidth, height: viewHeight)
     }
 
-    private func sunIconPosition(centerX: CGFloat, centerY: CGFloat, radius: CGFloat) -> CGPoint {
-        let now = Date()
-        let totalDaylight = sunset.timeIntervalSince(sunrise)
-        guard totalDaylight > 0 else {
-            return CGPoint(x: centerX, y: centerY - radius)
+    /// Convert a Date to a circle angle: midnight=bottom, 6am=left, noon=top, 6pm=right
+    private func angleForTime(_ date: Date) -> Angle {
+        var cal = Calendar.current
+        if let tzId = timezone, let tz = TimeZone(identifier: tzId) {
+            cal.timeZone = tz
         }
+        let hour = cal.component(.hour, from: date)
+        let minute = cal.component(.minute, from: date)
+        let hoursFromMidnight = Double(hour) + Double(minute) / 60.0
+        let degrees = 90.0 + (hoursFromMidnight / 24.0) * 360.0
+        return .degrees(degrees)
+    }
 
-        let elapsed = now.timeIntervalSince(sunrise)
-        let progress = max(0, min(1, elapsed / totalDaylight))
-
-        if isDaylight {
-            let angle = Double.pi * (1 - progress)
-            let x = centerX + radius * cos(angle)
-            let y = centerY - radius * sin(angle)
-            return CGPoint(x: x, y: y)
-        } else {
-            if now < sunrise {
-                return CGPoint(x: centerX - radius, y: centerY + 4)
-            } else {
-                return CGPoint(x: centerX + radius, y: centerY + 4)
-            }
-        }
+    private func pointOnCircle(angle: Angle, radius: CGFloat, center: CGPoint) -> CGPoint {
+        let rad = CGFloat(angle.radians)
+        return CGPoint(
+            x: center.x + radius * cos(rad),
+            y: center.y + radius * sin(rad)
+        )
     }
 
     private func formatTime(_ date: Date) -> String {
