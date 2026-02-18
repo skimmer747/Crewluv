@@ -76,7 +76,13 @@ struct EventTimelineView: View {
             .onChange(of: selectedDate) { _, newDate in
                 guard let newDate else { return }
                 let cal = Calendar.current
-                if let target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) }) {
+                let startOfNew = cal.startOfDay(for: newDate)
+
+                // Exact match first, then fall back to the last section on or before the selected day
+                let target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
+                    ?? groupedSections.last(where: { $0.date <= startOfNew })
+
+                if let target {
                     withAnimation {
                         proxy.scrollTo(target.dateId, anchor: .top)
                     }
