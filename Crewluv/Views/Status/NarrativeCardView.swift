@@ -142,9 +142,21 @@ struct NarrativeCardView: View {
     private func nextFlightCity() -> String? {
         let legs = status.tripLegs
         if !legs.isEmpty {
-            let nextFlight = legs.first(where: { (leg: TripLeg) in
-                leg.type == .flight && leg.startTime > now
-            })
+            let sorted = legs.sorted { $0.startTime < $1.startTime }
+            let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > now })
+            // Standalone jumpseat — chain through to the trip it connects to
+            // If homeAirport is known, only chain if jumpseat departs from there
+            if let js = nextFlight, js.tripId == nil,
+               (status.homeAirportCode == nil || js.departureAirport == status.homeAirportCode),
+               let jsArrival = js.arrivalAirport {
+                if let tripFlight = sorted.first(where: {
+                    $0.tripId != nil && $0.type == .flight &&
+                    $0.startTime >= js.endTime &&
+                    $0.departureAirport == jsArrival
+                }), let city = tripFlight.arrivalCity, !city.isEmpty {
+                    return city
+                }
+            }
             if let city = nextFlight?.arrivalCity, !city.isEmpty {
                 return city
             }

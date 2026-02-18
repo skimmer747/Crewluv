@@ -45,9 +45,9 @@ struct PilotStatusView: View {
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
                         Button { showSchedule = true } label: {
                             CountdownCardView(
-                                title: "Home In",
+                                title: status.homeArrivalLabel ?? "Home In",
                                 targetDate: homeTime,
-                                icon: "house.fill",
+                                icon: (status.homeArrivalLabel ?? "Home In").hasPrefix("Home In") ? "house.fill" : "airplane.arrival",
                                 color: .green
                             )
                             .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
@@ -60,7 +60,8 @@ struct PilotStatusView: View {
                         Button { showSchedule = true } label: {
                             EstimatedReturnCardView(
                                 tripDayNumber: dayNumber,
-                                tripTotalDays: totalDays
+                                tripTotalDays: totalDays,
+                                homeArrivalLabel: status.homeArrivalLabel
                             )
                             .contentShape(.rect)
                         }
@@ -71,7 +72,7 @@ struct PilotStatusView: View {
                     if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
                         Button { showSchedule = true } label: {
                             CountdownCardView(
-                                title: "Leaves In",
+                                title: status.nextDepartureLabel ?? "Leaves In",
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
                                 color: .blue
@@ -1453,6 +1454,7 @@ struct SyncExplanationView: View {
 
         pilotId: "test",
         pilotFirstName: "Todd",
+        homeAirportCode: nil,
         displayStatus: "In Flight",
         isHome: false,
         isInFlight: true,
@@ -1470,9 +1472,11 @@ struct SyncExplanationView: View {
         currentFlightArrivalTime: Date().addingTimeInterval(14400),
         currentFlightArrivalTimezone: "America/Anchorage",
         homeArrivalTime: Date().addingTimeInterval(172800),
+        homeArrivalLabel: "Home In",
         nextDepartureTime: nil,
         nextFlightNumber: nil,
         nextFlightDestination: nil,
+        nextDepartureLabel: nil,
         currentTripId: "test123",
         tripDayNumber: 2,
         tripTotalDays: 4,

@@ -11,6 +11,7 @@ import SwiftUI
 struct EstimatedReturnCardView: View {
     let tripDayNumber: Int
     let tripTotalDays: Int
+    var homeArrivalLabel: String? = nil
 
     private var daysRemaining: Int {
         max(tripTotalDays - tripDayNumber, 0)
@@ -29,10 +30,10 @@ struct EstimatedReturnCardView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
-                Image(systemName: "house.fill")
+                Image(systemName: (homeArrivalLabel ?? "Home In").hasPrefix("Home In") ? "house.fill" : "airplane.arrival")
                     .font(.title)
                     .foregroundColor(.green)
-                Text("Home In")
+                Text(homeArrivalLabel ?? "Home In")
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()

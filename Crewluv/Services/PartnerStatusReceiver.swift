@@ -250,12 +250,13 @@ class PartnerStatusReceiver {
             return
         }
 
-        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, at: Date())
+        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, homeAirport: raw.homeAirportCode, at: Date())
 
         // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
         pilotStatus = SharedPilotStatus(
             pilotId: raw.pilotId,
             pilotFirstName: raw.pilotFirstName,
+            homeAirportCode: raw.homeAirportCode,
             displayStatus: resolved.displayStatus,
             isHome: resolved.isHome,
             isInFlight: resolved.isInFlight,
@@ -273,9 +274,11 @@ class PartnerStatusReceiver {
             currentFlightArrivalTime: resolved.currentFlightArrivalTime,
             currentFlightArrivalTimezone: resolved.currentFlightArrivalTimezone,
             homeArrivalTime: resolved.homeArrivalTime,
+            homeArrivalLabel: resolved.homeArrivalLabel,
             nextDepartureTime: resolved.nextDepartureTime,
             nextFlightNumber: resolved.nextFlightNumber,
             nextFlightDestination: resolved.nextFlightDestination,
+            nextDepartureLabel: resolved.nextDepartureLabel,
             currentTripId: raw.currentTripId,
             tripDayNumber: resolved.tripDayNumber,
             tripTotalDays: resolved.tripTotalDays,

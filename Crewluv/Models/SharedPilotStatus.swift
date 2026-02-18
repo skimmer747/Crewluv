@@ -23,6 +23,7 @@ struct SharedPilotStatus: Codable, Sendable {
 
     let pilotId: String              // PilotInfo.id.uuidString
     let pilotFirstName: String       // First name only for privacy
+    let homeAirportCode: String?     // Pilot's actual home airport (may differ from base)
 
     // MARK: - Current State
 
@@ -54,9 +55,11 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Countdown Timers
 
     let homeArrivalTime: Date?       // When pilot arrives home
+    let homeArrivalLabel: String?    // "Home In" or "{City} In" based on trip ending airport
     let nextDepartureTime: Date?     // When pilot leaves next
     let nextFlightNumber: String?
     let nextFlightDestination: String?
+    let nextDepartureLabel: String?  // "Leaves From (Orlando)" for pre-trip jumpseats
 
     // MARK: - Trip Overview
 
@@ -97,6 +100,9 @@ struct SharedPilotStatus: Codable, Sendable {
         // Encode all fields to record
         record["pilotId"] = pilotId as CKRecordValue
         record["pilotFirstName"] = pilotFirstName as CKRecordValue
+        if let homeAirportCode = homeAirportCode {
+            record["homeAirportCode"] = homeAirportCode as CKRecordValue
+        }
         record["displayStatus"] = displayStatus as CKRecordValue
         record["isHome"] = (isHome ? 1 : 0) as CKRecordValue
         record["isInFlight"] = (isInFlight ? 1 : 0) as CKRecordValue
@@ -143,6 +149,9 @@ struct SharedPilotStatus: Codable, Sendable {
         if let homeArrivalTime = homeArrivalTime {
             record["homeArrivalTime"] = homeArrivalTime as CKRecordValue
         }
+        if let homeArrivalLabel = homeArrivalLabel {
+            record["homeArrivalLabel"] = homeArrivalLabel as CKRecordValue
+        }
         if let nextDepartureTime = nextDepartureTime {
             record["nextDepartureTime"] = nextDepartureTime as CKRecordValue
         }
@@ -185,6 +194,7 @@ struct SharedPilotStatus: Codable, Sendable {
         return SharedPilotStatus(
             pilotId: pilotId,
             pilotFirstName: pilotFirstName,
+            homeAirportCode: record["homeAirportCode"] as? String,
             displayStatus: record["displayStatus"] as? String ?? "Home",
             isHome: (record["isHome"] as? Int ?? 0) == 1,
             isInFlight: (record["isInFlight"] as? Int ?? 0) == 1,
@@ -202,9 +212,11 @@ struct SharedPilotStatus: Codable, Sendable {
             currentFlightArrivalTime: record["currentFlightArrivalTime"] as? Date,
             currentFlightArrivalTimezone: record["currentFlightArrivalTimezone"] as? String,
             homeArrivalTime: record["homeArrivalTime"] as? Date,
+            homeArrivalLabel: record["homeArrivalLabel"] as? String,
             nextDepartureTime: record["nextDepartureTime"] as? Date,
             nextFlightNumber: record["nextFlightNumber"] as? String,
             nextFlightDestination: record["nextFlightDestination"] as? String,
+            nextDepartureLabel: nil,
             currentTripId: record["currentTripId"] as? String,
             tripDayNumber: record["tripDayNumber"] as? Int,
             tripTotalDays: record["tripTotalDays"] as? Int,

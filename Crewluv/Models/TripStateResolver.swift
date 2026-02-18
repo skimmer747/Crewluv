@@ -25,9 +25,11 @@ struct ResolvedPilotState {
     let currentFlightArrivalTimezone: String?
 
     let homeArrivalTime: Date?
+    let homeArrivalLabel: String?
     let nextDepartureTime: Date?
     let nextFlightNumber: String?
     let nextFlightDestination: String?
+    let nextDepartureLabel: String?
 
     let tripDayNumber: Int?
     let tripTotalDays: Int?
@@ -38,7 +40,7 @@ struct ResolvedPilotState {
 
 enum TripStateResolver {
 
-    static func resolve(legs: [TripLeg], at now: Date) -> ResolvedPilotState {
+    static func resolve(legs: [TripLeg], homeAirport: String?, at now: Date) -> ResolvedPilotState {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
         // Find the current leg: startTime <= now < endTime
@@ -52,6 +54,8 @@ enum TripStateResolver {
         guard let leg = currentLeg else {
             return homeState(
                 nextFlightLeg: futureLegs.first { $0.type == .flight },
+                sorted: sorted,
+                homeAirport: homeAirport,
                 now: now
             )
         }
@@ -69,6 +73,18 @@ enum TripStateResolver {
             if let tripId = leg.tripId {
                 let tripLegs = sorted.filter { $0.tripId == tripId && $0.type != .home }
                 if let lastLeg = tripLegs.last {
+                    let lastArrival = lastLeg.type == .flight ? lastLeg.arrivalAirport : lastLeg.airportCode
+                    // Check for a continuation jumpseat departing from trip's final airport
+                    // If homeAirport is known, only chain if jumpseat goes there
+                    if let lastArrival,
+                       let continuation = sorted.first(where: {
+                           $0.tripId == nil && $0.type == .flight &&
+                           $0.startTime >= lastLeg.endTime &&
+                           $0.departureAirport == lastArrival &&
+                           (homeAirport == nil || $0.arrivalAirport == homeAirport)
+                       }) {
+                        return continuation.endTime
+                    }
                     return lastLeg.endTime
                 }
             }
@@ -79,9 +95,51 @@ enum TripStateResolver {
             return sorted[currentIndex..<segmentEnd].last { $0.type != .home }?.endTime
         }()
 
+        // Home arrival label: derive from trip legs
+        let homeArrivalLabel: String? = {
+            guard homeArrivalTime != nil, let tripId = leg.tripId else { return nil }
+            let tripLegs = sorted.filter { $0.tripId == tripId }
+            let firstLeg = tripLegs.first
+            let originAirport = firstLeg?.type == .flight ? firstLeg?.departureAirport : firstLeg?.airportCode
+            let lastNonHome = tripLegs.filter { $0.type != .home }.last
+            let lastArrival = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
+
+            // Check for continuation jumpseat from trip's final airport
+            // If homeAirport is known, only chain if jumpseat goes there
+            let continuation: TripLeg? = {
+                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
+                return sorted.first(where: {
+                    $0.tripId == nil && $0.type == .flight &&
+                    $0.startTime >= lastEnd &&
+                    $0.departureAirport == lastArrival &&
+                    (homeAirport == nil || $0.arrivalAirport == homeAirport)
+                })
+            }()
+
+            if let continuation {
+                // Post-trip jumpseat = commuting home
+                let city = continuation.arrivalCity
+                return city != nil ? "Home In (\(city!))" : "Home In"
+            }
+
+            let destAirport = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
+            let city = lastNonHome?.type == .flight ? lastNonHome?.arrivalCity : lastNonHome?.city
+            let goingHome = originAirport != nil && originAirport == destAirport
+            if goingHome {
+                return city != nil ? "Home In (\(city!))" : "Home In"
+            } else {
+                return city != nil ? "\(city!) In" : nil
+            }
+        }()
+
         // Next departure: first future flight leg's start time
         let nextFlightLeg = futureLegs.first { $0.type == .flight }
         let nextDepartureTime = nextFlightLeg?.startTime
+
+        // Chain through pre-trip jumpseat for departure label and destination
+        let (resolvedDepartureLabel, resolvedFlightDestination) = Self.chainThroughJumpseat(
+            nextFlightLeg: nextFlightLeg, sorted: sorted, homeAirport: homeAirport
+        )
 
         // Upcoming cities from future legs (deduplicated, max 5)
         let upcomingCities = deriveUpcomingCities(from: futureLegs)
@@ -132,9 +190,11 @@ enum TripStateResolver {
             currentFlightArrivalTime: isInFlight ? leg.endTime : nil,
             currentFlightArrivalTimezone: arrivalTimezone,
             homeArrivalTime: homeArrivalTime,
+            homeArrivalLabel: homeArrivalLabel,
             nextDepartureTime: nextDepartureTime,
             nextFlightNumber: nextFlightLeg?.flightNumber,
-            nextFlightDestination: nextFlightLeg?.arrivalAirport,
+            nextFlightDestination: resolvedFlightDestination,
+            nextDepartureLabel: resolvedDepartureLabel,
             tripDayNumber: computedDayNumber,
             tripTotalDays: leg.tripTotalDays,
             upcomingCities: upcomingCities,
@@ -144,8 +204,12 @@ enum TripStateResolver {
 
     // MARK: - Private
 
-    private static func homeState(nextFlightLeg: TripLeg?, now: Date) -> ResolvedPilotState {
-        ResolvedPilotState(
+    private static func homeState(nextFlightLeg: TripLeg?, sorted: [TripLeg], homeAirport: String?, now: Date) -> ResolvedPilotState {
+        let (resolvedDepartureLabel, resolvedFlightDestination) = chainThroughJumpseat(
+            nextFlightLeg: nextFlightLeg, sorted: sorted, homeAirport: homeAirport
+        )
+
+        return ResolvedPilotState(
             displayStatus: "Home",
             isHome: true,
             isInFlight: false,
@@ -160,9 +224,11 @@ enum TripStateResolver {
             currentFlightArrivalTime: nil,
             currentFlightArrivalTimezone: nil,
             homeArrivalTime: nil,
+            homeArrivalLabel: nil,
             nextDepartureTime: nextFlightLeg?.startTime,
             nextFlightNumber: nextFlightLeg?.flightNumber,
-            nextFlightDestination: nextFlightLeg?.arrivalAirport,
+            nextFlightDestination: resolvedFlightDestination,
+            nextDepartureLabel: resolvedDepartureLabel,
             tripDayNumber: nil,
             tripTotalDays: nil,
             upcomingCities: [],
@@ -171,6 +237,32 @@ enum TripStateResolver {
                 return interval > 0 ? interval : nil
             }
         )
+    }
+
+    /// If the next flight is a standalone jumpseat (tripId == nil), chain through
+    /// to the trip it connects to for the real destination and produce a departure label.
+    /// Only chains if the jumpseat departs from the pilot's actual home airport.
+    private static func chainThroughJumpseat(
+        nextFlightLeg: TripLeg?,
+        sorted: [TripLeg],
+        homeAirport: String?
+    ) -> (departureLabel: String?, flightDestination: String?) {
+        guard let js = nextFlightLeg, js.tripId == nil,
+              let jsArrival = js.arrivalAirport,
+              homeAirport == nil || js.departureAirport == homeAirport else {
+            return (nil, nextFlightLeg?.arrivalAirport)
+        }
+        // Jumpseat departure city = where pilot physically leaves from
+        let label = js.departureCity.map { "Leaves From (\($0))" }
+        // Find the trip flight that follows for the real destination
+        if let tripFlight = sorted.first(where: {
+            $0.tripId != nil && $0.type == .flight &&
+            $0.startTime >= js.endTime &&
+            $0.departureAirport == jsArrival
+        }) {
+            return (label, tripFlight.arrivalAirport)
+        }
+        return (label, js.arrivalAirport)
     }
 
     private static func statusString(for type: TripLeg.LegType) -> String {
