@@ -69,6 +69,13 @@ struct TripCalendarView: View {
             }
         }
         .padding()
+        .onChange(of: selectedDate) { _, newDate in
+            guard let newDate else { return }
+            let selectedMonth = calendar.startOfMonth(for: newDate)
+            if selectedMonth != displayedMonth {
+                displayedMonth = selectedMonth
+            }
+        }
     }
 
     // MARK: - Month Header
@@ -89,7 +96,7 @@ struct TripCalendarView: View {
 
             Spacer()
 
-            Button("Today") {
+            Button("Current Event") {
                 withAnimation {
                     displayedMonth = calendar.startOfMonth(for: Date())
                     selectedDate = Date()
@@ -213,7 +220,7 @@ struct CalendarDayView: View {
             Text(dayNumber)
                 .font(.caption)
                 .fontWeight(isToday ? .bold : .regular)
-                .foregroundColor(isSelected ? .white : .primary)
+                .foregroundColor(isSelected ? .black : .primary)
 
             statusIcon
                 .font(.system(size: 10))

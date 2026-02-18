@@ -12,6 +12,7 @@ struct EventTimelineView: View {
 
     @State private var selectedDate: Date? = nil
     @State private var isProgrammaticScroll = false
+    @State private var pinnedSectionDate: Date?
 
     private var legs: [TripLeg] {
         status.tripLegs.sorted { $0.startTime < $1.startTime }
@@ -37,12 +38,34 @@ struct EventTimelineView: View {
                         legList
                     }
                 }
+                .coordinateSpace(name: "timeline")
+                .onPreferenceChange(SectionOffsetKey.self) { offsets in
+                    // The pinned header is the one closest to (but not far below) the top
+                    pinnedSectionDate = offsets
+                        .filter { $0.minY <= 20 }
+                        .max(by: { $0.minY < $1.minY })?
+                        .date
+                }
                 .scrollEdgeEffectStyle(.soft, for: .vertical)
                 .onChange(of: selectedDate) { _, newDate in
                     guard let newDate else { return }
                     let cal = Calendar.current
-                    let target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
-                        ?? groupedSections.last(where: { $0.date <= cal.startOfDay(for: newDate) })
+                    let now = Date()
+
+                    // If selecting today and there's an in-progress leg, scroll to its section
+                    var target: DateSection?
+                    if cal.isDateInToday(newDate),
+                       let activeLeg = legs.first(where: { $0.startTime <= now && now <= $0.endTime }) {
+                        let activeDay = cal.startOfDay(for: activeLeg.startTime)
+                        target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: activeDay) })
+                    }
+
+                    // Fallback: exact day match, then nearest earlier section
+                    if target == nil {
+                        target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
+                            ?? groupedSections.last(where: { $0.date <= cal.startOfDay(for: newDate) })
+                    }
+
                     if let target {
                         isProgrammaticScroll = true
                         withAnimation {
@@ -115,15 +138,35 @@ struct EventTimelineView: View {
                 }
             }
         } header: {
+            let cal = Calendar.current
+            let isToday = cal.isDateInToday(section.date)
+            let isPinned = pinnedSectionDate.map { cal.isDate($0, inSameDayAs: section.date) } ?? false
+            let highlighted = isToday || isPinned
             Text(sectionHeaderText(for: section.date))
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(.secondary)
+                .foregroundColor(highlighted ? .black : .secondary)
                 .textCase(.uppercase)
+                .padding(.horizontal, highlighted ? 8 : 0)
+                .padding(.vertical, highlighted ? 4 : 0)
+                .background {
+                    if highlighted {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isToday ? .green : .yellow)
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 12)
                 .padding(.bottom, 2)
                 .background(.bar)
+                .overlay {
+                    GeometryReader { geo in
+                        Color.clear.preference(
+                            key: SectionOffsetKey.self,
+                            value: [SectionOffset(date: section.date, minY: geo.frame(in: .named("timeline")).minY)]
+                        )
+                    }
+                }
         }
     }
 
@@ -168,5 +211,19 @@ struct EventTimelineView: View {
             fmt.dateFormat = "EEEE, MMM d"
             return fmt.string(from: date)
         }
+    }
+}
+
+// MARK: - Section Offset Tracking
+
+private struct SectionOffset: Equatable {
+    let date: Date
+    let minY: CGFloat
+}
+
+private struct SectionOffsetKey: PreferenceKey {
+    static var defaultValue: [SectionOffset] = []
+    static func reduce(value: inout [SectionOffset], nextValue: () -> [SectionOffset]) {
+        value.append(contentsOf: nextValue())
     }
 }

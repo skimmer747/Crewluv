@@ -10,54 +10,58 @@ import SwiftUI
 struct TimelineRowView: View {
     let leg: TripLeg
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let now = context.date
-            let isActive = leg.startTime <= now && now <= leg.endTime
-
-            HStack(spacing: 12) {
-                // Icon circle
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.2))
-                        .frame(width: 36, height: 36)
-
-                    Image(systemName: iconName(isActive: isActive))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(iconColor)
-                        .symbolEffect(.pulse, isActive: isActive)
-                }
-
-                // Title + subtitle
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                // Duration / countdown
-                Text(durationText(now: now))
-                    .font(.caption)
-                    .fontWeight(isActive ? .semibold : .regular)
-                    .foregroundColor(isActive ? iconColor : .secondary)
-                    .monospacedDigit()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular, in: .rect(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
-            )
+    private var staticIconName: String {
+        switch leg.type {
+        case .flight:     return "airplane"
+        case .turn:       return "clock.arrow.circlepath"
+        case .layover:    return "bed.double.fill"
+        case .home:       return "house.fill"
+        default:          return "clock"
         }
+    }
+
+    var body: some View {
+        let now = Date()
+        let isActive = leg.startTime <= now && now <= leg.endTime
+
+        HStack(spacing: 12) {
+            // Icon circle (symbolEffect animates based on active state)
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.2))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: staticIconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(iconColor)
+                    .symbolEffect(.pulse, isActive: isActive)
+            }
+
+            // Title + subtitle (static)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Duration / countdown (dynamic — updates every second)
+            CountdownText(leg: leg, activeColor: iconColor)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
+        )
     }
 
     // MARK: - Icon
@@ -149,7 +153,31 @@ struct TimelineRowView: View {
         return "\(start) \(tzAbbr) – \(end) \(tzAbbr)"
     }
 
-    // MARK: - Duration
+}
+
+// MARK: - Countdown (isolated TimelineView to prevent layout propagation)
+
+private struct CountdownText: View {
+    let leg: TripLeg
+    let activeColor: Color
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let now = context.date
+            let isActive = leg.startTime <= now && now <= leg.endTime
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(isActive ? "Ends in" : "Duration")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                Text(durationText(now: now))
+                    .font(.system(size: 11))
+                    .fontWeight(isActive ? .semibold : .regular)
+                    .foregroundColor(isActive ? activeColor : .secondary)
+                    .monospacedDigit()
+            }
+        }
+        .frame(minWidth: 56, alignment: .trailing)
+    }
 
     private func durationText(now: Date) -> String {
         let isActive = leg.startTime <= now && now <= leg.endTime

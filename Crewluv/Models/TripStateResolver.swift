@@ -107,9 +107,9 @@ enum TripStateResolver {
 
             // Check for continuation jumpseat from trip's final airport
             // If homeAirport is known, only chain if jumpseat goes there
-            let continuation: TripLeg? = {
-                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
-                return sorted.first(where: {
+            let hasContinuation: Bool = {
+                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return false }
+                return sorted.contains(where: {
                     $0.tripId == nil && $0.type == .flight &&
                     $0.startTime >= lastEnd &&
                     $0.departureAirport == lastArrival &&
@@ -117,7 +117,7 @@ enum TripStateResolver {
                 })
             }()
 
-            if let continuation {
+            if hasContinuation {
                 // Post-trip jumpseat = commuting home
                 return "Back Home In"
             }
