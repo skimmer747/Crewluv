@@ -11,6 +11,7 @@ struct EventTimelineView: View {
     let status: SharedPilotStatus
 
     @State private var selectedDate: Date? = nil
+    @State private var isProgrammaticScroll = false
 
     private var legs: [TripLeg] {
         status.tripLegs.sorted { $0.startTime < $1.startTime }
@@ -28,14 +29,32 @@ struct EventTimelineView: View {
                 .padding(.horizontal)
 
             // Leg list – scrollable
-            ScrollView {
-                if legs.isEmpty {
-                    emptyState
-                } else {
-                    legList
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if legs.isEmpty {
+                        emptyState
+                    } else {
+                        legList
+                    }
+                }
+                .scrollEdgeEffectStyle(.soft, for: .vertical)
+                .onChange(of: selectedDate) { _, newDate in
+                    guard let newDate else { return }
+                    let cal = Calendar.current
+                    let target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
+                        ?? groupedSections.last(where: { $0.date <= cal.startOfDay(for: newDate) })
+                    if let target {
+                        isProgrammaticScroll = true
+                        withAnimation {
+                            proxy.scrollTo(target.dateId, anchor: .top)
+                        }
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(500))
+                            isProgrammaticScroll = false
+                        }
+                    }
                 }
             }
-            .scrollEdgeEffectStyle(.soft, for: .vertical)
         }
         .navigationTitle("Schedule")
         .navigationBarTitleDisplayMode(.inline)
@@ -64,57 +83,47 @@ struct EventTimelineView: View {
     // MARK: - Leg List
 
     private var legList: some View {
-        ScrollViewReader { proxy in
-            LazyVStack(spacing: 0) {
-                ForEach(groupedSections, id: \.date) { section in
-                    sectionView(section)
-                        .id(section.dateId)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
-            .onChange(of: selectedDate) { _, newDate in
-                guard let newDate else { return }
-                let cal = Calendar.current
-                let startOfNew = cal.startOfDay(for: newDate)
-
-                // Exact match first, then fall back to the last section on or before the selected day
-                let target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
-                    ?? groupedSections.last(where: { $0.date <= startOfNew })
-
-                if let target {
-                    withAnimation {
-                        proxy.scrollTo(target.dateId, anchor: .top)
-                    }
-                }
+        LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+            ForEach(groupedSections, id: \.date) { section in
+                sectionView(section)
+                    .id(section.dateId)
             }
         }
+        .padding(.horizontal)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Section View
 
     private func sectionView(_ section: DateSection) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
+                    TimelineRowView(leg: leg)
+                        .onTapGesture {
+                            selectedDate = Calendar.current.startOfDay(for: leg.startTime)
+                        }
+
+                    // Gap between consecutive legs (hide when < 1 minute)
+                    if index < section.legs.count - 1 {
+                        let nextLeg = section.legs[index + 1]
+                        let gap = nextLeg.startTime.timeIntervalSince(leg.endTime)
+                        if gap >= 60 {
+                            TimeGapView(fromLeg: leg, toLeg: nextLeg)
+                        }
+                    }
+                }
+            }
+        } header: {
             Text(sectionHeaderText(for: section.date))
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 12)
                 .padding(.bottom, 2)
-
-            ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
-                TimelineRowView(leg: leg)
-
-                // Gap between consecutive legs (hide when < 1 minute)
-                if index < section.legs.count - 1 {
-                    let nextLeg = section.legs[index + 1]
-                    let gap = nextLeg.startTime.timeIntervalSince(leg.endTime)
-                    if gap >= 60 {
-                        TimeGapView(fromLeg: leg, toLeg: nextLeg)
-                    }
-                }
-            }
+                .background(.bar)
         }
     }
 
