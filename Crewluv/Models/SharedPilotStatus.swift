@@ -55,7 +55,8 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Countdown Timers
 
     let homeArrivalTime: Date?       // When pilot arrives home
-    let homeArrivalLabel: String?    // "Home In" or "{City} In" based on trip ending airport
+    let homeArrivalLabel: String?    // "Back Home In" or "{City} In" based on trip ending airport
+    let homeArrivalCity: String?     // City name for footer display (home-bound trips only)
     let nextDepartureTime: Date?     // When pilot leaves next
     let nextFlightNumber: String?
     let nextFlightDestination: String?
@@ -161,6 +162,9 @@ struct SharedPilotStatus: Codable, Sendable {
         if let nextFlightDestination = nextFlightDestination {
             record["nextFlightDestination"] = nextFlightDestination as CKRecordValue
         }
+        if let nextDepartureLabel = nextDepartureLabel {
+            record["nextDepartureLabel"] = nextDepartureLabel as CKRecordValue
+        }
 
         if let currentTripId = currentTripId {
             record["currentTripId"] = currentTripId as CKRecordValue
@@ -213,10 +217,11 @@ struct SharedPilotStatus: Codable, Sendable {
             currentFlightArrivalTimezone: record["currentFlightArrivalTimezone"] as? String,
             homeArrivalTime: record["homeArrivalTime"] as? Date,
             homeArrivalLabel: record["homeArrivalLabel"] as? String,
+            homeArrivalCity: nil,
             nextDepartureTime: record["nextDepartureTime"] as? Date,
             nextFlightNumber: record["nextFlightNumber"] as? String,
             nextFlightDestination: record["nextFlightDestination"] as? String,
-            nextDepartureLabel: nil,
+            nextDepartureLabel: record["nextDepartureLabel"] as? String,
             currentTripId: record["currentTripId"] as? String,
             tripDayNumber: record["tripDayNumber"] as? Int,
             tripTotalDays: record["tripTotalDays"] as? Int,

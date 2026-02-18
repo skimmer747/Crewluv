@@ -26,6 +26,7 @@ struct ResolvedPilotState {
 
     let homeArrivalTime: Date?
     let homeArrivalLabel: String?
+    let homeArrivalCity: String?
     let nextDepartureTime: Date?
     let nextFlightNumber: String?
     let nextFlightDestination: String?
@@ -118,18 +119,49 @@ enum TripStateResolver {
 
             if let continuation {
                 // Post-trip jumpseat = commuting home
-                let city = continuation.arrivalCity
-                return city != nil ? "Home In (\(city!))" : "Home In"
+                return "Back Home In"
             }
 
             let destAirport = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
             let city = lastNonHome?.type == .flight ? lastNonHome?.arrivalCity : lastNonHome?.city
             let goingHome = originAirport != nil && originAirport == destAirport
             if goingHome {
-                return city != nil ? "Home In (\(city!))" : "Home In"
+                return "Back Home In"
             } else {
                 return city != nil ? "\(city!) In" : nil
             }
+        }()
+
+        // Home arrival city: city name for footer display (only for home-bound trips)
+        let homeArrivalCity: String? = {
+            guard homeArrivalTime != nil, let tripId = leg.tripId else { return nil }
+            let tripLegs = sorted.filter { $0.tripId == tripId }
+            let lastNonHome = tripLegs.filter { $0.type != .home }.last
+            let lastArrival = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
+
+            // Check for continuation jumpseat
+            let continuation: TripLeg? = {
+                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
+                return sorted.first(where: {
+                    $0.tripId == nil && $0.type == .flight &&
+                    $0.startTime >= lastEnd &&
+                    $0.departureAirport == lastArrival &&
+                    (homeAirport == nil || $0.arrivalAirport == homeAirport)
+                })
+            }()
+
+            if let continuation {
+                return continuation.arrivalCity
+            }
+
+            let firstLeg = tripLegs.first
+            let originAirport = firstLeg?.type == .flight ? firstLeg?.departureAirport : firstLeg?.airportCode
+            let destAirport = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
+            let goingHome = originAirport != nil && originAirport == destAirport
+            if goingHome {
+                return lastNonHome?.type == .flight ? lastNonHome?.arrivalCity : lastNonHome?.city
+            }
+            return nil  // Non-home destination: no city in footer
         }()
 
         // Next departure: first future flight leg's start time
@@ -191,6 +223,7 @@ enum TripStateResolver {
             currentFlightArrivalTimezone: arrivalTimezone,
             homeArrivalTime: homeArrivalTime,
             homeArrivalLabel: homeArrivalLabel,
+            homeArrivalCity: homeArrivalCity,
             nextDepartureTime: nextDepartureTime,
             nextFlightNumber: nextFlightLeg?.flightNumber,
             nextFlightDestination: resolvedFlightDestination,
@@ -225,6 +258,7 @@ enum TripStateResolver {
             currentFlightArrivalTimezone: nil,
             homeArrivalTime: nil,
             homeArrivalLabel: nil,
+            homeArrivalCity: nil,
             nextDepartureTime: nextFlightLeg?.startTime,
             nextFlightNumber: nextFlightLeg?.flightNumber,
             nextFlightDestination: resolvedFlightDestination,

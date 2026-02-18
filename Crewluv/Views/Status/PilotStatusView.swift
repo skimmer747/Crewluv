@@ -43,12 +43,18 @@ struct PilotStatusView: View {
 
                     // Countdown Timer (if not home) — taps open schedule
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
+                        let label = status.homeArrivalLabel ?? "Back Home In"
+                        let isGoingHome = label.contains("Home")
+                        let dateStr = homeTime.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+                        let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
+
                         Button { showSchedule = true } label: {
                             CountdownCardView(
-                                title: status.homeArrivalLabel ?? "Home In",
+                                title: label,
                                 targetDate: homeTime,
-                                icon: (status.homeArrivalLabel ?? "Home In").hasPrefix("Home In") ? "house.fill" : "airplane.arrival",
-                                color: .green
+                                icon: isGoingHome ? "house.fill" : "airplane.arrival",
+                                color: .green,
+                                subtitle: arrivalSubtitle
                             )
                             .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
                             .contentShape(.rect)
@@ -179,6 +185,7 @@ struct CountdownCardView: View {
     let targetDate: Date
     let icon: String
     let color: Color
+    var subtitle: String? = nil
 
     @State private var timeRemaining: String = ""
 
@@ -203,6 +210,12 @@ struct CountdownCardView: View {
             formattedTimeText
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity)
@@ -1472,7 +1485,8 @@ struct SyncExplanationView: View {
         currentFlightArrivalTime: Date().addingTimeInterval(14400),
         currentFlightArrivalTimezone: "America/Anchorage",
         homeArrivalTime: Date().addingTimeInterval(172800),
-        homeArrivalLabel: "Home In",
+        homeArrivalLabel: "Back Home In",
+        homeArrivalCity: "Orlando",
         nextDepartureTime: nil,
         nextFlightNumber: nil,
         nextFlightDestination: nil,

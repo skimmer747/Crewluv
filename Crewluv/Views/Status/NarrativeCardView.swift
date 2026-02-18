@@ -126,6 +126,19 @@ struct NarrativeCardView: View {
 
     // MARK: - City Name Helpers
 
+    /// Sorted trip legs by start time (ascending) for consistent processing
+    /// This ensures all helper methods reference the same sorted order
+    private var sortedTripLegs: [TripLeg] {
+        status.tripLegs.sorted { $0.startTime < $1.startTime }
+    }
+
+    /// Finds the next flight leg after the current time
+    /// Uses sortedTripLegs to ensure consistent results across all helper methods
+    /// Returns the first flight leg where startTime > now
+    private func nextFlight() -> TripLeg? {
+        sortedTripLegs.first(where: { $0.type == .flight && $0.startTime > now })
+    }
+
     private func currentArrivalCity() -> String? {
         let legs = status.tripLegs
         if !legs.isEmpty {
@@ -140,10 +153,11 @@ struct NarrativeCardView: View {
     }
 
     private func nextFlightCity() -> String? {
-        let legs = status.tripLegs
-        if !legs.isEmpty {
-            let sorted = legs.sorted { $0.startTime < $1.startTime }
-            let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > now })
+        let sorted = sortedTripLegs
+        if !sorted.isEmpty {
+            // Use the shared helper to get the next flight leg
+            // This ensures consistency with nextFlightDepartureTime()
+            let nextFlight = nextFlight()
             // Standalone jumpseat — chain through to the trip it connects to
             // If homeAirport is known, only chain if jumpseat departs from there
             if let js = nextFlight, js.tripId == nil,
@@ -165,14 +179,10 @@ struct NarrativeCardView: View {
     }
 
     private func nextFlightDepartureTime() -> Date? {
-        let legs = status.tripLegs
-        if !legs.isEmpty {
-            let nextFlight = legs.first(where: { (leg: TripLeg) in
-                leg.type == .flight && leg.startTime > now
-            })
-            if let time = nextFlight?.startTime {
-                return time
-            }
+        // Use the shared helper to get the next flight leg
+        // This ensures consistency with nextFlightCity() - both reference the same TripLeg instance
+        if let nextFlight = nextFlight() {
+            return nextFlight.startTime
         }
         return status.nextDepartureTime
     }

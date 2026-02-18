@@ -30,10 +30,10 @@ struct EstimatedReturnCardView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack {
-                Image(systemName: (homeArrivalLabel ?? "Home In").hasPrefix("Home In") ? "house.fill" : "airplane.arrival")
+                Image(systemName: (homeArrivalLabel ?? "Back Home In").contains("Home") ? "house.fill" : "airplane.arrival")
                     .font(.title)
                     .foregroundColor(.green)
-                Text(homeArrivalLabel ?? "Home In")
+                Text(homeArrivalLabel ?? "Back Home In")
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()

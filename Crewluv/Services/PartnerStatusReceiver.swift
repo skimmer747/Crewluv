@@ -275,6 +275,7 @@ class PartnerStatusReceiver {
             currentFlightArrivalTimezone: resolved.currentFlightArrivalTimezone,
             homeArrivalTime: resolved.homeArrivalTime,
             homeArrivalLabel: resolved.homeArrivalLabel,
+            homeArrivalCity: resolved.homeArrivalCity,
             nextDepartureTime: resolved.nextDepartureTime,
             nextFlightNumber: resolved.nextFlightNumber,
             nextFlightDestination: resolved.nextFlightDestination,
