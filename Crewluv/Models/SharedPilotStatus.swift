@@ -28,6 +28,7 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Current State
 
     let displayStatus: String        // "Home", "In Flight", "Turn", or "Layover"
+    let isSleeping: Bool             // User-toggled sleeping indicator
 
     // DEPRECATED: Use displayStatus instead
     let isHome: Bool
@@ -105,6 +106,7 @@ struct SharedPilotStatus: Codable, Sendable {
             record["homeAirportCode"] = homeAirportCode as CKRecordValue
         }
         record["displayStatus"] = displayStatus as CKRecordValue
+        record["isSleeping"] = (isSleeping ? 1 : 0) as CKRecordValue
         record["isHome"] = (isHome ? 1 : 0) as CKRecordValue
         record["isInFlight"] = (isInFlight ? 1 : 0) as CKRecordValue
         record["isOnDuty"] = (isOnDuty ? 1 : 0) as CKRecordValue
@@ -200,6 +202,7 @@ struct SharedPilotStatus: Codable, Sendable {
             pilotFirstName: pilotFirstName,
             homeAirportCode: record["homeAirportCode"] as? String,
             displayStatus: record["displayStatus"] as? String ?? "Home",
+            isSleeping: (record["isSleeping"] as? Int ?? 0) == 1,
             isHome: (record["isHome"] as? Int ?? 0) == 1,
             isInFlight: (record["isInFlight"] as? Int ?? 0) == 1,
             isOnDuty: (record["isOnDuty"] as? Int ?? 0) == 1,

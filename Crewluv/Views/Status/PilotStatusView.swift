@@ -431,6 +431,12 @@ struct LocationCardView: View {
                         }
                     }
                 }
+
+                // Sleeping indicator
+                if status.isSleeping {
+                    SleepingIndicatorView()
+                        .padding(.top, 4)
+                }
             }
 
             // Sun circle clock in upper right
@@ -789,6 +795,13 @@ struct SunCircleView: View {
                         p.closeSubpath()
                     }
                     context.fill(noonTriangle, with: .color(.primary.opacity(0.4)))
+
+                    // Clock hand from center to current time
+                    let handEnd = pointOnCircle(angle: currentAngle, radius: radius, center: center)
+                    var hand = Path()
+                    hand.move(to: center)
+                    hand.addLine(to: handEnd)
+                    context.stroke(hand, with: .color(.primary.opacity(0.2)), lineWidth: 1)
                 }
 
                 // Sun or moon icon at current time position
@@ -1400,6 +1413,34 @@ private struct DashedTearLine: Shape {
 }
 
 
+// MARK: - Sleeping Indicator View
+
+struct SleepingIndicatorView: View {
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.title3)
+                .foregroundColor(.indigo)
+                .rotationEffect(.degrees(animating ? 8 : -8))
+                .symbolEffect(.pulse)
+
+            Text("Sleeping")
+                .font(.callout)
+                .fontWeight(.medium)
+                .foregroundColor(.indigo)
+                .opacity(animating ? 1.0 : 0.5)
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                animating = true
+            }
+        }
+    }
+}
+
 // MARK: - Sync Explanation View
 
 struct SyncExplanationView: View {
@@ -1469,6 +1510,7 @@ struct SyncExplanationView: View {
         pilotFirstName: "Todd",
         homeAirportCode: nil,
         displayStatus: "In Flight",
+        isSleeping: true,
         isHome: false,
         isInFlight: true,
         isOnDuty: true,

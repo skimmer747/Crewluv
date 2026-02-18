@@ -258,6 +258,7 @@ class PartnerStatusReceiver {
             pilotFirstName: raw.pilotFirstName,
             homeAirportCode: raw.homeAirportCode,
             displayStatus: resolved.displayStatus,
+            isSleeping: raw.isSleeping,
             isHome: resolved.isHome,
             isInFlight: resolved.isInFlight,
             isOnDuty: resolved.isOnDuty,

@@ -220,7 +220,7 @@ struct CalendarDayView: View {
             Text(dayNumber)
                 .font(.caption)
                 .fontWeight(isToday ? .bold : .regular)
-                .foregroundColor(isSelected ? .black : .primary)
+                .foregroundColor(isSelected ? .white.opacity(0.8) : .primary)
 
             statusIcon
                 .font(.system(size: 10))

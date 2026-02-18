@@ -21,47 +21,51 @@ struct TimelineRowView: View {
     }
 
     var body: some View {
-        let now = Date()
-        let isActive = leg.startTime <= now && now <= leg.endTime
+        // TimelineView drives periodic re-evaluation so isActive (and thus pulse + border)
+        // stay correct as time passes, without relying on other view updates.
+        TimelineView(.periodic(from: Date(), by: 60)) { context in
+            let now = context.date
+            let isActive = leg.startTime <= now && now <= leg.endTime
 
-        HStack(spacing: 12) {
-            // Icon circle (symbolEffect animates based on active state)
-            ZStack {
-                Circle()
-                    .fill(iconColor.opacity(0.2))
-                    .frame(width: 36, height: 36)
+            HStack(spacing: 12) {
+                // Icon circle (symbolEffect animates based on active state)
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.2))
+                        .frame(width: 36, height: 36)
 
-                Image(systemName: staticIconName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(iconColor)
-                    .symbolEffect(.pulse, isActive: isActive)
+                    Image(systemName: staticIconName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(iconColor)
+                        .symbolEffect(.pulse, isActive: isActive)
+                }
+
+                // Title + subtitle (static)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Duration / countdown (dynamic — updates every second)
+                CountdownText(leg: leg, activeColor: iconColor)
             }
-
-            // Title + subtitle (static)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            // Duration / countdown (dynamic — updates every second)
-            CountdownText(leg: leg, activeColor: iconColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular, in: .rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
+            )
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
-        )
     }
 
     // MARK: - Icon
