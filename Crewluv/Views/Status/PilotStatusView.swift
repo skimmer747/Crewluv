@@ -29,6 +29,7 @@ struct PilotStatusView: View {
     var lastSyncTime: Date? = nil
     var lastSyncError: String? = nil
     var isSyncing: Bool = false
+    var isCompanionLayout: Bool = false
     var onPasteShareLink: (() -> Void)? = nil
     var onRefresh: (() -> Void)? = nil
 
@@ -48,48 +49,48 @@ struct PilotStatusView: View {
                         let dateStr = homeTime.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
                         let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
-                        Button { showSchedule = true } label: {
+                        scheduleLink {
                             CountdownCardView(
                                 title: label,
                                 targetDate: homeTime,
                                 icon: isGoingHome ? "house.fill" : "airplane.arrival",
                                 color: .green,
-                                subtitle: arrivalSubtitle
+                                subtitle: arrivalSubtitle,
+                                showChevron: !isCompanionLayout
                             )
                             .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
                             .contentShape(.rect)
                         }
-                        .buttonStyle(CardButtonStyle())
                     } else if status.displayStatus != "Home",
                               let dayNumber = status.tripDayNumber,
                               let totalDays = status.tripTotalDays {
-                        Button { showSchedule = true } label: {
+                        scheduleLink {
                             EstimatedReturnCardView(
                                 tripDayNumber: dayNumber,
                                 tripTotalDays: totalDays,
-                                homeArrivalLabel: status.homeArrivalLabel
+                                homeArrivalLabel: status.homeArrivalLabel,
+                                showChevron: !isCompanionLayout
                             )
                             .contentShape(.rect)
                         }
-                        .buttonStyle(CardButtonStyle())
                     }
 
                     // Next Departure (if at home) — taps open schedule
                     if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
-                        Button { showSchedule = true } label: {
+                        scheduleLink {
                             CountdownCardView(
                                 title: status.nextDepartureLabel ?? "Leaves In",
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
-                                color: .blue
+                                color: .blue,
+                                showChevron: !isCompanionLayout
                             )
                             .contentShape(.rect)
                         }
-                        .buttonStyle(CardButtonStyle())
                     }
 
-                    // Schedule card when home with no departure time
-                    if status.displayStatus == "Home" && status.nextDepartureTime == nil {
+                    // Schedule card when home with no departure time (hidden on iPad)
+                    if !isCompanionLayout, status.displayStatus == "Home", status.nextDepartureTime == nil {
                         Button { showSchedule = true } label: {
                             HStack {
                                 Image(systemName: "calendar")
@@ -176,6 +177,18 @@ struct PilotStatusView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func scheduleLink<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if isCompanionLayout {
+            content()
+        } else {
+            Button { showSchedule = true } label: {
+                content()
+            }
+            .buttonStyle(CardButtonStyle())
+        }
+    }
 }
 
 // MARK: - Countdown Card View
@@ -186,6 +199,7 @@ struct CountdownCardView: View {
     let icon: String
     let color: Color
     var subtitle: String? = nil
+    var showChevron: Bool = true
 
     @State private var timeRemaining: String = ""
 
@@ -201,9 +215,11 @@ struct CountdownCardView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
             }
             .foregroundColor(.primary)
 

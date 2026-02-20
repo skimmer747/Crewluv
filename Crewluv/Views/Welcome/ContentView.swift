@@ -62,14 +62,18 @@ struct ContentView: View {
                     if receiver.isLoading {
                         LoadingView()
                     } else if let status = receiver.pilotStatus {
-                        PilotStatusView(
-                            status: status,
-                            lastSyncTime: receiver.lastSyncTime,
-                            lastSyncError: receiver.lastSyncError,
-                            isSyncing: receiver.isSyncing,
-                            onPasteShareLink: { showPasteShareAlert = true },
-                            onRefresh: { Task { await receiver.refresh() } }
-                        )
+                        if UIDevice.current.userInterfaceIdiom == .pad {
+                            iPadStatusLayout(status: status, receiver: receiver)
+                        } else {
+                            PilotStatusView(
+                                status: status,
+                                lastSyncTime: receiver.lastSyncTime,
+                                lastSyncError: receiver.lastSyncError,
+                                isSyncing: receiver.isSyncing,
+                                onPasteShareLink: { showPasteShareAlert = true },
+                                onRefresh: { Task { await receiver.refresh() } }
+                            )
+                        }
                     } else if receiver.hasAcceptedShare {
                         ConnectionErrorView(receiver: receiver)
                     } else {
@@ -99,6 +103,28 @@ struct ContentView: View {
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
         } else {
             LoadingView()
+        }
+    }
+
+    private func iPadStatusLayout(status: SharedPilotStatus, receiver: PartnerStatusReceiver) -> some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                PilotStatusView(
+                    status: status,
+                    lastSyncTime: receiver.lastSyncTime,
+                    lastSyncError: receiver.lastSyncError,
+                    isSyncing: receiver.isSyncing,
+                    isCompanionLayout: true,
+                    onPasteShareLink: { showPasteShareAlert = true },
+                    onRefresh: { Task { await receiver.refresh() } }
+                )
+                .frame(width: geometry.size.width * 0.4)
+
+                Divider()
+
+                EventTimelineView(status: status)
+                    .frame(maxWidth: .infinity)
+            }
         }
     }
 }

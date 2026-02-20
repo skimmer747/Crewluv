@@ -12,6 +12,7 @@ struct EstimatedReturnCardView: View {
     let tripDayNumber: Int
     let tripTotalDays: Int
     var homeArrivalLabel: String? = nil
+    var showChevron: Bool = true
 
     private var daysRemaining: Int {
         max(tripTotalDays - tripDayNumber, 0)
@@ -37,9 +38,11 @@ struct EstimatedReturnCardView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                }
             }
             .foregroundColor(.primary)
 
