@@ -1,8 +1,8 @@
 //
 //  ContentView.swift
-//  CrewLuv
+//  CrewLuve
 //
-//  Main view coordinator for CrewLuv app
+//  Main view coordinator for CrewLuve app
 //  100% free app - requires share invitation from Duty app pilot
 //
 
@@ -79,7 +79,7 @@ struct ContentView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
-                        Text(receiver.pilotStatus != nil ? "Where's \(receiver.pilotStatus!.pilotFirstName)?" : "CrewLuv")
+                        Text(receiver.pilotStatus != nil ? "Where's \(receiver.pilotStatus!.pilotFirstName)?" : "CrewLuve")
                             .font(.title2)
                             .fontWeight(.bold)
                     }
@@ -167,7 +167,7 @@ struct NoShareView: View {
                         .foregroundStyle(.red.gradient)
 
                     VStack(spacing: 12) {
-                        Text("Welcome to CrewLuv")
+                        Text("Welcome to CrewLuve")
                             .font(.largeTitle)
                             .fontWeight(.bold)
 
@@ -392,18 +392,18 @@ struct PasteShareLinkModifier: ViewModifier {
 
     private func acceptShareFromURL() {
         guard let url = URL(string: pastedURL) else {
-            debugLog("[CrewLuv] Invalid URL: \(pastedURL)")
+            debugLog("[CrewLuve] Invalid URL: \(pastedURL)")
             return
         }
 
-        debugLog("[CrewLuv] Manual share URL: \(url)")
+        debugLog("[CrewLuve] Manual share URL: \(url)")
 
         Task {
             do {
                 try await CloudKitShareManager.shared.acceptShare(from: url)
                 pastedURL = ""
             } catch {
-                debugLog("[CrewLuv] ❌ Error accepting manual share: \(error)")
+                debugLog("[CrewLuve] ❌ Error accepting manual share: \(error)")
             }
         }
     }

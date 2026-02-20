@@ -1,8 +1,8 @@
 //
 //  PurchaseManager.swift
-//  CrewLuv
+//  CrewLuve
 //
-//  Manages in-app purchase for CrewLuv one-time unlock
+//  Manages in-app purchase for CrewLuve one-time unlock
 //
 
 import StoreKit

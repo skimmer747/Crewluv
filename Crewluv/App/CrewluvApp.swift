@@ -1,8 +1,8 @@
 //
 //  CrewluvApp.swift
-//  CrewLuv
+//  CrewLuve
 //
-//  Main entry point for CrewLuv companion app
+//  Main entry point for CrewLuve companion app
 //
 
 import SwiftUI
@@ -19,7 +19,7 @@ struct CrewluvApp: App {
     @State private var shareManager = CloudKitShareManager.shared
 
     init() {
-        debugLog("[CrewLuv] 🚀 App launching...")
+        debugLog("[CrewLuve] 🚀 App launching...")
     }
 
     var body: some Scene {
@@ -28,29 +28,29 @@ struct CrewluvApp: App {
                 .environment(purchaseManager)
                 .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                    debugLog("[CrewLuv] 📲 onContinueUserActivity triggered")
-                    debugLog("[CrewLuv]   activityType: \(userActivity.activityType)")
-                    debugLog("[CrewLuv]   webpageURL: \(userActivity.webpageURL?.absoluteString ?? "nil")")
+                    debugLog("[CrewLuve] 📲 onContinueUserActivity triggered")
+                    debugLog("[CrewLuve]   activityType: \(userActivity.activityType)")
+                    debugLog("[CrewLuve]   webpageURL: \(userActivity.webpageURL?.absoluteString ?? "nil")")
                     if let url = userActivity.webpageURL {
                         handleShareURL(url)
                     } else {
-                        debugLog("[CrewLuv] No URL in user activity")
+                        debugLog("[CrewLuve] No URL in user activity")
                     }
                 }
                 .onOpenURL { url in
-                    debugLog("[CrewLuv] 🔗 onOpenURL triggered with: \(url)")
+                    debugLog("[CrewLuve] 🔗 onOpenURL triggered with: \(url)")
                     handleShareURL(url)
                 }
         }
     }
 
     private func handleShareURL(_ url: URL) {
-        debugLog("[CrewLuv] 🔗 Processing share URL: \(url)")
+        debugLog("[CrewLuve] 🔗 Processing share URL: \(url)")
         Task {
             do {
                 try await shareManager.acceptShare(from: url)
             } catch {
-                debugLog("[CrewLuv] ❌ Share acceptance failed: \(error)")
+                debugLog("[CrewLuve] ❌ Share acceptance failed: \(error)")
                 // Error is already set in shareManager.shareState
             }
         }

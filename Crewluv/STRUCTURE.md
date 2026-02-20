@@ -1,6 +1,6 @@
-# CrewLuv Project Structure
+# CrewLuve Project Structure
 
-This document describes the scalable file organization used in CrewLuv.
+This document describes the scalable file organization used in CrewLuve.
 
 ## Directory Structure
 

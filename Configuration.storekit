@@ -10,13 +10,13 @@
       "internalID" : "6738832743",
       "localizations" : [
         {
-          "description" : "Unlock CrewLuv to stay connected with your pilot. One-time purchase, no subscriptions.",
-          "displayName" : "CrewLuv Unlock",
+          "description" : "Unlock CrewLuve to stay connected with your pilot. One-time purchase, no subscriptions.",
+          "displayName" : "CrewLuve Unlock",
           "locale" : "en_US"
         }
       ],
       "productID" : "com.toddanderson.crewluv.unlock",
-      "referenceName" : "CrewLuv Unlock",
+      "referenceName" : "CrewLuve Unlock",
       "type" : "NonConsumable"
     }
   ],

@@ -1,6 +1,6 @@
 //
 //  PilotStatusView.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Displays pilot status with countdown, location, and trip progress
 //

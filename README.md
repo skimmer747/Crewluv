@@ -1,6 +1,6 @@
-# CrewLuv
+# CrewLuve
 
-**Stay connected with your pilot.** CrewLuv is a 100% free companion app for pilots' partners and family members.
+**Stay connected with your pilot.** CrewLuve is a 100% free companion app for pilots' partners and family members.
 
 ## Features
 
@@ -22,11 +22,11 @@
 1. **Pilot Setup**: Your pilot needs the Duty app with an active Duty Plus subscription
 2. **Share Invitation**: They invite you via Settings → Partner Sharing → Invite Partner
 3. **Accept & Connect**: Accept the CloudKit share link (via iMessage or manual paste)
-4. **Stay Connected**: CrewLuv automatically syncs their status every 2 minutes
+4. **Stay Connected**: CrewLuve automatically syncs their status every 2 minutes
 
 ## Privacy
 
-CrewLuv only shares essential information:
+CrewLuve only shares essential information:
 - Current location (city/airport)
 - Flight status (in flight, on duty, at home)
 - Arrival/departure times
@@ -36,10 +36,10 @@ CrewLuv only shares essential information:
 
 ## Architecture
 
-CrewLuv uses CloudKit sharing to receive read-only status updates from the Duty app:
+CrewLuve uses CloudKit sharing to receive read-only status updates from the Duty app:
 
 - **Separate CloudKit Zone**: Uses `PartnerBeaconZone` (isolated from Duty's SwiftData sync)
-- **One-way Sync**: Duty app generates status snapshots, CrewLuv receives them
+- **One-way Sync**: Duty app generates status snapshots, CrewLuve receives them
 - **Lightweight Model**: `SharedPilotStatus` struct optimized for CloudKit sharing
 - **Service Layer Pattern**: Clean separation between UI, business logic, and data access
 - **Scalable Structure**: Organized by feature for easy expansion
@@ -72,7 +72,7 @@ MIT License - See LICENSE file for details
 
 ## Related Projects
 
-- [Duty](https://github.com/toddaa/Duty) - The pilot scheduling app that powers CrewLuv
+- [Duty](https://github.com/toddaa/Duty) - The pilot scheduling app that powers CrewLuve
 
 ---
 

@@ -1,7 +1,7 @@
-# CrewLuv Codebase Refactoring Summary
+# CrewLuve Codebase Refactoring Summary
 
 ## Overview
-This document summarizes the refactoring work done to bring CrewLuv up to expert-level Apple engineering standards.
+This document summarizes the refactoring work done to bring CrewLuve up to expert-level Apple engineering standards.
 
 ## Changes Made
 

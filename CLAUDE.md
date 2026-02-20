@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CrewLuv is a SwiftUI iOS app (iOS 17.0+) that allows pilots' partners and family members to track their real-time status via CloudKit sharing. The app receives read-only status updates from the Duty pilot scheduling app through a dedicated CloudKit zone.
+CrewLuve is a SwiftUI iOS app (iOS 17.0+) that allows pilots' partners and family members to track their real-time status via CloudKit sharing. The app receives read-only status updates from the Duty pilot scheduling app through a dedicated CloudKit zone.
 
 ## Development Commands
 
@@ -83,7 +83,7 @@ CrewLuv/
 ### Share Workflow
 1. Pilot creates share in Duty app
 2. Partner receives share URL (iMessage/manual)
-3. CrewLuv accepts share and stores zone owner
+3. CrewLuve accepts share and stores zone owner
 4. App fetches status from shared zone
 
 ## Testing Strategy
@@ -115,5 +115,5 @@ Add to `Models/` directory, consider CloudKit compatibility
 
 - Only essential flight information is shared
 - No crew names, hotel details, or pay information
-- One-way sync (CrewLuv is read-only)
+- One-way sync (CrewLuve is read-only)
 - CloudKit handles authentication and sharing permissions

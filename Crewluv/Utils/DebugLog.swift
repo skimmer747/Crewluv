@@ -1,6 +1,6 @@
 //
 //  DebugLog.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Debug-only logging utility
 //

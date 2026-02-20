@@ -1,6 +1,6 @@
 //
 //  SceneDelegate.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  UIWindowSceneDelegate that receives CloudKit share acceptance on cold launch.
 //  SwiftUI continues to manage windows via WindowGroup.

@@ -1,6 +1,6 @@
 //
 //  AppDelegate.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Receives CloudKit share metadata when user taps a share link
 

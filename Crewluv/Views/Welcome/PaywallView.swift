@@ -1,6 +1,6 @@
 //
 //  PaywallView.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  One-time purchase paywall with Liquid Glass design
 //
@@ -23,7 +23,7 @@ struct PaywallView: View {
                             .font(.system(size: 100))
                             .foregroundStyle(.red.gradient)
                         
-                        Text("Welcome to CrewLuv")
+                        Text("Welcome to CrewLuve")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                         
@@ -102,7 +102,7 @@ struct PaywallView: View {
                                     .tint(.white)
                                     .frame(maxWidth: .infinity)
                             } else {
-                                Text("Unlock CrewLuv")
+                                Text("Unlock CrewLuve")
                                     .font(.headline)
                                     .frame(maxWidth: .infinity)
                             }
@@ -143,7 +143,7 @@ struct PaywallView: View {
                         HStack(spacing: 16) {
                             Button("Privacy Policy") {
                                 // Open privacy policy
-                                if let url = URL(string: "https://toddanderson.com/crewluv/privacy") {
+                                if let url = URL(string: "https://toddanderson.com/crewluve/privacy") {
                                     UIApplication.shared.open(url)
                                 }
                             }
@@ -154,7 +154,7 @@ struct PaywallView: View {
                             
                             Button("Terms of Use") {
                                 // Open terms
-                                if let url = URL(string: "https://toddanderson.com/crewluv/terms") {
+                                if let url = URL(string: "https://toddanderson.com/crewluve/terms") {
                                     UIApplication.shared.open(url)
                                 }
                             }

@@ -1,6 +1,6 @@
 //
 //  CelebrationFigureView.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Animated celebrating figure for the "Home In" card when < 24 hours away
 //

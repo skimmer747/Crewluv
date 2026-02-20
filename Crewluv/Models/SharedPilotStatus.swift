@@ -1,6 +1,6 @@
 //
 //  SharedPilotStatus.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Shared data model for pilot status
 //  Duplicated from Duty app for independence

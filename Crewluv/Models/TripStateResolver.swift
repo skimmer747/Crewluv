@@ -1,6 +1,6 @@
 //
 //  TripStateResolver.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Pure stateless resolver: [TripLeg] + Date → ResolvedPilotState
 //

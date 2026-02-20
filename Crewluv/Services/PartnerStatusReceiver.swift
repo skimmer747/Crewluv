@@ -1,6 +1,6 @@
 //
 //  PartnerStatusReceiver.swift
-//  CrewLuv
+//  CrewLuve
 //
 //  Receives shared pilot status from CloudKit
 //
@@ -93,13 +93,13 @@ class PartnerStatusReceiver {
         }
 
         let syncStartTime = Date()
-        debugLog("[CrewLuv] 🔄 Starting sync at \(syncStartTime.formatted(date: .omitted, time: .standard))")
+        debugLog("[CrewLuve] 🔄 Starting sync at \(syncStartTime.formatted(date: .omitted, time: .standard))")
 
         do {
             // Use the account status to check if we have iCloud access
             let accountStatus = try await container.accountStatus()
             guard accountStatus == .available else {
-                debugLog("[CrewLuv] iCloud account not available: \(accountStatus.rawValue)")
+                debugLog("[CrewLuve] iCloud account not available: \(accountStatus.rawValue)")
                 errorMessage = "Please sign in to iCloud to access shared pilot status."
                 lastSyncError = "iCloud unavailable"
                 hasAcceptedShare = false
@@ -113,11 +113,11 @@ class PartnerStatusReceiver {
             if dataSource == .privateDB {
                 database = privateDatabase
                 ownerName = CKCurrentUserDefaultName
-                debugLog("[CrewLuv] Using private database (same-account mode)")
+                debugLog("[CrewLuve] Using private database (same-account mode)")
             } else {
                 // Get the stored zone owner name from when the share was accepted
                 guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                    debugLog("[CrewLuv] No stored zone owner - share not yet accepted")
+                    debugLog("[CrewLuve] No stored zone owner - share not yet accepted")
                     hasAcceptedShare = false
                     lastSyncError = "No share accepted"
                     errorMessage = "Please accept the share invitation from your pilot."
@@ -125,7 +125,7 @@ class PartnerStatusReceiver {
                 }
                 database = sharedDatabase
                 ownerName = storedOwner
-                debugLog("[CrewLuv] Using shared database with zone owner: \(ownerName)")
+                debugLog("[CrewLuve] Using shared database with zone owner: \(ownerName)")
             }
 
             // Construct the zone ID with the owner name
@@ -135,7 +135,7 @@ class PartnerStatusReceiver {
             // We use a fixed record name "pilot-status" so we can fetch without querying
             let statusRecordID = CKRecord.ID(recordName: "pilot-status", zoneID: zoneID)
 
-            debugLog("[CrewLuv] Fetching SharedPilotStatus record: \(statusRecordID.recordName)")
+            debugLog("[CrewLuve] Fetching SharedPilotStatus record: \(statusRecordID.recordName)")
 
             let statusRecord = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
                 database.fetch(withRecordID: statusRecordID) { record, error in
@@ -144,34 +144,34 @@ class PartnerStatusReceiver {
                     } else if let record = record {
                         continuation.resume(returning: record)
                     } else {
-                        continuation.resume(throwing: NSError(domain: "CrewLuv", code: -1, userInfo: [NSLocalizedDescriptionKey: "No status record found"]))
+                        continuation.resume(throwing: NSError(domain: "CrewLuve", code: -1, userInfo: [NSLocalizedDescriptionKey: "No status record found"]))
                     }
                 }
             }
 
-            debugLog("[CrewLuv] Found shared record: \(statusRecord.recordID.recordName)")
-            debugLog("[CrewLuv] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
+            debugLog("[CrewLuve] Found shared record: \(statusRecord.recordID.recordName)")
+            debugLog("[CrewLuve] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
 
             guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
-                throw NSError(domain: "CrewLuv", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
+                throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
             }
             
             // Check if data actually changed
             if let oldStatus = pilotStatus {
                 let changed = oldStatus.lastUpdated != newStatus.lastUpdated
-                debugLog("[CrewLuv] Data changed: \(changed ? "YES" : "NO")")
-                debugLog("[CrewLuv] Old lastUpdated: \(oldStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
-                debugLog("[CrewLuv] New lastUpdated: \(newStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
+                debugLog("[CrewLuve] Data changed: \(changed ? "YES" : "NO")")
+                debugLog("[CrewLuve] Old lastUpdated: \(oldStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
+                debugLog("[CrewLuve] New lastUpdated: \(newStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
                 
                 // Log key time fields
-                debugLog("[CrewLuv] Old nextDepartureTime: \(oldStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuv] New nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuv] Old homeArrivalTime: \(oldStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuv] New homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] Old nextDepartureTime: \(oldStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] New nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] Old homeArrivalTime: \(oldStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] New homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
             } else {
-                debugLog("[CrewLuv] First time loading status")
-                debugLog("[CrewLuv] nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuv] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] First time loading status")
+                debugLog("[CrewLuve] nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
+                debugLog("[CrewLuve] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
             }
             
             rawPilotStatus = newStatus
@@ -181,9 +181,9 @@ class PartnerStatusReceiver {
             lastSyncError = nil
             
             let syncDuration = Date().timeIntervalSince(syncStartTime)
-            debugLog("[CrewLuv] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
+            debugLog("[CrewLuve] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
         } catch {
-            debugLog("[CrewLuv] ❌ Error fetching status: \(error)")
+            debugLog("[CrewLuve] ❌ Error fetching status: \(error)")
             lastSyncError = error.localizedDescription
             // Keep hasAcceptedShare true if we have a known data source
             if dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
@@ -208,15 +208,15 @@ class PartnerStatusReceiver {
 
     /// Check the private database for PartnerBeaconZone (same-account scenario)
     private func checkPrivateDatabase() async {
-        debugLog("[CrewLuv] Checking private database for PartnerBeaconZone...")
+        debugLog("[CrewLuve] Checking private database for PartnerBeaconZone...")
 
         do {
             let allZones = try await privateDatabase.allRecordZones()
-            debugLog("[CrewLuv] Found \(allZones.count) private zones")
+            debugLog("[CrewLuve] Found \(allZones.count) private zones")
 
             for zone in allZones {
                 if zone.zoneID.zoneName == "PartnerBeaconZone" {
-                    debugLog("[CrewLuv] ✅ Found PartnerBeaconZone in private database!")
+                    debugLog("[CrewLuve] ✅ Found PartnerBeaconZone in private database!")
                     dataSource = .privateDB
                     UserDefaults.standard.set(DataSource.privateDB.rawValue, forKey: dataSourceKey)
                     await checkForSharedData()
@@ -224,9 +224,9 @@ class PartnerStatusReceiver {
                 }
             }
 
-            debugLog("[CrewLuv] No PartnerBeaconZone in private database")
+            debugLog("[CrewLuve] No PartnerBeaconZone in private database")
         } catch {
-            debugLog("[CrewLuv] Error checking private database: \(error)")
+            debugLog("[CrewLuve] Error checking private database: \(error)")
         }
     }
 
@@ -290,7 +290,7 @@ class PartnerStatusReceiver {
             appVersion: raw.appVersion
         )
 
-        debugLog("[CrewLuv] Resolved status: \(resolved.displayStatus), next transition in \(resolved.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil")s")
+        debugLog("[CrewLuve] Resolved status: \(resolved.displayStatus), next transition in \(resolved.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil")s")
 
         // Schedule re-resolve at next leg boundary
         transitionTask?.cancel()
