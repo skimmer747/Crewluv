@@ -16,20 +16,20 @@ struct NarrativeCardView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: statusIcon)
-                .font(.system(size: 28))
-                .foregroundColor(statusColor)
-                .frame(width: 36)
+            statusIconView
 
             narrativeText
                 .font(.body)
+                .contentTransition(.numericText())
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .onReceive(timer) { _ in
-            now = Date()
+            withAnimation(.snappy(duration: 0.3)) {
+                now = Date()
+            }
         }
     }
 
@@ -51,54 +51,90 @@ struct NarrativeCardView: View {
         }
     }
 
+    private var name: String { status.pilotFirstName }
+
     @ViewBuilder
     private var homeNarrative: some View {
         if let departureTime = status.nextDepartureTime, let dest = nextFlightCity() {
-            Text("Home sweet home! Heads out for \(Text(dest).bold()) in \(countdownText(to: departureTime))")
+            Text("\(name) is home — heads to \(Text(dest).bold()) in \(countdownText(to: departureTime))")
         } else if let departureTime = status.nextDepartureTime {
-            Text("Home sweet home! Heads out in \(countdownText(to: departureTime))")
+            Text("\(name) is home — heads out in \(countdownText(to: departureTime))")
         } else {
-            Text("Home and relaxing — no trips on the horizon")
+            Text("\(name) is home and relaxing")
         }
     }
 
     @ViewBuilder
     private var inFlightNarrative: some View {
         if let dest = currentArrivalCity(), let flt = status.currentFlightNumber, let arrTime = status.currentFlightArrivalTime {
-            Text("En route to \(Text(dest).bold()) on FLT \(flt) — landing in \(countdownText(to: arrTime))")
+            Text("\(name) is flying to \(Text(dest).bold()) on FLT \(flt) — landing in \(countdownText(to: arrTime))")
         } else if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
-            Text("En route to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime))")
+            Text("\(name) is flying to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime))")
         } else if let dest = currentArrivalCity() {
-            Text("En route to \(Text(dest).bold())")
+            Text("\(name) is flying to \(Text(dest).bold())")
         } else {
-            Text("Currently in flight")
+            Text("\(name) is in flight")
         }
     }
 
     @ViewBuilder
     private var turnNarrative: some View {
         if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
-            Text("Quick turn in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
+            Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
-            Text("Quick turn in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
+            Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity {
-            Text("Quick turn in \(Text(city).bold())")
+            Text("\(name) is in \(Text(city).bold()) between flights")
         } else {
-            Text("Quick turn between flights")
+            Text("\(name) is between flights")
         }
     }
 
     @ViewBuilder
     private var layoverNarrative: some View {
         if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
-            Text("Layover in \(Text(city).bold()) — next flight to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
+            Text("\(name) is laying over in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
-            Text("Layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
+            Text("\(name) is laying over in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity {
-            Text("Layover in \(Text(city).bold())")
+            Text("\(name) is laying over in \(Text(city).bold())")
         } else {
-            Text("On a layover")
+            Text("\(name) is on a layover")
         }
+    }
+
+    // MARK: - Status Icon with Progress Ring
+
+    private var statusIconView: some View {
+        ZStack {
+            if status.displayStatus == "Layover", let progress = layoverProgress {
+                Circle()
+                    .stroke(statusColor.opacity(0.2), lineWidth: 3)
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(-90))
+            }
+
+            Image(systemName: statusIcon)
+                .font(.system(size: 28))
+                .foregroundColor(statusColor)
+        }
+        .frame(width: 44)
+    }
+
+    private var layoverProgress: Double? {
+        let legs = sortedTripLegs
+        guard !legs.isEmpty else { return nil }
+        guard let layover = legs.first(where: {
+            $0.type == .layover && $0.startTime <= now && now < $0.endTime
+        }) else { return nil }
+        let total = layover.endTime.timeIntervalSince(layover.startTime)
+        guard total > 0 else { return nil }
+        let elapsed = now.timeIntervalSince(layover.startTime)
+        return min(max(elapsed / total, 0), 1)
     }
 
     // MARK: - Countdown Formatting
@@ -112,16 +148,19 @@ struct NarrativeCardView: View {
         let days = Int(interval) / 86400
         let hours = (Int(interval) % 86400) / 3600
         let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
 
         let formatted: String
         if days > 0 {
-            formatted = "\(days)d \(hours)h \(minutes)m"
+            formatted = "\(days)d \(hours)h \(minutes)m \(seconds)s"
         } else if hours > 0 {
-            formatted = "\(hours)h \(minutes)m"
+            formatted = "\(hours)h \(minutes)m \(seconds)s"
+        } else if minutes > 0 {
+            formatted = "\(minutes)m \(seconds)s"
         } else {
-            formatted = "\(minutes)m"
+            formatted = "\(seconds)s"
         }
-        return Text(formatted).bold().foregroundColor(statusColor)
+        return Text(formatted).bold().foregroundColor(statusColor).monospacedDigit()
     }
 
     // MARK: - City Name Helpers
