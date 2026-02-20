@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		489702EC2F48AE1C00820170 /* CrewluveIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 489702EB2F48AE1C00820170 /* CrewluveIcon.icon */; };
 		48CD21E12F36ADFC00A7AA32 /* Configuration.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 48CD21E02F36ADFC00A7AA32 /* Configuration.storekit */; };
 /* End PBXBuildFile section */
 
@@ -28,6 +29,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		489702EB2F48AE1C00820170 /* CrewluveIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = CrewluveIcon.icon; sourceTree = "<group>"; };
 		48CD218E2F354C9100A7AA32 /* Crewluv.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Crewluv.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		48CD219F2F354C9300A7AA32 /* CrewluvTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrewluvTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		48CD21A92F354C9300A7AA32 /* CrewluvUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrewluvUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -98,6 +100,7 @@
 				48CD21AC2F354C9300A7AA32 /* CrewluvUITests */,
 				48CD218F2F354C9100A7AA32 /* Products */,
 				48CD21E02F36ADFC00A7AA32 /* Configuration.storekit */,
+				489702EB2F48AE1C00820170 /* CrewluveIcon.icon */,
 			);
 			sourceTree = "<group>";
 		};
@@ -231,6 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				489702EC2F48AE1C00820170 /* CrewluveIcon.icon in Resources */,
 				48CD21E12F36ADFC00A7AA32 /* Configuration.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -292,7 +296,7 @@
 		48CD21B32F354C9300A7AA32 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = CrewluveIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Crewluv/Crewluv.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -301,13 +305,14 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Crewluv/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CrewLuv;
+				INFOPLIST_KEY_CFBundleDisplayName = CrewLuve;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -332,7 +337,7 @@
 		48CD21B42F354C9300A7AA32 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = CrewluveIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Crewluv/Crewluv.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -341,13 +346,14 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Crewluv/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = CrewLuv;
+				INFOPLIST_KEY_CFBundleDisplayName = CrewLuve;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
