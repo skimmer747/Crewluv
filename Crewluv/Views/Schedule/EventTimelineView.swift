@@ -79,6 +79,9 @@ struct EventTimelineView: View {
                 }
             }
         }
+        .task {
+            selectedDate = Date()
+        }
         .navigationTitle("Schedule")
         .navigationBarTitleDisplayMode(.inline)
     }
