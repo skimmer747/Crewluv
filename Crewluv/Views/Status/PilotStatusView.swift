@@ -424,14 +424,24 @@ struct LocationCardView: View {
                     }
                 }
 
+                // Sleeping indicator
+                if status.isSleeping {
+                    SleepingIndicatorView()
+                        .padding(.top, 4)
+                }
+
                 if status.currentTimezone != nil {
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack {
+                        HStack(spacing: 6) {
                             Image(systemName: "clock.fill")
-                                .foregroundColor(.secondary)
-                            Text("Current time: \(liveLocalTime) \(timezoneAbbreviation)")
+                                .foregroundColor(.blue)
+                            Text("Current time:")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
+                            Text(liveLocalTime)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
                                 .monospacedDigit()
                         }
                         if let diff = timeDifference {
@@ -446,12 +456,6 @@ struct LocationCardView: View {
                                 }
                         }
                     }
-                }
-
-                // Sleeping indicator
-                if status.isSleeping {
-                    SleepingIndicatorView()
-                        .padding(.top, 4)
                 }
             }
 
