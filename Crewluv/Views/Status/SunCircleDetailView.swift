@@ -58,15 +58,17 @@ struct SunCircleDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 4)
 
-                // Local + home time
+                // Local + home time (hide left pane when timezone unavailable so we don't show icon + empty text)
                 HStack {
-                    HStack(spacing: 4) {
-                        Image(systemName: isDaylight ? "sun.max.fill" : "moon.fill")
-                            .foregroundColor(isDaylight ? .orange : .indigo)
-                            .font(.subheadline)
-                        Text(liveLocalTime)
-                            .font(.system(size: 20, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
+                    if !liveLocalTime.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: isDaylight ? "sun.max.fill" : "moon.fill")
+                                .foregroundColor(isDaylight ? .orange : .indigo)
+                                .font(.subheadline)
+                            Text(liveLocalTime)
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                        }
                     }
 
                     Spacer()
@@ -148,14 +150,14 @@ struct SunCircleDetailView: View {
                 .padding(.bottom, 24)
             }
             .frame(maxWidth: 360)
-            .glassEffect(.regular, in: .rect(cornerRadius: 28))
-            .overlay {
+            .background {
                 WeatherBackgroundView(
                     animationType: WeatherAnimationType.from(weather: weather),
                     opacity: appeared ? 1 : 0
                 )
                 .clipShape(.rect(cornerRadius: 28))
             }
+            .glassEffect(.regular, in: .rect(cornerRadius: 28))
             .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
             .offset(y: dragOffset)
             .gesture(
