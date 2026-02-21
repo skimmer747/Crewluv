@@ -317,6 +317,7 @@ struct LocationCardView: View {
     @State private var currentWeather: WeatherSnapshot? = nil
     @State private var timeDiffStyle: TimeDiffStyle = .odometer
     @State private var timeDiffAnimationID = UUID()
+    @State private var showSunDetail = false
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -470,6 +471,10 @@ struct LocationCardView: View {
                     timezone: status.currentTimezone
                 )
                 .offset(x: 0, y: -6)
+                .onTapGesture {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    showSunDetail = true
+                }
             }
         }
         .padding()
@@ -487,6 +492,20 @@ struct LocationCardView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task { await loadWeather() }
+            }
+        }
+        .fullScreenCover(isPresented: $showSunDetail) {
+            if let weather = currentWeather,
+               let sunrise = weather.sunrise,
+               let sunset = weather.sunset {
+                SunCircleDetailView(
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    isDaylight: weather.isDaylight,
+                    timezone: status.currentTimezone,
+                    cityName: status.currentCity ?? "Unknown",
+                    weather: weather
+                )
             }
         }
     }
@@ -735,21 +754,52 @@ struct SunCircleView: View {
     let sunset: Date
     let isDaylight: Bool
     let timezone: String?
+    var size: CGFloat = 160
 
-    private let viewWidth: CGFloat = 160
-    private let viewHeight: CGFloat = 160
-    private let radius: CGFloat = 42
+    @State private var arcProgress: CGFloat = 0
+    @State private var arcOpacity: CGFloat = 1
+
+    // All dimensions derived proportionally from size (base = 160)
+    private var scale: CGFloat { size / 160 }
+    private var radius: CGFloat { 42 * scale }
+    private var iconSize: CGFloat { 14 * scale }
+    private var moonIconSize: CGFloat { 12 * scale }
+    private var tickLen: CGFloat { 6 * scale }
+    private var noonTriangleSize: CGFloat { 6 * scale }
+    private var noonTriangleHalfWidth: CGFloat { 3.5 * scale }
+    private var noonFontSize: CGFloat { 8 * scale }
+    private var timeLabelFontSize: CGFloat { 9 * scale }
+    private var timeLabelOffset: CGFloat { 38 * scale }
+    private var timeLabelPadding: CGFloat { 22 * scale }
+    private var timeLabelEdge: CGFloat { 8 * scale }
+    private var noonLabelOffset: CGFloat { 14 * scale }
+    private var dayArcWidth: CGFloat { 2.5 * scale }
+    private var nightArcWidth: CGFloat { 2 * scale }
+    private var nightDash: [CGFloat] { [4 * scale, 3 * scale] }
+    private var handWidth: CGFloat { max(1, 1 * scale) }
+    private var homeHandDash: [CGFloat] { [4 * scale, 3 * scale] }
+    private var homeIconSize: CGFloat { 10 * scale }
+    private var arcLineWidth: CGFloat { 2 * scale }
+    private var arrowheadSize: CGFloat { 5 * scale }
+
+    private var hasDifferentTimezone: Bool {
+        guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return false }
+        let now = Date()
+        return pilotTZ.secondsFromGMT(for: now) != TimeZone.current.secondsFromGMT(for: now)
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let center = CGPoint(x: viewWidth / 2, y: viewHeight / 2 + 2)
+            let center = CGPoint(x: size / 2, y: size / 2 + 2 * scale)
             let sunriseAngle = angleForTime(sunrise)
             let sunsetAngle = angleForTime(sunset)
             let currentAngle = angleForTime(timeline.date)
+            let homeAngle = hasDifferentTimezone ? angleForHomeTime(timeline.date) : currentAngle
+            let pilotIsAhead = isPilotAhead(at: timeline.date)
 
             ZStack {
-                Canvas { context, size in
-                    // Daytime filled wedge (sunrise → sunset, visually clockwise)
+                Canvas { context, _ in
+                    // Daytime filled wedge (sunrise -> sunset, visually clockwise)
                     let dayWedge = Path { p in
                         p.move(to: center)
                         p.addArc(center: center, radius: radius,
@@ -759,7 +809,7 @@ struct SunCircleView: View {
                     }
                     context.fill(dayWedge, with: .color(.orange.opacity(0.15)))
 
-                    // Nighttime filled wedge (sunset → sunrise, visually clockwise)
+                    // Nighttime filled wedge (sunset -> sunrise, visually clockwise)
                     let nightWedge = Path { p in
                         p.move(to: center)
                         p.addArc(center: center, radius: radius,
@@ -779,7 +829,7 @@ struct SunCircleView: View {
                         Gradient(colors: [.orange, .yellow, .orange]),
                         startPoint: pointOnCircle(angle: sunriseAngle, radius: radius, center: center),
                         endPoint: pointOnCircle(angle: sunsetAngle, radius: radius, center: center)
-                    ), style: StrokeStyle(lineWidth: 2.5))
+                    ), style: StrokeStyle(lineWidth: dayArcWidth))
 
                     // Nighttime arc stroke (blue/gray, dashed)
                     let nightArc = Path { p in
@@ -791,27 +841,26 @@ struct SunCircleView: View {
                         Gradient(colors: [.blue.opacity(0.5), .gray.opacity(0.4), .blue.opacity(0.5)]),
                         startPoint: pointOnCircle(angle: sunsetAngle, radius: radius, center: center),
                         endPoint: pointOnCircle(angle: sunriseAngle, radius: radius, center: center)
-                    ), style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                    ), style: StrokeStyle(lineWidth: nightArcWidth, dash: nightDash))
 
                     // Tick marks at sunrise and sunset
-                    let tickLen: CGFloat = 6
                     for angle in [sunriseAngle, sunsetAngle] {
                         let inner = pointOnCircle(angle: angle, radius: radius - tickLen / 2, center: center)
                         let outer = pointOnCircle(angle: angle, radius: radius + tickLen / 2, center: center)
                         var tick = Path()
                         tick.move(to: inner)
                         tick.addLine(to: outer)
-                        context.stroke(tick, with: .color(.primary.opacity(0.5)), lineWidth: 1.5)
+                        context.stroke(tick, with: .color(.primary.opacity(0.5)), lineWidth: 1.5 * scale)
                     }
 
-                    // Noon marker triangle at top of circle (270°)
+                    // Noon marker triangle at top of circle (270 degrees)
                     let noonAngle = Angle.degrees(270)
                     let noonTip = pointOnCircle(angle: noonAngle, radius: radius, center: center)
-                    let noonBase = pointOnCircle(angle: noonAngle, radius: radius + 6, center: center)
+                    let noonBase = pointOnCircle(angle: noonAngle, radius: radius + noonTriangleSize, center: center)
                     let noonTriangle = Path { p in
                         p.move(to: noonTip)
-                        p.addLine(to: CGPoint(x: noonBase.x - 3.5, y: noonBase.y))
-                        p.addLine(to: CGPoint(x: noonBase.x + 3.5, y: noonBase.y))
+                        p.addLine(to: CGPoint(x: noonBase.x - noonTriangleHalfWidth, y: noonBase.y))
+                        p.addLine(to: CGPoint(x: noonBase.x + noonTriangleHalfWidth, y: noonBase.y))
                         p.closeSubpath()
                     }
                     context.fill(noonTriangle, with: .color(.primary.opacity(0.4)))
@@ -821,46 +870,114 @@ struct SunCircleView: View {
                     var hand = Path()
                     hand.move(to: center)
                     hand.addLine(to: handEnd)
-                    context.stroke(hand, with: .color(.primary.opacity(0.2)), lineWidth: 1)
+                    context.stroke(hand, with: .color(.primary.opacity(0.2)), lineWidth: handWidth)
+
+                    // Home time indicators
+                    if hasDifferentTimezone {
+                        // Dashed green line (detail view only)
+                        if size > 160 {
+                            let homeEnd = pointOnCircle(angle: homeAngle, radius: radius, center: center)
+                            var homeLine = Path()
+                            homeLine.move(to: center)
+                            homeLine.addLine(to: homeEnd)
+                            context.stroke(homeLine, with: .color(.green.opacity(0.6)),
+                                         style: StrokeStyle(lineWidth: max(1, 0.8 * scale), dash: homeHandDash))
+                        }
+
+                        // (Arc arrow drawn as Shape overlay below for proper animation)
+                    }
                 }
 
                 // Sun or moon icon at current time position
                 if isDaylight {
                     Image(systemName: "sun.max.fill")
                         .symbolRenderingMode(.multicolor)
-                        .font(.system(size: 14))
-                        .shadow(color: .orange.opacity(0.5), radius: 4)
+                        .font(.system(size: iconSize))
+                        .shadow(color: .orange.opacity(0.5), radius: 4 * scale)
                         .position(pointOnCircle(angle: currentAngle, radius: radius, center: center))
                 } else {
                     Image(systemName: "moon.fill")
-                        .font(.system(size: 12))
+                        .font(.system(size: moonIconSize))
                         .foregroundStyle(.secondary)
                         .position(pointOnCircle(angle: currentAngle, radius: radius, center: center))
                 }
 
+                // House icon at home time position (detail view only)
+                if hasDifferentTimezone && size > 160 {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: homeIconSize))
+                        .foregroundColor(.green)
+                        .position(pointOnCircle(angle: homeAngle, radius: radius, center: center))
+                }
+
+                // Animated arc arrow (Shape-based for proper animation, detail view only)
+                if hasDifferentTimezone && size > 160 {
+                    let arcColor: Color = pilotIsAhead ? .blue : .orange
+
+                    HomeTimeArcShape(
+                        progress: arcProgress,
+                        homeAngle: homeAngle,
+                        pilotAngle: currentAngle,
+                        isAhead: pilotIsAhead,
+                        centerYOffset: 2 * scale
+                    )
+                    .stroke(arcColor.opacity(0.7), style: StrokeStyle(lineWidth: arcLineWidth, lineCap: .round))
+                    .opacity(arcOpacity)
+
+                    HomeTimeArrowheadShape(
+                        progress: arcProgress,
+                        homeAngle: homeAngle,
+                        pilotAngle: currentAngle,
+                        isAhead: pilotIsAhead,
+                        centerYOffset: 2 * scale
+                    )
+                    .fill(arcColor.opacity(0.7))
+                    .opacity(arcOpacity)
+                }
+
                 // Noon label above triangle
                 Text("Noon")
-                    .font(.system(size: 8))
+                    .font(.system(size: noonFontSize))
                     .foregroundColor(.secondary)
-                    .position(x: center.x, y: center.y - radius - 14)
+                    .position(x: center.x, y: center.y - radius - noonLabelOffset)
 
                 // Sunrise time label
-                let sunriseLabelPos = pointOnCircle(angle: sunriseAngle, radius: radius + 38, center: center)
+                let sunriseLabelPos = pointOnCircle(angle: sunriseAngle, radius: radius + timeLabelOffset, center: center)
                 Text(formatTime(sunrise))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: timeLabelFontSize, weight: .medium))
                     .foregroundColor(.primary)
-                    .position(x: max(22, min(viewWidth - 22, sunriseLabelPos.x)),
-                              y: max(8, min(viewHeight - 8, sunriseLabelPos.y)))
+                    .position(x: max(timeLabelPadding, min(size - timeLabelPadding, sunriseLabelPos.x)),
+                              y: max(timeLabelEdge, min(size - timeLabelEdge, sunriseLabelPos.y)))
 
                 // Sunset time label
-                let sunsetLabelPos = pointOnCircle(angle: sunsetAngle, radius: radius + 38, center: center)
+                let sunsetLabelPos = pointOnCircle(angle: sunsetAngle, radius: radius + timeLabelOffset, center: center)
                 Text(formatTime(sunset))
-                    .font(.system(size: 9, weight: .medium))
+                    .font(.system(size: timeLabelFontSize, weight: .medium))
                     .foregroundColor(.primary)
-                    .position(x: max(22, min(viewWidth - 22, sunsetLabelPos.x)),
-                              y: max(8, min(viewHeight - 8, sunsetLabelPos.y)))
+                    .position(x: max(timeLabelPadding, min(size - timeLabelPadding, sunsetLabelPos.x)),
+                              y: max(timeLabelEdge, min(size - timeLabelEdge, sunsetLabelPos.y)))
             }
-            .frame(width: viewWidth, height: viewHeight)
+            .frame(width: size, height: size)
+        }
+        .task {
+            while !Task.isCancelled {
+                // Draw in
+                withAnimation(.easeOut(duration: 0.8)) {
+                    arcProgress = 1
+                }
+                try? await Task.sleep(for: .seconds(2.0))
+
+                // Fade out
+                withAnimation(.easeOut(duration: 0.6)) {
+                    arcOpacity = 0
+                }
+                try? await Task.sleep(for: .seconds(0.8))
+
+                // Reset instantly
+                arcProgress = 0
+                arcOpacity = 1
+                try? await Task.sleep(for: .seconds(0.3))
+            }
         }
     }
 
@@ -875,6 +992,23 @@ struct SunCircleView: View {
         let hoursFromMidnight = Double(hour) + Double(minute) / 60.0
         let degrees = 90.0 + (hoursFromMidnight / 24.0) * 360.0
         return .degrees(degrees)
+    }
+
+    /// Same as angleForTime but uses the device's local timezone (home time)
+    private func angleForHomeTime(_ date: Date) -> Angle {
+        var cal = Calendar.current
+        cal.timeZone = TimeZone.current
+        let hour = cal.component(.hour, from: date)
+        let minute = cal.component(.minute, from: date)
+        let hoursFromMidnight = Double(hour) + Double(minute) / 60.0
+        let degrees = 90.0 + (hoursFromMidnight / 24.0) * 360.0
+        return .degrees(degrees)
+    }
+
+    /// Whether the pilot's timezone is ahead of home (east of home)
+    private func isPilotAhead(at date: Date) -> Bool {
+        guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return false }
+        return pilotTZ.secondsFromGMT(for: date) > TimeZone.current.secondsFromGMT(for: date)
     }
 
     private func pointOnCircle(angle: Angle, radius: CGFloat, center: CGPoint) -> CGPoint {
@@ -894,6 +1028,105 @@ struct SunCircleView: View {
             formatter.timeZone = tz
         }
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Home Time Arc Shapes
+
+/// Arc stroke from home angle toward pilot angle, with animatable progress.
+private struct HomeTimeArcShape: Shape {
+    var progress: CGFloat
+    let homeAngle: Angle
+    let pilotAngle: Angle
+    let isAhead: Bool
+    let centerYOffset: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard progress > 0 else { return Path() }
+
+        let scale = rect.width / 160
+        let center = CGPoint(x: rect.midX, y: rect.midY + centerYOffset)
+        let arcRadius = 42 * scale * 0.70
+
+        let homeDeg = homeAngle.degrees
+        let pilotDeg = pilotAngle.degrees
+
+        let endAngle: Angle
+        if isAhead {
+            let cwDist = (pilotDeg - homeDeg + 360).truncatingRemainder(dividingBy: 360)
+            endAngle = .degrees(homeDeg + cwDist * Double(progress))
+        } else {
+            let ccwDist = (homeDeg - pilotDeg + 360).truncatingRemainder(dividingBy: 360)
+            endAngle = .degrees(homeDeg - ccwDist * Double(progress))
+        }
+
+        var path = Path()
+        path.addArc(center: center, radius: arcRadius,
+                    startAngle: homeAngle, endAngle: endAngle,
+                    clockwise: isAhead ? false : true)
+        return path
+    }
+}
+
+/// Triangular arrowhead at the leading end of the arc.
+private struct HomeTimeArrowheadShape: Shape {
+    var progress: CGFloat
+    let homeAngle: Angle
+    let pilotAngle: Angle
+    let isAhead: Bool
+    let centerYOffset: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard progress > 0 else { return Path() }
+
+        let scale = rect.width / 160
+        let center = CGPoint(x: rect.midX, y: rect.midY + centerYOffset)
+        let arcRadius = 42 * scale * 0.70
+        let arrowSize = 5 * scale
+
+        let homeDeg = homeAngle.degrees
+        let pilotDeg = pilotAngle.degrees
+
+        let endAngle: Angle
+        if isAhead {
+            let cwDist = (pilotDeg - homeDeg + 360).truncatingRemainder(dividingBy: 360)
+            endAngle = .degrees(homeDeg + cwDist * Double(progress))
+        } else {
+            let ccwDist = (homeDeg - pilotDeg + 360).truncatingRemainder(dividingBy: 360)
+            endAngle = .degrees(homeDeg - ccwDist * Double(progress))
+        }
+
+        let tipX = center.x + arcRadius * cos(CGFloat(endAngle.radians))
+        let tipY = center.y + arcRadius * sin(CGFloat(endAngle.radians))
+        let arrowTip = CGPoint(x: tipX, y: tipY)
+
+        let tangentDeg = endAngle.degrees + (isAhead ? 90 : -90)
+        let backDeg = tangentDeg + 180
+        let leftPt = CGPoint(
+            x: arrowTip.x + arrowSize * cos(CGFloat(Angle.degrees(backDeg + 25).radians)),
+            y: arrowTip.y + arrowSize * sin(CGFloat(Angle.degrees(backDeg + 25).radians))
+        )
+        let rightPt = CGPoint(
+            x: arrowTip.x + arrowSize * cos(CGFloat(Angle.degrees(backDeg - 25).radians)),
+            y: arrowTip.y + arrowSize * sin(CGFloat(Angle.degrees(backDeg - 25).radians))
+        )
+
+        var path = Path()
+        path.move(to: arrowTip)
+        path.addLine(to: leftPt)
+        path.addLine(to: rightPt)
+        path.closeSubpath()
+        return path
     }
 }
 

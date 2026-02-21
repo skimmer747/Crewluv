@@ -1,0 +1,204 @@
+//
+//  SunCircleDetailView.swift
+//  CrewLuve
+//
+//  Expanded sun circle detail with weather info, daylight duration, and golden hour
+//
+
+import SwiftUI
+import Combine
+
+struct SunCircleDetailView: View {
+    let sunrise: Date
+    let sunset: Date
+    let isDaylight: Bool
+    let timezone: String?
+    let cityName: String
+    let weather: WeatherSnapshot
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var appeared = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var liveLocalTime: String = ""
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ZStack {
+            // Blurred dismissable background
+            Color.black.opacity(appeared ? 0.3 : 0)
+                .background(.ultraThinMaterial.opacity(appeared ? 1 : 0))
+                .ignoresSafeArea()
+                .onTapGesture { dismissView() }
+
+            // Card
+            VStack(spacing: 0) {
+                // Drag handle
+                Capsule()
+                    .fill(Color.secondary.opacity(0.4))
+                    .frame(width: 36, height: 5)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+
+                // Header: city name + close button
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundColor(.red)
+                    Text(cityName)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button { dismissView() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 4)
+
+                // Current local time
+                Text(liveLocalTime)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .padding(.bottom, 8)
+                    .onReceive(timer) { _ in updateLocalTime() }
+                    .onAppear { updateLocalTime() }
+
+                // Large sun circle
+                SunCircleView(
+                    sunrise: sunrise,
+                    sunset: sunset,
+                    isDaylight: isDaylight,
+                    timezone: timezone,
+                    size: 300
+                )
+                .scaleEffect(appeared ? 1.0 : 0.5)
+                .opacity(appeared ? 1.0 : 0)
+
+                // Weather summary row
+                HStack(spacing: 12) {
+                    Image(systemName: weather.conditionSymbol)
+                        .symbolRenderingMode(.multicolor)
+                        .font(.title)
+                    Text(weather.temperature)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text(weather.conditionDescription)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 8)
+
+                Divider()
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+
+                // Daylight info
+                VStack(spacing: 12) {
+                    // Daylight duration
+                    HStack(spacing: 8) {
+                        Image(systemName: "sun.max.fill")
+                            .foregroundColor(.orange)
+                        Text(daylightDurationText)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
+
+                    // Sunrise & sunset times
+                    HStack(spacing: 24) {
+                        Label(formatTime(sunrise), systemImage: "sunrise.fill")
+                            .font(.subheadline)
+                            .foregroundColor(.orange)
+                        Label(formatTime(sunset), systemImage: "sunset.fill")
+                            .font(.subheadline)
+                            .foregroundColor(.indigo)
+                    }
+
+                    // Golden hour
+                    HStack(spacing: 8) {
+                        Image(systemName: "camera.filters")
+                            .foregroundColor(.yellow)
+                        Text("Golden hour at \(formatTime(goldenHourTime))")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.bottom, 24)
+            }
+            .frame(maxWidth: 360)
+            .glassEffect(.regular, in: .rect(cornerRadius: 28))
+            .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
+            .offset(y: dragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.height > 0 {
+                            dragOffset = value.translation.height
+                        }
+                    }
+                    .onEnded { value in
+                        if value.translation.height > 100 {
+                            dismissView()
+                        } else {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                dragOffset = 0
+                            }
+                        }
+                    }
+            )
+        }
+        .presentationBackground(.clear)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                appeared = true
+            }
+        }
+    }
+
+    private func dismissView() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            appeared = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            dismiss()
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    private var daylightDurationText: String {
+        let interval = sunset.timeIntervalSince(sunrise)
+        let hours = Int(interval) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        return "\(hours)h \(minutes)m of daylight"
+    }
+
+    /// Golden hour = 30 minutes before sunset
+    private var goldenHourTime: Date {
+        sunset.addingTimeInterval(-30 * 60)
+    }
+
+    private func updateLocalTime() {
+        guard let tzId = timezone, let tz = TimeZone(identifier: tzId) else {
+            liveLocalTime = ""
+            return
+        }
+        let formatter = DateFormatter()
+        formatter.timeZone = tz
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        liveLocalTime = formatter.string(from: Date())
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        if let tzId = timezone, let tz = TimeZone(identifier: tzId) {
+            formatter.timeZone = tz
+        }
+        return formatter.string(from: date)
+    }
+}

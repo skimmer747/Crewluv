@@ -11,13 +11,13 @@ CrewLuve is a SwiftUI iOS app (iOS 17.0+) that allows pilots' partners and famil
 ### Build and Run
 ```bash
 # Open project in Xcode
-open CrewLuv.xcodeproj
+open Crewluv.xcodeproj
 
 # Build from command line
-xcodebuild -project CrewLuv.xcodeproj -scheme CrewLuv -destination 'platform=iOS Simulator,name=iPhone 15' build
+xcodebuild -project Crewluv.xcodeproj -scheme Crewluv -destination 'platform=iOS Simulator,name=iPhone 15' build
 
 # Run tests
-xcodebuild test -project CrewLuv.xcodeproj -scheme CrewLuv -destination 'platform=iOS Simulator,name=iPhone 15'
+xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
 
 ### Code Organization
@@ -57,9 +57,9 @@ Use Xcode for all development tasks. The project follows iOS development convent
 ## File Structure
 
 ```
-CrewLuv/
+Crewluv/
 ├── App/                      # App lifecycle and URL handling
-│   └── CrewLuvApp.swift     # Main entry point with CloudKit share URLs
+│   └── CrewluvApp.swift     # Main entry point with CloudKit share URLs
 ├── Views/                    # SwiftUI views by feature
 │   ├── Welcome/             # Onboarding screens
 │   └── Status/              # Status display
@@ -88,8 +88,8 @@ CrewLuv/
 
 ## Testing Strategy
 
-- Unit tests in `CrewLuvTests/`
-- UI tests in `CrewLuvUITests/`
+- Unit tests in `CrewluvTests/`
+- UI tests in `CrewluvUITests/`
 - CloudKit sharing can be tested with iOS Simulator
 - Debug logging available in DEBUG builds via `DebugLog.swift`
 
