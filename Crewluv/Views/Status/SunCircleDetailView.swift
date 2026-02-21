@@ -20,6 +20,7 @@ struct SunCircleDetailView: View {
     @State private var appeared = false
     @State private var dragOffset: CGFloat = 0
     @State private var liveLocalTime: String = ""
+    @State private var liveHomeTime: String = ""
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -57,15 +58,33 @@ struct SunCircleDetailView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 4)
 
-                // Current local time
-                Text(liveLocalTime)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .padding(.bottom, 8)
-                    .onReceive(timer) { _ in updateLocalTime() }
-                    .onAppear { updateLocalTime() }
+                // Local + home time
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: isDaylight ? "sun.max.fill" : "moon.fill")
+                            .foregroundColor(isDaylight ? .orange : .indigo)
+                            .font(.subheadline)
+                        Text(liveLocalTime)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Text(liveHomeTime)
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Image(systemName: "house.fill")
+                            .foregroundColor(.green)
+                            .font(.subheadline)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .contentTransition(.numericText())
+                .padding(.bottom, 8)
+                .onReceive(timer) { _ in updateLocalTime() }
+                .onAppear { updateLocalTime() }
 
                 // Large sun circle
                 SunCircleView(
@@ -130,6 +149,13 @@ struct SunCircleDetailView: View {
             }
             .frame(maxWidth: 360)
             .glassEffect(.regular, in: .rect(cornerRadius: 28))
+            .overlay {
+                WeatherBackgroundView(
+                    animationType: WeatherAnimationType.from(weather: weather),
+                    opacity: appeared ? 1 : 0
+                )
+                .clipShape(.rect(cornerRadius: 28))
+            }
             .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
             .offset(y: dragOffset)
             .gesture(
@@ -183,15 +209,22 @@ struct SunCircleDetailView: View {
     }
 
     private func updateLocalTime() {
-        guard let tzId = timezone, let tz = TimeZone(identifier: tzId) else {
-            liveLocalTime = ""
-            return
-        }
+        let now = Date()
         let formatter = DateFormatter()
-        formatter.timeZone = tz
         formatter.timeStyle = .short
         formatter.dateStyle = .none
-        liveLocalTime = formatter.string(from: Date())
+
+        // Pilot's local time
+        if let tzId = timezone, let tz = TimeZone(identifier: tzId) {
+            formatter.timeZone = tz
+            liveLocalTime = formatter.string(from: now)
+        } else {
+            liveLocalTime = ""
+        }
+
+        // Home (device) time
+        formatter.timeZone = .current
+        liveHomeTime = formatter.string(from: now)
     }
 
     private func formatTime(_ date: Date) -> String {

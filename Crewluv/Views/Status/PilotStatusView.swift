@@ -935,6 +935,15 @@ struct SunCircleView: View {
                     .opacity(arcOpacity)
                 }
 
+                // Hour difference in center, synced with arrow animation
+                if hasDifferentTimezone && size > 160 {
+                    Text(hourDifferenceText(at: timeline.date))
+                        .font(.system(size: 14 * scale, weight: .semibold, design: .rounded))
+                        .foregroundStyle(pilotIsAhead ? .blue : .orange)
+                        .position(center)
+                        .opacity(arcProgress * arcOpacity)
+                }
+
                 // Noon label above triangle
                 Text("Noon")
                     .font(.system(size: noonFontSize))
@@ -1009,6 +1018,20 @@ struct SunCircleView: View {
     private func isPilotAhead(at date: Date) -> Bool {
         guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return false }
         return pilotTZ.secondsFromGMT(for: date) > TimeZone.current.secondsFromGMT(for: date)
+    }
+
+    /// Signed hour offset string between pilot timezone and device timezone
+    private func hourDifferenceText(at date: Date) -> String {
+        guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return "" }
+        let diffSeconds = pilotTZ.secondsFromGMT(for: date) - TimeZone.current.secondsFromGMT(for: date)
+        let hours = diffSeconds / 3600
+        let minutes = abs(diffSeconds % 3600) / 60
+        let sign = diffSeconds >= 0 ? "+" : "-"
+        if minutes == 0 {
+            return "\(sign)\(abs(hours))h"
+        } else {
+            return "\(sign)\(abs(hours)):\(String(format: "%02d", minutes))"
+        }
     }
 
     private func pointOnCircle(angle: Angle, radius: CGFloat, center: CGPoint) -> CGPoint {
