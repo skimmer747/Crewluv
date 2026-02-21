@@ -170,7 +170,8 @@ struct SunCircleDetailView: View {
     // MARK: - Computed Properties
 
     private var daylightDurationText: String {
-        let interval = sunset.timeIntervalSince(sunrise)
+        // Clamp to zero so inverted sunset/sunrise (e.g. polar regions) shows "0h 0m" not negative values
+        let interval = max(0, sunset.timeIntervalSince(sunrise))
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         return "\(hours)h \(minutes)m of daylight"

@@ -93,13 +93,13 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var layoverNarrative: some View {
         if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is laying over in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
+            Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is laying over in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
+            Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity {
-            Text("\(name) is laying over in \(Text(city).bold())")
+            Text("\(name) is on layover in \(Text(city).bold())")
         } else {
-            Text("\(name) is on a layover")
+            Text("\(name) is on layover")
         }
     }
 
