@@ -949,7 +949,7 @@ struct SunCircleView: View {
                 // Hour difference in center, synced with arrow animation
                 if hasDifferentTimezone && size > 160 {
                     Text(hourDifferenceText(at: timeline.date))
-                        .font(.system(size: 14 * scale, weight: .semibold, design: .rounded))
+                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
                         .foregroundStyle(pilotIsAhead ? .blue : .orange)
                         .position(center)
                         .opacity(arcProgress * arcOpacity)

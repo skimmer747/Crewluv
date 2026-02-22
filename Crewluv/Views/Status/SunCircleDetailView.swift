@@ -17,6 +17,7 @@ struct SunCircleDetailView: View {
     let weather: WeatherSnapshot
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var deviceColorScheme
     @State private var appeared = false
     @State private var dragOffset: CGFloat = 0
     @State private var liveLocalTime: String = ""
@@ -158,6 +159,7 @@ struct SunCircleDetailView: View {
                 .clipShape(.rect(cornerRadius: 28))
             }
             .glassEffect(.regular, in: .rect(cornerRadius: 28))
+            .environment(\.colorScheme, (isDaylight && deviceColorScheme == .light) ? .light : .dark)
             .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
             .offset(y: dragOffset)
             .gesture(
