@@ -66,10 +66,13 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var inFlightNarrative: some View {
-        if let dest = currentArrivalCity(), let flt = status.currentFlightNumber, let arrTime = status.currentFlightArrivalTime {
-            Text("\(name) is flying to \(Text(dest).bold()) on FLT \(flt) — landing in \(countdownText(to: arrTime))")
-        } else if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
-            Text("\(name) is flying to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime))")
+        if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
+            let flt = status.currentFlightNumber
+            let dep = currentDepartureCity()
+            let base = Text("\(name) is flying to \(Text(dest).bold())")
+            let onFlt = flt.map { Text(" on \($0)") } ?? Text("")
+            let fromDep = dep.map { Text(" from \(Text($0).bold())") } ?? Text("")
+            Text("\(base)\(onFlt)\(fromDep), landing in \(countdownText(to: arrTime))")
         } else if let dest = currentArrivalCity() {
             Text("\(name) is flying to \(Text(dest).bold())")
         } else {
@@ -116,6 +119,15 @@ struct NarrativeCardView: View {
                     .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .frame(width: 44, height: 44)
                     .rotationEffect(.degrees(-90))
+            } else if status.displayStatus == "In Flight", let progress = flightProgress {
+                Circle()
+                    .stroke(statusColor.opacity(0.2), lineWidth: 3)
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(-90))
             }
 
             Image(systemName: statusIcon)
@@ -123,6 +135,18 @@ struct NarrativeCardView: View {
                 .foregroundColor(statusColor)
         }
         .frame(width: 44)
+    }
+
+    private var flightProgress: Double? {
+        let legs = sortedTripLegs
+        guard !legs.isEmpty else { return nil }
+        guard let flight = legs.first(where: {
+            $0.type == .flight && $0.startTime <= now && now < $0.endTime
+        }) else { return nil }
+        let total = flight.endTime.timeIntervalSince(flight.startTime)
+        guard total > 0 else { return nil }
+        let elapsed = now.timeIntervalSince(flight.startTime)
+        return min(max(elapsed / total, 0), 1)
     }
 
     private var layoverProgress: Double? {
@@ -176,6 +200,22 @@ struct NarrativeCardView: View {
     /// Returns the first flight leg where startTime > now
     private func nextFlight() -> TripLeg? {
         sortedTripLegs.first(where: { $0.type == .flight && $0.startTime > now })
+    }
+
+    private func currentDepartureCity() -> String? {
+        let legs = status.tripLegs
+        if !legs.isEmpty {
+            let currentFlight = legs.first(where: { (leg: TripLeg) in
+                leg.type == .flight && leg.startTime <= now && now < leg.endTime
+            })
+            if let city = currentFlight?.departureCity, !city.isEmpty {
+                return city
+            }
+        }
+        if let code = status.currentFlightDeparture {
+            return AirportDataProvider.shared.airportInfo(forIataCode: code)?.city
+        }
+        return nil
     }
 
     private func currentArrivalCity() -> String? {
