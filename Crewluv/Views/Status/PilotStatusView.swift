@@ -318,6 +318,7 @@ struct LocationCardView: View {
     @State private var timeDiffStyle: TimeDiffStyle = .odometer
     @State private var timeDiffAnimationID = UUID()
     @State private var showSunDetail = false
+    @State private var showFlightTracking = false
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -340,9 +341,14 @@ struct LocationCardView: View {
                 // Left: Flight info
                 VStack(alignment: .leading, spacing: 2) {
                     if let flightNumber = status.currentFlightNumber {
-                        Text("FLT \(flightNumber)")
+                        Text(flightNumber)
                             .font(.system(size: 18, weight: .heavy, design: .rounded))
                             .foregroundColor(primaryTextColor)
+                            .underline(color: primaryTextColor.opacity(0.3))
+                            .onTapGesture {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                showFlightTracking = true
+                            }
                     }
                     
                     Text(status.currentCity ?? "In Flight")
@@ -382,8 +388,13 @@ struct LocationCardView: View {
         .onAppear {
             updateLiveLocalTime()
         }
+        .fullScreenCover(isPresented: $showFlightTracking) {
+            if let flightNumber = status.currentFlightNumber {
+                FlightTrackingPopupView(flightNumber: flightNumber)
+            }
+        }
     }
-    
+
     // MARK: - Standard Location View (Not In Flight)
     
     private var standardLocationView: some View {
@@ -511,7 +522,7 @@ struct LocationCardView: View {
     }
     
     // MARK: - Helper Properties
-    
+
     private var primaryTextColor: Color {
         colorScheme == .dark ? .white : Color(red: 0.1, green: 0.15, blue: 0.25)
     }
