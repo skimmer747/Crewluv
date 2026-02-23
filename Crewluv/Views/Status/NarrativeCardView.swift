@@ -110,12 +110,13 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var inFlightNarrative: some View {
         if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
-            let flt = status.currentFlightNumber
+            let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
-            let base = Text("\(name) is flying to \(Text(dest).bold())")
-            let onFlt = flt.map { Text(" on \($0)") } ?? Text("")
-            let fromDep = dep.map { Text(" from \(Text($0).bold())") } ?? Text("")
-            Text("\(base)\(onFlt)\(fromDep), landing in \(countdownText(to: arrTime))")
+            if let dep {
+                Text("\(name) is flying to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()), landing in \(countdownText(to: arrTime))")
+            } else {
+                Text("\(name) is flying to \(Text(dest).bold())\(fltStr), landing in \(countdownText(to: arrTime))")
+            }
         } else if let dest = currentArrivalCity() {
             Text("\(name) is flying to \(Text(dest).bold())")
         } else {
@@ -309,12 +310,27 @@ struct NarrativeCardView: View {
         return status.nextDepartureTime
     }
 
+    // MARK: - Airline Helpers
+
+    private var currentAirlineCode: String? {
+        guard let flt = status.currentFlightNumber else { return nil }
+        let (prefix, _) = FlightTrackingHelper.parseFlightNumber(flt)
+        return prefix.isEmpty ? nil : prefix
+    }
+
+    private func formattedFlightString(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "" }
+        let (prefix, number) = FlightTrackingHelper.parseFlightNumber(raw)
+        let airline = AirlineBranding.airlineName(for: prefix)
+        return " on \(airline) flight \(number)"
+    }
+
     // MARK: - Status Icon & Color
 
     private var statusIcon: String {
         switch status.displayStatus {
         case "Home": return "house.fill"
-        case "In Flight": return "airplane"
+        case "In Flight": return AirlineBranding.symbolName(for: currentAirlineCode)
         case "Turn": return "arrow.triangle.2.circlepath"
         case "Layover": return "bed.double.fill"
         default: return "circle.fill"
@@ -324,7 +340,7 @@ struct NarrativeCardView: View {
     private var statusColor: Color {
         switch status.displayStatus {
         case "Home": return .green
-        case "In Flight": return .blue
+        case "In Flight": return AirlineBranding.color(for: currentAirlineCode)
         case "Turn": return .orange
         case "Layover": return .purple
         default: return .gray
