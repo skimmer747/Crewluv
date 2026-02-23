@@ -217,7 +217,6 @@ enum AirlineBranding {
         // Cargo
         case "FX": return Color(red: 0.5, green: 0.0, blue: 0.5)
         case "5X": return Color(red: 0.4, green: 0.2, blue: 0.0)
-        case "CX": return Color(red: 0.0, green: 0.5, blue: 0.4)
         case "K4": return Color(red: 0.8, green: 0.0, blue: 0.0)
         case "5Y": return Color(red: 0.0, green: 0.2, blue: 0.6)
         case "GG": return Color(red: 0.5, green: 0.5, blue: 0.5)
@@ -227,6 +226,7 @@ enum AirlineBranding {
         case "LH": return Color(red: 0.0, green: 0.1, blue: 0.4)
         case "BA": return Color(red: 0.0, green: 0.2, blue: 0.5)
         case "AF": return Color(red: 0.0, green: 0.3, blue: 0.5)
+        case "CX": return Color(red: 0.0, green: 0.5, blue: 0.4)
         case "KL": return Color(red: 0.0, green: 0.6, blue: 0.9)
         case "QF": return Color(red: 0.9, green: 0.0, blue: 0.0)
         case "EK": return Color(red: 0.9, green: 0.0, blue: 0.2)

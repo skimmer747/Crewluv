@@ -75,7 +75,7 @@ struct PilotStatusView: View {
                             Image(systemName: "house.fill")
                                 .font(.subheadline)
                                 .foregroundColor(.green)
-                            Text("Day \(days) at home")
+                            Text("\(days) days home")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }

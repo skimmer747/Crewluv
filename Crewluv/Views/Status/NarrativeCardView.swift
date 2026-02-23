@@ -321,6 +321,7 @@ struct NarrativeCardView: View {
     private func formattedFlightString(_ raw: String?) -> String {
         guard let raw, !raw.isEmpty else { return "" }
         let (prefix, number) = FlightTrackingHelper.parseFlightNumber(raw)
+        guard !number.isEmpty else { return "" }
         let airline = AirlineBranding.airlineName(for: prefix)
         return " on \(airline) flight \(number)"
     }
