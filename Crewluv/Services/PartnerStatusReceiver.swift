@@ -281,6 +281,8 @@ class PartnerStatusReceiver {
             nextFlightNumber: resolved.nextFlightNumber,
             nextFlightDestination: resolved.nextFlightDestination,
             nextDepartureLabel: resolved.nextDepartureLabel,
+            lastTripEndDate: raw.lastTripEndDate,
+            lastTripDurationDays: raw.lastTripDurationDays,
             currentTripId: raw.currentTripId,
             tripDayNumber: resolved.tripDayNumber,
             tripTotalDays: resolved.tripTotalDays,

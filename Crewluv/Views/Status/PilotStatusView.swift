@@ -35,12 +35,55 @@ struct PilotStatusView: View {
 
     @State private var showSchedule = false
 
+    /// Derive upcoming trip info once from trip legs (single source of truth)
+    private var upcomingTrip: UpcomingTripInfo? {
+        guard status.displayStatus == "Home" else { return nil }
+        return UpcomingTripInfo.from(tripLegs: status.tripLegs, at: Date())
+    }
+
+    /// Days home since last trip ended
+    private var daysAtHome: Int? {
+        guard let lastEnd = status.lastTripEndDate else { return nil }
+        let days = Calendar.current.dateComponents([.day], from: lastEnd, to: Date()).day ?? 0
+        return days > 0 ? days : nil
+    }
+
     var body: some View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
                 VStack(spacing: 24) {
                     // Narrative Card - "What's happening now"
-                    NarrativeCardView(status: status)
+                    NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
+
+                    // Next Departure (if at home) — taps open schedule
+                    if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
+                        scheduleLink {
+                            CountdownCardView(
+                                title: status.nextDepartureLabel ?? "Leaves In",
+                                targetDate: departureTime,
+                                icon: "airplane.departure",
+                                color: .blue,
+                                showChevron: !isCompanionLayout
+                            )
+                            .contentShape(.rect)
+                        }
+                    }
+
+                    // Days home counter (only when home with last trip data)
+                    if status.displayStatus == "Home", let days = daysAtHome {
+                        HStack(spacing: 8) {
+                            Image(systemName: "house.fill")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                            Text("Day \(days) at home")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                    }
 
                     // Countdown Timer (if not home) — taps open schedule
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
@@ -75,20 +118,6 @@ struct PilotStatusView: View {
                         }
                     }
 
-                    // Next Departure (if at home) — taps open schedule
-                    if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
-                        scheduleLink {
-                            CountdownCardView(
-                                title: status.nextDepartureLabel ?? "Leaves In",
-                                targetDate: departureTime,
-                                icon: "airplane.departure",
-                                color: .blue,
-                                showChevron: !isCompanionLayout
-                            )
-                            .contentShape(.rect)
-                        }
-                    }
-
                     // Schedule card when home with no departure time (hidden on iPad)
                     if !isCompanionLayout, status.displayStatus == "Home", status.nextDepartureTime == nil {
                         Button { showSchedule = true } label: {
@@ -114,6 +143,17 @@ struct PilotStatusView: View {
 
                     // Location Card
                     LocationCardView(status: status)
+
+                    // Upcoming trip card (when home with trip data)
+                    if status.displayStatus == "Home", let trip = upcomingTrip {
+                        scheduleLink {
+                            UpcomingTripCard(
+                                trip: trip,
+                                showChevron: !isCompanionLayout
+                            )
+                            .contentShape(.rect)
+                        }
+                    }
 
                     // Trip Overview (if on trip)
                     if status.displayStatus != "Home",
@@ -1820,6 +1860,8 @@ struct SyncExplanationView: View {
         nextFlightNumber: nil,
         nextFlightDestination: nil,
         nextDepartureLabel: nil,
+        lastTripEndDate: Date().addingTimeInterval(-259200),  // 3 days ago
+        lastTripDurationDays: 4,
         currentTripId: "test123",
         tripDayNumber: 2,
         tripTotalDays: 4,

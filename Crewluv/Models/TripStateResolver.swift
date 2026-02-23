@@ -242,14 +242,18 @@ enum TripStateResolver {
             nextFlightLeg: nextFlightLeg, sorted: sorted, homeAirport: homeAirport
         )
 
+        // Derive home location info from homeAirport code
+        let homeInfo = homeAirport.flatMap { AirportDataProvider.shared.airportInfo(forIataCode: $0) }
+        let homeTZ = airportTimezone(homeAirport)
+
         return ResolvedPilotState(
             displayStatus: "Home",
             isHome: true,
             isInFlight: false,
             isOnDuty: false,
-            currentAirport: nil,
-            currentCity: nil,
-            currentTimezone: nil,
+            currentAirport: homeAirport,
+            currentCity: homeInfo?.city,
+            currentTimezone: homeTZ,
             currentFlightNumber: nil,
             currentFlightDeparture: nil,
             currentFlightArrival: nil,

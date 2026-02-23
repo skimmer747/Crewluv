@@ -10,6 +10,7 @@ import Combine
 
 struct NarrativeCardView: View {
     let status: SharedPilotStatus
+    var upcomingTrip: UpcomingTripInfo? = nil
 
     @State private var now = Date()
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -55,12 +56,54 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var homeNarrative: some View {
-        if let departureTime = status.nextDepartureTime, let dest = nextFlightCity() {
-            Text("\(name) is home — heads to \(Text(dest).bold()) in \(countdownText(to: departureTime))")
-        } else if let departureTime = status.nextDepartureTime {
-            Text("\(name) is home — heads out in \(countdownText(to: departureTime))")
+        let hasPrevTrip = status.lastTripDurationDays != nil
+        let hasNextTrip = upcomingTrip != nil
+
+        if hasPrevTrip, let days = status.lastTripDurationDays, hasNextTrip, let trip = upcomingTrip {
+            let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
+            let depText = formattedDepartureDate(trip.departureDate)
+            Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold())! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()).")
+        } else if hasPrevTrip, let days = status.lastTripDurationDays {
+            Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
+        } else if hasNextTrip, let trip = upcomingTrip {
+            let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
+            let depText = formattedDepartureDate(trip.departureDate)
+            Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()).")
         } else {
-            Text("\(name) is home and relaxing")
+            Text("\(name) is home and relaxing.")
+        }
+    }
+
+    // MARK: - Date Formatting Helpers
+
+    private func formattedDepartureDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mma"
+        timeFormatter.amSymbol = "am"
+        timeFormatter.pmSymbol = "pm"
+        let timeStr = timeFormatter.string(from: date)
+
+        if calendar.isDateInToday(date) {
+            return "today at \(timeStr)"
+        } else if calendar.isDateInTomorrow(date) {
+            return "tomorrow at \(timeStr)"
+        } else {
+            let weekday = date.formatted(.dateTime.weekday(.wide))
+            let day = calendar.component(.day, from: date)
+            let suffix = ordinalSuffix(for: day)
+            return "\(weekday) the \(day)\(suffix) at \(timeStr)"
+        }
+    }
+
+    private func ordinalSuffix(for day: Int) -> String {
+        let teens = (11...13).contains(day % 100)
+        if teens { return "th" }
+        switch day % 10 {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
         }
     }
 

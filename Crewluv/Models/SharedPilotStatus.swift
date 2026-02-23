@@ -63,6 +63,11 @@ struct SharedPilotStatus: Codable, Sendable {
     let nextFlightDestination: String?
     let nextDepartureLabel: String?  // "Leaves From (Orlando)" for pre-trip jumpseats
 
+    // MARK: - Last Trip (for "at home" view)
+
+    let lastTripEndDate: Date?
+    let lastTripDurationDays: Int?
+
     // MARK: - Trip Overview
 
     let currentTripId: String?
@@ -168,6 +173,13 @@ struct SharedPilotStatus: Codable, Sendable {
             record["nextDepartureLabel"] = nextDepartureLabel as CKRecordValue
         }
 
+        if let lastTripEndDate = lastTripEndDate {
+            record["lastTripEndDate"] = lastTripEndDate as CKRecordValue
+        }
+        if let lastTripDurationDays = lastTripDurationDays {
+            record["lastTripDurationDays"] = lastTripDurationDays as CKRecordValue
+        }
+
         if let currentTripId = currentTripId {
             record["currentTripId"] = currentTripId as CKRecordValue
         }
@@ -225,6 +237,8 @@ struct SharedPilotStatus: Codable, Sendable {
             nextFlightNumber: record["nextFlightNumber"] as? String,
             nextFlightDestination: record["nextFlightDestination"] as? String,
             nextDepartureLabel: record["nextDepartureLabel"] as? String,
+            lastTripEndDate: record["lastTripEndDate"] as? Date,
+            lastTripDurationDays: record["lastTripDurationDays"] as? Int,
             currentTripId: record["currentTripId"] as? String,
             tripDayNumber: record["tripDayNumber"] as? Int,
             tripTotalDays: record["tripTotalDays"] as? Int,
