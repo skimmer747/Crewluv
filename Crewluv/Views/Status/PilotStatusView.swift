@@ -48,6 +48,13 @@ struct PilotStatusView: View {
         return days > 0 ? days : nil
     }
 
+    /// True when the pilot has an active delay and is not home — shifts homeArrivalTime.
+    /// Covers both mid-flight on the last leg AND layover/turn with a delay reported.
+    private var isDelayedLastFlight: Bool {
+        guard status.hasFlightDelay, !status.isHome else { return false }
+        return true
+    }
+
     var body: some View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
@@ -89,15 +96,20 @@ struct PilotStatusView: View {
                     if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
-                        let dateStr = homeTime.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
-                        let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
+                        let shiftHomeTime = isDelayedLastFlight
+                        let shiftedHomeTime = shiftHomeTime
+                            ? homeTime.addingTimeInterval(TimeInterval((status.flightDelayMinutes ?? 0) * 60))
+                            : homeTime
+                        let dateStr = shiftedHomeTime.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+                        let delayNote = shiftHomeTime ? " (delayed)" : ""
+                        let arrivalSubtitle = [dateStr + delayNote, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
                         scheduleLink {
                             CountdownCardView(
                                 title: label,
-                                targetDate: homeTime,
+                                targetDate: shiftedHomeTime,
                                 icon: isGoingHome ? "house.fill" : "airplane.arrival",
-                                color: .green,
+                                color: shiftHomeTime ? .red : .green,
                                 subtitle: arrivalSubtitle,
                                 showChevron: !isCompanionLayout
                             )
@@ -207,13 +219,20 @@ struct PilotStatusView: View {
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
             if let anchor,
                let homeTime = status.homeArrivalTime,
-               homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
-                GeometryReader { proxy in
-                    let rect = proxy[anchor]
-                    CelebrationFigureView()
-                        .position(x: rect.maxX - 24, y: rect.minY + 12)
+               status.displayStatus != "Home" {
+                // Use same shifted home time as CountdownCardView so celebration doesn't show early when delayed
+                let shiftHomeTime = isDelayedLastFlight
+                let shiftedHomeTime = shiftHomeTime
+                    ? homeTime.addingTimeInterval(TimeInterval((status.flightDelayMinutes ?? 0) * 60))
+                    : homeTime
+                if shiftedHomeTime.timeIntervalSinceNow < 86400 && shiftedHomeTime.timeIntervalSinceNow > 0 {
+                    GeometryReader { proxy in
+                        let rect = proxy[anchor]
+                        CelebrationFigureView()
+                            .position(x: rect.maxX - 24, y: rect.minY + 12)
+                    }
+                    .allowsHitTesting(false)
                 }
-                .allowsHitTesting(false)
             }
         }
     }
@@ -375,7 +394,21 @@ struct LocationCardView: View {
         VStack(spacing: 0) {
             // Flight route map visualization
             FlightRouteMapView(status: status)
-            
+
+            // Delay banner
+            if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                    Text("DELAYED \(Self.formatDelayDuration(delayMinutes))")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(.orange)
+            }
+
             // Info bar (matching widget style)
             HStack(spacing: 0) {
                 // Left: Flight info
@@ -454,6 +487,21 @@ struct LocationCardView: View {
                     }
                 }
 
+                // Delay banner (layover/turn)
+                if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                        Text("DELAYED \(Self.formatDelayDuration(delayMinutes))")
+                            .font(.caption.weight(.bold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.orange)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
                 if let weather = currentWeather {
                     HStack(spacing: 8) {
                         Image(systemName: weather.conditionSymbol)
@@ -476,8 +524,17 @@ struct LocationCardView: View {
                     }
                 }
 
-                // Sleeping indicator
-                if status.isSleeping {
+                // Quick status / sleeping indicator
+                if let qs = status.quickStatus, !qs.isEmpty,
+                   status.quickStatusExpiry.map({ $0 > Date() }) ?? true {
+                    QuickStatusIndicatorView(
+                        label: qs,
+                        icon: status.quickStatusIcon ?? "bubble.left.fill",
+                        expiry: status.quickStatusExpiry,
+                        accentColor: qs == "Flight Delayed" ? .orange : .blue
+                    )
+                    .padding(.top, 4)
+                } else if status.isSleeping {
                     SleepingIndicatorView()
                         .padding(.top, 4)
                 }
@@ -562,6 +619,15 @@ struct LocationCardView: View {
     }
     
     // MARK: - Helper Properties
+
+    /// Format delay minutes as "1h 30m", "45m", etc.
+    static func formatDelayDuration(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        if h > 0 && m > 0 { return "\(h)h \(m)m" }
+        if h > 0 { return "\(h)h" }
+        return "\(m)m"
+    }
 
     private var primaryTextColor: Color {
         colorScheme == .dark ? .white : Color(red: 0.1, green: 0.15, blue: 0.25)
@@ -1768,6 +1834,59 @@ struct SleepingIndicatorView: View {
     }
 }
 
+// MARK: - Quick Status Indicator View
+
+struct QuickStatusIndicatorView: View {
+    let label: String
+    let icon: String
+    let expiry: Date?
+    var accentColor: Color = .blue
+
+    @State private var animating = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let now = context.date
+            if let expiry, expiry <= now {
+                EmptyView()
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.title3)
+                        .foregroundColor(accentColor)
+                        .symbolEffect(.pulse)
+
+                    Text(label)
+                        .font(.callout)
+                        .fontWeight(.medium)
+                        .foregroundColor(accentColor)
+
+                    if let expiry {
+                        Text(countdownText(from: now, to: expiry))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func countdownText(from now: Date, to expiry: Date) -> String {
+        let interval = Int(expiry.timeIntervalSince(now))
+        guard interval > 0 else { return "" }
+        let h = interval / 3600
+        let m = (interval % 3600) / 60
+        let s = interval % 60
+        if h > 0 {
+            return String(format: "(%d:%02d:%02d left)", h, m, s)
+        } else {
+            return String(format: "(%d:%02d left)", m, s)
+        }
+    }
+}
+
 // MARK: - Sync Explanation View
 
 struct SyncExplanationView: View {
@@ -1867,6 +1986,10 @@ struct SyncExplanationView: View {
         tripTotalDays: 4,
         upcomingCities: ["Anchorage", "Hong Kong", "Shanghai"],
         tripLegsJSON: nil,
+        quickStatus: nil,
+        quickStatusIcon: nil,
+        quickStatusExpiry: nil,
+        flightDelayMinutes: nil,
         lastUpdated: Date().addingTimeInterval(-300),
         appVersion: "1.0"
     ),
