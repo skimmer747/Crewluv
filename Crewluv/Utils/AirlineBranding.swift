@@ -194,7 +194,15 @@ enum AirlineBranding {
 
     // MARK: - Brand Color
 
+    /// Returns the brand color for the airline. Use the overload that takes `colorScheme`
+    /// in views so dark mode gets readable colors (e.g. UPS brown lightened on dark backgrounds).
     static func color(for airlineCode: String?) -> Color {
+        color(for: airlineCode, colorScheme: .light)
+    }
+
+    /// Theme-aware brand color. Call from views with `@Environment(\.colorScheme)` so
+    /// colors like UPS (5X) brown are lightened in dark mode for readability.
+    static func color(for airlineCode: String?, colorScheme: ColorScheme) -> Color {
         guard let raw = airlineCode, !raw.isEmpty else { return .blue }
         let code = resolveCode(raw)
 
@@ -214,9 +222,13 @@ enum AirlineBranding {
         case "HA": return Color(red: 0.5, green: 0.0, blue: 0.5)
         case "XP": return Color(red: 1.0, green: 0.8, blue: 0.0)
 
-        // Cargo
+        // Cargo — UPS (5X) uses a lighter brown in dark mode for contrast on dark backgrounds
         case "FX": return Color(red: 0.5, green: 0.0, blue: 0.5)
-        case "5X": return Color(red: 0.4, green: 0.2, blue: 0.0)
+        case "5X":
+            if colorScheme == .dark {
+                return Color(red: 0.88, green: 0.62, blue: 0.2)
+            }
+            return Color(red: 0.4, green: 0.2, blue: 0.0)
         case "K4": return Color(red: 0.8, green: 0.0, blue: 0.0)
         case "5Y": return Color(red: 0.0, green: 0.2, blue: 0.6)
         case "GG": return Color(red: 0.5, green: 0.5, blue: 0.5)

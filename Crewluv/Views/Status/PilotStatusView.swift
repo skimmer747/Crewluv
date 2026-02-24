@@ -48,11 +48,16 @@ struct PilotStatusView: View {
         return days > 0 ? days : nil
     }
 
-    /// True when the pilot has an active delay and is not home — shifts homeArrivalTime.
-    /// Covers both mid-flight on the last leg AND layover/turn with a delay reported.
+    /// True when the pilot has an active delay on the last flight of the trip — shifts homeArrivalTime.
+    /// Covers both in-flight on last leg AND layover/turn before last leg.
     private var isDelayedLastFlight: Bool {
-        guard status.hasFlightDelay, !status.isHome else { return false }
-        return true
+        guard status.hasFlightDelay else { return false }
+        let sortedLegs = status.tripLegs.sorted { $0.startTime < $1.startTime }
+        // Find the specifically-delayed flight (has delayMinutes > 0)
+        let delayedFlight = sortedLegs.first(where: { ($0.delayMinutes ?? 0) > 0 && $0.type == .flight })
+        guard let flight = delayedFlight else { return false }
+        let hasMoreFlights = sortedLegs.contains { $0.type == .flight && $0.startTime > flight.endTime }
+        return !hasMoreFlights
     }
 
     var body: some View {
@@ -485,21 +490,6 @@ struct LocationCardView: View {
                         Text(flag)
                             .font(.title)
                     }
-                }
-
-                // Delay banner (layover/turn)
-                if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                        Text("DELAYED \(Self.formatDelayDuration(delayMinutes))")
-                            .font(.caption.weight(.bold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(.orange)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
                 if let weather = currentWeather {

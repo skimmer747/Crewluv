@@ -37,15 +37,44 @@ struct ResolvedPilotState {
     let upcomingCities: [String]
 
     let timeUntilNextTransition: TimeInterval?
+
+    /// Resolved delay minutes for the currently-matched flight leg (nil = no delay)
+    let flightDelayMinutes: Int?
 }
 
 enum TripStateResolver {
 
-    static func resolve(legs: [TripLeg], homeAirport: String?, at now: Date) -> ResolvedPilotState {
+    static func resolve(legs: [TripLeg], homeAirport: String?, flightDelayMinutes: Int? = nil, at now: Date) -> ResolvedPilotState {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
+        let delayInterval = TimeInterval((flightDelayMinutes ?? 0) * 60)
 
-        // Find the current leg: startTime <= now < endTime
-        let currentLeg = sorted.first { $0.startTime <= now && now < $0.endTime }
+        // Primary candidate: standard time window (startTime <= now < endTime)
+        let primaryCandidate = sorted.first { $0.startTime <= now && now < $0.endTime }
+
+        // Per-leg delay: only extend the specifically-delayed leg (new Duty sends delayMinutes on the leg)
+        let perLegDelayed: TripLeg? = sorted.first {
+            $0.type == .flight &&
+            ($0.delayMinutes ?? 0) > 0 &&
+            $0.startTime <= now &&
+            now < $0.endTime.addingTimeInterval(TimeInterval(($0.delayMinutes ?? 0) * 60))
+        }
+
+        // Fallback for old Duty versions without per-leg tagging:
+        // If no leg has delayMinutes set but we have a global delay, use old behavior
+        let legacyDelayed: TripLeg? = {
+            guard delayInterval > 0 else { return nil }
+            guard !sorted.contains(where: { ($0.delayMinutes ?? 0) > 0 }) else { return nil }
+            return sorted.first {
+                $0.type == .flight &&
+                $0.startTime <= now &&
+                now < $0.endTime.addingTimeInterval(delayInterval)
+            }
+        }()
+
+        let delayedFlight = perLegDelayed ?? legacyDelayed
+
+        // Delayed flight wins over ground legs that assumed on-time arrival
+        let currentLeg = delayedFlight ?? primaryCandidate
 
         // Future legs: startTime >= now, excluding the current leg by id
         let currentLegId = currentLeg?.id
@@ -177,7 +206,13 @@ enum TripStateResolver {
         let upcomingCities = deriveUpcomingCities(from: futureLegs)
 
         // Time until this leg ends (next transition point)
-        let timeUntilNextTransition = leg.endTime.timeIntervalSince(now)
+        let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
+        let effectiveEndTime = (leg.type == .flight && legDelay > 0)
+            ? leg.endTime.addingTimeInterval(legDelay)
+            : (leg.type == .flight && delayedFlight?.id == leg.id && delayInterval > 0
+                ? leg.endTime.addingTimeInterval(delayInterval) // legacy fallback
+                : leg.endTime)
+        let timeUntilNextTransition = effectiveEndTime.timeIntervalSince(now)
 
         // Prefer our own airport lookup over leg data (Duty's lookup has gaps)
         let resolvedTimezone: String? = isInFlight
@@ -207,6 +242,26 @@ enum TripStateResolver {
             return min(max(elapsed + 1, 1), total)
         }()
 
+        // Resolved delay: the delay relevant to the current state
+        // - In-flight on delayed flight → that flight's delay
+        // - Layover/turn with delay on next flight → next flight's delay
+        // - Legacy Duty (no per-leg tagging) → global delay for matched flight
+        let resolvedDelay: Int? = {
+            // Current leg is the delayed flight
+            if let perLeg = delayedFlight, (perLeg.delayMinutes ?? 0) > 0 {
+                return perLeg.delayMinutes
+            }
+            // Legacy fallback: current leg matched via global delay
+            if delayedFlight != nil && delayInterval > 0 {
+                return flightDelayMinutes
+            }
+            // Ground leg (layover/turn): check if next flight has a per-leg delay
+            if !isInFlight, let nextFlight = nextFlightLeg, (nextFlight.delayMinutes ?? 0) > 0 {
+                return nextFlight.delayMinutes
+            }
+            return nil
+        }()
+
         return ResolvedPilotState(
             displayStatus: displayStatus,
             isHome: isHome,
@@ -231,7 +286,8 @@ enum TripStateResolver {
             tripDayNumber: computedDayNumber,
             tripTotalDays: leg.tripTotalDays,
             upcomingCities: upcomingCities,
-            timeUntilNextTransition: timeUntilNextTransition > 0 ? timeUntilNextTransition : nil
+            timeUntilNextTransition: timeUntilNextTransition > 0 ? timeUntilNextTransition : nil,
+            flightDelayMinutes: resolvedDelay
         )
     }
 
@@ -273,7 +329,8 @@ enum TripStateResolver {
             timeUntilNextTransition: nextFlightLeg.flatMap { leg in
                 let interval = leg.startTime.timeIntervalSince(now)
                 return interval > 0 ? interval : nil
-            }
+            },
+            flightDelayMinutes: nil
         )
     }
 

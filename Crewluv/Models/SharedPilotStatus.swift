@@ -79,6 +79,18 @@ struct SharedPilotStatus: Codable, Sendable {
 
     let tripLegsJSON: Data?      // JSON-encoded [TripLeg], nil for old Duty versions
 
+    // MARK: - Quick Status
+
+    let quickStatus: String?          // "Call Me", "Free to Talk", etc.
+    let quickStatusIcon: String?      // SF Symbol name
+    let quickStatusExpiry: Date?      // When it auto-clears (nil = no limit)
+
+    // MARK: - Flight Delay
+
+    let flightDelayMinutes: Int?      // Delay duration in minutes (nil = no delay)
+
+    var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
+
     // MARK: - Metadata
 
     let lastUpdated: Date
@@ -194,6 +206,18 @@ struct SharedPilotStatus: Codable, Sendable {
         if let tripLegsJSON = tripLegsJSON {
             record["tripLegsJSON"] = tripLegsJSON as CKRecordValue
         }
+        if let quickStatus = quickStatus {
+            record["quickStatus"] = quickStatus as CKRecordValue
+        }
+        if let quickStatusIcon = quickStatusIcon {
+            record["quickStatusIcon"] = quickStatusIcon as CKRecordValue
+        }
+        if let quickStatusExpiry = quickStatusExpiry {
+            record["quickStatusExpiry"] = quickStatusExpiry as CKRecordValue
+        }
+        if let flightDelayMinutes = flightDelayMinutes {
+            record["flightDelayMinutes"] = flightDelayMinutes as CKRecordValue
+        }
         record["lastUpdated"] = lastUpdated as CKRecordValue
         record["appVersion"] = appVersion as CKRecordValue
 
@@ -244,6 +268,10 @@ struct SharedPilotStatus: Codable, Sendable {
             tripTotalDays: record["tripTotalDays"] as? Int,
             upcomingCities: record["upcomingCities"] as? [String] ?? [],
             tripLegsJSON: record["tripLegsJSON"] as? Data,
+            quickStatus: record["quickStatus"] as? String,
+            quickStatusIcon: record["quickStatusIcon"] as? String,
+            quickStatusExpiry: record["quickStatusExpiry"] as? Date,
+            flightDelayMinutes: record["flightDelayMinutes"] as? Int,
             lastUpdated: lastUpdated,
             appVersion: appVersion
         )

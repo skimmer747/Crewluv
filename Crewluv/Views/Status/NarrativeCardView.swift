@@ -179,7 +179,23 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var layoverNarrative: some View {
-        if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
+        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+            // Delay-aware layover narrative with human-readable delay and shifted departure
+            let delayStr = formattedDelayDuration(delayMinutes)
+            if let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
+                let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                let depTimeStr = formattedLocalTime(shiftedTime)
+                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) and will now fly to \(Text(dest).bold()) in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+            } else if let nextTime = nextFlightDepartureTime() {
+                let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                let depTimeStr = formattedLocalTime(shiftedTime)
+                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) — next flight in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+            } else if let city = status.currentCity {
+                Text("\(name)'s layover in \(Text(city).bold()) has been extended by \(Text(delayStr).bold()).")
+            } else {
+                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()).")
+            }
+        } else if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
             Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
             Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
@@ -224,16 +240,18 @@ struct NarrativeCardView: View {
     private var flightProgress: Double? {
         let legs = sortedTripLegs
         guard !legs.isEmpty else { return nil }
-        let delaySeconds = TimeInterval((status.flightDelayMinutes ?? 0) * 60)
+        // Use per-leg delay: only extend the specifically-delayed flight
         var matchedFlight: TripLeg?
         for leg in legs where leg.type == .flight {
-            if leg.startTime <= now && now < leg.endTime.addingTimeInterval(delaySeconds) {
+            let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
+            if leg.startTime <= now && now < leg.endTime.addingTimeInterval(legDelay) {
                 matchedFlight = leg
                 break
             }
         }
         guard let flight = matchedFlight else { return nil }
-        let adjustedStart = flight.startTime.addingTimeInterval(delaySeconds)
+        let legDelay = TimeInterval((flight.delayMinutes ?? 0) * 60)
+        let adjustedStart = flight.startTime.addingTimeInterval(legDelay)
         let total = flight.endTime.timeIntervalSince(flight.startTime)
         guard total > 0 else { return nil }
         let elapsed = now.timeIntervalSince(adjustedStart)
@@ -319,10 +337,13 @@ struct NarrativeCardView: View {
     }
 
     private func currentDepartureCity() -> String? {
-        let legs = status.tripLegs
+        let legs = sortedTripLegs
         if !legs.isEmpty {
+            // Use per-leg delay to extend only the specifically-delayed flight
             let currentFlight = legs.first(where: { (leg: TripLeg) in
-                leg.type == .flight && leg.startTime <= now && now < leg.endTime
+                guard leg.type == .flight else { return false }
+                let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
+                return leg.startTime <= now && now < leg.endTime.addingTimeInterval(legDelay)
             })
             if let city = currentFlight?.departureCity, !city.isEmpty {
                 return city
@@ -335,16 +356,23 @@ struct NarrativeCardView: View {
     }
 
     private func currentArrivalCity() -> String? {
-        let legs = status.tripLegs
+        let legs = sortedTripLegs
         if !legs.isEmpty {
+            // Use per-leg delay to extend only the specifically-delayed flight
             let currentFlight = legs.first(where: { (leg: TripLeg) in
-                leg.type == .flight && leg.startTime <= now && now < leg.endTime
+                guard leg.type == .flight else { return false }
+                let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
+                return leg.startTime <= now && now < leg.endTime.addingTimeInterval(legDelay)
             })
             if let city = currentFlight?.arrivalCity, !city.isEmpty {
                 return city
             }
         }
-        return status.currentFlightArrival
+        // Look up city name from IATA code, consistent with currentDepartureCity()
+        if let code = status.currentFlightArrival {
+            return AirportDataProvider.shared.airportInfo(forIataCode: code)?.city ?? code
+        }
+        return nil
     }
 
     private func nextFlightCity() -> String? {
@@ -380,6 +408,19 @@ struct NarrativeCardView: View {
             return nextFlight.startTime
         }
         return status.nextDepartureTime
+    }
+
+    /// Formats delay minutes as human-readable text, e.g. "10 hours", "2 hours 30 minutes", "45 minutes"
+    private func formattedDelayDuration(_ minutes: Int) -> String {
+        let h = minutes / 60
+        let m = minutes % 60
+        if h > 0 && m > 0 {
+            return "\(h) \(h == 1 ? "hour" : "hours") \(m) \(m == 1 ? "minute" : "minutes")"
+        } else if h > 0 {
+            return "\(h) \(h == 1 ? "hour" : "hours")"
+        } else {
+            return "\(m) \(m == 1 ? "minute" : "minutes")"
+        }
     }
 
     /// Formats a date as local time with timezone abbreviation, e.g. "3:00pm EST"
@@ -425,7 +466,7 @@ struct NarrativeCardView: View {
         case "Home": return .green
         case "In Flight": return status.hasFlightDelay ? .orange : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case "Turn": return .orange
-        case "Layover": return .purple
+        case "Layover": return status.hasFlightDelay ? .orange : .purple
         default: return .gray
         }
     }

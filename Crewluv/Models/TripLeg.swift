@@ -38,4 +38,7 @@ struct TripLeg: Codable, Sendable {
 
     let tripDayNumber: Int?
     let tripTotalDays: Int?
+
+    // Per-leg delay: only the specifically-delayed flight has a value here
+    let delayMinutes: Int?
 }

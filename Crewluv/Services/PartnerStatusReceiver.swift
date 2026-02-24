@@ -250,7 +250,7 @@ class PartnerStatusReceiver {
             return
         }
 
-        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, homeAirport: raw.homeAirportCode, at: Date())
+        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, homeAirport: raw.homeAirportCode, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
 
         // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
         pilotStatus = SharedPilotStatus(
@@ -288,6 +288,10 @@ class PartnerStatusReceiver {
             tripTotalDays: resolved.tripTotalDays,
             upcomingCities: resolved.upcomingCities,
             tripLegsJSON: raw.tripLegsJSON,
+            quickStatus: raw.quickStatus,
+            quickStatusIcon: raw.quickStatusIcon,
+            quickStatusExpiry: raw.quickStatusExpiry,
+            flightDelayMinutes: resolved.flightDelayMinutes,
             lastUpdated: raw.lastUpdated,
             appVersion: raw.appVersion
         )

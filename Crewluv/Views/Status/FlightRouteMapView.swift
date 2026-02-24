@@ -40,19 +40,26 @@ struct FlightRouteMapView: View {
         return airportProvider.airportInfo(forIataCode: code)
     }
 
+    private var delayInterval: TimeInterval {
+        status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+    }
+
     private var isInFlight: Bool {
         guard let depTime = status.currentFlightDepartureTime,
               let arrTime = status.currentFlightArrivalTime else { return false }
-        return currentTime >= depTime && currentTime <= arrTime
+        let adjustedDep = depTime.addingTimeInterval(delayInterval)
+        let adjustedArr = arrTime.addingTimeInterval(delayInterval)
+        return currentTime >= adjustedDep && currentTime <= adjustedArr
     }
 
     private var flightProgress: Double? {
         guard isInFlight,
               let depTime = status.currentFlightDepartureTime,
               let arrTime = status.currentFlightArrivalTime else { return nil }
+        let adjustedDep = depTime.addingTimeInterval(delayInterval)
         let totalTime = arrTime.timeIntervalSince(depTime)
         guard totalTime > 0 else { return nil }
-        let elapsed = currentTime.timeIntervalSince(depTime)
+        let elapsed = currentTime.timeIntervalSince(adjustedDep)
         return min(max(elapsed / totalTime, 0.0), 1.0)
     }
 
@@ -217,8 +224,10 @@ struct FlightRouteMapView: View {
         let depPoint = projectToView(lat: departure.latitude, lon: departure.longitude, bounds: bounds, size: size)
         let arrPoint = projectToView(lat: arrival.latitude, lon: arrival.longitude, bounds: bounds, size: size)
 
-        let depTime = status.currentFlightDepartureTime ?? Date()
-        let arrTime = status.currentFlightArrivalTime ?? Date()
+        let rawDepTime = status.currentFlightDepartureTime ?? Date()
+        let rawArrTime = status.currentFlightArrivalTime ?? Date()
+        let depTime = rawDepTime.addingTimeInterval(delayInterval)
+        let arrTime = rawArrTime.addingTimeInterval(delayInterval)
 
         let depSunUp = isSunUp(lat: departure.latitude, lon: departure.longitude, at: depTime)
         let arrSunUp = isSunUp(lat: arrival.latitude, lon: arrival.longitude, at: arrTime)
@@ -357,8 +366,11 @@ struct FlightRouteMapView: View {
         let arrPoint = projectToView(lat: arrival.latitude, lon: arrival.longitude, bounds: bounds, size: size)
         let depIsLeft = depPoint.x < arrPoint.x
 
-        let depTime = status.currentFlightDepartureTime ?? Date()
-        let arrTime = status.currentFlightArrivalTime ?? Date()
+        let rawDepTime = status.currentFlightDepartureTime ?? Date()
+        let rawArrTime = status.currentFlightArrivalTime ?? Date()
+        let delay: TimeInterval = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+        let depTime = rawDepTime.addingTimeInterval(delay)
+        let arrTime = rawArrTime.addingTimeInterval(delay)
 
         let depSunUp = isSunUp(lat: departure.latitude, lon: departure.longitude, at: depTime)
         let arrSunUp = isSunUp(lat: arrival.latitude, lon: arrival.longitude, at: arrTime)
@@ -569,7 +581,9 @@ struct FlightRouteMapView: View {
               let arrTime = status.currentFlightArrivalTime else { return }
         let now = Date()
         let oneHourFromNow = now.addingTimeInterval(3600)
-        if arrTime > now && depTime < oneHourFromNow {
+        let adjustedArr = arrTime.addingTimeInterval(delayInterval)
+        let adjustedDep = depTime.addingTimeInterval(delayInterval)
+        if adjustedArr > now && adjustedDep < oneHourFromNow {
             updateTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
                 currentTime = Date()
             }
@@ -638,8 +652,10 @@ struct FlightRouteMapView: View {
     }
 
     private func findSolarTransitionPoint(departure: AirportData, arrival: AirportData) -> (progress: Double, isSunrise: Bool)? {
-        guard let depTime = status.currentFlightDepartureTime,
-              let arrTime = status.currentFlightArrivalTime else { return nil }
+        guard let rawDepTime = status.currentFlightDepartureTime,
+              let rawArrTime = status.currentFlightArrivalTime else { return nil }
+        let depTime = rawDepTime.addingTimeInterval(delayInterval)
+        let arrTime = rawArrTime.addingTimeInterval(delayInterval)
         let flightDuration = arrTime.timeIntervalSince(depTime)
         guard flightDuration > 1800 else { return nil }
 
