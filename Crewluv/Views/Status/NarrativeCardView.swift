@@ -12,6 +12,7 @@ struct NarrativeCardView: View {
     let status: SharedPilotStatus
     var upcomingTrip: UpcomingTripInfo? = nil
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var now = Date()
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -109,13 +110,52 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var inFlightNarrative: some View {
-        if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
+        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+            // Delayed flight narrative
+            let dest = currentArrivalCity()
+            let dep = currentDepartureCity()
+            let fltStr = formattedFlightString(status.currentFlightNumber)
+
+            if let depTime = status.currentFlightDepartureTime {
+                let shiftedDep = depTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                if now < shiftedDep {
+                    // Before shifted departure: "is delayed in Paris and will be flying to..."
+                    if let dep, let dest {
+                        Text("\(name) is delayed in \(Text(dep).bold()) and will be flying to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                    } else if let dest {
+                        Text("\(name) is delayed and will be flying to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                    } else {
+                        Text("\(name)'s flight is delayed — departing in \(countdownText(to: shiftedDep))")
+                    }
+                } else if let arrTime = status.currentFlightArrivalTime {
+                    // After shifted departure: "was delayed in Paris and is flying to..."
+                    let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                    let arrTimeStr = formattedLocalTime(shiftedArr)
+                    if let dep, let dest {
+                        Text("\(name) was delayed in \(Text(dep).bold()) and is flying to \(Text(dest).bold())\(fltStr). He will be landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                    } else if let dest {
+                        Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr) — landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                    } else {
+                        Text("\(name)'s delayed flight — landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                    }
+                } else if let dest {
+                    Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr)")
+                } else {
+                    Text("\(name)'s flight is delayed")
+                }
+            } else if let dest {
+                Text("\(name)'s flight to \(Text(dest).bold()) is delayed")
+            } else {
+                Text("\(name)'s flight is delayed")
+            }
+        } else if let dest = currentArrivalCity(), let arrTime = status.currentFlightArrivalTime {
             let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
+            let arrTimeStr = formattedLocalTime(arrTime)
             if let dep {
-                Text("\(name) is flying to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()), landing in \(countdownText(to: arrTime))")
+                Text("\(name) is flying to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is flying to \(Text(dest).bold())\(fltStr), landing in \(countdownText(to: arrTime))")
+                Text("\(name) is flying to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
             Text("\(name) is flying to \(Text(dest).bold())")
@@ -184,12 +224,19 @@ struct NarrativeCardView: View {
     private var flightProgress: Double? {
         let legs = sortedTripLegs
         guard !legs.isEmpty else { return nil }
-        guard let flight = legs.first(where: {
-            $0.type == .flight && $0.startTime <= now && now < $0.endTime
-        }) else { return nil }
+        let delaySeconds = TimeInterval((status.flightDelayMinutes ?? 0) * 60)
+        var matchedFlight: TripLeg?
+        for leg in legs where leg.type == .flight {
+            if leg.startTime <= now && now < leg.endTime.addingTimeInterval(delaySeconds) {
+                matchedFlight = leg
+                break
+            }
+        }
+        guard let flight = matchedFlight else { return nil }
+        let adjustedStart = flight.startTime.addingTimeInterval(delaySeconds)
         let total = flight.endTime.timeIntervalSince(flight.startTime)
         guard total > 0 else { return nil }
-        let elapsed = now.timeIntervalSince(flight.startTime)
+        let elapsed = now.timeIntervalSince(adjustedStart)
         return min(max(elapsed / total, 0), 1)
     }
 
@@ -229,6 +276,31 @@ struct NarrativeCardView: View {
             formatted = "\(seconds)s"
         }
         return Text(formatted).bold().foregroundColor(statusColor).monospacedDigit()
+    }
+
+    /// Countdown text colored red for delay-shifted times
+    private func delayCountdownText(to target: Date) -> Text {
+        let interval = target.timeIntervalSince(now)
+        guard interval > 0 else {
+            return Text("now!").bold().foregroundColor(.red)
+        }
+
+        let days = Int(interval) / 86400
+        let hours = (Int(interval) % 86400) / 3600
+        let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
+
+        let formatted: String
+        if days > 0 {
+            formatted = "\(days)d \(hours)h \(minutes)m \(seconds)s"
+        } else if hours > 0 {
+            formatted = "\(hours)h \(minutes)m \(seconds)s"
+        } else if minutes > 0 {
+            formatted = "\(minutes)m \(seconds)s"
+        } else {
+            formatted = "\(seconds)s"
+        }
+        return Text(formatted).bold().foregroundColor(.red).monospacedDigit()
     }
 
     // MARK: - City Name Helpers
@@ -310,6 +382,16 @@ struct NarrativeCardView: View {
         return status.nextDepartureTime
     }
 
+    /// Formats a date as local time with timezone abbreviation, e.g. "3:00pm EST"
+    private func formattedLocalTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mma z"
+        formatter.amSymbol = "am"
+        formatter.pmSymbol = "pm"
+        formatter.timeZone = TimeZone.current
+        return formatter.string(from: date)
+    }
+
     // MARK: - Airline Helpers
 
     private var currentAirlineCode: String? {
@@ -341,7 +423,7 @@ struct NarrativeCardView: View {
     private var statusColor: Color {
         switch status.displayStatus {
         case "Home": return .green
-        case "In Flight": return AirlineBranding.color(for: currentAirlineCode)
+        case "In Flight": return status.hasFlightDelay ? .orange : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case "Turn": return .orange
         case "Layover": return .purple
         default: return .gray
