@@ -37,6 +37,7 @@ class PartnerStatusReceiver {
     private var rawPilotStatus: SharedPilotStatus?
     private var transitionTask: Task<Void, Never>?
     private var cachedUserRecordName: String?
+    private var resolvedDisplayName: String?
 
     init(shareManager: CloudKitShareManager) {
         // Restore persisted data source
@@ -157,19 +158,19 @@ class PartnerStatusReceiver {
                 throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
             }
 
-            // Resolve per-partner display name
+            // Resolve per-partner display name (stored separately — model stays immutable)
             let nameMap = newStatus.displayNameByPartner
             if !nameMap.isEmpty {
                 if cachedUserRecordName == nil {
                     cachedUserRecordName = try? await container.userRecordID().recordName
                 }
                 // Look up by this user's record ID (works for shared-database partners)
-                let resolved: String? = cachedUserRecordName.flatMap { nameMap[$0] }
+                let matched: String? = cachedUserRecordName.flatMap { nameMap[$0] }
                 // Same-account mode: user is the owner, not a participant — pick deterministically
-                let partnerName = resolved ?? (dataSource == .privateDB ? nameMap.min(by: { $0.key < $1.key })?.value : nil)
-                if let partnerName, !partnerName.isEmpty {
-                    newStatus.pilotFirstName = partnerName
-                    debugLog("[CrewLuve] Resolved display name: \(partnerName)")
+                let name = matched ?? (dataSource == .privateDB ? nameMap.min(by: { $0.key < $1.key })?.value : nil)
+                if let name, !name.isEmpty {
+                    resolvedDisplayName = name
+                    debugLog("[CrewLuve] Resolved display name: \(name)")
                 }
             }
 
@@ -261,6 +262,8 @@ class PartnerStatusReceiver {
             return
         }
 
+        let displayName = resolvedDisplayName ?? raw.pilotFirstName
+
         guard raw.hasTripLegs else {
             // No trip legs — use the status as-is (backward compat)
             pilotStatus = raw
@@ -272,7 +275,7 @@ class PartnerStatusReceiver {
         // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
         pilotStatus = SharedPilotStatus(
             pilotId: raw.pilotId,
-            pilotFirstName: raw.pilotFirstName,
+            pilotFirstName: displayName,
             homeAirportCode: raw.homeAirportCode,
             displayStatus: resolved.displayStatus,
             isSleeping: raw.isSleeping,

@@ -22,7 +22,7 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Identification
 
     let pilotId: String              // PilotInfo.id.uuidString
-    var pilotFirstName: String       // First name only for privacy
+    let pilotFirstName: String       // First name only for privacy
     let homeAirportCode: String?     // Pilot's actual home airport (may differ from base)
 
     // MARK: - Current State
@@ -93,11 +93,41 @@ struct SharedPilotStatus: Codable, Sendable {
 
     // MARK: - Per-Partner Display Names
 
-    let displayNameByPartnerJSON: Data?  // JSON-encoded [String: String] keyed by partner ID
+    /// JSON-encoded [String: String] dictionary mapping CloudKit user record names
+    /// to the display name the pilot chose for each partner.
+    ///
+    /// **Privacy note:** The keys are CloudKit record names (opaque identifiers for each
+    /// share participant). A partner with access to the raw record data could see other
+    /// partners' record-name keys, though NOT their real names or Apple IDs.
+    ///
+    /// **Why this is acceptable today:**
+    /// - CloudKit zone-level ACLs restrict access to participants the pilot explicitly
+    ///   invited via share link; only accepted participants can fetch the record.
+    /// - CrewLuve is read-only — it never writes this field. The Duty app (pilot side)
+    ///   controls the serialization format.
+    ///
+    /// TODO: Migrate the Duty app to write a single viewer-scoped `viewerDisplayName`
+    /// string per share participant (or use a non-identifying stable token as the key)
+    /// so the record never contains the full partner-ID→name map. Track in Duty backlog.
+    let displayNameByPartnerJSON: Data?
 
+    /// Deserializes `displayNameByPartnerJSON` into a [recordName: displayName] dictionary.
+    /// The caller (PartnerStatusReceiver) looks up the current user's CKRecord name to
+    /// resolve only their own display name — other entries are ignored at runtime.
+    ///
+    /// See privacy note on `displayNameByPartnerJSON` for why a multi-key map is stored today.
     var displayNameByPartner: [String: String] {
         guard let data = displayNameByPartnerJSON else { return [:] }
         return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    /// Resolve the display name for a specific partner by their CloudKit user record name.
+    /// Falls back to the pilot's actual first name when no per-partner name is set.
+    func displayName(for partnerId: String) -> String {
+        if let name = displayNameByPartner[partnerId], !name.isEmpty {
+            return name
+        }
+        return pilotFirstName
     }
 
     // MARK: - Metadata
