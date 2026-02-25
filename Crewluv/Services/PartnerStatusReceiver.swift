@@ -36,6 +36,7 @@ class PartnerStatusReceiver {
     private var subscriptionID: String? = nil
     private var rawPilotStatus: SharedPilotStatus?
     private var transitionTask: Task<Void, Never>?
+    private var cachedUserRecordName: String?
 
     init(shareManager: CloudKitShareManager) {
         // Restore persisted data source
@@ -152,10 +153,26 @@ class PartnerStatusReceiver {
             debugLog("[CrewLuve] Found shared record: \(statusRecord.recordID.recordName)")
             debugLog("[CrewLuve] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
 
-            guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
+            guard var newStatus = SharedPilotStatus.from(record: statusRecord) else {
                 throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
             }
-            
+
+            // Resolve per-partner display name
+            let nameMap = newStatus.displayNameByPartner
+            if !nameMap.isEmpty {
+                if cachedUserRecordName == nil {
+                    cachedUserRecordName = try? await container.userRecordID().recordName
+                }
+                // Look up by this user's record ID (works for shared-database partners)
+                let resolved: String? = cachedUserRecordName.flatMap { nameMap[$0] }
+                // Same-account mode: user is the owner, not a participant — pick deterministically
+                let partnerName = resolved ?? (dataSource == .privateDB ? nameMap.min(by: { $0.key < $1.key })?.value : nil)
+                if let partnerName, !partnerName.isEmpty {
+                    newStatus.pilotFirstName = partnerName
+                    debugLog("[CrewLuve] Resolved display name: \(partnerName)")
+                }
+            }
+
             // Check if data actually changed
             if let oldStatus = pilotStatus {
                 let changed = oldStatus.lastUpdated != newStatus.lastUpdated
@@ -292,6 +309,7 @@ class PartnerStatusReceiver {
             quickStatusIcon: raw.quickStatusIcon,
             quickStatusExpiry: raw.quickStatusExpiry,
             flightDelayMinutes: resolved.flightDelayMinutes,
+            displayNameByPartnerJSON: raw.displayNameByPartnerJSON,
             lastUpdated: raw.lastUpdated,
             appVersion: raw.appVersion
         )

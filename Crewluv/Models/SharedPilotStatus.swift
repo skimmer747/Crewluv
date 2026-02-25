@@ -22,7 +22,7 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Identification
 
     let pilotId: String              // PilotInfo.id.uuidString
-    let pilotFirstName: String       // First name only for privacy
+    var pilotFirstName: String       // First name only for privacy
     let homeAirportCode: String?     // Pilot's actual home airport (may differ from base)
 
     // MARK: - Current State
@@ -90,6 +90,15 @@ struct SharedPilotStatus: Codable, Sendable {
     let flightDelayMinutes: Int?      // Delay duration in minutes (nil = no delay)
 
     var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
+
+    // MARK: - Per-Partner Display Names
+
+    let displayNameByPartnerJSON: Data?  // JSON-encoded [String: String] keyed by partner ID
+
+    var displayNameByPartner: [String: String] {
+        guard let data = displayNameByPartnerJSON else { return [:] }
+        return (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
 
     // MARK: - Metadata
 
@@ -218,6 +227,9 @@ struct SharedPilotStatus: Codable, Sendable {
         if let flightDelayMinutes = flightDelayMinutes {
             record["flightDelayMinutes"] = flightDelayMinutes as CKRecordValue
         }
+        if let displayNameByPartnerJSON = displayNameByPartnerJSON {
+            record["displayNameByPartnerJSON"] = displayNameByPartnerJSON as CKRecordValue
+        }
         record["lastUpdated"] = lastUpdated as CKRecordValue
         record["appVersion"] = appVersion as CKRecordValue
 
@@ -272,6 +284,7 @@ struct SharedPilotStatus: Codable, Sendable {
             quickStatusIcon: record["quickStatusIcon"] as? String,
             quickStatusExpiry: record["quickStatusExpiry"] as? Date,
             flightDelayMinutes: record["flightDelayMinutes"] as? Int,
+            displayNameByPartnerJSON: record["displayNameByPartnerJSON"] as? Data,
             lastUpdated: lastUpdated,
             appVersion: appVersion
         )

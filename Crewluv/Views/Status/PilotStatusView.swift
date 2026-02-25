@@ -1980,6 +1980,7 @@ struct SyncExplanationView: View {
         quickStatusIcon: nil,
         quickStatusExpiry: nil,
         flightDelayMinutes: nil,
+        displayNameByPartnerJSON: nil,
         lastUpdated: Date().addingTimeInterval(-300),
         appVersion: "1.0"
     ),
