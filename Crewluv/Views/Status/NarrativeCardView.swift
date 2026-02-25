@@ -167,9 +167,11 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var turnNarrative: some View {
         if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is in \(Text(city).bold()) between flights")
         } else {
@@ -196,9 +198,11 @@ struct NarrativeCardView: View {
                 Text("\(name)'s layover has been extended by \(Text(delayStr).bold()).")
             }
         } else if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime))")
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
-            Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime))")
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is on layover in \(Text(city).bold())")
         } else {
