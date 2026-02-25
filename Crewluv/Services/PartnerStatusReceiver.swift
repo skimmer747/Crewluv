@@ -154,11 +154,13 @@ class PartnerStatusReceiver {
             debugLog("[CrewLuve] Found shared record: \(statusRecord.recordID.recordName)")
             debugLog("[CrewLuve] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
 
-            guard var newStatus = SharedPilotStatus.from(record: statusRecord) else {
+            guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
                 throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
             }
 
-            // Resolve per-partner display name (stored separately — model stays immutable)
+            // Resolve per-partner display name (stored separately — model stays immutable).
+            // Reset so removals are reflected.
+            resolvedDisplayName = nil
             let nameMap = newStatus.displayNameByPartner
             if !nameMap.isEmpty {
                 if cachedUserRecordName == nil {
