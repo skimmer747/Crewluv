@@ -524,7 +524,8 @@ struct LocationCardView: View {
                         accentColor: qs == "Flight Delayed" ? .orange : .blue
                     )
                     .padding(.top, 4)
-                } else if status.isSleeping {
+                } else if status.isSleeping,
+                          !(status.quickStatus == "Sleeping" && status.quickStatusExpiry.map({ $0 <= Date() }) ?? false) {
                     SleepingIndicatorView()
                         .padding(.top, 4)
                 }
