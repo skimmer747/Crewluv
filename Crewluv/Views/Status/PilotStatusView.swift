@@ -567,7 +567,8 @@ struct LocationCardView: View {
                     sunrise: sunrise,
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
-                    timezone: status.currentTimezone
+                    timezone: status.currentTimezone,
+                    nextDepartureTime: status.nextDepartureTime
                 )
                 .offset(x: 0, y: -6)
                 .onTapGesture {
@@ -603,7 +604,8 @@ struct LocationCardView: View {
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
                     cityName: status.currentCity ?? "Unknown",
-                    weather: weather
+                    weather: weather,
+                    nextDepartureTime: status.nextDepartureTime
                 )
             }
         }
@@ -862,10 +864,13 @@ struct SunCircleView: View {
     let sunset: Date
     let isDaylight: Bool
     let timezone: String?
+    var nextDepartureTime: Date? = nil
     var size: CGFloat = 160
 
     @State private var arcProgress: CGFloat = 0
     @State private var arcOpacity: CGFloat = 1
+    @State private var departureArcProgress: CGFloat = 0
+    @State private var departureArcOpacity: CGFloat = 1
 
     // All dimensions derived proportionally from size (base = 160)
     private var scale: CGFloat { size / 160 }
@@ -895,6 +900,38 @@ struct SunCircleView: View {
         let now = Date()
         return pilotTZ.secondsFromGMT(for: now) != TimeZone.current.secondsFromGMT(for: now)
     }
+
+    private func shouldShowDepartureArc(at date: Date) -> Bool {
+        guard let dep = nextDepartureTime else { return false }
+        return dep.timeIntervalSince(date) > 0
+    }
+
+    private func isDepartureOver24h(at date: Date) -> Bool {
+        guard let dep = nextDepartureTime else { return false }
+        return dep.timeIntervalSince(date) > 24 * 3600
+    }
+
+    private func departureCountdownText(at date: Date) -> String {
+        guard let dep = nextDepartureTime else { return "" }
+        let remaining = max(0, dep.timeIntervalSince(date))
+        let totalHours = Int(remaining) / 3600
+        let days = totalHours / 24
+        let hours = totalHours % 24
+        let minutes = (Int(remaining) % 3600) / 60
+        if days > 0 && hours > 0 {
+            return "\(days)d \(hours)h"
+        } else if days > 0 {
+            return "\(days)d"
+        } else if hours > 0 && minutes > 0 {
+            return "\(hours)h\(minutes)m"
+        } else if hours > 0 {
+            return "\(hours)h"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+
+    private var departureArcRadius: CGFloat { 42 * scale * 0.85 }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
@@ -994,6 +1031,25 @@ struct SunCircleView: View {
 
                         // (Arc arrow drawn as Shape overlay below for proper animation)
                     }
+
+                    // Departure triangle marker outside circle (like noon marker)
+                    if shouldShowDepartureArc(at: timeline.date) && size > 160,
+                       let dep = nextDepartureTime {
+                        let depAngle = angleForTime(dep)
+                        let depTip = pointOnCircle(angle: depAngle, radius: radius, center: center)
+                        let depBase = pointOnCircle(angle: depAngle, radius: radius + noonTriangleSize, center: center)
+                        let perpX = -sin(CGFloat(depAngle.radians))
+                        let perpY = cos(CGFloat(depAngle.radians))
+                        let depTriangle = Path { p in
+                            p.move(to: depTip)
+                            p.addLine(to: CGPoint(x: depBase.x + noonTriangleHalfWidth * perpX,
+                                                  y: depBase.y + noonTriangleHalfWidth * perpY))
+                            p.addLine(to: CGPoint(x: depBase.x - noonTriangleHalfWidth * perpX,
+                                                  y: depBase.y - noonTriangleHalfWidth * perpY))
+                            p.closeSubpath()
+                        }
+                        context.fill(depTriangle, with: .color(.cyan.opacity(0.4)))
+                    }
                 }
 
                 // Sun or moon icon at current time position
@@ -1016,6 +1072,26 @@ struct SunCircleView: View {
                         .font(.system(size: homeIconSize))
                         .foregroundColor(.green)
                         .position(pointOnCircle(angle: homeAngle, radius: radius, center: center))
+                }
+
+                // Departure jet icon outside circle + time label (detail view only)
+                if shouldShowDepartureArc(at: timeline.date) && size > 160,
+                   let dep = nextDepartureTime {
+                    let depAngle = angleForTime(dep)
+                    let jetPos = pointOnCircle(angle: depAngle, radius: radius + noonTriangleSize + 2 * scale, center: center)
+
+                    Image(systemName: "airplane")
+                        .font(.system(size: homeIconSize, weight: .semibold))
+                        .foregroundColor(.cyan)
+                        .rotationEffect(.degrees(depAngle.degrees + 90))
+                        .position(jetPos)
+
+                    let labelPos = pointOnCircle(angle: depAngle, radius: radius + timeLabelOffset, center: center)
+                    Text(formatTime(dep))
+                        .font(.system(size: timeLabelFontSize, weight: .medium))
+                        .foregroundColor(.cyan)
+                        .position(x: max(timeLabelPadding, min(size - timeLabelPadding, labelPos.x)),
+                                  y: max(timeLabelEdge, min(size - timeLabelEdge, labelPos.y)))
                 }
 
                 // Animated arc arrow (Shape-based for proper animation, detail view only)
@@ -1052,6 +1128,86 @@ struct SunCircleView: View {
                         .opacity(arcProgress * arcOpacity)
                 }
 
+                // Departure arc (detail view only)
+                if shouldShowDepartureArc(at: timeline.date) && size > 160 {
+                    let departureOver24h = isDepartureOver24h(at: timeline.date)
+                    let hoursUntilDeparture = nextDepartureTime!.timeIntervalSince(timeline.date) / 3600
+                    let fullRevs = floor(hoursUntilDeparture / 24)
+
+                    if departureOver24h {
+                        // Dashed: full revolution(s)
+                        DepartureArcShape(
+                            progress: departureArcProgress,
+                            currentAngle: currentAngle,
+                            departureAngle: angleForTime(nextDepartureTime!),
+                            centerYOffset: 2 * scale,
+                            hoursUntilDeparture: hoursUntilDeparture,
+                            sweepCap: fullRevs * 360
+                        )
+                        .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
+                            lineWidth: arcLineWidth,
+                            lineCap: .round,
+                            dash: homeHandDash
+                        ))
+                        .opacity(departureArcOpacity)
+
+                        // Solid: remainder after full revolutions
+                        DepartureArcShape(
+                            progress: departureArcProgress,
+                            currentAngle: currentAngle,
+                            departureAngle: angleForTime(nextDepartureTime!),
+                            centerYOffset: 2 * scale,
+                            hoursUntilDeparture: hoursUntilDeparture,
+                            sweepOffset: fullRevs * 360
+                        )
+                        .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
+                            lineWidth: arcLineWidth,
+                            lineCap: .round
+                        ))
+                        .opacity(departureArcOpacity)
+                    } else {
+                        // ≤24h: single solid arc
+                        DepartureArcShape(
+                            progress: departureArcProgress,
+                            currentAngle: currentAngle,
+                            departureAngle: angleForTime(nextDepartureTime!),
+                            centerYOffset: 2 * scale,
+                            hoursUntilDeparture: hoursUntilDeparture
+                        )
+                        .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
+                            lineWidth: arcLineWidth,
+                            lineCap: .round
+                        ))
+                        .opacity(departureArcOpacity)
+                    }
+
+                    // Jet icon tracking arc endpoint (animatable per-frame)
+                    let currentDeg = currentAngle.degrees
+                    let depDeg = angleForTime(nextDepartureTime!).degrees
+                    let clockDist = (depDeg - currentDeg + 360).truncatingRemainder(dividingBy: 360)
+                    let fullRevolutions = floor(hoursUntilDeparture / 24)
+                    let totalSweep = fullRevolutions * 360 + clockDist
+
+                    Image(systemName: "airplane")
+                        .font(.system(size: 8 * scale, weight: .semibold))
+                        .foregroundColor(.cyan)
+                        .modifier(ArcEndpointModifier(
+                            progress: departureArcProgress,
+                            startAngleDeg: currentDeg,
+                            totalSweep: totalSweep,
+                            radius: departureArcRadius,
+                            center: center
+                        ))
+                        .opacity(departureArcProgress * departureArcOpacity)
+
+                    // Departure countdown in center
+                    Text(departureCountdownText(at: timeline.date))
+                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.cyan)
+                        .position(center)
+                        .opacity(departureArcProgress * departureArcOpacity)
+                }
+
                 // Noon label above triangle
                 Text("Noon")
                     .font(.system(size: noonFontSize))
@@ -1078,22 +1234,54 @@ struct SunCircleView: View {
         }
         .task {
             while !Task.isCancelled {
-                // Draw in
-                withAnimation(.easeOut(duration: 0.8)) {
-                    arcProgress = 1
-                }
-                try? await Task.sleep(for: .seconds(2.0))
+                var didAnimate = false
 
-                // Fade out
-                withAnimation(.easeOut(duration: 0.6)) {
-                    arcOpacity = 0
-                }
-                try? await Task.sleep(for: .seconds(0.8))
+                // Phase 1: Timezone arc (if visible)
+                if hasDifferentTimezone && size > 160 {
+                    didAnimate = true
+                    withAnimation(.easeOut(duration: 0.8)) {
+                        arcProgress = 1
+                    }
+                    try? await Task.sleep(for: .seconds(2.0))
 
-                // Reset instantly
-                arcProgress = 0
-                arcOpacity = 1
-                try? await Task.sleep(for: .seconds(0.3))
+                    withAnimation(.easeOut(duration: 0.6)) {
+                        arcOpacity = 0
+                    }
+                    try? await Task.sleep(for: .seconds(0.8))
+
+                    arcProgress = 0
+                    arcOpacity = 1
+                    try? await Task.sleep(for: .seconds(0.3))
+                }
+
+                // Phase 2: Departure arc (if visible)
+                if shouldShowDepartureArc(at: Date()) && size > 160 {
+                    didAnimate = true
+                    let depHours = nextDepartureTime.map {
+                        $0.timeIntervalSince(Date()) / 3600
+                    } ?? 0
+                    let revolutions = max(1, depHours / 24)
+                    let arcDuration = 0.8 * revolutions
+
+                    withAnimation(.easeOut(duration: arcDuration)) {
+                        departureArcProgress = 1
+                    }
+                    try? await Task.sleep(for: .seconds(2.0))
+
+                    withAnimation(.easeOut(duration: 0.6)) {
+                        departureArcOpacity = 0
+                    }
+                    try? await Task.sleep(for: .seconds(0.8))
+
+                    departureArcProgress = 0
+                    departureArcOpacity = 1
+                    try? await Task.sleep(for: .seconds(0.3))
+                }
+
+                // Avoid tight loop when neither arc is visible
+                if !didAnimate {
+                    try? await Task.sleep(for: .seconds(1.0))
+                }
             }
         }
     }
@@ -1159,6 +1347,92 @@ struct SunCircleView: View {
             formatter.timeZone = tz
         }
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Departure Arc Shape
+
+/// Arc stroke from current time angle clockwise to departure time angle, with animatable progress.
+private struct DepartureArcShape: Shape {
+    var progress: CGFloat
+    let currentAngle: Angle
+    let departureAngle: Angle
+    let centerYOffset: CGFloat
+    let hoursUntilDeparture: Double
+    var sweepOffset: Double = 0
+    var sweepCap: Double = .infinity
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        guard progress > 0 else { return Path() }
+
+        let scale = rect.width / 160
+        let center = CGPoint(x: rect.midX, y: rect.midY + centerYOffset)
+        let arcRadius = 42 * scale * 0.85
+
+        let currentDeg = currentAngle.degrees
+        let depDeg = departureAngle.degrees
+        let clockDist = (depDeg - currentDeg + 360).truncatingRemainder(dividingBy: 360)
+        let fullRevolutions = floor(hoursUntilDeparture / 24)
+        let totalSweep = fullRevolutions * 360 + clockDist
+        let animatedSweep = totalSweep * Double(progress)
+
+        // Clamp to this instance's offset/cap range
+        let drawStart = min(animatedSweep, sweepOffset)
+        let drawableSweep = min(animatedSweep - drawStart, sweepCap)
+        guard drawableSweep > 0.001 else { return Path() }
+
+        // Segment into <360° arcs so Core Graphics draws overlapping laps
+        var path = Path()
+        var remaining = drawableSweep
+        var segStart = currentDeg + drawStart
+
+        while remaining > 0.001 {
+            let segSweep = min(remaining, 359.99)
+            let segEnd = segStart + segSweep
+            path.addArc(center: center, radius: arcRadius,
+                        startAngle: .degrees(segStart), endAngle: .degrees(segEnd),
+                        clockwise: false)
+            segStart = segEnd
+            remaining -= segSweep
+        }
+
+        return path
+    }
+}
+
+// MARK: - Arc Endpoint Modifier
+
+/// Positions and rotates a view at the animated endpoint of a departure arc.
+/// Conforms to Animatable so SwiftUI interpolates progress per-frame,
+/// keeping the view on the arc path instead of moving in a straight line.
+private struct ArcEndpointModifier: ViewModifier, Animatable {
+    var progress: CGFloat
+    let startAngleDeg: Double
+    let totalSweep: Double
+    let radius: CGFloat
+    let center: CGPoint
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        let angleDeg = startAngleDeg + totalSweep * Double(progress)
+        let rad = CGFloat(Angle.degrees(angleDeg).radians)
+        let pos = CGPoint(
+            x: center.x + radius * cos(rad),
+            y: center.y + radius * sin(rad)
+        )
+
+        content
+            .rotationEffect(.degrees(angleDeg + 90))
+            .position(pos)
     }
 }
 
@@ -1391,10 +1665,10 @@ struct TripProgressView: View {
         "Taipei": "Ni hao",
         "Sydney": "G'day", "Melbourne": "G'day", "Singapore": "Lah",
         "Dubai": "Marhaba", "New Delhi": "Namaste", "Mumbai": "Namaste", "Bangalore": "Namaste",
-        "São Paulo": "Ola", "Rio de Janeiro": "Ola", "Bogota": "Hola",
+        "São Paulo": "Olá", "Rio de Janeiro": "Olá", "Bogota": "Hola",
         "Lima": "Hola", "Buenos Aires": "Hola", "Santiago": "Hola",
         "Rome": "Ciao", "Milan": "Ciao", "Madrid": "Hola",
-        "Barcelona": "Hola", "Lisbon": "Ola", "Dublin": "Dia duit",
+        "Barcelona": "Hola", "Lisbon": "Olá", "Dublin": "Dia duit",
         "Zurich": "Gruezi", "Brussels": "Bonjour", "Vienna": "Servus",
         "Stockholm": "Hej", "Copenhagen": "Hej", "Oslo": "Hei",
         "Helsinki": "Moi", "Reykjavik": "Hallo", "Istanbul": "Merhaba",
