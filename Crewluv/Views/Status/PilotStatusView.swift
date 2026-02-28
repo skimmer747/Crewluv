@@ -1187,11 +1187,15 @@ struct SunCircleView: View {
 
                 // Hour difference in center, synced with arrow animation
                 if hasDifferentTimezone && size > 160 {
-                    Text(hourDifferenceText(at: timeline.date))
-                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
-                        .foregroundStyle(pilotIsAhead ? .blue : .orange)
-                        .position(center)
-                        .opacity(arcProgress * arcOpacity)
+                    VStack(spacing: 0) {
+                        Text(hourDifferenceText(at: timeline.date))
+                            .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
+                        Text(pilotIsAhead ? "ahead" : "behind")
+                            .font(.system(size: 7 * scale, weight: .medium, design: .rounded))
+                    }
+                    .foregroundStyle(pilotIsAhead ? .blue : .orange)
+                    .position(center)
+                    .opacity(arcProgress * arcOpacity)
                 }
 
                 // Departure arc (detail view only)
@@ -1297,11 +1301,15 @@ struct SunCircleView: View {
                         .opacity(departureArcProgress * departureArcOpacity)
 
                     // Departure countdown in center
-                    Text(departureCountdownText(at: timeline.date))
-                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
-                        .foregroundStyle(hasFlightDelay ? .red : .cyan)
-                        .position(center)
-                        .opacity(departureArcProgress * departureArcOpacity)
+                    VStack(spacing: 0) {
+                        Text(departureCountdownText(at: timeline.date))
+                            .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
+                        Text("to go")
+                            .font(.system(size: 7 * scale, weight: .medium, design: .rounded))
+                    }
+                    .foregroundStyle(hasFlightDelay ? .red : .cyan)
+                    .position(center)
+                    .opacity(departureArcProgress * departureArcOpacity)
                 }
 
                 // Noon label above triangle
