@@ -568,7 +568,8 @@ struct LocationCardView: View {
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
-                    nextDepartureTime: status.nextDepartureTime
+                    nextDepartureTime: status.nextDepartureTime,
+                    flightDelayMinutes: status.flightDelayMinutes
                 )
                 .offset(x: 0, y: -6)
                 .onTapGesture {
@@ -605,7 +606,8 @@ struct LocationCardView: View {
                     timezone: status.currentTimezone,
                     cityName: status.currentCity ?? "Unknown",
                     weather: weather,
-                    nextDepartureTime: status.nextDepartureTime
+                    nextDepartureTime: status.nextDepartureTime,
+                    flightDelayMinutes: status.flightDelayMinutes
                 )
             }
         }
@@ -865,6 +867,7 @@ struct SunCircleView: View {
     let isDaylight: Bool
     let timezone: String?
     var nextDepartureTime: Date? = nil
+    var flightDelayMinutes: Int? = nil
     var size: CGFloat = 160
 
     @State private var arcProgress: CGFloat = 0
@@ -901,18 +904,30 @@ struct SunCircleView: View {
         return pilotTZ.secondsFromGMT(for: now) != TimeZone.current.secondsFromGMT(for: now)
     }
 
+    private var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
+
+    private var delayedDepartureTime: Date? {
+        guard let dep = nextDepartureTime, hasFlightDelay,
+              let minutes = flightDelayMinutes else { return nil }
+        return dep.addingTimeInterval(TimeInterval(minutes * 60))
+    }
+
+    private var effectiveDepartureTime: Date? {
+        delayedDepartureTime ?? nextDepartureTime
+    }
+
     private func shouldShowDepartureArc(at date: Date) -> Bool {
-        guard let dep = nextDepartureTime else { return false }
+        guard let dep = effectiveDepartureTime else { return false }
         return dep.timeIntervalSince(date) > 0
     }
 
     private func isDepartureOver24h(at date: Date) -> Bool {
-        guard let dep = nextDepartureTime else { return false }
+        guard let dep = effectiveDepartureTime else { return false }
         return dep.timeIntervalSince(date) > 24 * 3600
     }
 
     private func departureCountdownText(at date: Date) -> String {
-        guard let dep = nextDepartureTime else { return "" }
+        guard let dep = effectiveDepartureTime else { return "" }
         let remaining = max(0, dep.timeIntervalSince(date))
         let totalHours = Int(remaining) / 3600
         let days = totalHours / 24
@@ -1010,12 +1025,44 @@ struct SunCircleView: View {
                     }
                     context.fill(noonTriangle, with: .color(.primary.opacity(0.4)))
 
+                    // Midnight marker triangle at bottom of circle (90 degrees)
+                    let midnightAngle = Angle.degrees(90)
+                    let midnightTip = pointOnCircle(angle: midnightAngle, radius: radius, center: center)
+                    let midnightBase = pointOnCircle(angle: midnightAngle, radius: radius + noonTriangleSize, center: center)
+                    let midnightTriangle = Path { p in
+                        p.move(to: midnightTip)
+                        p.addLine(to: CGPoint(x: midnightBase.x - noonTriangleHalfWidth, y: midnightBase.y))
+                        p.addLine(to: CGPoint(x: midnightBase.x + noonTriangleHalfWidth, y: midnightBase.y))
+                        p.closeSubpath()
+                    }
+                    context.fill(midnightTriangle, with: .color(.primary.opacity(0.4)))
+
                     // Clock hand from center to current time
                     let handEnd = pointOnCircle(angle: currentAngle, radius: radius, center: center)
                     var hand = Path()
                     hand.move(to: center)
                     hand.addLine(to: handEnd)
                     context.stroke(hand, with: .color(.primary.opacity(0.2)), lineWidth: handWidth)
+
+                    // Clock hand from center to scheduled departure (detail view only)
+                    if shouldShowDepartureArc(at: timeline.date), size > 160,
+                       let dep = nextDepartureTime {
+                        let depHandEnd = pointOnCircle(angle: angleForTime(dep), radius: radius, center: center)
+                        var depHand = Path()
+                        depHand.move(to: center)
+                        depHand.addLine(to: depHandEnd)
+                        context.stroke(depHand, with: .color(.cyan.opacity(0.4)), lineWidth: handWidth)
+                    }
+
+                    // Clock hand from center to delayed departure (detail view only)
+                    if shouldShowDepartureArc(at: timeline.date), size > 160, hasFlightDelay,
+                       let delayedDep = delayedDepartureTime {
+                        let delayHandEnd = pointOnCircle(angle: angleForTime(delayedDep), radius: radius, center: center)
+                        var delayHand = Path()
+                        delayHand.move(to: center)
+                        delayHand.addLine(to: delayHandEnd)
+                        context.stroke(delayHand, with: .color(.red.opacity(0.4)), lineWidth: handWidth)
+                    }
 
                     // Home time indicators
                     if hasDifferentTimezone {
@@ -1092,6 +1139,25 @@ struct SunCircleView: View {
                         .foregroundColor(.cyan)
                         .position(x: max(timeLabelPadding, min(size - timeLabelPadding, labelPos.x)),
                                   y: max(timeLabelEdge, min(size - timeLabelEdge, labelPos.y)))
+
+                    // Red delayed departure marker
+                    if let delayedDep = delayedDepartureTime {
+                        let delayAngle = angleForTime(delayedDep)
+                        let delayJetPos = pointOnCircle(angle: delayAngle, radius: radius + noonTriangleSize + 2 * scale, center: center)
+
+                        Image(systemName: "airplane")
+                            .font(.system(size: homeIconSize, weight: .semibold))
+                            .foregroundColor(.red)
+                            .rotationEffect(.degrees(delayAngle.degrees + 90))
+                            .position(delayJetPos)
+
+                        let delayLabelPos = pointOnCircle(angle: delayAngle, radius: radius + timeLabelOffset, center: center)
+                        Text(formatTime(delayedDep))
+                            .font(.system(size: timeLabelFontSize, weight: .medium))
+                            .foregroundColor(.red)
+                            .position(x: max(timeLabelPadding, min(size - timeLabelPadding, delayLabelPos.x)),
+                                      y: max(timeLabelEdge, min(size - timeLabelEdge, delayLabelPos.y)))
+                    }
                 }
 
                 // Animated arc arrow (Shape-based for proper animation, detail view only)
@@ -1130,19 +1196,30 @@ struct SunCircleView: View {
 
                 // Departure arc (detail view only)
                 if shouldShowDepartureArc(at: timeline.date) && size > 160 {
+                    let effectiveDep = effectiveDepartureTime!
+                    let scheduledDep = nextDepartureTime!
+                    let hoursToEffective = effectiveDep.timeIntervalSince(timeline.date) / 3600
+                    let effectiveDepAngle = angleForTime(effectiveDep)
+
+                    // Sweep from current angle to scheduled departure
+                    let scheduledDepAngle = angleForTime(scheduledDep)
+                    let scheduledClockDist = (scheduledDepAngle.degrees - currentAngle.degrees + 360)
+                        .truncatingRemainder(dividingBy: 360)
+                    let hoursToScheduled = scheduledDep.timeIntervalSince(timeline.date) / 3600
+                    let scheduledFullRevs = floor(max(0, hoursToScheduled) / 24)
+                    let scheduledSweep = scheduledFullRevs * 360 + scheduledClockDist
+
                     let departureOver24h = isDepartureOver24h(at: timeline.date)
-                    let hoursUntilDeparture = nextDepartureTime!.timeIntervalSince(timeline.date) / 3600
-                    let fullRevs = floor(hoursUntilDeparture / 24)
 
                     if departureOver24h {
-                        // Dashed: full revolution(s)
+                        // Dashed cyan: full revolution(s) up to scheduled
                         DepartureArcShape(
                             progress: departureArcProgress,
                             currentAngle: currentAngle,
-                            departureAngle: angleForTime(nextDepartureTime!),
+                            departureAngle: effectiveDepAngle,
                             centerYOffset: 2 * scale,
-                            hoursUntilDeparture: hoursUntilDeparture,
-                            sweepCap: fullRevs * 360
+                            hoursUntilDeparture: hoursToEffective,
+                            sweepCap: scheduledFullRevs * 360
                         )
                         .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
                             lineWidth: arcLineWidth,
@@ -1151,14 +1228,15 @@ struct SunCircleView: View {
                         ))
                         .opacity(departureArcOpacity)
 
-                        // Solid: remainder after full revolutions
+                        // Solid cyan: remainder after full revolutions, capped at scheduled
                         DepartureArcShape(
                             progress: departureArcProgress,
                             currentAngle: currentAngle,
-                            departureAngle: angleForTime(nextDepartureTime!),
+                            departureAngle: effectiveDepAngle,
                             centerYOffset: 2 * scale,
-                            hoursUntilDeparture: hoursUntilDeparture,
-                            sweepOffset: fullRevs * 360
+                            hoursUntilDeparture: hoursToEffective,
+                            sweepOffset: scheduledFullRevs * 360,
+                            sweepCap: scheduledSweep - scheduledFullRevs * 360
                         )
                         .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
                             lineWidth: arcLineWidth,
@@ -1166,13 +1244,14 @@ struct SunCircleView: View {
                         ))
                         .opacity(departureArcOpacity)
                     } else {
-                        // ≤24h: single solid arc
+                        // ≤24h: single solid cyan arc capped at scheduled sweep
                         DepartureArcShape(
                             progress: departureArcProgress,
                             currentAngle: currentAngle,
-                            departureAngle: angleForTime(nextDepartureTime!),
+                            departureAngle: effectiveDepAngle,
                             centerYOffset: 2 * scale,
-                            hoursUntilDeparture: hoursUntilDeparture
+                            hoursUntilDeparture: hoursToEffective,
+                            sweepCap: scheduledSweep
                         )
                         .stroke(Color.cyan.opacity(0.7), style: StrokeStyle(
                             lineWidth: arcLineWidth,
@@ -1181,16 +1260,33 @@ struct SunCircleView: View {
                         .opacity(departureArcOpacity)
                     }
 
+                    // Red delay extension (from scheduled to effective departure)
+                    if hasFlightDelay {
+                        DepartureArcShape(
+                            progress: departureArcProgress,
+                            currentAngle: currentAngle,
+                            departureAngle: effectiveDepAngle,
+                            centerYOffset: 2 * scale,
+                            hoursUntilDeparture: hoursToEffective,
+                            sweepOffset: scheduledSweep
+                        )
+                        .stroke(Color.red.opacity(0.8), style: StrokeStyle(
+                            lineWidth: arcLineWidth,
+                            lineCap: .round
+                        ))
+                        .opacity(departureArcOpacity)
+                    }
+
                     // Jet icon tracking arc endpoint (animatable per-frame)
                     let currentDeg = currentAngle.degrees
-                    let depDeg = angleForTime(nextDepartureTime!).degrees
-                    let clockDist = (depDeg - currentDeg + 360).truncatingRemainder(dividingBy: 360)
-                    let fullRevolutions = floor(hoursUntilDeparture / 24)
+                    let effectiveDepDeg = effectiveDepAngle.degrees
+                    let clockDist = (effectiveDepDeg - currentDeg + 360).truncatingRemainder(dividingBy: 360)
+                    let fullRevolutions = floor(hoursToEffective / 24)
                     let totalSweep = fullRevolutions * 360 + clockDist
 
                     Image(systemName: "airplane")
                         .font(.system(size: 8 * scale, weight: .semibold))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(hasFlightDelay ? .red : .cyan)
                         .modifier(ArcEndpointModifier(
                             progress: departureArcProgress,
                             startAngleDeg: currentDeg,
@@ -1203,7 +1299,7 @@ struct SunCircleView: View {
                     // Departure countdown in center
                     Text(departureCountdownText(at: timeline.date))
                         .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(hasFlightDelay ? .red : .cyan)
                         .position(center)
                         .opacity(departureArcProgress * departureArcOpacity)
                 }
@@ -1257,7 +1353,7 @@ struct SunCircleView: View {
                 // Phase 2: Departure arc (if visible)
                 if shouldShowDepartureArc(at: Date()) && size > 160 {
                     didAnimate = true
-                    let depHours = nextDepartureTime.map {
+                    let depHours = effectiveDepartureTime.map {
                         $0.timeIntervalSince(Date()) / 3600
                     } ?? 0
                     let revolutions = max(1, depHours / 24)
