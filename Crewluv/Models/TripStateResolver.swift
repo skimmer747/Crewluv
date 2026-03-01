@@ -111,6 +111,11 @@ enum TripStateResolver {
         let homeArrivalTime: Date? = {
             guard !isHome else { return nil }
 
+            // Standalone leg (no trip association — e.g., post-trip jumpseat)
+            if leg.tripId == nil && leg.type == .flight {
+                return leg.endTime
+            }
+
             // Scope to current trip by tripId
             if let tripId = leg.tripId {
                 let tripLegs = sorted.filter { $0.tripId == tripId && $0.type != .home }
@@ -139,7 +144,18 @@ enum TripStateResolver {
 
         // Home arrival label: derive from trip legs
         let homeArrivalLabel: String? = {
-            guard homeArrivalTime != nil, let tripId = leg.tripId else { return nil }
+            guard homeArrivalTime != nil else { return nil }
+
+            // Standalone leg (e.g., post-trip jumpseat)
+            if leg.tripId == nil && leg.type == .flight {
+                if leg.arrivalAirport == homeAirport {
+                    return "Back Home In"
+                }
+                let city = leg.arrivalCity
+                return city != nil ? "\(city!) In" : nil
+            }
+
+            guard let tripId = leg.tripId else { return nil }
             let tripLegs = sorted.filter { $0.tripId == tripId }
             let firstLeg = tripLegs.first
             let originAirport = firstLeg?.type == .flight ? firstLeg?.departureAirport : firstLeg?.airportCode
@@ -175,7 +191,18 @@ enum TripStateResolver {
 
         // Home arrival city: city name for footer display (only for home-bound trips)
         let homeArrivalCity: String? = {
-            guard homeArrivalTime != nil, let tripId = leg.tripId else { return nil }
+            guard homeArrivalTime != nil else { return nil }
+
+            // Standalone leg (e.g., post-trip jumpseat)
+            if leg.tripId == nil && leg.type == .flight {
+                if leg.arrivalAirport == homeAirport {
+                    return leg.arrivalCity
+                        ?? homeAirport.flatMap { AirportDataProvider.shared.airportInfo(forIataCode: $0)?.city }
+                }
+                return nil
+            }
+
+            guard let tripId = leg.tripId else { return nil }
             let tripLegs = sorted.filter { $0.tripId == tripId }
             let lastNonHome = tripLegs.filter { $0.type != .home }.last
             let lastArrival = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
