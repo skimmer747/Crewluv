@@ -88,7 +88,8 @@ enum TripStateResolver {
             if let home = homeAirport,
                let js = nextFlight,
                js.tripId == nil,
-               js.departureAirport != home,
+               let dep = js.departureAirport,
+               dep != home,
                js.arrivalAirport == home {
                 return commutingHomeState(jumpseat: js, homeAirport: home, now: now)
             }
