@@ -23,6 +23,7 @@ struct EventTimelineView: View {
             // Calendar grid – pinned at top
             TripCalendarView(
                 tripLegs: legs,
+                homeAirportCode: status.homeAirportCode,
                 selectedDate: $selectedDate
             )
 
@@ -123,54 +124,49 @@ struct EventTimelineView: View {
 
     private func sectionView(_ section: DateSection) -> some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
-                    TimelineRowView(leg: leg)
-                        .onTapGesture {
-                            selectedDate = Calendar.current.startOfDay(for: leg.startTime)
-                        }
+            sectionContent(section)
+        } header: {
+            sectionHeader(section)
+        }
+    }
 
-                    // Gap between consecutive legs (hide when < 1 minute)
-                    if index < section.legs.count - 1 {
-                        let nextLeg = section.legs[index + 1]
-                        let gap = nextLeg.startTime.timeIntervalSince(leg.endTime)
-                        if gap >= 60 {
-                            TimeGapView(fromLeg: leg, toLeg: nextLeg)
-                        }
+    @ViewBuilder
+    private func sectionContent(_ section: DateSection) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
+                TimelineRowView(leg: leg, homeAirportCode: status.homeAirportCode)
+                    .onTapGesture {
+                        selectedDate = Calendar.current.startOfDay(for: leg.startTime)
                     }
+
+                // Gap between consecutive legs (hide when < 1 minute)
+                if index < section.legs.count - 1 {
+                    legGapView(section: section, index: index, leg: leg)
                 }
             }
-        } header: {
-            let cal = Calendar.current
-            let isToday = cal.isDateInToday(section.date)
-            let isPinned = pinnedSectionDate.map { cal.isDate($0, inSameDayAs: section.date) } ?? false
-            let highlighted = isToday || isPinned
-            Text(sectionHeaderText(for: section.date))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(highlighted ? .black : .secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal, highlighted ? 8 : 0)
-                .padding(.vertical, highlighted ? 4 : 0)
-                .background {
-                    if highlighted {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isToday ? .green : .yellow)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 12)
-                .padding(.bottom, 2)
-                .background(.bar)
-                .overlay {
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: SectionOffsetKey.self,
-                            value: [SectionOffset(date: section.date, minY: geo.frame(in: .named("timeline")).minY)]
-                        )
-                    }
-                }
         }
+    }
+
+    @ViewBuilder
+    private func legGapView(section: DateSection, index: Int, leg: TripLeg) -> some View {
+        let nextLeg = section.legs[index + 1]
+        let gap = nextLeg.startTime.timeIntervalSince(leg.endTime)
+        if gap >= 60 {
+            TimeGapView(fromLeg: leg, toLeg: nextLeg)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ section: DateSection) -> some View {
+        let cal = Calendar.current
+        let isToday = cal.isDateInToday(section.date)
+        let isPinned = pinnedSectionDate.map { cal.isDate($0, inSameDayAs: section.date) } ?? false
+        SectionHeaderLabel(
+            title: sectionHeaderText(for: section.date),
+            isToday: isToday,
+            isHighlighted: isToday || isPinned,
+            date: section.date
+        )
     }
 
     // MARK: - Grouping
@@ -213,6 +209,48 @@ struct EventTimelineView: View {
             let fmt = DateFormatter()
             fmt.dateFormat = "EEEE, MMM d"
             return fmt.string(from: date)
+        }
+    }
+}
+
+// MARK: - Section Header Label
+
+private struct SectionHeaderLabel: View {
+    let title: String
+    let isToday: Bool
+    let isHighlighted: Bool
+    let date: Date
+
+    var body: some View {
+        Text(title)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundColor(isHighlighted ? .black : .secondary)
+            .textCase(.uppercase)
+            .padding(.horizontal, isHighlighted ? 8 : 0)
+            .padding(.vertical, isHighlighted ? 4 : 0)
+            .background(highlightBackground)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 12)
+            .padding(.bottom, 2)
+            .background(.bar)
+            .overlay(offsetTracker)
+    }
+
+    @ViewBuilder
+    private var highlightBackground: some View {
+        if isHighlighted {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isToday ? Color.green : Color.yellow)
+        }
+    }
+
+    private var offsetTracker: some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: SectionOffsetKey.self,
+                value: [SectionOffset(date: date, minY: geo.frame(in: .named("timeline")).minY)]
+            )
         }
     }
 }

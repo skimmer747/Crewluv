@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TripCalendarView: View {
     let tripLegs: [TripLeg]
+    let homeAirportCode: String?
     @Binding var selectedDate: Date?
 
     @State private var displayedMonth: Date = {
@@ -17,28 +18,6 @@ struct TripCalendarView: View {
 
     private let calendar = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
-
-    /// Infer home periods from gaps between distinct trips
-    private var homePeriods: [(start: Date, end: Date)] {
-        var tripMap: [String: (start: Date, end: Date)] = [:]
-        for leg in tripLegs where leg.type != .home {
-            let key = leg.tripId ?? leg.id
-            if let existing = tripMap[key] {
-                tripMap[key] = (min(existing.start, leg.startTime), max(existing.end, leg.endTime))
-            } else {
-                tripMap[key] = (leg.startTime, leg.endTime)
-            }
-        }
-        let bounds = tripMap.values.sorted { $0.start < $1.start }
-
-        var periods: [(start: Date, end: Date)] = []
-        for i in 0..<bounds.count - 1 {
-            let gapStart = bounds[i].end
-            let gapEnd = bounds[i + 1].start
-            if gapEnd > gapStart { periods.append((gapStart, gapEnd)) }
-        }
-        return periods
-    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -173,6 +152,14 @@ struct TripCalendarView: View {
         let dayStart = calendar.startOfDay(for: date)
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .none }
 
+        // Standalone jumpseats arriving at home airport → .home (highest priority)
+        if let home = homeAirportCode {
+            for leg in tripLegs where leg.tripId == nil && leg.arrivalAirport == home {
+                let overlaps = leg.startTime < dayEnd && leg.endTime > dayStart
+                if overlaps { return .home }
+            }
+        }
+
         var result: DayStatus = .none
         for leg in tripLegs {
             let overlaps = leg.startTime < dayEnd && leg.endTime > dayStart
@@ -180,22 +167,13 @@ struct TripCalendarView: View {
 
             switch leg.type {
             case .flight:
-                return .flying  // Highest priority, return immediately
+                return .flying
             case .turn, .layover:
                 result = .away
             case .home:
                 if result == .none { result = .home }
             default:
                 result = .away
-            }
-        }
-
-        // If no leg covered this day, check inferred home periods (gaps between trips)
-        if result == .none {
-            for period in homePeriods {
-                if period.start < dayEnd && period.end > dayStart {
-                    return .home
-                }
             }
         }
 
