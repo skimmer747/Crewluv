@@ -82,8 +82,19 @@ enum TripStateResolver {
 
         // If no current leg, we're home (before trip, after trip, or in a gap)
         guard let leg = currentLeg else {
+            let nextFlight = futureLegs.first { $0.type == .flight }
+
+            // Detect post-trip jumpseat: standalone flight FROM non-home TO home
+            if let home = homeAirport,
+               let js = nextFlight,
+               js.tripId == nil,
+               js.departureAirport != home,
+               js.arrivalAirport == home {
+                return commutingHomeState(jumpseat: js, homeAirport: home, now: now)
+            }
+
             return homeState(
-                nextFlightLeg: futureLegs.first { $0.type == .flight },
+                nextFlightLeg: nextFlight,
                 sorted: sorted,
                 homeAirport: homeAirport,
                 now: now
@@ -330,6 +341,42 @@ enum TripStateResolver {
                 let interval = leg.startTime.timeIntervalSince(now)
                 return interval > 0 ? interval : nil
             },
+            flightDelayMinutes: nil
+        )
+    }
+
+    private static func commutingHomeState(jumpseat js: TripLeg, homeAirport: String, now: Date) -> ResolvedPilotState {
+        let depInfo = js.departureAirport.flatMap { AirportDataProvider.shared.airportInfo(forIataCode: $0) }
+        let depTZ = airportTimezone(js.departureAirport)
+
+        return ResolvedPilotState(
+            displayStatus: "Commuting Home",
+            isHome: false,
+            isInFlight: false,
+            isOnDuty: false,
+            currentAirport: js.departureAirport,
+            currentCity: js.departureCity ?? depInfo?.city,
+            currentTimezone: depTZ ?? js.timezoneIdentifier,
+            currentFlightNumber: nil,
+            currentFlightDeparture: nil,
+            currentFlightArrival: nil,
+            currentFlightDepartureTime: nil,
+            currentFlightArrivalTime: nil,
+            currentFlightArrivalTimezone: nil,
+            homeArrivalTime: js.endTime,
+            homeArrivalLabel: "Back Home In",
+            homeArrivalCity: js.arrivalCity ?? AirportDataProvider.shared.airportInfo(forIataCode: homeAirport)?.city,
+            nextDepartureTime: js.startTime,
+            nextFlightNumber: js.flightNumber,
+            nextFlightDestination: js.arrivalAirport,
+            nextDepartureLabel: nil,
+            tripDayNumber: nil,
+            tripTotalDays: nil,
+            upcomingCities: [],
+            timeUntilNextTransition: {
+                let interval = js.startTime.timeIntervalSince(now)
+                return interval > 0 ? interval : nil
+            }(),
             flightDelayMinutes: nil
         )
     }

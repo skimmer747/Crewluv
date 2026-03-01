@@ -42,6 +42,8 @@ struct NarrativeCardView: View {
         switch status.displayStatus {
         case "Home":
             homeNarrative
+        case "Commuting Home":
+            commutingHomeNarrative
         case "In Flight":
             inFlightNarrative
         case "Turn":
@@ -72,6 +74,19 @@ struct NarrativeCardView: View {
             Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()).")
         } else {
             Text("\(name) is home and relaxing.")
+        }
+    }
+
+    @ViewBuilder
+    private var commutingHomeNarrative: some View {
+        if let js = nextFlight() {
+            let from = js.departureCity ?? status.currentCity ?? "here"
+            let to = js.arrivalCity ?? "home"
+            let depTimeStr = formattedLocalTime(js.startTime)
+            let arrTimeStr = formattedLocalTime(js.endTime)
+            Text("\(name) has one more leg home from \(Text(from).bold()) to \(Text(to).bold())! It leaves in \(countdownText(to: js.startTime)) at \(Text(depTimeStr).bold()) and lands at \(Text(arrTimeStr).bold()).")
+        } else {
+            Text("\(name) is heading home")
         }
     }
 
@@ -110,6 +125,7 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var inFlightNarrative: some View {
+        let verb = currentFlightIsCommercial ? "riding" : "flying"
         if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
             // Delayed flight narrative
             let dest = currentArrivalCity()
@@ -119,20 +135,20 @@ struct NarrativeCardView: View {
             if let depTime = status.currentFlightDepartureTime {
                 let shiftedDep = depTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 if now < shiftedDep {
-                    // Before shifted departure: "is delayed in Paris and will be flying to..."
+                    // Before shifted departure: "is delayed in Paris and will be riding/flying to..."
                     if let dep, let dest {
-                        Text("\(name) is delayed in \(Text(dep).bold()) and will be flying to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                        Text("\(name) is delayed in \(Text(dep).bold()) and will be \(verb) to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
                     } else if let dest {
-                        Text("\(name) is delayed and will be flying to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                        Text("\(name) is delayed and will be \(verb) to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
                     } else {
                         Text("\(name)'s flight is delayed — departing in \(countdownText(to: shiftedDep))")
                     }
                 } else if let arrTime = status.currentFlightArrivalTime {
-                    // After shifted departure: "was delayed in Paris and is flying to..."
+                    // After shifted departure: "was delayed in Paris and is riding/flying to..."
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
                     if let dep, let dest {
-                        Text("\(name) was delayed in \(Text(dep).bold()) and is flying to \(Text(dest).bold())\(fltStr). He will be landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name) was delayed in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
                     } else if let dest {
                         Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr) — landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
                     } else {
@@ -153,12 +169,12 @@ struct NarrativeCardView: View {
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
             if let dep {
-                Text("\(name) is flying to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is flying to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
-            Text("\(name) is flying to \(Text(dest).bold())")
+            Text("\(name) is \(verb) to \(Text(dest).bold())")
         } else {
             Text("\(name) is in flight")
         }
@@ -439,6 +455,17 @@ struct NarrativeCardView: View {
 
     // MARK: - Airline Helpers
 
+    private var currentFlightIsCommercial: Bool {
+        let legs = sortedTripLegs
+        guard !legs.isEmpty else { return currentAirlineCode != nil }
+        let currentFlight = legs.first { leg in
+            guard leg.type == .flight else { return false }
+            let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
+            return leg.startTime <= now && now < leg.endTime.addingTimeInterval(legDelay)
+        }
+        return currentFlight?.airlineCode != nil
+    }
+
     private var currentAirlineCode: String? {
         guard let flt = status.currentFlightNumber else { return nil }
         let (prefix, _) = FlightTrackingHelper.parseFlightNumber(flt)
@@ -458,6 +485,7 @@ struct NarrativeCardView: View {
     private var statusIcon: String {
         switch status.displayStatus {
         case "Home": return "house.fill"
+        case "Commuting Home": return "airplane"
         case "In Flight": return AirlineBranding.symbolName(for: currentAirlineCode)
         case "Turn": return "arrow.triangle.2.circlepath"
         case "Layover": return "bed.double.fill"
@@ -468,6 +496,7 @@ struct NarrativeCardView: View {
     private var statusColor: Color {
         switch status.displayStatus {
         case "Home": return .green
+        case "Commuting Home": return .blue
         case "In Flight": return status.hasFlightDelay ? .orange : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case "Turn": return .orange
         case "Layover": return status.hasFlightDelay ? .orange : .purple
