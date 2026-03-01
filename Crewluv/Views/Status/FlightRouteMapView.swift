@@ -440,14 +440,17 @@ struct FlightRouteMapView: View {
             fraction: lookAheadProgress
         )
 
-        let distanceToLookAhead = haversineDistance(
-            lat1: aircraftCoord.latitude, lon1: aircraftCoord.longitude,
-            lat2: lookAheadCoord.latitude, lon2: lookAheadCoord.longitude
+        let lookAheadPosition = projectToView(
+            lat: lookAheadCoord.latitude,
+            lon: lookAheadCoord.longitude,
+            bounds: bounds, size: size
         )
 
-        let isLookAheadTooClose = (lookAheadProgress == progress) || (distanceToLookAhead < 100.0)
+        let dx = lookAheadPosition.x - position.x
+        let dy = lookAheadPosition.y - position.y
+        let isLookAheadTooClose = (lookAheadProgress == progress) || (hypot(dx, dy) < 1.0)
 
-        let bearing: Double
+        let screenRotation: Double
         if isLookAheadTooClose {
             let lookBehindProgress = max(progress - 0.02, 0.0)
             let lookBehindCoord = interpolateGreatCircle(
@@ -455,12 +458,19 @@ struct FlightRouteMapView: View {
                 to: CLLocationCoordinate2D(latitude: arrival.latitude, longitude: arrival.longitude),
                 fraction: lookBehindProgress
             )
-            bearing = calculateBearing(from: lookBehindCoord, to: aircraftCoord)
+            let lookBehindPosition = projectToView(
+                lat: lookBehindCoord.latitude,
+                lon: lookBehindCoord.longitude,
+                bounds: bounds, size: size
+            )
+            let bx = position.x - lookBehindPosition.x
+            let by = position.y - lookBehindPosition.y
+            let screenAngle = atan2(by, bx) * 180 / .pi
+            screenRotation = screenAngle
         } else {
-            bearing = calculateBearing(from: aircraftCoord, to: lookAheadCoord)
+            let screenAngle = atan2(dy, dx) * 180 / .pi
+            screenRotation = screenAngle
         }
-
-        let screenRotation = bearing - 90
 
         return ZStack {
             Circle()
