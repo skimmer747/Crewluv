@@ -2,50 +2,40 @@
 //  TripCalendarView.swift
 //  CrewLuve
 //
-//  Month calendar grid showing pilot schedule day status
+//  Month calendar with continuous trip bars spanning across days
 //
 
 import SwiftUI
 
 struct TripCalendarView: View {
     let tripLegs: [TripLeg]
-    let homeAirportCode: String?
     @Binding var selectedDate: Date?
 
     @State private var displayedMonth: Date = {
         Calendar.current.startOfMonth(for: Date())
     }()
 
+    @State private var weeks: [CalendarWeekData] = []
+
+    private static let gridLineColor = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.white.withAlphaComponent(0.4)
+            : UIColor.black.withAlphaComponent(0.15)
+    })
+
     private let calendar = Calendar.current
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Month header
+        VStack(spacing: 8) {
             monthHeader
-
-            // Weekday labels
             weekdayRow
 
-            // Day grid
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(Array(daysInMonth.enumerated()), id: \.offset) { index, date in
-                    if let date {
-                        CalendarDayView(
-                            date: date,
-                            status: dayStatus(for: date),
-                            isToday: calendar.isDateInToday(date),
-                            isSelected: selectedDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false
-                        )
-                        .onTapGesture {
-                            selectedDate = date
-                        }
-                    } else {
-                        Color.clear
-                            .frame(height: 40)
-                    }
+            VStack(spacing: 0) {
+                ForEach(weeks) { week in
+                    CalendarWeekRowView(week: week, selectedDate: $selectedDate)
                 }
             }
+            .overlay { calendarGridLines }
         }
         .padding()
         .onChange(of: selectedDate) { _, newDate in
@@ -55,6 +45,19 @@ struct TripCalendarView: View {
                 displayedMonth = selectedMonth
             }
         }
+        .onChange(of: displayedMonth) {
+            rebuildWeeks()
+        }
+        .onChange(of: tripLegs.count) {
+            rebuildWeeks()
+        }
+        .onAppear {
+            rebuildWeeks()
+        }
+    }
+
+    private func rebuildWeeks() {
+        weeks = CalendarDataBuilder.buildWeeks(for: displayedMonth, tripLegs: tripLegs)
     }
 
     // MARK: - Month Header
@@ -99,7 +102,7 @@ struct TripCalendarView: View {
     // MARK: - Weekday Row
 
     private var weekdayRow: some View {
-        HStack {
+        HStack(spacing: 0) {
             ForEach(calendar.veryShortWeekdaySymbols.indices, id: \.self) { index in
                 Text(calendar.veryShortWeekdaySymbols[index])
                     .font(.caption2)
@@ -110,23 +113,34 @@ struct TripCalendarView: View {
         }
     }
 
-    // MARK: - Day Computation
+    // MARK: - Grid Lines
 
-    private var daysInMonth: [Date?] {
-        guard let range = calendar.range(of: .day, in: .month, for: displayedMonth),
-              let firstDay = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth))
-        else { return [] }
+    private var calendarGridLines: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = geo.size.height
+            let rowCount = CGFloat(weeks.count)
 
-        let weekdayOffset = (calendar.component(.weekday, from: firstDay) - calendar.firstWeekday + 7) % 7
+            // Vertical lines between columns 1–6
+            ForEach(1..<7, id: \.self) { col in
+                Rectangle()
+                    .fill(Self.gridLineColor)
+                    .frame(width: 0.5)
+                    .position(x: CGFloat(col) * width / 7, y: height / 2)
+            }
 
-        var days: [Date?] = Array(repeating: nil, count: weekdayOffset)
-        for day in range {
-            if let date = calendar.date(byAdding: .day, value: day - 1, to: firstDay) {
-                days.append(date)
+            // Horizontal lines between rows
+            ForEach(1..<max(1, weeks.count), id: \.self) { row in
+                Rectangle()
+                    .fill(Self.gridLineColor)
+                    .frame(height: 0.5)
+                    .position(x: width / 2, y: CGFloat(row) * height / rowCount)
             }
         }
-        return days
+        .allowsHitTesting(false)
     }
+
+    // MARK: - Helpers
 
     private var monthYearString: String {
         let fmt = DateFormatter()
@@ -139,101 +153,6 @@ struct TripCalendarView: View {
             if let newMonth = calendar.date(byAdding: .month, value: value, to: displayedMonth) {
                 displayedMonth = calendar.startOfMonth(for: newMonth)
             }
-        }
-    }
-
-    // MARK: - Day Status
-
-    enum DayStatus {
-        case flying, away, home, none
-    }
-
-    private func dayStatus(for date: Date) -> DayStatus {
-        let dayStart = calendar.startOfDay(for: date)
-        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .none }
-
-        // Standalone jumpseats arriving at home airport → .home (highest priority)
-        if let home = homeAirportCode {
-            for leg in tripLegs where leg.tripId == nil && leg.arrivalAirport == home {
-                let overlaps = leg.startTime < dayEnd && leg.endTime > dayStart
-                if overlaps { return .home }
-            }
-        }
-
-        var result: DayStatus = .none
-        for leg in tripLegs {
-            let overlaps = leg.startTime < dayEnd && leg.endTime > dayStart
-            guard overlaps else { continue }
-
-            switch leg.type {
-            case .flight:
-                return .flying
-            case .turn, .layover:
-                result = .away
-            case .home:
-                if result == .none { result = .home }
-            default:
-                result = .away
-            }
-        }
-
-        return result
-    }
-}
-
-// MARK: - Calendar Day View
-
-struct CalendarDayView: View {
-    let date: Date
-    let status: TripCalendarView.DayStatus
-    let isToday: Bool
-    let isSelected: Bool
-
-    private var dayNumber: String {
-        "\(Calendar.current.component(.day, from: date))"
-    }
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(dayNumber)
-                .font(.caption)
-                .fontWeight(isToday ? .bold : .regular)
-                .foregroundColor(isSelected ? .white.opacity(0.8) : .primary)
-
-            statusIcon
-                .font(.system(size: 10))
-                .frame(height: 12)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 40)
-        .background {
-            if isSelected {
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 36, height: 36)
-            } else if isToday {
-                Circle()
-                    .stroke(.blue, lineWidth: 1.5)
-                    .frame(width: 36, height: 36)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var statusIcon: some View {
-        switch status {
-        case .flying:
-            Image(systemName: "airplane")
-                .foregroundColor(isSelected ? .white.opacity(0.8) : .green)
-        case .away:
-            Circle()
-                .fill(isSelected ? .white.opacity(0.8) : .orange)
-                .frame(width: 6, height: 6)
-        case .home:
-            Image(systemName: "house.fill")
-                .foregroundColor(isSelected ? .white.opacity(0.8) : .green)
-        case .none:
-            EmptyView()
         }
     }
 }
