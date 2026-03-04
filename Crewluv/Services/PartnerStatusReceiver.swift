@@ -194,6 +194,7 @@ class PartnerStatusReceiver {
                 debugLog("[CrewLuve] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
             }
             
+            logTripLegDiff(old: rawPilotStatus, new: newStatus, recordModDate: statusRecord.modificationDate)
             rawPilotStatus = newStatus
             resolveAndSchedule()
             hasAcceptedShare = true
@@ -331,5 +332,46 @@ class PartnerStatusReceiver {
                 self.resolveAndSchedule()
             }
         }
+    }
+
+    // MARK: - Diagnostic Logging
+
+    /// Compare trip leg IDs between cached and incoming data to detect disappearing legs
+    private func logTripLegDiff(old: SharedPilotStatus?, new: SharedPilotStatus, recordModDate: Date?) {
+        let oldLegs = old?.tripLegs ?? []
+        let newLegs = new.tripLegs
+
+        let oldIds = Set(oldLegs.map(\.id))
+        let newIds = Set(newLegs.map(\.id))
+
+        guard oldIds != newIds else { return }
+
+        let removed = oldLegs.filter { !newIds.contains($0.id) }
+        let added = newLegs.filter { !oldIds.contains($0.id) }
+
+        debugLog("[TripLegDiff] === LEG CHANGE DETECTED ===")
+        debugLog("[TripLegDiff] Count: \(oldLegs.count) → \(newLegs.count)")
+        debugLog("[TripLegDiff] Record mod date: \(recordModDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
+
+        for leg in removed {
+            debugLog("[TripLegDiff] REMOVED: \(legDescription(leg))")
+        }
+        for leg in added {
+            debugLog("[TripLegDiff] ADDED: \(legDescription(leg))")
+        }
+    }
+
+    private func legDescription(_ leg: TripLeg) -> String {
+        let type = "[\(leg.type.rawValue)]"
+        let route: String
+        if leg.type == .flight {
+            route = "\(leg.departureAirport ?? "?")→\(leg.arrivalAirport ?? "?")"
+        } else {
+            route = leg.airportCode ?? "?"
+        }
+        let trip = leg.tripId.map { "trip:\($0)" } ?? "standalone"
+        let start = leg.startTime.formatted(date: .abbreviated, time: .shortened)
+        let end = leg.endTime.formatted(date: .abbreviated, time: .shortened)
+        return "\(type) \(route) (\(trip)) \(start)–\(end)"
     }
 }
