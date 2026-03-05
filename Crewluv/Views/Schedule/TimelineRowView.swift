@@ -9,10 +9,23 @@ import SwiftUI
 
 struct TimelineRowView: View {
     let leg: TripLeg
+    var homeAirportCode: String?
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isHomebound: Bool {
+        guard leg.type == .flight,
+              let home = homeAirportCode, !home.isEmpty,
+              let arrival = leg.arrivalAirport
+        else { return false }
+        return arrival.caseInsensitiveCompare(home) == .orderedSame
+    }
 
     private var staticIconName: String {
         switch leg.type {
-        case .flight:     return "airplane"
+        case .flight:
+            if leg.tripId == nil { return "figure.seated.seatbelt" }
+            return AirlineBranding.symbolName(for: leg.airlineCode)
         case .turn:       return "clock.arrow.circlepath"
         case .layover:    return "bed.double.fill"
         case .home:       return "house.fill"
@@ -63,8 +76,13 @@ struct TimelineRowView: View {
             .glassEffect(.regular, in: .rect(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(iconColor.opacity(isActive ? 0.5 : 0), lineWidth: 2)
+                    .stroke(
+                        (isHomebound ? Color.green : iconColor)
+                            .opacity(isActive || isHomebound ? 0.5 : 0),
+                        lineWidth: 2
+                    )
             )
+            .accessibilityHint(isHomebound ? "Arriving at home airport" : "")
         }
     }
 
@@ -72,7 +90,9 @@ struct TimelineRowView: View {
 
     private func iconName(isActive: Bool) -> String {
         switch leg.type {
-        case .flight:     return isActive ? "airplane.departure" : "airplane"
+        case .flight:
+            if leg.tripId == nil { return "figure.seated.seatbelt" }
+            return isActive ? "airplane.departure" : "airplane"
         case .turn:       return "clock.arrow.circlepath"
         case .layover:    return isActive ? "moon.zzz.fill" : "bed.double.fill"
         case .home:       return "house.fill"
@@ -82,9 +102,14 @@ struct TimelineRowView: View {
 
     private var iconColor: Color {
         switch leg.type {
-        case .flight:     return .green
+        case .flight:
+            if leg.tripId == nil { return .green }
+            if leg.airlineCode != nil {
+                return AirlineBranding.color(for: leg.airlineCode, colorScheme: colorScheme)
+            }
+            return .blue
         case .turn:       return .orange
-        case .layover:    return .blue
+        case .layover:    return .yellow
         case .home:       return .green
         default:          return .gray
         }
