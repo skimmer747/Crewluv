@@ -24,8 +24,10 @@ struct TimelineRowView: View {
     private var staticIconName: String {
         switch leg.type {
         case .flight:
-            if leg.tripId == nil { return "figure.seated.seatbelt" }
-            return AirlineBranding.symbolName(for: leg.airlineCode)
+            if leg.airlineCode != nil {
+                return AirlineBranding.symbolName(for: leg.airlineCode)
+            }
+            return leg.tripId == nil ? "figure.seated.seatbelt" : "airplane"
         case .turn:       return "clock.arrow.circlepath"
         case .layover:    return "bed.double.fill"
         case .home:       return "house.fill"
@@ -91,6 +93,9 @@ struct TimelineRowView: View {
     private func iconName(isActive: Bool) -> String {
         switch leg.type {
         case .flight:
+            if leg.airlineCode != nil {
+                return AirlineBranding.symbolName(for: leg.airlineCode)
+            }
             if leg.tripId == nil { return "figure.seated.seatbelt" }
             return isActive ? "airplane.departure" : "airplane"
         case .turn:       return "clock.arrow.circlepath"
@@ -103,10 +108,10 @@ struct TimelineRowView: View {
     private var iconColor: Color {
         switch leg.type {
         case .flight:
-            if leg.tripId == nil { return .green }
             if leg.airlineCode != nil {
                 return AirlineBranding.color(for: leg.airlineCode, colorScheme: colorScheme)
             }
+            if leg.tripId == nil { return .green }
             return .blue
         case .turn:       return .orange
         case .layover:    return .yellow
