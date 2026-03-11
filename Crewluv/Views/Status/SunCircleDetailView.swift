@@ -15,6 +15,8 @@ struct SunCircleDetailView: View {
     let timezone: String?
     let cityName: String
     let weather: WeatherSnapshot
+    var nextDepartureTime: Date? = nil
+    var flightDelayMinutes: Int? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var deviceColorScheme
@@ -95,6 +97,8 @@ struct SunCircleDetailView: View {
                     sunset: sunset,
                     isDaylight: isDaylight,
                     timezone: timezone,
+                    nextDepartureTime: nextDepartureTime,
+                    flightDelayMinutes: flightDelayMinutes,
                     size: 300
                 )
                 .scaleEffect(appeared ? 1.0 : 0.5)

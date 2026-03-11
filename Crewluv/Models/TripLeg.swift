@@ -41,4 +41,7 @@ struct TripLeg: Codable, Sendable {
 
     // Per-leg delay: only the specifically-delayed flight has a value here
     let delayMinutes: Int?
+
+    // "AA", "DL", "WN" etc. — nil for company flights
+    let airlineCode: String?
 }

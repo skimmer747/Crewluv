@@ -206,13 +206,13 @@ struct NoShareView: View {
                         InstructionRow(
                             number: "1",
                             title: "Pilot Setup",
-                            description: "Your pilot needs the Duty app to create a status share"
+                            description: "Your pilot needs the CrewLuve app to create a status share"
                         )
 
                         InstructionRow(
                             number: "2",
                             title: "Share Invitation",
-                            description: "Ask them to go to Settings → Partner Sharing → Invite Partner"
+                            description: "Ask them to go to Settings → Partner Sharing → Invite Partner. iMessage is best."
                         )
 
                         InstructionRow(

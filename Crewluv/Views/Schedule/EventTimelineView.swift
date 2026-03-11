@@ -23,7 +23,6 @@ struct EventTimelineView: View {
             // Calendar grid – pinned at top
             TripCalendarView(
                 tripLegs: legs,
-                homeAirportCode: status.homeAirportCode,
                 selectedDate: $selectedDate
             )
 

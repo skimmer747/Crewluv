@@ -182,7 +182,22 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var turnNarrative: some View {
-        if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
+        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+            // Delay-aware turn narrative with shifted departure time
+            if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
+                let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                let depTimeStr = formattedLocalTime(shiftedTime)
+                Text("\(name) is delayed in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+            } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
+                let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
+                let depTimeStr = formattedLocalTime(shiftedTime)
+                Text("\(name) is delayed in \(Text(city).bold()) — next flight in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+            } else if let city = status.currentCity {
+                Text("\(name) is delayed in \(Text(city).bold()) between flights")
+            } else {
+                Text("\(name) is delayed between flights")
+            }
+        } else if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
             Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
