@@ -29,6 +29,9 @@ struct CalendarBarSegment: Identifiable {
     enum Category {
         case onDuty
         case offDuty
+        case reserve
+        case training
+        case jumpseat
     }
 }
 
@@ -204,6 +207,9 @@ enum CalendarDataBuilder {
 
                 let category: CalendarBarSegment.Category = switch leg.type {
                 case .layover: .offDuty
+                case .reserve, .hotStandby: .reserve
+                case .event: .training
+                case .flight where leg.tripId == nil: .jumpseat
                 default: .onDuty
                 }
 

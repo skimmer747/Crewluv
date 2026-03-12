@@ -269,11 +269,17 @@ class PartnerStatusReceiver {
 
         guard raw.hasTripLegs else {
             // No trip legs — use the status as-is (backward compat)
+            debugLog("[Resolve] No trip legs, using raw status")
             pilotStatus = raw
             return
         }
 
-        let resolved = TripStateResolver.resolve(legs: raw.tripLegs, homeAirport: raw.homeAirportCode, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
+        let legs = raw.tripLegs
+        let typeBreakdown = Dictionary(grouping: legs, by: { $0.type.rawValue }).mapValues(\.count)
+        let hasReserves = legs.contains { $0.type == .reserve || $0.type == .hotStandby || $0.type == .event }
+        debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, breakdown: \(typeBreakdown), hasReserves: \(hasReserves)")
+
+        let resolved = TripStateResolver.resolve(legs: legs, homeAirport: raw.homeAirportCode, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
 
         // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
         pilotStatus = SharedPilotStatus(

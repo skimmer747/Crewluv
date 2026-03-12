@@ -31,6 +31,9 @@ struct TimelineRowView: View {
         case .turn:       return "clock.arrow.circlepath"
         case .layover:    return "bed.double.fill"
         case .home:       return "house.fill"
+        case .reserve:    return "clock.badge.questionmark"
+        case .hotStandby: return "bolt.fill"
+        case .event:      return "book.fill"
         default:          return "clock"
         }
     }
@@ -101,6 +104,9 @@ struct TimelineRowView: View {
         case .turn:       return "clock.arrow.circlepath"
         case .layover:    return isActive ? "moon.zzz.fill" : "bed.double.fill"
         case .home:       return "house.fill"
+        case .reserve:    return "clock.badge.questionmark"
+        case .hotStandby: return "bolt.fill"
+        case .event:      return "book.fill"
         default:          return "clock"
         }
     }
@@ -116,6 +122,9 @@ struct TimelineRowView: View {
         case .turn:       return .orange
         case .layover:    return .yellow
         case .home:       return .green
+        case .reserve:    return .red
+        case .hotStandby: return .orange
+        case .event:      return .purple
         default:          return .gray
         }
     }
@@ -145,6 +154,24 @@ struct TimelineRowView: View {
 
         case .home:
             return "Home"
+
+        case .reserve:
+            let prefix = leg.label ?? "Reserve"
+            if let city = leg.city { return "\(prefix) in \(city)" }
+            if let apt = leg.airportCode { return "\(prefix) at \(apt)" }
+            return prefix
+
+        case .hotStandby:
+            let prefix = leg.label ?? "Hot Standby"
+            if let city = leg.city { return "\(prefix) in \(city)" }
+            if let apt = leg.airportCode { return "\(prefix) at \(apt)" }
+            return prefix
+
+        case .event:
+            let prefix = leg.label ?? "Training"
+            if let city = leg.city { return "\(prefix) in \(city)" }
+            if let apt = leg.airportCode { return "\(prefix) at \(apt)" }
+            return prefix
 
         default:
             return "On Duty"

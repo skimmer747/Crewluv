@@ -44,4 +44,7 @@ struct TripLeg: Codable, Sendable {
 
     // "AA", "DL", "WN" etc. — nil for company flights
     let airlineCode: String?
+
+    // Context label for non-flight legs (e.g., "RSV-A", "CQ12 Training")
+    let label: String?
 }

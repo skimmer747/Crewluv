@@ -50,6 +50,12 @@ struct NarrativeCardView: View {
             turnNarrative
         case "Layover":
             layoverNarrative
+        case "Reserve":
+            reserveNarrative
+        case "Hot Standby":
+            hotStandbyNarrative
+        case "Training":
+            trainingNarrative
         default:
             Text("On duty")
         }
@@ -241,11 +247,57 @@ struct NarrativeCardView: View {
         }
     }
 
+    @ViewBuilder
+    private var reserveNarrative: some View {
+        if let city = status.currentCity, let endTime = status.homeArrivalTime {
+            let endTimeStr = formattedLocalTime(endTime)
+            Text("\(name) is on reserve in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+        } else if let city = status.currentCity {
+            Text("\(name) is on reserve in \(Text(city).bold())")
+        } else {
+            Text("\(name) is on reserve")
+        }
+    }
+
+    @ViewBuilder
+    private var hotStandbyNarrative: some View {
+        if let city = status.currentCity, let endTime = status.homeArrivalTime {
+            let endTimeStr = formattedLocalTime(endTime)
+            Text("\(name) is on hot standby in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+        } else if let city = status.currentCity {
+            Text("\(name) is on hot standby in \(Text(city).bold())")
+        } else {
+            Text("\(name) is on hot standby")
+        }
+    }
+
+    @ViewBuilder
+    private var trainingNarrative: some View {
+        if let city = status.currentCity, let endTime = status.homeArrivalTime {
+            let endTimeStr = formattedLocalTime(endTime)
+            Text("\(name) is in training in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+        } else if let city = status.currentCity {
+            Text("\(name) is in training in \(Text(city).bold())")
+        } else {
+            Text("\(name) is in training")
+        }
+    }
+
     // MARK: - Status Icon with Progress Ring
 
     private var statusIconView: some View {
         ZStack {
             if status.displayStatus == "Layover", let progress = layoverProgress {
+                Circle()
+                    .stroke(statusColor.opacity(0.2), lineWidth: 3)
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(-90))
+            } else if ["Reserve", "Hot Standby", "Training"].contains(status.displayStatus),
+                      let progress = dutyPeriodProgress {
                 Circle()
                     .stroke(statusColor.opacity(0.2), lineWidth: 3)
                     .frame(width: 44, height: 44)
@@ -302,6 +354,19 @@ struct NarrativeCardView: View {
         let total = layover.endTime.timeIntervalSince(layover.startTime)
         guard total > 0 else { return nil }
         let elapsed = now.timeIntervalSince(layover.startTime)
+        return min(max(elapsed / total, 0), 1)
+    }
+
+    private var dutyPeriodProgress: Double? {
+        let legs = sortedTripLegs
+        guard !legs.isEmpty else { return nil }
+        let dutyTypes: [TripLeg.LegType] = [.reserve, .hotStandby, .event]
+        guard let duty = legs.first(where: {
+            dutyTypes.contains($0.type) && $0.startTime <= now && now < $0.endTime
+        }) else { return nil }
+        let total = duty.endTime.timeIntervalSince(duty.startTime)
+        guard total > 0 else { return nil }
+        let elapsed = now.timeIntervalSince(duty.startTime)
         return min(max(elapsed / total, 0), 1)
     }
 
@@ -504,6 +569,9 @@ struct NarrativeCardView: View {
         case "In Flight": return AirlineBranding.symbolName(for: currentAirlineCode)
         case "Turn": return "arrow.triangle.2.circlepath"
         case "Layover": return "bed.double.fill"
+        case "Reserve": return "clock.badge.questionmark"
+        case "Hot Standby": return "bolt.fill"
+        case "Training": return "book.fill"
         default: return "circle.fill"
         }
     }
@@ -515,6 +583,9 @@ struct NarrativeCardView: View {
         case "In Flight": return status.hasFlightDelay ? .orange : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case "Turn": return .orange
         case "Layover": return status.hasFlightDelay ? .orange : .purple
+        case "Reserve": return .red
+        case "Hot Standby": return .orange
+        case "Training": return .purple
         default: return .gray
         }
     }

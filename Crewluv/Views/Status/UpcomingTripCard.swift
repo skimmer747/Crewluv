@@ -64,8 +64,8 @@ struct UpcomingTripCard: View {
     private var typeColor: Color {
         switch trip.tripType {
         case .line: return .blue
-        case .reserve: return .orange
-        case .hotStandby: return .red
+        case .reserve: return .red
+        case .hotStandby: return .orange
         case .training: return .purple
         }
     }

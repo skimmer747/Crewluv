@@ -23,6 +23,9 @@ struct CalendarTripBarView: View {
             ? UIColor(red: 0.55, green: 0.65, blue: 0.8, alpha: 1)
             : UIColor(red: 0.6, green: 0.75, blue: 0.92, alpha: 1)
     })
+    private static let reserveColor: Color = .pink
+    private static let trainingColor: Color = .purple
+    private static let jumpseatColor: Color = .green
 
     var body: some View {
         Canvas { context, size in
@@ -49,6 +52,9 @@ struct CalendarTripBarView: View {
                 let color: Color = switch segment.category {
                 case .onDuty: Self.onDutyColor
                 case .offDuty: Self.offDutyColor
+                case .reserve: Self.reserveColor
+                case .training: Self.trainingColor
+                case .jumpseat: Self.jumpseatColor
                 }
 
                 context.fill(path, with: .color(color))

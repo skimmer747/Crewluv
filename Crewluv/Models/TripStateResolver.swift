@@ -49,7 +49,11 @@ enum TripStateResolver {
         let delayInterval = TimeInterval((flightDelayMinutes ?? 0) * 60)
 
         // Primary candidate: standard time window (startTime <= now < endTime)
-        let primaryCandidate = sorted.first { $0.startTime <= now && now < $0.endTime }
+        // Flight legs take priority over reserve/hotStandby/event legs when overlapping
+        let activeCandidates = sorted.filter { $0.startTime <= now && now < $0.endTime }
+        let primaryCandidate = activeCandidates.first { $0.type == .flight }
+            ?? activeCandidates.first { $0.type != .reserve && $0.type != .hotStandby && $0.type != .event }
+            ?? activeCandidates.first
 
         // Per-leg delay: only extend the specifically-delayed leg (new Duty sends delayMinutes on the leg)
         let perLegDelayed: TripLeg? = sorted.first {
@@ -138,8 +142,8 @@ enum TripStateResolver {
         let homeArrivalTime: Date? = {
             guard !isHome else { return nil }
 
-            // Standalone leg (no trip association — e.g., post-trip jumpseat)
-            if leg.tripId == nil && leg.type == .flight {
+            // Standalone leg (no trip association — e.g., post-trip jumpseat, reserve, training)
+            if leg.tripId == nil {
                 return leg.endTime
             }
 
@@ -172,6 +176,11 @@ enum TripStateResolver {
         // Home arrival label: derive from trip legs
         let homeArrivalLabel: String? = {
             guard homeArrivalTime != nil else { return nil }
+
+            // Standalone reserve/hotStandby/training — "Released In"
+            if leg.tripId == nil && (leg.type == .reserve || leg.type == .hotStandby || leg.type == .event) {
+                return "Released In"
+            }
 
             // Standalone leg (e.g., post-trip jumpseat)
             if leg.tripId == nil && leg.type == .flight {
@@ -598,7 +607,7 @@ enum TripStateResolver {
         case .home:       return "Home"
         case .reserve:    return "Reserve"
         case .hotStandby: return "Hot Standby"
-        case .event:      return "Event"
+        case .event:      return "Training"
         case .unknown:    return "On Duty"
         }
     }
