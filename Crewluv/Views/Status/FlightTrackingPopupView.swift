@@ -29,7 +29,7 @@ struct FlightTrackingPopupView: View {
                 HStack {
                     Image(systemName: "airplane")
                         .foregroundColor(.blue)
-                    Text(flightNumber)
+                    Text(FlightTrackingHelper.displayFlightNumber(flightNumber))
                         .font(.title3)
                         .fontWeight(.bold)
                     Spacer()
