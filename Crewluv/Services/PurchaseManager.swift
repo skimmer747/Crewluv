@@ -26,8 +26,19 @@ class PurchaseManager {
     #if DEBUG
     private var debugUnlocked = false
     #endif
-    
+
+    private var isTestFlight: Bool {
+        #if DEBUG
+        return false
+        #else
+        return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        #endif
+    }
+
     private init() {
+        if isTestFlight {
+            hasUnlockedApp = true
+        }
         // Start listening for transaction updates in a detached task
         let task = Task.detached { @MainActor [weak self] in
             guard let self else { return }
@@ -67,6 +78,13 @@ class PurchaseManager {
         #if DEBUG
         if debugUnlocked { return }
         #endif
+
+        if isTestFlight {
+            hasUnlockedApp = true
+            debugLog("[PurchaseManager] TestFlight build detected, bypassing paywall")
+            return
+        }
+
         hasUnlockedApp = false
         debugLog("[PurchaseManager] 🔒 App locked, purchase required")
     }
