@@ -88,14 +88,25 @@ enum TripStateResolver {
         guard let leg = currentLeg else {
             let nextFlight = futureLegs.first { $0.type == .flight }
 
-            // Detect post-trip jumpseat: standalone flight FROM non-home TO home
+            // Detect post-trip jumpseat chain: standalone flight(s) eventually reaching home
             if let home = homeAirport,
                let js = nextFlight,
                js.tripId == nil,
                let dep = js.departureAirport,
                dep != home,
-               js.arrivalAirport == home {
-                return commutingHomeState(jumpseat: js, homeAirport: home, now: now)
+               let jsArrival = js.arrivalAirport {
+                let chainEnd: TripLeg?
+                if jsArrival == home {
+                    chainEnd = js
+                } else if let end = followJumpseatChain(from: jsArrival, after: js.endTime, in: sorted),
+                          end.arrivalAirport == home {
+                    chainEnd = end
+                } else {
+                    chainEnd = nil
+                }
+                if let chainEnd {
+                    return commutingHomeState(firstJumpseat: js, chainEnd: chainEnd, homeAirport: home, now: now)
+                }
             }
 
             // Pilot at non-home airport between completed leg and next departure
@@ -152,16 +163,11 @@ enum TripStateResolver {
                 let tripLegs = sorted.filter { $0.tripId == tripId && $0.type != .home }
                 if let lastLeg = tripLegs.last {
                     let lastArrival = lastLeg.type == .flight ? lastLeg.arrivalAirport : lastLeg.airportCode
-                    // Check for a continuation jumpseat departing from trip's final airport
-                    // If homeAirport is known, only chain if jumpseat goes there
+                    // Follow jumpseat chain from trip's final airport toward home
                     if let lastArrival,
-                       let continuation = sorted.first(where: {
-                           $0.tripId == nil && $0.type == .flight &&
-                           $0.startTime >= lastLeg.endTime &&
-                           $0.departureAirport == lastArrival &&
-                           (homeAirport == nil || $0.arrivalAirport == homeAirport)
-                       }) {
-                        return continuation.endTime
+                       let chainEnd = followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted),
+                       homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
+                        return chainEnd.endTime
                     }
                     return lastLeg.endTime
                 }
@@ -197,20 +203,13 @@ enum TripStateResolver {
             let lastNonHome = tripLegs.filter { $0.type != .home }.last
             let lastArrival = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
 
-            // Check for continuation jumpseat from trip's final airport
-            // If homeAirport is known, only chain if jumpseat goes there
-            let hasContinuation: Bool = {
-                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return false }
-                return sorted.contains(where: {
-                    $0.tripId == nil && $0.type == .flight &&
-                    $0.startTime >= lastEnd &&
-                    $0.departureAirport == lastArrival &&
-                    (homeAirport == nil || $0.arrivalAirport == homeAirport)
-                })
+            // Follow jumpseat chain from trip's final airport toward home
+            let chainEnd: TripLeg? = {
+                guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
+                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted)
             }()
 
-            if hasContinuation {
-                // Post-trip jumpseat = commuting home
+            if let chainEnd, homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
                 return "Back Home In"
             }
 
@@ -242,19 +241,14 @@ enum TripStateResolver {
             let lastNonHome = tripLegs.filter { $0.type != .home }.last
             let lastArrival = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
 
-            // Check for continuation jumpseat
-            let continuation: TripLeg? = {
+            // Follow jumpseat chain from trip's final airport toward home
+            let chainEnd: TripLeg? = {
                 guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
-                return sorted.first(where: {
-                    $0.tripId == nil && $0.type == .flight &&
-                    $0.startTime >= lastEnd &&
-                    $0.departureAirport == lastArrival &&
-                    (homeAirport == nil || $0.arrivalAirport == homeAirport)
-                })
+                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted)
             }()
 
-            if let continuation {
-                return continuation.arrivalCity
+            if let chainEnd, homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
+                return chainEnd.arrivalCity
             }
 
             let firstLeg = tripLegs.first
@@ -408,7 +402,7 @@ enum TripStateResolver {
         )
     }
 
-    private static func commutingHomeState(jumpseat js: TripLeg, homeAirport: String, now: Date) -> ResolvedPilotState {
+    private static func commutingHomeState(firstJumpseat js: TripLeg, chainEnd: TripLeg, homeAirport: String, now: Date) -> ResolvedPilotState {
         let depInfo = js.departureAirport.flatMap { AirportDataProvider.shared.airportInfo(forIataCode: $0) }
         let depTZ = airportTimezone(js.departureAirport)
 
@@ -426,9 +420,9 @@ enum TripStateResolver {
             currentFlightDepartureTime: nil,
             currentFlightArrivalTime: nil,
             currentFlightArrivalTimezone: nil,
-            homeArrivalTime: js.endTime,
+            homeArrivalTime: chainEnd.endTime,
             homeArrivalLabel: "Back Home In",
-            homeArrivalCity: js.arrivalCity ?? AirportDataProvider.shared.airportInfo(forIataCode: homeAirport)?.city,
+            homeArrivalCity: chainEnd.arrivalCity ?? AirportDataProvider.shared.airportInfo(forIataCode: homeAirport)?.city,
             nextDepartureTime: js.startTime,
             nextFlightNumber: js.flightNumber,
             nextFlightDestination: js.arrivalAirport,
@@ -540,21 +534,16 @@ enum TripStateResolver {
 
         let lastArrival = lastLeg.type == .flight ? lastLeg.arrivalAirport : lastLeg.airportCode
 
-        // Check for a continuation jumpseat departing from trip's final airport
-        let continuation: TripLeg? = {
+        // Follow jumpseat chain from trip's final airport toward home
+        let chainEnd: TripLeg? = {
             guard let lastArrival else { return nil }
-            return sorted.first(where: {
-                $0.tripId == nil && $0.type == .flight &&
-                $0.startTime >= lastLeg.endTime &&
-                $0.departureAirport == lastArrival &&
-                $0.arrivalAirport == homeAirport
-            })
+            return followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted)
         }()
 
-        if let continuation {
-            let city = continuation.arrivalCity
+        if let chainEnd, chainEnd.arrivalAirport == homeAirport {
+            let city = chainEnd.arrivalCity
                 ?? AirportDataProvider.shared.airportInfo(forIataCode: homeAirport)?.city
-            return (continuation.endTime, "Back Home In", city)
+            return (chainEnd.endTime, "Back Home In", city)
         }
 
         let endTime = lastLeg.endTime
@@ -588,15 +577,46 @@ enum TripStateResolver {
         }
         // Jumpseat departure city = where pilot physically leaves from
         let label = js.departureCity.map { "Leaves From (\($0))" }
+        // Follow multi-hop jumpseat chain to its end
+        let chainEnd = followJumpseatChain(from: jsArrival, after: js.endTime, in: sorted)
+        let finalAirport = chainEnd?.arrivalAirport ?? jsArrival
+        let finalTime = chainEnd?.endTime ?? js.endTime
         // Find the trip flight that follows for the real destination
         if let tripFlight = sorted.first(where: {
             $0.tripId != nil && $0.type == .flight &&
-            $0.startTime >= js.endTime &&
-            $0.departureAirport == jsArrival
+            $0.startTime >= finalTime &&
+            $0.departureAirport == finalAirport
         }) {
             return (label, tripFlight.arrivalAirport)
         }
-        return (label, js.arrivalAirport)
+        return (label, finalAirport)
+    }
+
+    /// Follow a chain of standalone jumpseat flights from a starting airport/time.
+    /// Returns the final leg in the chain, or `nil` if no jumpseats depart from `startAirport`.
+    private static func followJumpseatChain(
+        from startAirport: String,
+        after startTime: Date,
+        in sorted: [TripLeg]
+    ) -> TripLeg? {
+        var currentAirport = startAirport
+        var currentTime = startTime
+        var lastJumpseat: TripLeg?
+        var visited: Set<String> = [startAirport]
+
+        while let next = sorted.first(where: {
+            $0.tripId == nil && $0.type == .flight &&
+            $0.startTime >= currentTime &&
+            $0.departureAirport == currentAirport
+        }) {
+            guard let arrival = next.arrivalAirport, !visited.contains(arrival) else { break }
+            visited.insert(arrival)
+            lastJumpseat = next
+            currentAirport = arrival
+            currentTime = next.endTime
+        }
+
+        return lastJumpseat
     }
 
     private static func statusString(for type: TripLeg.LegType) -> String {
