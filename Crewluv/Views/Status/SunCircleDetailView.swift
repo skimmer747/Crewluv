@@ -2,7 +2,7 @@
 //  SunCircleDetailView.swift
 //  CrewLuve
 //
-//  Expanded sun circle detail with weather info, daylight duration, and golden hour
+//  Expanded sun circle detail with weather info, daylight duration, and pilot location
 //
 
 import SwiftUI
@@ -143,11 +143,11 @@ struct SunCircleDetailView: View {
                             .foregroundColor(.indigo)
                     }
 
-                    // Golden hour
+                    // Pilot location
                     HStack(spacing: 8) {
-                        Image(systemName: "camera.filters")
-                            .foregroundColor(.yellow)
-                        Text("Golden hour at \(formatTime(goldenHourTime))")
+                        Image(systemName: "mappin.and.ellipse")
+                            .foregroundColor(.red)
+                        Text("In \(cityName)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -209,11 +209,6 @@ struct SunCircleDetailView: View {
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         return "\(hours)h \(minutes)m of daylight"
-    }
-
-    /// Golden hour = 30 minutes before sunset
-    private var goldenHourTime: Date {
-        sunset.addingTimeInterval(-30 * 60)
     }
 
     private func updateLocalTime() {
