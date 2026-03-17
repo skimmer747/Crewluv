@@ -325,6 +325,14 @@ class AirportDataProvider {
             ("HAN", "Hanoi", "Vietnam", 21.2212, 105.8070),
             ("BLR", "Bangalore", "India", 13.1986, 77.7066),
             ("TLV", "Tel Aviv", "Israel", 32.0114, 34.8867),
+            ("PEN", "Penang", "Malaysia", 5.2972, 100.2769),
+            ("SGN", "Ho Chi Minh City", "Vietnam", 10.8188, 106.6520),
+            ("DAC", "Dhaka", "Bangladesh", 23.8432, 90.3977),
+            ("CMB", "Colombo", "Sri Lanka", 7.1808, 79.8843),
+            ("BAH", "Bahrain", "Bahrain", 26.2708, 50.6336),
+            ("AMM", "Amman", "Jordan", 31.7226, 35.9932),
+            ("NGO", "Nagoya", "Japan", 34.8584, 136.8125),
+            ("TAO", "Qingdao", "China", 36.2661, 120.3744),
 
             // Europe
             ("LHR", "London", "UK", 51.4700, -0.4543),
@@ -447,5 +455,9 @@ extension AirportData {
         "Ethiopia": "\u{1F1EA}\u{1F1F9}",
         "Nigeria": "\u{1F1F3}\u{1F1EC}",
         "Egypt": "\u{1F1EA}\u{1F1EC}",
+        "Bangladesh": "\u{1F1E7}\u{1F1E9}",
+        "Sri Lanka": "\u{1F1F1}\u{1F1F0}",
+        "Bahrain": "\u{1F1E7}\u{1F1ED}",
+        "Jordan": "\u{1F1EF}\u{1F1F4}",
     ]
 }
