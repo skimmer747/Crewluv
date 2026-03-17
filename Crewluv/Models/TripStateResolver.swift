@@ -964,6 +964,12 @@ enum TripStateResolver {
         "CSX": "Asia/Shanghai",
         "WUH": "Asia/Shanghai",
         "ZGZJ": "Asia/Shanghai",
+        "PEN": "Asia/Kuala_Lumpur",
+        "SGN": "Asia/Ho_Chi_Minh",
+        "DAC": "Asia/Dhaka",
+        "CMB": "Asia/Colombo",
+        "NGO": "Asia/Tokyo",
+        "TAO": "Asia/Shanghai",
 
         // Oceania
         "AKL": "Pacific/Auckland",
