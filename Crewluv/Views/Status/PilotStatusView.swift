@@ -379,6 +379,7 @@ struct LocationCardView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var liveLocalTime: String = ""
     @State private var currentWeather: WeatherSnapshot? = nil
+    @State private var homeWeather: WeatherSnapshot? = nil
     @State private var timeDiffStyle: TimeDiffStyle = .odometer
     @State private var timeDiffAnimationID = UUID()
     @State private var showSunDetail = false
@@ -569,7 +570,9 @@ struct LocationCardView: View {
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
                     nextDepartureTime: status.nextDepartureTime,
-                    flightDelayMinutes: status.flightDelayMinutes
+                    flightDelayMinutes: status.flightDelayMinutes,
+                    homeSunrise: homeWeather?.sunrise,
+                    homeSunset: homeWeather?.sunset
                 )
                 .offset(x: 0, y: -6)
                 .onTapGesture {
@@ -589,10 +592,14 @@ struct LocationCardView: View {
         }
         .task(id: status.currentAirport) {
             await loadWeather()
+            await loadHomeWeather()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                Task { await loadWeather() }
+                Task {
+                    await loadWeather()
+                    await loadHomeWeather()
+                }
             }
         }
         .fullScreenCover(isPresented: $showSunDetail) {
@@ -607,7 +614,9 @@ struct LocationCardView: View {
                     cityName: status.currentCity ?? "Unknown",
                     weather: weather,
                     nextDepartureTime: status.nextDepartureTime,
-                    flightDelayMinutes: status.flightDelayMinutes
+                    flightDelayMinutes: status.flightDelayMinutes,
+                    homeSunrise: homeWeather?.sunrise,
+                    homeSunset: homeWeather?.sunset
                 )
             }
         }
@@ -681,6 +690,19 @@ struct LocationCardView: View {
         }
         currentWeather = await WeatherService.shared.currentWeather(
             forAirport: iata,
+            latitude: airport.latitude,
+            longitude: airport.longitude
+        )
+    }
+
+    private func loadHomeWeather() async {
+        guard let homeIata = status.homeAirportCode,
+              let airport = AirportDataProvider.shared.airportInfo(forIataCode: homeIata) else {
+            homeWeather = nil
+            return
+        }
+        homeWeather = await WeatherService.shared.currentWeather(
+            forAirport: homeIata,
             latitude: airport.latitude,
             longitude: airport.longitude
         )
@@ -868,6 +890,8 @@ struct SunCircleView: View {
     let timezone: String?
     var nextDepartureTime: Date? = nil
     var flightDelayMinutes: Int? = nil
+    var homeSunrise: Date? = nil
+    var homeSunset: Date? = nil
     var size: CGFloat = 160
 
     @State private var arcProgress: CGFloat = 0
@@ -959,25 +983,39 @@ struct SunCircleView: View {
 
             ZStack {
                 Canvas { context, _ in
-                    // Daytime filled wedge (sunrise -> sunset, visually clockwise)
-                    let dayWedge = Path { p in
-                        p.move(to: center)
-                        p.addArc(center: center, radius: radius,
-                                 startAngle: sunriseAngle, endAngle: sunsetAngle,
-                                 clockwise: false)
-                        p.closeSubpath()
+                    // Sky gradient circle fill
+                    let circle = Path(ellipseIn: CGRect(
+                        x: center.x - radius, y: center.y - radius,
+                        width: radius * 2, height: radius * 2
+                    ))
+                    context.drawLayer { ctx in
+                        ctx.opacity = 0.25
+                        let stops = skyGradientStops(
+                            sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle
+                        )
+                        ctx.fill(circle, with: .conicGradient(
+                            Gradient(stops: stops),
+                            center: center,
+                            angle: .degrees(0)
+                        ))
                     }
-                    context.fill(dayWedge, with: .color(.orange.opacity(0.15)))
 
-                    // Nighttime filled wedge (sunset -> sunrise, visually clockwise)
-                    let nightWedge = Path { p in
-                        p.move(to: center)
-                        p.addArc(center: center, radius: radius,
-                                 startAngle: sunsetAngle, endAngle: sunriseAngle,
-                                 clockwise: false)
-                        p.closeSubpath()
+                    // Shared daylight overlap wedge fill (detail view only)
+                    if size > 160,
+                       let oStart = overlapStart(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
+                       let oEnd = overlapEnd(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
+                       oStart < oEnd {
+                        let oStartAngle = angleForTime(oStart)
+                        let oEndAngle = angleForTime(oEnd)
+                        let overlapWedge = Path { p in
+                            p.move(to: center)
+                            p.addArc(center: center, radius: radius,
+                                     startAngle: oStartAngle, endAngle: oEndAngle,
+                                     clockwise: false)
+                            p.closeSubpath()
+                        }
+                        context.fill(overlapWedge, with: .color(.yellow.opacity(0.15)))
                     }
-                    context.fill(nightWedge, with: .color(.blue.opacity(0.1)))
 
                     // Daytime arc stroke (orange/yellow gradient)
                     let dayArc = Path { p in
@@ -1002,6 +1040,83 @@ struct SunCircleView: View {
                         startPoint: pointOnCircle(angle: sunsetAngle, radius: radius, center: center),
                         endPoint: pointOnCircle(angle: sunriseAngle, radius: radius, center: center)
                     ), style: StrokeStyle(lineWidth: nightArcWidth, dash: nightDash))
+
+                    // Twilight / golden hour glow bands
+                    let twilightMinutes: Double = 30
+                    let twilightDegrees = (twilightMinutes / (24 * 60)) * 360
+                    let glowWidth = dayArcWidth * 2.5
+
+                    // Clamp golden hour bands so they don't cross midday
+                    let daylightSpanDeg = {
+                        let raw = (sunsetAngle.degrees - sunriseAngle.degrees).truncatingRemainder(dividingBy: 360)
+                        return raw <= 0 ? raw + 360 : raw
+                    }()
+                    let halfDaylight = daylightSpanDeg / 2
+                    let clampedGoldenDeg = min(twilightDegrees, halfDaylight)
+
+                    // Morning golden hour: sunrise → sunrise + clampedGolden (amber)
+                    let morningGoldenEnd = Angle.degrees(sunriseAngle.degrees + clampedGoldenDeg)
+                    let morningGolden = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunriseAngle, endAngle: morningGoldenEnd,
+                                 clockwise: false)
+                    }
+                    context.drawLayer { ctx in
+                        ctx.opacity = 0.35
+                        ctx.stroke(morningGolden, with: .color(.orange), style: StrokeStyle(lineWidth: glowWidth, lineCap: .round))
+                    }
+
+                    // Evening golden hour: sunset - clampedGolden → sunset (amber)
+                    let eveningGoldenStart = Angle.degrees(sunsetAngle.degrees - clampedGoldenDeg)
+                    let eveningGolden = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: eveningGoldenStart, endAngle: sunsetAngle,
+                                 clockwise: false)
+                    }
+                    context.drawLayer { ctx in
+                        ctx.opacity = 0.35
+                        ctx.stroke(eveningGolden, with: .color(.orange), style: StrokeStyle(lineWidth: glowWidth, lineCap: .round))
+                    }
+
+                    // Morning blue hour: sunrise - twilight → sunrise (blue)
+                    let morningBlueStart = Angle.degrees(sunriseAngle.degrees - twilightDegrees)
+                    let morningBlue = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: morningBlueStart, endAngle: sunriseAngle,
+                                 clockwise: false)
+                    }
+                    context.drawLayer { ctx in
+                        ctx.opacity = 0.25
+                        ctx.stroke(morningBlue, with: .color(.blue), style: StrokeStyle(lineWidth: glowWidth, lineCap: .round))
+                    }
+
+                    // Evening blue hour: sunset → sunset + twilight (blue)
+                    let eveningBlueEnd = Angle.degrees(sunsetAngle.degrees + twilightDegrees)
+                    let eveningBlue = Path { p in
+                        p.addArc(center: center, radius: radius,
+                                 startAngle: sunsetAngle, endAngle: eveningBlueEnd,
+                                 clockwise: false)
+                    }
+                    context.drawLayer { ctx in
+                        ctx.opacity = 0.25
+                        ctx.stroke(eveningBlue, with: .color(.blue), style: StrokeStyle(lineWidth: glowWidth, lineCap: .round))
+                    }
+
+                    // Shared daylight overlap arc stroke (detail view only)
+                    if size > 160,
+                       let oStart = overlapStart(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
+                       let oEnd = overlapEnd(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
+                       oStart < oEnd {
+                        let oStartAngle = angleForTime(oStart)
+                        let oEndAngle = angleForTime(oEnd)
+                        let overlapArc = Path { p in
+                            p.addArc(center: center, radius: radius,
+                                     startAngle: oStartAngle, endAngle: oEndAngle,
+                                     clockwise: false)
+                        }
+                        context.stroke(overlapArc, with: .color(.white.opacity(0.8)),
+                                       style: StrokeStyle(lineWidth: dayArcWidth * 1.5, lineCap: .round))
+                    }
 
                     // Tick marks at sunrise and sunset
                     for angle in [sunriseAngle, sunsetAngle] {
@@ -1432,6 +1547,53 @@ struct SunCircleView: View {
         } else {
             return "\(sign)\(abs(hours)):\(String(format: "%02d", minutes))"
         }
+    }
+
+    // MARK: - Sky Gradient & Overlap Helpers
+
+    private func skyGradientStops(sunriseAngle: Angle, sunsetAngle: Angle) -> [Gradient.Stop] {
+        // Convert circle angles to conic gradient fractions (0 = 3 o'clock / east)
+        // Our circle: midnight=90°, 6am=180°, noon=270°, 6pm=0°
+        // Conic gradient: 0° = 3 o'clock (east), goes clockwise
+        let sunriseFrac = clampFraction(sunriseAngle.degrees / 360)
+        let sunsetFrac = clampFraction(sunsetAngle.degrees / 360)
+        let noonFrac = clampFraction(270.0 / 360)
+        let midnightFrac = clampFraction(90.0 / 360)
+
+        // Pre-dawn and post-dusk transition points
+        let preDawnFrac = clampFraction(sunriseFrac - 0.02)
+        let postDuskFrac = clampFraction(sunsetFrac + 0.02)
+
+        let navy = Color(red: 0.05, green: 0.05, blue: 0.2)
+        let amber = Color(red: 0.9, green: 0.6, blue: 0.2)
+        let skyBlue = Color(red: 0.4, green: 0.7, blue: 1.0)
+
+        return [
+            .init(color: navy, location: midnightFrac),
+            .init(color: navy, location: preDawnFrac),
+            .init(color: amber, location: sunriseFrac),
+            .init(color: skyBlue, location: noonFrac),
+            .init(color: amber, location: sunsetFrac),
+            .init(color: navy, location: postDuskFrac),
+            .init(color: navy, location: clampFraction(midnightFrac + 1.0)),
+        ].sorted { $0.location < $1.location }
+    }
+
+    private func clampFraction(_ value: Double) -> Double {
+        let v = value.truncatingRemainder(dividingBy: 1.0)
+        return v < 0 ? v + 1.0 : v
+    }
+
+    /// Overlap start: max(pilotSunrise, homeSunrise) — both are absolute UTC dates
+    private func overlapStart(sunriseAngle: Angle, sunsetAngle: Angle) -> Date? {
+        guard let hSunrise = homeSunrise else { return nil }
+        return max(sunrise, hSunrise)
+    }
+
+    /// Overlap end: min(pilotSunset, homeSunset) — both are absolute UTC dates
+    private func overlapEnd(sunriseAngle: Angle, sunsetAngle: Angle) -> Date? {
+        guard let hSunset = homeSunset else { return nil }
+        return min(sunset, hSunset)
     }
 
     private func pointOnCircle(angle: Angle, radius: CGFloat, center: CGPoint) -> CGPoint {

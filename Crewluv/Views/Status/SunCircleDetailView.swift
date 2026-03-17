@@ -17,6 +17,8 @@ struct SunCircleDetailView: View {
     let weather: WeatherSnapshot
     var nextDepartureTime: Date? = nil
     var flightDelayMinutes: Int? = nil
+    var homeSunrise: Date? = nil
+    var homeSunset: Date? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var deviceColorScheme
@@ -99,7 +101,9 @@ struct SunCircleDetailView: View {
                     timezone: timezone,
                     nextDepartureTime: nextDepartureTime,
                     flightDelayMinutes: flightDelayMinutes,
-                    size: 300
+                    homeSunrise: homeSunrise,
+                    homeSunset: homeSunset,
+                    size: 360
                 )
                 .scaleEffect(appeared ? 1.0 : 0.5)
                 .opacity(appeared ? 1.0 : 0)
@@ -141,6 +145,18 @@ struct SunCircleDetailView: View {
                         Label(formatTime(sunset), systemImage: "sunset.fill")
                             .font(.subheadline)
                             .foregroundColor(.indigo)
+                    }
+
+                    // Moon phase
+                    if let phase = weather.moonPhase {
+                        HStack(spacing: 8) {
+                            Image(systemName: phase.sfSymbolName)
+                                .foregroundColor(.secondary)
+                            Text(phase.displayName)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+
                     }
 
                     // Pilot location

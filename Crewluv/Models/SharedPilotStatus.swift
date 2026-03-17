@@ -146,7 +146,8 @@ struct SharedPilotStatus: Codable, Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         do {
-            let legs = try decoder.decode([TripLeg].self, from: data)
+            var legs = try decoder.decode([TripLeg].self, from: data)
+            legs = Self.adjustLayoversForOverlappingFlights(legs)
             let typeBreakdown = Dictionary(grouping: legs, by: { $0.type.rawValue }).mapValues(\.count)
             debugLog("[TripLegs] Decoded \(legs.count) legs, breakdown: \(typeBreakdown)")
             return legs
@@ -158,6 +159,47 @@ struct SharedPilotStatus: Codable, Sendable {
 
     var hasTripLegs: Bool {
         !tripLegs.isEmpty
+    }
+
+    /// Truncates layover/home legs when a flight departs during them.
+    ///
+    /// When a pilot books a personal flight (e.g. jumpseat) that departs before
+    /// a scheduled layover ends, the layover's `endTime` is adjusted to the
+    /// earliest overlapping flight's `startTime` so downstream views show the
+    /// correct shorter duration.
+    private static func adjustLayoversForOverlappingFlights(_ legs: [TripLeg]) -> [TripLeg] {
+        let flights = legs.filter { $0.type == .flight }
+        guard !flights.isEmpty else { return legs }
+
+        return legs.map { leg in
+            guard leg.type == .layover || leg.type == .home else { return leg }
+
+            guard let earliest = flights
+                .filter({ $0.startTime > leg.startTime && $0.startTime < leg.endTime })
+                .min(by: { $0.startTime < $1.startTime })
+            else { return leg }
+
+            return TripLeg(
+                id: leg.id,
+                tripId: leg.tripId,
+                type: leg.type,
+                startTime: leg.startTime,
+                endTime: earliest.startTime,
+                airportCode: leg.airportCode,
+                city: leg.city,
+                timezoneIdentifier: leg.timezoneIdentifier,
+                flightNumber: leg.flightNumber,
+                departureAirport: leg.departureAirport,
+                arrivalAirport: leg.arrivalAirport,
+                departureCity: leg.departureCity,
+                arrivalCity: leg.arrivalCity,
+                tripDayNumber: leg.tripDayNumber,
+                tripTotalDays: leg.tripTotalDays,
+                delayMinutes: leg.delayMinutes,
+                airlineCode: leg.airlineCode,
+                label: leg.label
+            )
+        }
     }
 
     // MARK: - CKRecord Conversion

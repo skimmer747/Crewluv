@@ -16,6 +16,41 @@ struct WeatherSnapshot {
     let isDaylight: Bool
     let sunrise: Date?
     let sunset: Date?
+    let moonPhase: MoonPhase?
+    let moonrise: Date?
+    let moonset: Date?
+}
+
+// MARK: - Moon Phase Helpers
+
+extension MoonPhase {
+    var sfSymbolName: String {
+        switch self {
+        case .new:              "moonphase.new.moon"
+        case .waxingCrescent:   "moonphase.waxing.crescent"
+        case .firstQuarter:     "moonphase.first.quarter"
+        case .waxingGibbous:    "moonphase.waxing.gibbous"
+        case .full:             "moonphase.full.moon"
+        case .waningGibbous:    "moonphase.waning.gibbous"
+        case .lastQuarter:     "moonphase.last.quarter"
+        case .waningCrescent:   "moonphase.waning.crescent"
+        @unknown default:       "moon.fill"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .new:              "New Moon"
+        case .waxingCrescent:   "Waxing Crescent"
+        case .firstQuarter:     "First Quarter"
+        case .waxingGibbous:    "Waxing Gibbous"
+        case .full:             "Full Moon"
+        case .waningGibbous:    "Waning Gibbous"
+        case .lastQuarter:     "Third Quarter"
+        case .waningCrescent:   "Waning Crescent"
+        @unknown default:       "Moon"
+        }
+    }
 }
 
 @MainActor
@@ -51,7 +86,10 @@ final class WeatherService {
                 conditionDescription: current.condition.description,
                 isDaylight: current.isDaylight,
                 sunrise: today?.sun.sunrise,
-                sunset: today?.sun.sunset
+                sunset: today?.sun.sunset,
+                moonPhase: today?.moon.phase,
+                moonrise: today?.moon.moonrise,
+                moonset: today?.moon.moonset
             )
 
             cache[iata] = (snapshot, Date())
