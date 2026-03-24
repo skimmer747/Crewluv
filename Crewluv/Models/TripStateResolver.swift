@@ -45,6 +45,10 @@ struct ResolvedPilotState {
 enum TripStateResolver {
 
     static func resolve(legs: [TripLeg], homeAirport: String?, flightDelayMinutes: Int? = nil, at now: Date) -> ResolvedPilotState {
+        // Normalize empty-string homeAirport to nil so downstream guards
+        // like `if let home = homeAirport` correctly treat it as "unknown."
+        let homeAirport = homeAirport.flatMap { $0.isEmpty ? nil : $0 }
+
         let sorted = legs.sorted { $0.startTime < $1.startTime }
         let delayInterval = TimeInterval((flightDelayMinutes ?? 0) * 60)
 
@@ -555,7 +559,7 @@ enum TripStateResolver {
 
         if returnsToOrigin {
             let city = lastLeg.type == .flight ? lastLeg.arrivalCity : lastLeg.city
-            let isHome = homeAirport.isEmpty || originAirport == homeAirport
+            let isHome = originAirport == homeAirport
             return (endTime, isHome ? "Back Home In" : "Back at Base In", city)
         }
 
