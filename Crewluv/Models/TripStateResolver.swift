@@ -98,7 +98,7 @@ enum TripStateResolver {
                 let chainEnd: TripLeg?
                 if jsArrival == home {
                     chainEnd = js
-                } else if let end = followJumpseatChain(from: jsArrival, after: js.endTime, in: sorted),
+                } else if let end = followJumpseatChain(from: jsArrival, after: js.endTime, in: sorted, stopAt: home),
                           end.arrivalAirport == home {
                     chainEnd = end
                 } else {
@@ -165,7 +165,7 @@ enum TripStateResolver {
                     let lastArrival = lastLeg.type == .flight ? lastLeg.arrivalAirport : lastLeg.airportCode
                     // Follow jumpseat chain from trip's final airport toward home
                     if let lastArrival,
-                       let chainEnd = followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted),
+                       let chainEnd = followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted, stopAt: homeAirport),
                        homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
                         return chainEnd.endTime
                     }
@@ -206,7 +206,7 @@ enum TripStateResolver {
             // Follow jumpseat chain from trip's final airport toward home
             let chainEnd: TripLeg? = {
                 guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
-                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted)
+                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted, stopAt: homeAirport)
             }()
 
             if let chainEnd, homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
@@ -215,9 +215,10 @@ enum TripStateResolver {
 
             let destAirport = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
             let city = lastNonHome?.type == .flight ? lastNonHome?.arrivalCity : lastNonHome?.city
-            let goingHome = originAirport != nil && originAirport == destAirport
-            if goingHome {
-                return "Back Home In"
+            let returnsToOrigin = originAirport != nil && originAirport == destAirport
+            if returnsToOrigin {
+                let isHome = homeAirport == nil || originAirport == homeAirport
+                return isHome ? "Back Home In" : "Back at Base In"
             } else {
                 return city != nil ? "\(city!) In" : nil
             }
@@ -244,7 +245,7 @@ enum TripStateResolver {
             // Follow jumpseat chain from trip's final airport toward home
             let chainEnd: TripLeg? = {
                 guard let lastArrival, let lastEnd = lastNonHome?.endTime else { return nil }
-                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted)
+                return followJumpseatChain(from: lastArrival, after: lastEnd, in: sorted, stopAt: homeAirport)
             }()
 
             if let chainEnd, homeAirport == nil || chainEnd.arrivalAirport == homeAirport {
@@ -254,8 +255,8 @@ enum TripStateResolver {
             let firstLeg = tripLegs.first
             let originAirport = firstLeg?.type == .flight ? firstLeg?.departureAirport : firstLeg?.airportCode
             let destAirport = lastNonHome?.type == .flight ? lastNonHome?.arrivalAirport : lastNonHome?.airportCode
-            let goingHome = originAirport != nil && originAirport == destAirport
-            if goingHome {
+            let returnsToOrigin = originAirport != nil && originAirport == destAirport
+            if returnsToOrigin {
                 return lastNonHome?.type == .flight ? lastNonHome?.arrivalCity : lastNonHome?.city
             }
             return nil  // Non-home destination: no city in footer
@@ -537,7 +538,7 @@ enum TripStateResolver {
         // Follow jumpseat chain from trip's final airport toward home
         let chainEnd: TripLeg? = {
             guard let lastArrival else { return nil }
-            return followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted)
+            return followJumpseatChain(from: lastArrival, after: lastLeg.endTime, in: sorted, stopAt: homeAirport)
         }()
 
         if let chainEnd, chainEnd.arrivalAirport == homeAirport {
@@ -550,11 +551,12 @@ enum TripStateResolver {
         let firstLeg = tripLegs.first
         let originAirport = firstLeg?.type == .flight ? firstLeg?.departureAirport : firstLeg?.airportCode
         let destAirport = lastLeg.type == .flight ? lastLeg.arrivalAirport : lastLeg.airportCode
-        let goingHome = originAirport != nil && originAirport == destAirport
+        let returnsToOrigin = originAirport != nil && originAirport == destAirport
 
-        if goingHome {
+        if returnsToOrigin {
             let city = lastLeg.type == .flight ? lastLeg.arrivalCity : lastLeg.city
-            return (endTime, "Back Home In", city)
+            let isHome = homeAirport.isEmpty || originAirport == homeAirport
+            return (endTime, isHome ? "Back Home In" : "Back at Base In", city)
         }
 
         let city = lastLeg.type == .flight ? lastLeg.arrivalCity : lastLeg.city
@@ -594,10 +596,12 @@ enum TripStateResolver {
 
     /// Follow a chain of standalone jumpseat flights from a starting airport/time.
     /// Returns the final leg in the chain, or `nil` if no jumpseats depart from `startAirport`.
+    /// When `stopAt` is provided, the chain stops as soon as it reaches that airport.
     private static func followJumpseatChain(
         from startAirport: String,
         after startTime: Date,
-        in sorted: [TripLeg]
+        in sorted: [TripLeg],
+        stopAt stopAirport: String? = nil
     ) -> TripLeg? {
         var currentAirport = startAirport
         var currentTime = startTime
@@ -614,6 +618,7 @@ enum TripStateResolver {
             lastJumpseat = next
             currentAirport = arrival
             currentTime = next.endTime
+            if arrival == stopAirport { break }
         }
 
         return lastJumpseat
