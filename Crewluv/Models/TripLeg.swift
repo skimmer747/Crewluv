@@ -9,7 +9,7 @@ import Foundation
 
 struct TripLeg: Codable, Sendable {
     enum LegType: String, Codable, Sendable {
-        case flight, turn, layover, home
+        case flight, turn, layover, home, base
         case reserve, hotStandby, event  // future
         case unknown                     // forward compat
 

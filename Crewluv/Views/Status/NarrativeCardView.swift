@@ -56,6 +56,8 @@ struct NarrativeCardView: View {
             hotStandbyNarrative
         case "Training":
             trainingNarrative
+        case "Base":
+            baseNarrative
         default:
             Text("On duty")
         }
@@ -283,11 +285,26 @@ struct NarrativeCardView: View {
         }
     }
 
+    @ViewBuilder
+    private var baseNarrative: some View {
+        if let city = status.currentCity, let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is at base in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+        } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
+            let depTimeStr = formattedLocalTime(nextTime)
+            Text("\(name) is at base in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+        } else if let city = status.currentCity {
+            Text("\(name) is at base in \(Text(city).bold())")
+        } else {
+            Text("\(name) is at base")
+        }
+    }
+
     // MARK: - Status Icon with Progress Ring
 
     private var statusIconView: some View {
         ZStack {
-            if status.displayStatus == "Layover", let progress = layoverProgress {
+            if ["Layover", "Base"].contains(status.displayStatus), let progress = layoverProgress {
                 Circle()
                     .stroke(statusColor.opacity(0.2), lineWidth: 3)
                     .frame(width: 44, height: 44)
@@ -349,7 +366,7 @@ struct NarrativeCardView: View {
         let legs = sortedTripLegs
         guard !legs.isEmpty else { return nil }
         guard let layover = legs.first(where: {
-            $0.type == .layover && $0.startTime <= now && now < $0.endTime
+            ($0.type == .layover || $0.type == .base) && $0.startTime <= now && now < $0.endTime
         }) else { return nil }
         let total = layover.endTime.timeIntervalSince(layover.startTime)
         guard total > 0 else { return nil }
@@ -572,6 +589,7 @@ struct NarrativeCardView: View {
         case "Reserve": return "clock.badge.questionmark"
         case "Hot Standby": return "bolt.fill"
         case "Training": return "book.fill"
+        case "Base": return "building.2.fill"
         default: return "circle.fill"
         }
     }
@@ -586,6 +604,7 @@ struct NarrativeCardView: View {
         case "Reserve": return .red
         case "Hot Standby": return .orange
         case "Training": return .purple
+        case "Base": return .purple
         default: return .gray
         }
     }

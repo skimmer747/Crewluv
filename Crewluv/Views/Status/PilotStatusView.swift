@@ -37,7 +37,7 @@ struct PilotStatusView: View {
 
     /// Derive upcoming trip info once from trip legs (single source of truth)
     private var upcomingTrip: UpcomingTripInfo? {
-        guard status.displayStatus == "Home" else { return nil }
+        guard ["Home", "Base"].contains(status.displayStatus) else { return nil }
         return UpcomingTripInfo.from(tripLegs: status.tripLegs, at: Date())
     }
 
@@ -136,7 +136,7 @@ struct PilotStatusView: View {
                     }
 
                     // Schedule card when home with no departure time (hidden on iPad)
-                    if !isCompanionLayout, status.displayStatus == "Home", status.nextDepartureTime == nil {
+                    if !isCompanionLayout, ["Home", "Base"].contains(status.displayStatus), status.nextDepartureTime == nil {
                         Button { showSchedule = true } label: {
                             HStack {
                                 Image(systemName: "calendar")
@@ -162,7 +162,7 @@ struct PilotStatusView: View {
                     LocationCardView(status: status)
 
                     // Upcoming trip card (when home with trip data)
-                    if status.displayStatus == "Home", let trip = upcomingTrip {
+                    if ["Home", "Base"].contains(status.displayStatus), let trip = upcomingTrip {
                         scheduleLink {
                             UpcomingTripCard(
                                 trip: trip,
@@ -173,7 +173,7 @@ struct PilotStatusView: View {
                     }
 
                     // Trip Overview (if on trip)
-                    if status.displayStatus != "Home",
+                    if !["Home", "Base"].contains(status.displayStatus),
                        let dayNumber = status.tripDayNumber,
                        let totalDays = status.tripTotalDays {
                         TripProgressView(
@@ -224,7 +224,7 @@ struct PilotStatusView: View {
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
             if let anchor,
                let homeTime = status.homeArrivalTime,
-               status.displayStatus != "Home" {
+               !["Home", "Base"].contains(status.displayStatus) {
                 // Use same shifted home time as CountdownCardView so celebration doesn't show early when delayed
                 let shiftHomeTime = isDelayedLastFlight
                 let shiftedHomeTime = shiftHomeTime
@@ -1563,6 +1563,8 @@ struct SunCircleView: View {
         // Pre-dawn and post-dusk transition points
         let preDawnFrac = clampFraction(sunriseFrac - 0.02)
         let postDuskFrac = clampFraction(sunsetFrac + 0.02)
+        let earlyMorningFrac = clampFraction(sunriseFrac + 0.04)
+        let lateAfternoonFrac = clampFraction(sunsetFrac - 0.04)
 
         let navy = Color(red: 0.05, green: 0.05, blue: 0.2)
         let amber = Color(red: 0.9, green: 0.6, blue: 0.2)
@@ -1572,7 +1574,9 @@ struct SunCircleView: View {
             .init(color: navy, location: midnightFrac),
             .init(color: navy, location: preDawnFrac),
             .init(color: amber, location: sunriseFrac),
+            .init(color: skyBlue, location: earlyMorningFrac),
             .init(color: skyBlue, location: noonFrac),
+            .init(color: skyBlue, location: lateAfternoonFrac),
             .init(color: amber, location: sunsetFrac),
             .init(color: navy, location: postDuskFrac),
             .init(color: navy, location: clampFraction(midnightFrac + 1.0)),

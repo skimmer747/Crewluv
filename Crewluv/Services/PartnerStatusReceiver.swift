@@ -258,7 +258,9 @@ class PartnerStatusReceiver {
 
     // MARK: - Trip State Resolution
 
-    /// Resolve current state from trip legs and schedule next transition
+    /// Resolve current state from trip legs and schedule next transition.
+    /// Trusts Duty's pre-computed fields; only overrides displayStatus and location
+    /// when the resolver finds an active leg for real-time transitions.
     private func resolveAndSchedule() {
         guard let raw = rawPilotStatus else {
             pilotStatus = nil
@@ -268,69 +270,71 @@ class PartnerStatusReceiver {
         let displayName = resolvedDisplayName ?? raw.pilotFirstName
 
         guard raw.hasTripLegs else {
-            // No trip legs — use the status as-is (backward compat)
             debugLog("[Resolve] No trip legs, using raw status")
             pilotStatus = raw
             return
         }
 
         let legs = raw.tripLegs
-        let typeBreakdown = Dictionary(grouping: legs, by: { $0.type.rawValue }).mapValues(\.count)
-        let hasReserves = legs.contains { $0.type == .reserve || $0.type == .hotStandby || $0.type == .event }
-        debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, breakdown: \(typeBreakdown), hasReserves: \(hasReserves)")
+        debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
 
-        let resolved = TripStateResolver.resolve(legs: legs, homeAirport: raw.homeAirportCode, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
+        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
 
-        // Rebuild SharedPilotStatus with resolved fields, keeping identity/metadata from raw
+        // If resolver found an active leg, use its real-time data for status/location/flight.
+        // Otherwise, trust Duty's pre-computed values entirely.
+        let displayStatus = resolved?.displayStatus ?? raw.displayStatus
+        let isInFlight = resolved?.isInFlight ?? raw.isInFlight
+
         pilotStatus = SharedPilotStatus(
             pilotId: raw.pilotId,
             pilotFirstName: displayName,
             homeAirportCode: raw.homeAirportCode,
-            displayStatus: resolved.displayStatus,
+            displayStatus: displayStatus,
             isSleeping: raw.isSleeping,
-            isHome: resolved.isHome,
-            isInFlight: resolved.isInFlight,
-            isOnDuty: resolved.isOnDuty,
-            currentAirport: resolved.currentAirport,
-            currentCity: resolved.currentCity,
-            currentTimezone: resolved.currentTimezone,
-            localTimeAtPilot: nil,
-            currentLatitude: nil,
-            currentLongitude: nil,
-            currentFlightNumber: resolved.currentFlightNumber,
-            currentFlightDeparture: resolved.currentFlightDeparture,
-            currentFlightArrival: resolved.currentFlightArrival,
-            currentFlightDepartureTime: resolved.currentFlightDepartureTime,
-            currentFlightArrivalTime: resolved.currentFlightArrivalTime,
-            currentFlightArrivalTimezone: resolved.currentFlightArrivalTimezone,
-            homeArrivalTime: resolved.homeArrivalTime,
-            homeArrivalLabel: resolved.homeArrivalLabel,
-            homeArrivalCity: resolved.homeArrivalCity,
-            nextDepartureTime: resolved.nextDepartureTime,
-            nextFlightNumber: resolved.nextFlightNumber,
-            nextFlightDestination: resolved.nextFlightDestination,
-            nextDepartureLabel: resolved.nextDepartureLabel,
+            isHome: displayStatus == "Home",
+            isInFlight: isInFlight,
+            isOnDuty: displayStatus != "Home",
+            currentAirport: resolved?.currentAirport ?? raw.currentAirport,
+            currentCity: resolved.map { $0.isInFlight ? nil : $0.currentCity } ?? raw.currentCity,
+            currentTimezone: resolved?.currentTimezone ?? raw.currentTimezone,
+            localTimeAtPilot: resolved == nil ? raw.localTimeAtPilot : nil,
+            currentLatitude: resolved == nil ? raw.currentLatitude : nil,
+            currentLongitude: resolved == nil ? raw.currentLongitude : nil,
+            currentFlightNumber: resolved?.currentFlightNumber ?? raw.currentFlightNumber,
+            currentFlightDeparture: resolved?.currentFlightDeparture ?? raw.currentFlightDeparture,
+            currentFlightArrival: resolved?.currentFlightArrival ?? raw.currentFlightArrival,
+            currentFlightDepartureTime: resolved?.currentFlightDepartureTime ?? raw.currentFlightDepartureTime,
+            currentFlightArrivalTime: resolved?.currentFlightArrivalTime ?? raw.currentFlightArrivalTime,
+            currentFlightArrivalTimezone: raw.currentFlightArrivalTimezone,
+            homeArrivalTime: raw.homeArrivalTime,
+            homeArrivalLabel: raw.homeArrivalLabel,
+            homeArrivalCity: raw.homeArrivalCity,
+            nextDepartureTime: raw.nextDepartureTime,
+            nextFlightNumber: raw.nextFlightNumber,
+            nextFlightDestination: raw.nextFlightDestination,
+            nextDepartureLabel: raw.nextDepartureLabel,
             lastTripEndDate: raw.lastTripEndDate,
             lastTripDurationDays: raw.lastTripDurationDays,
             currentTripId: raw.currentTripId,
-            tripDayNumber: resolved.tripDayNumber,
-            tripTotalDays: resolved.tripTotalDays,
-            upcomingCities: resolved.upcomingCities,
+            tripDayNumber: raw.tripDayNumber,
+            tripTotalDays: raw.tripTotalDays,
+            upcomingCities: raw.upcomingCities,
             tripLegsJSON: raw.tripLegsJSON,
             quickStatus: raw.quickStatus,
             quickStatusIcon: raw.quickStatusIcon,
             quickStatusExpiry: raw.quickStatusExpiry,
-            flightDelayMinutes: resolved.flightDelayMinutes,
+            flightDelayMinutes: resolved?.flightDelayMinutes ?? raw.flightDelayMinutes,
             displayNameByPartnerJSON: raw.displayNameByPartnerJSON,
             lastUpdated: raw.lastUpdated,
             appVersion: raw.appVersion
         )
 
-        debugLog("[CrewLuve] Resolved status: \(resolved.displayStatus), next transition in \(resolved.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil")s")
+        let transitionInfo = resolved?.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil"
+        debugLog("[CrewLuve] Resolved status: \(displayStatus), next transition in \(transitionInfo)s")
 
-        // Schedule re-resolve at next leg boundary
+        // Schedule re-resolve at next leg boundary for real-time updates
         transitionTask?.cancel()
-        if let delay = resolved.timeUntilNextTransition, delay > 0 {
+        if let delay = resolved?.timeUntilNextTransition, delay > 0 {
             transitionTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(delay + 0.5))
                 guard !Task.isCancelled else { return }

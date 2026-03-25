@@ -172,7 +172,7 @@ struct SharedPilotStatus: Codable, Sendable {
         guard !flights.isEmpty else { return legs }
 
         return legs.map { leg in
-            guard leg.type == .layover || leg.type == .home else { return leg }
+            guard leg.type == .layover || leg.type == .home || leg.type == .base else { return leg }
 
             guard let earliest = flights
                 .filter({ $0.startTime > leg.startTime && $0.startTime < leg.endTime })
@@ -352,7 +352,7 @@ struct SharedPilotStatus: Codable, Sendable {
             currentFlightArrivalTimezone: record["currentFlightArrivalTimezone"] as? String,
             homeArrivalTime: record["homeArrivalTime"] as? Date,
             homeArrivalLabel: record["homeArrivalLabel"] as? String,
-            homeArrivalCity: nil,
+            homeArrivalCity: record["homeArrivalCity"] as? String,
             nextDepartureTime: record["nextDepartureTime"] as? Date,
             nextFlightNumber: record["nextFlightNumber"] as? String,
             nextFlightDestination: record["nextFlightDestination"] as? String,
