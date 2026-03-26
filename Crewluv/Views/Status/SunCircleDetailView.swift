@@ -19,6 +19,7 @@ struct SunCircleDetailView: View {
     var flightDelayMinutes: Int? = nil
     var homeSunrise: Date? = nil
     var homeSunset: Date? = nil
+    var homeTimezone: String? = nil
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var deviceColorScheme
@@ -103,6 +104,7 @@ struct SunCircleDetailView: View {
                     flightDelayMinutes: flightDelayMinutes,
                     homeSunrise: homeSunrise,
                     homeSunset: homeSunset,
+                    homeTimezone: homeTimezone,
                     size: 360
                 )
                 .scaleEffect(appeared ? 1.0 : 0.5)
@@ -241,8 +243,8 @@ struct SunCircleDetailView: View {
             liveLocalTime = ""
         }
 
-        // Home (device) time
-        formatter.timeZone = .current
+        // Home time (use home airport timezone if available, fall back to device)
+        formatter.timeZone = homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
         liveHomeTime = formatter.string(from: now)
     }
 

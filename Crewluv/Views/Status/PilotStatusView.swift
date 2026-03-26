@@ -60,6 +60,17 @@ struct PilotStatusView: View {
         return !hasMoreFlights
     }
 
+    private static func formatHomeArrival(_ date: Date, homeTimezone: String?) -> String {
+        var style = Date.FormatStyle.dateTime
+            .weekday(.abbreviated)
+            .month(.abbreviated)
+            .day()
+            .hour()
+            .minute()
+        style.timeZone = homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
+        return date.formatted(style)
+    }
+
     var body: some View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
@@ -105,7 +116,7 @@ struct PilotStatusView: View {
                         let shiftedHomeTime = shiftHomeTime
                             ? homeTime.addingTimeInterval(TimeInterval((status.flightDelayMinutes ?? 0) * 60))
                             : homeTime
-                        let dateStr = shiftedHomeTime.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+                        let dateStr = Self.formatHomeArrival(shiftedHomeTime, homeTimezone: status.homeTimezone)
                         let delayNote = shiftHomeTime ? " (delayed)" : ""
                         let arrivalSubtitle = [dateStr + delayNote, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
@@ -572,7 +583,8 @@ struct LocationCardView: View {
                     nextDepartureTime: status.nextDepartureTime,
                     flightDelayMinutes: status.flightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
-                    homeSunset: homeWeather?.sunset
+                    homeSunset: homeWeather?.sunset,
+                    homeTimezone: status.homeTimezone
                 )
                 .offset(x: 0, y: -6)
                 .onTapGesture {
@@ -616,7 +628,8 @@ struct LocationCardView: View {
                     nextDepartureTime: status.nextDepartureTime,
                     flightDelayMinutes: status.flightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
-                    homeSunset: homeWeather?.sunset
+                    homeSunset: homeWeather?.sunset,
+                    homeTimezone: status.homeTimezone
                 )
             }
         }
@@ -662,8 +675,9 @@ struct LocationCardView: View {
         guard let id = status.currentTimezone,
               let pilotTZ = TimeZone(identifier: id) else { return nil }
         let now = Date()
+        let homeTZ = status.homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
         let pilotOffset = pilotTZ.secondsFromGMT(for: now)
-        let localOffset = TimeZone.current.secondsFromGMT(for: now)
+        let localOffset = homeTZ.secondsFromGMT(for: now)
         let diffSeconds = pilotOffset - localOffset
 
         let absDiff = abs(diffSeconds)
@@ -892,6 +906,7 @@ struct SunCircleView: View {
     var flightDelayMinutes: Int? = nil
     var homeSunrise: Date? = nil
     var homeSunset: Date? = nil
+    var homeTimezone: String? = nil
     var size: CGFloat = 160
 
     @State private var arcProgress: CGFloat = 0
@@ -922,10 +937,14 @@ struct SunCircleView: View {
     private var arcLineWidth: CGFloat { 2 * scale }
     private var arrowheadSize: CGFloat { 5 * scale }
 
+    private var homeTZ: TimeZone {
+        homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
+    }
+
     private var hasDifferentTimezone: Bool {
         guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return false }
         let now = Date()
-        return pilotTZ.secondsFromGMT(for: now) != TimeZone.current.secondsFromGMT(for: now)
+        return pilotTZ.secondsFromGMT(for: now) != homeTZ.secondsFromGMT(for: now)
     }
 
     private var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
@@ -1518,10 +1537,10 @@ struct SunCircleView: View {
         return .degrees(degrees)
     }
 
-    /// Same as angleForTime but uses the device's local timezone (home time)
+    /// Same as angleForTime but uses the home airport's timezone
     private func angleForHomeTime(_ date: Date) -> Angle {
         var cal = Calendar.current
-        cal.timeZone = TimeZone.current
+        cal.timeZone = homeTZ
         let hour = cal.component(.hour, from: date)
         let minute = cal.component(.minute, from: date)
         let hoursFromMidnight = Double(hour) + Double(minute) / 60.0
@@ -1532,13 +1551,13 @@ struct SunCircleView: View {
     /// Whether the pilot's timezone is ahead of home (east of home)
     private func isPilotAhead(at date: Date) -> Bool {
         guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return false }
-        return pilotTZ.secondsFromGMT(for: date) > TimeZone.current.secondsFromGMT(for: date)
+        return pilotTZ.secondsFromGMT(for: date) > homeTZ.secondsFromGMT(for: date)
     }
 
-    /// Signed hour offset string between pilot timezone and device timezone
+    /// Signed hour offset string between pilot timezone and home timezone
     private func hourDifferenceText(at date: Date) -> String {
         guard let tzId = timezone, let pilotTZ = TimeZone(identifier: tzId) else { return "" }
-        let diffSeconds = pilotTZ.secondsFromGMT(for: date) - TimeZone.current.secondsFromGMT(for: date)
+        let diffSeconds = pilotTZ.secondsFromGMT(for: date) - homeTZ.secondsFromGMT(for: date)
         let hours = diffSeconds / 3600
         let minutes = abs(diffSeconds % 3600) / 60
         let sign = diffSeconds >= 0 ? "+" : "-"
@@ -2516,6 +2535,7 @@ struct SyncExplanationView: View {
         pilotId: "test",
         pilotFirstName: "Todd",
         homeAirportCode: nil,
+        homeTimezone: nil,
         displayStatus: "In Flight",
         isSleeping: true,
         isHome: false,

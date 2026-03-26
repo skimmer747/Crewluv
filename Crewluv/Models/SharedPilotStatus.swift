@@ -24,6 +24,7 @@ struct SharedPilotStatus: Codable, Sendable {
     let pilotId: String              // PilotInfo.id.uuidString
     let pilotFirstName: String       // First name only for privacy
     let homeAirportCode: String?     // Pilot's actual home airport (may differ from base)
+    let homeTimezone: String?        // Timezone identifier for home airport
 
     // MARK: - Current State
 
@@ -215,6 +216,9 @@ struct SharedPilotStatus: Codable, Sendable {
         if let homeAirportCode = homeAirportCode {
             record["homeAirportCode"] = homeAirportCode as CKRecordValue
         }
+        if let homeTimezone = homeTimezone {
+            record["homeTimezone"] = homeTimezone as CKRecordValue
+        }
         record["displayStatus"] = displayStatus as CKRecordValue
         record["isSleeping"] = (isSleeping ? 1 : 0) as CKRecordValue
         record["isHome"] = (isHome ? 1 : 0) as CKRecordValue
@@ -333,6 +337,7 @@ struct SharedPilotStatus: Codable, Sendable {
             pilotId: pilotId,
             pilotFirstName: pilotFirstName,
             homeAirportCode: record["homeAirportCode"] as? String,
+            homeTimezone: record["homeTimezone"] as? String,
             displayStatus: record["displayStatus"] as? String ?? "Home",
             isSleeping: (record["isSleeping"] as? Int ?? 0) == 1,
             isHome: (record["isHome"] as? Int ?? 0) == 1,

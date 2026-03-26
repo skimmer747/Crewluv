@@ -289,6 +289,7 @@ class PartnerStatusReceiver {
             pilotId: raw.pilotId,
             pilotFirstName: displayName,
             homeAirportCode: raw.homeAirportCode,
+            homeTimezone: raw.homeTimezone,
             displayStatus: displayStatus,
             isSleeping: raw.isSleeping,
             isHome: raw.isHome,
