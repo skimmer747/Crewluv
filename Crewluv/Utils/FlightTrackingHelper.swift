@@ -21,14 +21,16 @@ enum FlightTrackingHelper {
         return (prefix, number)
     }
 
-    /// FlightRadar24 URL — uses IATA prefix, lowercased.
-    /// Maps known ICAO→IATA (e.g. UPS→5X) for better results.
-    static func flightRadar24URL(for flightNumber: String) -> URL? {
+    /// FlightRadar24 URLs — app deep link and web fallback.
+    /// Uses ICAO broadcast callsign to match ADS-B data.
+    static func flightRadar24URLs(for flightNumber: String) -> (app: URL, web: URL)? {
         let (prefix, number) = parseFlightNumber(flightNumber)
         guard !prefix.isEmpty, !number.isEmpty else { return nil }
-        let iataPrefix = icaoToIATA[prefix.uppercased()] ?? prefix
-        let callsign = "\(iataPrefix)\(number)".lowercased()
-        return URL(string: "https://www.flightradar24.com/data/flights/\(callsign)")
+        let icaoPrefix = iataToICAO[prefix.uppercased()] ?? prefix
+        let callsign = "\(icaoPrefix)\(number)".uppercased()
+        guard let app = URL(string: "flightradar24://\(callsign)"),
+              let web = URL(string: "https://fr24.com/\(callsign)") else { return nil }
+        return (app, web)
     }
 
     /// FlightAware URL — uses ICAO prefix, uppercased.
@@ -57,7 +59,7 @@ enum FlightTrackingHelper {
         Dictionary(uniqueKeysWithValues: icaoToIATA.map { ($0.value, $0.key) })
     }()
 
-    /// ICAO → IATA mapping (for FR24 which prefers IATA codes)
+    /// ICAO → IATA mapping (for airline code display)
     private static let icaoToIATA: [String: String] = [
         "UPS": "5X",
         "FDX": "FX",

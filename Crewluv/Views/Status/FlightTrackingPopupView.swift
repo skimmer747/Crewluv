@@ -47,10 +47,12 @@ struct FlightTrackingPopupView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 // FlightRadar24 button
-                if let fr24URL = FlightTrackingHelper.flightRadar24URL(for: flightNumber) {
+                if let fr24URLs = FlightTrackingHelper.flightRadar24URLs(for: flightNumber) {
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        openURL(fr24URL)
+                        openURL(fr24URLs.app) { accepted in
+                            if !accepted { openURL(fr24URLs.web) }
+                        }
                         dismissView()
                     } label: {
                         HStack(spacing: 12) {
