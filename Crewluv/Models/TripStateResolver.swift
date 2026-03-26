@@ -78,7 +78,7 @@ enum TripStateResolver {
         let legacyDelay = TimeInterval((flightDelayMinutes ?? 0) * 60)
         let effectiveEnd: Date = {
             if isInFlight, legDelay > 0 { return leg.endTime.addingTimeInterval(legDelay) }
-            if isInFlight, delayedFlight == nil, legacyDelayed?.id == leg.id, legacyDelay > 0 {
+            if isInFlight, perLegDelayed == nil, legacyDelayed?.id == leg.id, legacyDelay > 0 {
                 return leg.endTime.addingTimeInterval(legacyDelay)
             }
             return leg.endTime
