@@ -48,18 +48,6 @@ struct PilotStatusView: View {
         return days > 0 ? days : nil
     }
 
-    /// True when the pilot has an active delay on the last flight of the trip — shifts homeArrivalTime.
-    /// Covers both in-flight on last leg AND layover/turn before last leg.
-    private var isDelayedLastFlight: Bool {
-        guard status.hasFlightDelay else { return false }
-        let sortedLegs = status.tripLegs.sorted { $0.startTime < $1.startTime }
-        // Find the specifically-delayed flight (has delayMinutes > 0)
-        let delayedFlight = sortedLegs.first(where: { ($0.delayMinutes ?? 0) > 0 && $0.type == .flight })
-        guard let flight = delayedFlight else { return false }
-        let hasMoreFlights = sortedLegs.contains { $0.type == .flight && $0.startTime > flight.endTime }
-        return !hasMoreFlights
-    }
-
     private static func formatHomeArrival(_ date: Date, homeTimezone: String?) -> String {
         var style = Date.FormatStyle.dateTime
             .weekday(.abbreviated)
@@ -109,23 +97,20 @@ struct PilotStatusView: View {
                     }
 
                     // Countdown Timer (if not home) — taps open schedule
-                    if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
+                    if let rawHomeTime = status.homeArrivalTime, status.displayStatus != "Home" {
+                        let delayShift = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+                        let homeTime = rawHomeTime.addingTimeInterval(delayShift)
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
-                        let shiftHomeTime = isDelayedLastFlight
-                        let shiftedHomeTime = shiftHomeTime
-                            ? homeTime.addingTimeInterval(TimeInterval((status.flightDelayMinutes ?? 0) * 60))
-                            : homeTime
-                        let dateStr = Self.formatHomeArrival(shiftedHomeTime, homeTimezone: status.homeTimezone)
-                        let delayNote = shiftHomeTime ? " (delayed)" : ""
-                        let arrivalSubtitle = [dateStr + delayNote, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
+                        let dateStr = Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
+                        let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
                         scheduleLink {
                             CountdownCardView(
                                 title: label,
-                                targetDate: shiftedHomeTime,
+                                targetDate: homeTime,
                                 icon: isGoingHome ? "house.fill" : "airplane.arrival",
-                                color: shiftHomeTime ? .red : .green,
+                                color: status.hasFlightDelay ? .red : .green,
                                 subtitle: arrivalSubtitle,
                                 showChevron: !isCompanionLayout
                             )
@@ -236,12 +221,7 @@ struct PilotStatusView: View {
             if let anchor,
                let homeTime = status.homeArrivalTime,
                !["Home", "Base"].contains(status.displayStatus) {
-                // Use same shifted home time as CountdownCardView so celebration doesn't show early when delayed
-                let shiftHomeTime = isDelayedLastFlight
-                let shiftedHomeTime = shiftHomeTime
-                    ? homeTime.addingTimeInterval(TimeInterval((status.flightDelayMinutes ?? 0) * 60))
-                    : homeTime
-                if shiftedHomeTime.timeIntervalSinceNow < 86400 && shiftedHomeTime.timeIntervalSinceNow > 0 {
+                if homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
                     GeometryReader { proxy in
                         let rect = proxy[anchor]
                         CelebrationFigureView()
