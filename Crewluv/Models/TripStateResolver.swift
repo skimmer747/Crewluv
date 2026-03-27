@@ -49,7 +49,6 @@ enum TripStateResolver {
     /// Derive real-time status from trip legs.
     /// Handles both active legs (startTime <= now < endTime) and gaps between legs.
     /// Returns `nil` only when no leg has completed yet (before first leg starts)
-    /// — caller should fall back to Duty's pre-computed displayStatus in that case.
     static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, at now: Date) -> ActiveLegState? {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
@@ -181,10 +180,18 @@ enum TripStateResolver {
         }
         segments.append(current)
 
+        // Pick the segment that covers `now`, accounting for per-leg delay on the
+        // last flight so delayed flights keep the segment "active" until actual arrival.
         let chosen: [TripLeg] = {
             if let active = segments.first(where: { segment in
                 guard let firstLeg = segment.first, let lastLeg = segment.last else { return false }
-                return now >= firstLeg.startTime && now < lastLeg.endTime
+                let effectiveEnd: Date = {
+                    guard lastLeg.type == .flight, let delay = lastLeg.delayMinutes, delay > 0 else {
+                        return lastLeg.endTime
+                    }
+                    return lastLeg.endTime.addingTimeInterval(TimeInterval(delay * 60))
+                }()
+                return now >= firstLeg.startTime && now < effectiveEnd
             }) {
                 return active
             }
@@ -195,7 +202,8 @@ enum TripStateResolver {
                 }) {
                 return justFinished
             }
-            return segments.first ?? current
+            // segments is guaranteed non-empty (current is always appended above)
+            return segments.first!
         }()
 
         guard let endLeg = chosen.last else { return nil }
