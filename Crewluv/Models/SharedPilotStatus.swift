@@ -139,18 +139,12 @@ struct SharedPilotStatus: Codable, Sendable {
     // MARK: - Trip Legs Convenience
 
     var tripLegs: [TripLeg] {
-        guard let data = tripLegsJSON else {
-            debugLog("[TripLegs] tripLegsJSON is nil")
-            return []
-        }
-        debugLog("[TripLegs] tripLegsJSON present: \(data.count) bytes")
+        guard let data = tripLegsJSON else { return [] }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         do {
             var legs = try decoder.decode([TripLeg].self, from: data)
             legs = Self.adjustLayoversForOverlappingFlights(legs)
-            let typeBreakdown = Dictionary(grouping: legs, by: { $0.type.rawValue }).mapValues(\.count)
-            debugLog("[TripLegs] Decoded \(legs.count) legs, breakdown: \(typeBreakdown)")
             return legs
         } catch {
             debugLog("[TripLegs] ❌ Decode FAILED: \(error)")
