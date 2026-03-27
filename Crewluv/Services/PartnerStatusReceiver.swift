@@ -59,6 +59,18 @@ class PartnerStatusReceiver {
             }
         }
 
+        // Listen for CloudKit silent pushes
+        NotificationCenter.default.addObserver(
+            forName: .cloudKitPushReceived,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            debugLog("[StatusReceiver] Received CloudKit push, refreshing...")
+            Task { @MainActor in
+                await self?.refresh()
+            }
+        }
+
         // Wait for any in-progress share acceptance to complete before checking
         Task {
             // Wait for share acceptance if currently in progress
@@ -195,11 +207,34 @@ class PartnerStatusReceiver {
             }
             
             logTripLegDiff(old: rawPilotStatus, new: newStatus, recordModDate: statusRecord.modificationDate)
+            let previousRaw = rawPilotStatus
             rawPilotStatus = newStatus
             resolveAndSchedule()
             hasAcceptedShare = true
             lastSyncTime = syncStartTime
             lastSyncError = nil
+
+            // Evaluate changes for local notifications
+            let pilotName = resolvedDisplayName ?? newStatus.pilotFirstName
+            Task.detached {
+                await StatusChangeNotifier.shared.evaluateChanges(
+                    old: previousRaw,
+                    new: newStatus,
+                    pilotName: pilotName
+                )
+            }
+
+            // Set up subscriptions and request notification permission on first successful fetch
+            if previousRaw == nil {
+                Task.detached { [dataSource = self.dataSource] in
+                    if dataSource == .privateDB {
+                        await CloudKitSubscriptionManager.shared.ensurePrivateZoneSubscription()
+                    } else {
+                        await CloudKitSubscriptionManager.shared.ensureSharedDatabaseSubscription()
+                    }
+                    await StatusChangeNotifier.shared.requestAuthorizationIfNeeded()
+                }
+            }
             
             let syncDuration = Date().timeIntervalSince(syncStartTime)
             debugLog("[CrewLuve] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
@@ -278,12 +313,40 @@ class PartnerStatusReceiver {
         let legs = raw.tripLegs
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
 
-        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, at: Date())
+        let now = Date()
+        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, at: now)
 
         // If resolver found an active leg, use its real-time data for status/location/flight.
         // Otherwise, trust Duty's pre-computed values entirely.
         let displayStatus = resolved?.displayStatus ?? raw.displayStatus
         let isInFlight = resolved?.isInFlight ?? raw.isInFlight
+
+        // Countdown card uses `homeArrivalTime` / `homeArrivalLabel` from Duty. Those can stay stuck
+        // on an early stop (e.g. "Sacramento In") while legs already show PHL — same bug you saw.
+        // When Duty's target time is in the past and legs gave us a resolved state, rebuild trip end from legs.
+        let tripEndFromLegs: TripEndInfo? = {
+            guard let dutyArrival = raw.homeArrivalTime,
+                  dutyArrival <= now,
+                  resolved != nil,
+                  let derived = TripStateResolver.resolveTripEnd(
+                    legs: legs,
+                    homeAirportCode: raw.homeAirportCode,
+                    at: now
+                  ) else {
+                return nil
+            }
+            return derived
+        }()
+
+        let effectiveHomeArrivalTime = tripEndFromLegs?.arrivalTime ?? raw.homeArrivalTime
+        let effectiveHomeArrivalLabel = tripEndFromLegs?.arrivalLabel ?? raw.homeArrivalLabel
+        let effectiveHomeArrivalCity = tripEndFromLegs?.arrivalCity ?? raw.homeArrivalCity
+
+        if let derived = tripEndFromLegs {
+            debugLog(
+                "[Resolve] Replaced stale homeArrival from legs: label=\(derived.arrivalLabel) time=\(derived.arrivalTime.formatted(date: .abbreviated, time: .shortened))"
+            )
+        }
 
         pilotStatus = SharedPilotStatus(
             pilotId: raw.pilotId,
@@ -307,9 +370,9 @@ class PartnerStatusReceiver {
             currentFlightDepartureTime: resolved?.currentFlightDepartureTime ?? raw.currentFlightDepartureTime,
             currentFlightArrivalTime: resolved?.currentFlightArrivalTime ?? raw.currentFlightArrivalTime,
             currentFlightArrivalTimezone: resolved?.currentFlightArrivalTimezone ?? raw.currentFlightArrivalTimezone,
-            homeArrivalTime: raw.homeArrivalTime,
-            homeArrivalLabel: raw.homeArrivalLabel,
-            homeArrivalCity: raw.homeArrivalCity,
+            homeArrivalTime: effectiveHomeArrivalTime,
+            homeArrivalLabel: effectiveHomeArrivalLabel,
+            homeArrivalCity: effectiveHomeArrivalCity,
             nextDepartureTime: raw.nextDepartureTime,
             nextFlightNumber: raw.nextFlightNumber,
             nextFlightDestination: raw.nextFlightDestination,

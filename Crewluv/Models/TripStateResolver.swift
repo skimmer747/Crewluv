@@ -36,6 +36,14 @@ struct ActiveLegState {
     let timeUntilNextTransition: TimeInterval?
 }
 
+/// Where the **current** contiguous trip ends, derived only from trip legs.
+/// Used when Duty's `homeArrivalTime` / `homeArrivalLabel` are stale in CloudKit.
+struct TripEndInfo: Sendable {
+    let arrivalTime: Date
+    let arrivalLabel: String
+    let arrivalCity: String?
+}
+
 enum TripStateResolver {
 
     /// Derive real-time status from trip legs.
@@ -125,6 +133,112 @@ enum TripStateResolver {
             currentFlightArrivalTimezone: arrivalTimezone,
             flightDelayMinutes: resolvedDelay,
             timeUntilNextTransition: transition > 0 ? transition : nil
+        )
+    }
+
+    // MARK: - Trip End (countdown card)
+
+    /// Finds the end of the pilot's **current** trip block for the partner countdown card.
+    ///
+    /// **Why this exists:** Duty sometimes writes `homeArrivalTime` once (e.g. first stop of the day)
+    /// and does not refresh it. CrewLuve *does* get fresh legs — so we recompute trip end from legs
+    /// when that CloudKit field is already in the past.
+    ///
+    /// **How it works:**
+    /// 1. Sort legs by start time.
+    /// 2. Split into **segments**: legs chained with gaps **at most** 24 hours between them.
+    ///    A gap longer than 24h starts a new trip (e.g. work trip vs vacation vs next trip).
+    /// 3. Pick the segment that matches `now`:
+    ///    - If `now` is **inside** a segment (between first start and last end), that segment is the trip.
+    ///    - If `now` is **after** the last leg (rest at hotel, days off), use the segment that **just
+    ///      ended** (latest `last.endTime` still ≤ `now`) so the card shows PHL "In", not April's leg.
+    ///    - If `now` is **before** the first leg, use the first segment.
+    ///
+    /// - Parameters:
+    ///   - legs: Trip legs from shared status (same source as `resolve`).
+    ///   - homeAirportCode: Pilot home IATA; if trip end matches, label is `"Back Home In"`.
+    ///   - now: Reference time (normally `Date()`).
+    /// - Returns: `nil` only when `legs` is empty.
+    static func resolveTripEnd(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
+        let sorted = legs.sorted { $0.startTime < $1.startTime }
+        guard let first = sorted.first else { return nil }
+
+        let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
+
+        // Build contiguous segments separated by > maxGapBetweenLegs.
+        var segments: [[TripLeg]] = []
+        var current: [TripLeg] = [first]
+        for i in 1..<sorted.count {
+            let prev = sorted[i - 1]
+            let leg = sorted[i]
+            let gap = leg.startTime.timeIntervalSince(prev.endTime)
+            if gap > maxGapBetweenLegs {
+                segments.append(current)
+                current = [leg]
+            } else {
+                current.append(leg)
+            }
+        }
+        segments.append(current)
+
+        let chosen: [TripLeg] = {
+            if let active = segments.first(where: { segment in
+                guard let firstLeg = segment.first, let lastLeg = segment.last else { return false }
+                return now >= firstLeg.startTime && now < lastLeg.endTime
+            }) {
+                return active
+            }
+            if let justFinished = segments
+                .filter({ ($0.last?.endTime ?? .distantPast) <= now })
+                .max(by: { a, b in
+                    (a.last?.endTime ?? .distantPast) < (b.last?.endTime ?? .distantPast)
+                }) {
+                return justFinished
+            }
+            return segments.first ?? current
+        }()
+
+        guard let endLeg = chosen.last else { return nil }
+
+        let arrivalTime: Date
+        let arrivalAirport: String?
+        let arrivalCity: String?
+
+        if endLeg.type == .flight {
+            let delay = TimeInterval((endLeg.delayMinutes ?? 0) * 60)
+            arrivalTime = endLeg.endTime.addingTimeInterval(delay)
+            arrivalAirport = endLeg.arrivalAirport
+            arrivalCity = endLeg.arrivalCity
+        } else {
+            arrivalTime = endLeg.endTime
+            arrivalAirport = endLeg.airportCode
+            arrivalCity = endLeg.city
+        }
+
+        let arrivalLabel: String = {
+            if let code = arrivalAirport,
+               let home = homeAirportCode,
+               code.caseInsensitiveCompare(home) == .orderedSame {
+                return "Back Home In"
+            }
+            if let city = arrivalCity, !city.isEmpty {
+                return "\(city) In"
+            }
+            if let code = arrivalAirport, !code.isEmpty {
+                return "\(code) In"
+            }
+            return "Trip End In"
+        }()
+
+        let cityForSubtitle: String? = {
+            if let city = arrivalCity, !city.isEmpty { return city }
+            return arrivalAirport
+        }()
+
+        return TripEndInfo(
+            arrivalTime: arrivalTime,
+            arrivalLabel: arrivalLabel,
+            arrivalCity: cityForSubtitle
         )
     }
 
