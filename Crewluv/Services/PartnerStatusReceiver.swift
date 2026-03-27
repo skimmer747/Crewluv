@@ -306,7 +306,7 @@ class PartnerStatusReceiver {
             currentFlightArrival: resolved?.currentFlightArrival ?? raw.currentFlightArrival,
             currentFlightDepartureTime: resolved?.currentFlightDepartureTime ?? raw.currentFlightDepartureTime,
             currentFlightArrivalTime: resolved?.currentFlightArrivalTime ?? raw.currentFlightArrivalTime,
-            currentFlightArrivalTimezone: raw.currentFlightArrivalTimezone,
+            currentFlightArrivalTimezone: resolved?.currentFlightArrivalTimezone ?? raw.currentFlightArrivalTimezone,
             homeArrivalTime: raw.homeArrivalTime,
             homeArrivalLabel: raw.homeArrivalLabel,
             homeArrivalCity: raw.homeArrivalCity,

@@ -28,6 +28,7 @@ struct TripLeg: Codable, Sendable {
     let airportCode: String?
     let city: String?
     let timezoneIdentifier: String?
+    let arrivalTimezoneIdentifier: String?
 
     // Flight-specific
     let flightNumber: String?

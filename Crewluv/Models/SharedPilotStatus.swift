@@ -189,6 +189,7 @@ struct SharedPilotStatus: Codable, Sendable {
                 airportCode: leg.airportCode,
                 city: leg.city,
                 timezoneIdentifier: leg.timezoneIdentifier,
+                arrivalTimezoneIdentifier: leg.arrivalTimezoneIdentifier,
                 flightNumber: leg.flightNumber,
                 departureAirport: leg.departureAirport,
                 arrivalAirport: leg.arrivalAirport,
