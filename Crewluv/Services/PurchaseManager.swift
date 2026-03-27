@@ -27,22 +27,29 @@ class PurchaseManager {
     private var debugUnlocked = false
     #endif
 
-    private var isTestFlight: Bool {
+    /// Whether this build is a TestFlight (sandbox) distribution.
+    /// Uses StoreKit 2’s `AppTransaction` instead of deprecated `Bundle.appStoreReceiptURL`.
+    private func isTestFlightBuild() async -> Bool {
         #if DEBUG
+        // Xcode debug builds are never treated as TestFlight; use debug tools to test IAP.
         return false
         #else
-        return Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        guard case .verified(let appTransaction) = await AppTransaction.shared else {
+            return false
+        }
+        // TestFlight installs report `.sandbox` for the app’s purchase environment.
+        return appTransaction.environment == .sandbox
         #endif
     }
 
     private init() {
-        if isTestFlight {
-            hasUnlockedApp = true
-        }
         // Start listening for transaction updates in a detached task
         let task = Task.detached { @MainActor [weak self] in
             guard let self else { return }
             self.updateListenerTask = self.listenForTransactions()
+            if await self.isTestFlightBuild() {
+                self.hasUnlockedApp = true
+            }
             await self.loadProduct()
             await self.checkPurchaseStatus()
         }
@@ -79,7 +86,7 @@ class PurchaseManager {
         if debugUnlocked { return }
         #endif
 
-        if isTestFlight {
+        if await isTestFlightBuild() {
             hasUnlockedApp = true
             debugLog("[PurchaseManager] TestFlight build detected, bypassing paywall")
             return
