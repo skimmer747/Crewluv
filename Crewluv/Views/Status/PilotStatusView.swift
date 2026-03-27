@@ -219,8 +219,10 @@ struct PilotStatusView: View {
         .scrollEdgeEffectStyle(.soft, for: .vertical)
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
             if let anchor,
-               let homeTime = status.homeArrivalTime,
+               let rawHomeTime = status.homeArrivalTime,
                !["Home", "Base"].contains(status.displayStatus) {
+                let delayShift = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+                let homeTime = rawHomeTime.addingTimeInterval(delayShift)
                 if homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
                     GeometryReader { proxy in
                         let rect = proxy[anchor]
