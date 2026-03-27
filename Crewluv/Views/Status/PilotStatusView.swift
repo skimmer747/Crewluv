@@ -580,7 +580,7 @@ struct LocationCardView: View {
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
-                    nextDepartureTime: status.nextDepartureTime,
+                    nextDepartureTime: effectiveNextDepartureTime,
                     flightDelayMinutes: status.flightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
@@ -625,7 +625,7 @@ struct LocationCardView: View {
                     timezone: status.currentTimezone,
                     cityName: status.currentCity ?? "Unknown",
                     weather: weather,
-                    nextDepartureTime: status.nextDepartureTime,
+                    nextDepartureTime: effectiveNextDepartureTime,
                     flightDelayMinutes: status.flightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
@@ -636,6 +636,14 @@ struct LocationCardView: View {
     }
     
     // MARK: - Helper Properties
+
+    private var effectiveNextDepartureTime: Date? {
+        let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
+        if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
+            return nextFlight.startTime
+        }
+        return status.nextDepartureTime
+    }
 
     /// Format delay minutes as "1h 30m", "45m", etc.
     static func formatDelayDuration(_ minutes: Int) -> String {
