@@ -38,7 +38,11 @@ struct PilotStatusView: View {
     /// Derive upcoming trip info once from trip legs (single source of truth)
     private var upcomingTrip: UpcomingTripInfo? {
         guard ["Home", "Base"].contains(status.displayStatus) else { return nil }
-        return UpcomingTripInfo.from(tripLegs: status.tripLegs, at: Date())
+        return UpcomingTripInfo.from(
+            tripLegs: status.tripLegs,
+            at: Date(),
+            homeAirportCode: status.homeAirportCode
+        )
     }
 
     /// Days home since last trip ended
@@ -67,10 +71,10 @@ struct PilotStatusView: View {
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
 
                     // Next Departure (if at home) — taps open schedule
-                    if status.displayStatus == "Home", let departureTime = status.nextDepartureTime {
+                    if status.displayStatus == "Home", let departureTime = effectiveNextDepartureTime {
                         scheduleLink {
                             CountdownCardView(
-                                title: status.nextDepartureLabel ?? "Leaves In",
+                                title: countdownTitle,
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
                                 color: .blue,
@@ -233,6 +237,25 @@ struct PilotStatusView: View {
                 }
             }
         }
+    }
+
+    private var effectiveNextDepartureTime: Date? {
+        let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
+        if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
+            return nextFlight.startTime
+        }
+        return status.nextDepartureTime
+    }
+
+    private var countdownTitle: String {
+        if let home = status.homeAirportCode {
+            let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
+            if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }),
+               nextFlight.departureAirport == home {
+                return "Leaves Home In"
+            }
+        }
+        return "Leaves In"
     }
 
     @ViewBuilder

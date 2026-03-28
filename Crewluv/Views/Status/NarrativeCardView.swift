@@ -71,15 +71,28 @@ struct NarrativeCardView: View {
         let hasNextTrip = upcomingTrip != nil
 
         if hasPrevTrip, let days = status.lastTripDurationDays, hasNextTrip, let trip = upcomingTrip {
-            let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
             let depText = formattedDepartureDate(trip.departureDate)
-            Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold())! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()).")
+            let durationText = Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()
+            let prevText = Text("\(days) \(days == 1 ? "day" : "days")").bold()
+            if let commuteCity = trip.commuteCity {
+                let dest = trip.firstDestinationCity ?? trip.cityRoute.last ?? "work"
+                Text("\(name) is finally home after being gone for \(prevText)! He commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+            } else {
+                let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
+                Text("\(name) is finally home after being gone for \(prevText)! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+            }
         } else if hasPrevTrip, let days = status.lastTripDurationDays {
             Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
         } else if hasNextTrip, let trip = upcomingTrip {
-            let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
             let depText = formattedDepartureDate(trip.departureDate)
-            Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()).")
+            let durationText = Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()
+            if let commuteCity = trip.commuteCity {
+                let dest = trip.firstDestinationCity ?? trip.cityRoute.last ?? "work"
+                Text("\(name) is home — commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+            } else {
+                let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
+                Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+            }
         } else {
             Text("\(name) is home and relaxing.")
         }
