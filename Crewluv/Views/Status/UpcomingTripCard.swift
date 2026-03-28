@@ -9,6 +9,7 @@ import SwiftUI
 
 struct UpcomingTripCard: View {
     let trip: UpcomingTripInfo
+    var delayedLeg: TripLeg? = nil
     var showChevron: Bool = true
 
     var body: some View {
@@ -27,6 +28,10 @@ struct UpcomingTripCard: View {
                 }
 
                 Spacer()
+
+                if delayedLeg != nil {
+                    delayBadge
+                }
 
                 if showChevron {
                     Image(systemName: "chevron.right")
@@ -79,6 +84,22 @@ struct UpcomingTripCard: View {
         }
     }
 
+    // MARK: - Delay Badge
+
+    private var delayBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.caption2)
+            Text("Delayed")
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.orange, in: Capsule())
+    }
+
     // MARK: - City Route Visual
 
     /// Cap route at 6 visible stops
@@ -125,21 +146,27 @@ struct UpcomingTripCard: View {
 
     // MARK: - Formatted Departure
 
+    private var effectiveDepartureDate: Date {
+        let delay = TimeInterval((delayedLeg?.delayMinutes ?? 0) * 60)
+        return trip.departureDate.addingTimeInterval(delay)
+    }
+
     private var formattedDeparture: String {
         let calendar = Calendar.current
+        let departure = effectiveDepartureDate
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "h:mma"
         timeFormatter.amSymbol = "am"
         timeFormatter.pmSymbol = "pm"
-        let timeStr = timeFormatter.string(from: trip.departureDate)
+        let timeStr = timeFormatter.string(from: departure)
 
-        if calendar.isDateInToday(trip.departureDate) {
+        if calendar.isDateInToday(departure) {
             return "Departs today at \(timeStr)"
-        } else if calendar.isDateInTomorrow(trip.departureDate) {
+        } else if calendar.isDateInTomorrow(departure) {
             return "Departs tomorrow at \(timeStr)"
         } else {
-            let weekday = trip.departureDate.formatted(.dateTime.weekday(.abbreviated))
-            let dateStr = trip.departureDate.formatted(.dateTime.month(.abbreviated).day())
+            let weekday = departure.formatted(.dateTime.weekday(.abbreviated))
+            let dateStr = departure.formatted(.dateTime.month(.abbreviated).day())
             return "Departs \(weekday) \(dateStr) at \(timeStr)"
         }
     }
