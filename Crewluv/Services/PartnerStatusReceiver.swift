@@ -33,7 +33,6 @@ class PartnerStatusReceiver {
     private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
     private var privateDatabase: CKDatabase { container.privateCloudDatabase }
     private let dataSourceKey = "PilotDataSource"
-    private var subscriptionID: String? = nil
     private var rawPilotStatus: SharedPilotStatus?
     private var transitionTask: Task<Void, Never>?
     private var cachedUserRecordName: String?
@@ -107,13 +106,13 @@ class PartnerStatusReceiver {
         }
 
         let syncStartTime = Date()
-        debugLog("[CrewLuve] 🔄 Starting sync at \(syncStartTime.formatted(date: .omitted, time: .standard))")
+        debugLog("[StatusReceiver] Starting sync")
 
         do {
             // Use the account status to check if we have iCloud access
             let accountStatus = try await container.accountStatus()
             guard accountStatus == .available else {
-                debugLog("[CrewLuve] iCloud account not available: \(accountStatus.rawValue)")
+                debugLog("[StatusReceiver] iCloud account not available: \(accountStatus.rawValue)")
                 errorMessage = "Please sign in to iCloud to access shared pilot status."
                 lastSyncError = "iCloud unavailable"
                 hasAcceptedShare = false
@@ -127,11 +126,11 @@ class PartnerStatusReceiver {
             if dataSource == .privateDB {
                 database = privateDatabase
                 ownerName = CKCurrentUserDefaultName
-                debugLog("[CrewLuve] Using private database (same-account mode)")
+                debugLog("[StatusReceiver] Using private database (same-account mode)")
             } else {
                 // Get the stored zone owner name from when the share was accepted
                 guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                    debugLog("[CrewLuve] No stored zone owner - share not yet accepted")
+                    debugLog("[StatusReceiver] No stored zone owner - share not yet accepted")
                     hasAcceptedShare = false
                     lastSyncError = "No share accepted"
                     errorMessage = "Please accept the share invitation from your pilot."
@@ -139,7 +138,7 @@ class PartnerStatusReceiver {
                 }
                 database = sharedDatabase
                 ownerName = storedOwner
-                debugLog("[CrewLuve] Using shared database with zone owner: \(ownerName)")
+                debugLog("[StatusReceiver] Using shared database with zone owner: \(ownerName)")
             }
 
             // Construct the zone ID with the owner name
@@ -148,8 +147,6 @@ class PartnerStatusReceiver {
             // Fetch the SharedPilotStatus record by its well-known ID
             // We use a fixed record name "pilot-status" so we can fetch without querying
             let statusRecordID = CKRecord.ID(recordName: "pilot-status", zoneID: zoneID)
-
-            debugLog("[CrewLuve] Fetching SharedPilotStatus record: \(statusRecordID.recordName)")
 
             let statusRecord = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
                 database.fetch(withRecordID: statusRecordID) { record, error in
@@ -162,9 +159,6 @@ class PartnerStatusReceiver {
                     }
                 }
             }
-
-            debugLog("[CrewLuve] Found shared record: \(statusRecord.recordID.recordName)")
-            debugLog("[CrewLuve] Record modification date: \(statusRecord.modificationDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
 
             guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
                 throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
@@ -184,62 +178,28 @@ class PartnerStatusReceiver {
                 let name = matched ?? (dataSource == .privateDB ? nameMap.min(by: { $0.key < $1.key })?.value : nil)
                 if let name, !name.isEmpty {
                     resolvedDisplayName = name
-                    debugLog("[CrewLuve] Resolved display name: \(name)")
+                    UserDefaults.standard.set(name, forKey: "ResolvedPilotDisplayName")
+                    debugLog("[StatusReceiver] Resolved display name: \(name)")
+                } else {
+                    UserDefaults.standard.removeObject(forKey: "ResolvedPilotDisplayName")
                 }
             }
 
             // Check if data actually changed
-            if let oldStatus = pilotStatus {
-                let changed = oldStatus.lastUpdated != newStatus.lastUpdated
-                debugLog("[CrewLuve] Data changed: \(changed ? "YES" : "NO")")
-                debugLog("[CrewLuve] Old lastUpdated: \(oldStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
-                debugLog("[CrewLuve] New lastUpdated: \(newStatus.lastUpdated.formatted(date: .abbreviated, time: .standard))")
-                
-                // Log key time fields
-                debugLog("[CrewLuve] Old nextDepartureTime: \(oldStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuve] New nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuve] Old homeArrivalTime: \(oldStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuve] New homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-            } else {
-                debugLog("[CrewLuve] First time loading status")
-                debugLog("[CrewLuve] nextDepartureTime: \(newStatus.nextDepartureTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-                debugLog("[CrewLuve] homeArrivalTime: \(newStatus.homeArrivalTime?.formatted(date: .abbreviated, time: .standard) ?? "nil")")
-            }
-            
+            let isInitialLoad = pilotStatus == nil
+            let changed = pilotStatus.map { $0.lastUpdated != newStatus.lastUpdated } ?? true
+            debugLog("[StatusReceiver] Data changed: \(changed ? "YES" : "NO"), initial: \(isInitialLoad)")
+
             logTripLegDiff(old: rawPilotStatus, new: newStatus, recordModDate: statusRecord.modificationDate)
-            let previousRaw = rawPilotStatus
             rawPilotStatus = newStatus
             resolveAndSchedule()
             hasAcceptedShare = true
             lastSyncTime = syncStartTime
             lastSyncError = nil
 
-            // Evaluate changes for local notifications
-            let pilotName = resolvedDisplayName ?? newStatus.pilotFirstName
-            Task.detached {
-                await StatusChangeNotifier.shared.evaluateChanges(
-                    old: previousRaw,
-                    new: newStatus,
-                    pilotName: pilotName
-                )
-            }
-
-            // Set up subscriptions and request notification permission on first successful fetch
-            if previousRaw == nil {
-                Task.detached { [dataSource = self.dataSource] in
-                    if dataSource == .privateDB {
-                        await CloudKitSubscriptionManager.shared.ensurePrivateZoneSubscription()
-                    } else {
-                        await CloudKitSubscriptionManager.shared.ensureSharedDatabaseSubscription()
-                    }
-                    await StatusChangeNotifier.shared.requestAuthorizationIfNeeded()
-                }
-            }
-            
-            let syncDuration = Date().timeIntervalSince(syncStartTime)
-            debugLog("[CrewLuve] ✅ Successfully loaded pilot status (took \(String(format: "%.2f", syncDuration))s)")
+            debugLog("[StatusReceiver] Sync complete")
         } catch {
-            debugLog("[CrewLuve] ❌ Error fetching status: \(error)")
+            debugLog("[StatusReceiver] ❌ Error fetching status: \(error)")
             lastSyncError = error.localizedDescription
             // Keep hasAcceptedShare true if we have a known data source
             if dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
@@ -264,15 +224,15 @@ class PartnerStatusReceiver {
 
     /// Check the private database for PartnerBeaconZone (same-account scenario)
     private func checkPrivateDatabase() async {
-        debugLog("[CrewLuve] Checking private database for PartnerBeaconZone...")
+        debugLog("[StatusReceiver] Checking private database for PartnerBeaconZone...")
 
         do {
             let allZones = try await privateDatabase.allRecordZones()
-            debugLog("[CrewLuve] Found \(allZones.count) private zones")
+            debugLog("[StatusReceiver] Found \(allZones.count) private zones")
 
             for zone in allZones {
                 if zone.zoneID.zoneName == "PartnerBeaconZone" {
-                    debugLog("[CrewLuve] ✅ Found PartnerBeaconZone in private database!")
+                    debugLog("[StatusReceiver] ✅ Found PartnerBeaconZone in private database!")
                     dataSource = .privateDB
                     UserDefaults.standard.set(DataSource.privateDB.rawValue, forKey: dataSourceKey)
                     await checkForSharedData()
@@ -280,9 +240,9 @@ class PartnerStatusReceiver {
                 }
             }
 
-            debugLog("[CrewLuve] No PartnerBeaconZone in private database")
+            debugLog("[StatusReceiver] No PartnerBeaconZone in private database")
         } catch {
-            debugLog("[CrewLuve] Error checking private database: \(error)")
+            debugLog("[StatusReceiver] Error checking private database: \(error)")
         }
     }
 
@@ -394,7 +354,7 @@ class PartnerStatusReceiver {
         )
 
         let transitionInfo = resolved?.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil"
-        debugLog("[CrewLuve] Resolved status: \(displayStatus), next transition in \(transitionInfo)s")
+        debugLog("[StatusReceiver] Resolved status: \(displayStatus), next transition in \(transitionInfo)s")
 
         // Schedule re-resolve at next leg boundary for real-time updates
         transitionTask?.cancel()

@@ -27,7 +27,7 @@ import Foundation
 ///   - items: Zero or more items to print (same as print())
 ///   - separator: String to print between items (default: space)
 ///   - terminator: String to print after all items (default: newline)
-func debugLog(_ items: Any..., separator: String = " ", terminator: String = "\n") {
+nonisolated func debugLog(_ items: Any..., separator: String = " ", terminator: String = "\n") {
     #if DEBUG
     let output = items.map { String(describing: $0) }.joined(separator: separator)
     print(output, terminator: terminator)

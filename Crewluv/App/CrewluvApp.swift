@@ -10,6 +10,7 @@ import SwiftUI
 // Notification names
 extension Notification.Name {
     static let shareAccepted = Notification.Name("shareAccepted")
+    static let cloudKitPushReceived = Notification.Name("cloudKitPushReceived")
 }
 
 @main
@@ -28,13 +29,9 @@ struct CrewluvApp: App {
                 .environment(purchaseManager)
                 .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                    debugLog("[CrewLuve] 📲 onContinueUserActivity triggered")
-                    debugLog("[CrewLuve]   activityType: \(userActivity.activityType)")
-                    debugLog("[CrewLuve]   webpageURL: \(userActivity.webpageURL?.absoluteString ?? "nil")")
+                    debugLog("[CrewLuve] onContinueUserActivity: \(userActivity.webpageURL?.absoluteString ?? "nil")")
                     if let url = userActivity.webpageURL {
                         handleShareURL(url)
-                    } else {
-                        debugLog("[CrewLuve] No URL in user activity")
                     }
                 }
                 .onOpenURL { url in
@@ -45,7 +42,6 @@ struct CrewluvApp: App {
     }
 
     private func handleShareURL(_ url: URL) {
-        debugLog("[CrewLuve] 🔗 Processing share URL: \(url)")
         Task {
             do {
                 try await shareManager.acceptShare(from: url)

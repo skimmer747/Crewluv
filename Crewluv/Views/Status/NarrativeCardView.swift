@@ -156,11 +156,11 @@ struct NarrativeCardView: View {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
                     if let dep, let dest {
-                        Text("\(name) was delayed in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name) was delayed in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
                     } else if let dest {
-                        Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr) — landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
                     } else {
-                        Text("\(name)'s delayed flight — landing in \(delayCountdownText(to: shiftedArr)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s delayed flight — landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
                     }
                 } else if let dest {
                     Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr)")
@@ -195,11 +195,11 @@ struct NarrativeCardView: View {
             if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name) is delayed in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) is delayed in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: .red)) which is \(Text(depTimeStr).bold()).")
             } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name) is delayed in \(Text(city).bold()) — next flight in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) is delayed in \(Text(city).bold()) — next flight in \(countdownText(to: shiftedTime, color: .red)) which is \(Text(depTimeStr).bold()).")
             } else if let city = status.currentCity {
                 Text("\(name) is delayed in \(Text(city).bold()) between flights")
             } else {
@@ -226,11 +226,11 @@ struct NarrativeCardView: View {
             if let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) and will now fly to \(Text(dest).bold()) in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) and will now fly to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: .red)) which is \(Text(depTimeStr).bold()).")
             } else if let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) — next flight in \(delayCountdownText(to: shiftedTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name)'s layover has been extended by \(Text(delayStr).bold()) — next flight in \(countdownText(to: shiftedTime, color: .red)) which is \(Text(depTimeStr).bold()).")
             } else if let city = status.currentCity {
                 Text("\(name)'s layover in \(Text(city).bold()) has been extended by \(Text(delayStr).bold()).")
             } else {
@@ -389,53 +389,29 @@ struct NarrativeCardView: View {
 
     // MARK: - Countdown Formatting
 
-    private func countdownText(to target: Date) -> Text {
+    private func countdownText(to target: Date, color: Color? = nil) -> Text {
+        let resolvedColor = color ?? statusColor
         let interval = target.timeIntervalSince(now)
         guard interval > 0 else {
-            return Text("now!").bold().foregroundColor(statusColor)
+            return Text("now!").bold().foregroundColor(resolvedColor)
         }
 
         let days = Int(interval) / 86400
         let hours = (Int(interval) % 86400) / 3600
         let minutes = (Int(interval) % 3600) / 60
-        let seconds = Int(interval) % 60
 
         let formatted: String
         if days > 0 {
-            formatted = "\(days)d \(hours)h \(minutes)m \(seconds)s"
+            formatted = "\(days)d \(hours)h \(minutes)m"
         } else if hours > 0 {
-            formatted = "\(hours)h \(minutes)m \(seconds)s"
+            formatted = "\(hours)h \(minutes)m"
         } else if minutes > 0 {
-            formatted = "\(minutes)m \(seconds)s"
+            formatted = "\(minutes)m"
         } else {
-            formatted = "\(seconds)s"
+            // Under one minute: show a friendly floor so we don't flash "0m".
+            formatted = "<1m"
         }
-        return Text(formatted).bold().foregroundColor(statusColor).monospacedDigit()
-    }
-
-    /// Countdown text colored red for delay-shifted times
-    private func delayCountdownText(to target: Date) -> Text {
-        let interval = target.timeIntervalSince(now)
-        guard interval > 0 else {
-            return Text("now!").bold().foregroundColor(.red)
-        }
-
-        let days = Int(interval) / 86400
-        let hours = (Int(interval) % 86400) / 3600
-        let minutes = (Int(interval) % 3600) / 60
-        let seconds = Int(interval) % 60
-
-        let formatted: String
-        if days > 0 {
-            formatted = "\(days)d \(hours)h \(minutes)m \(seconds)s"
-        } else if hours > 0 {
-            formatted = "\(hours)h \(minutes)m \(seconds)s"
-        } else if minutes > 0 {
-            formatted = "\(minutes)m \(seconds)s"
-        } else {
-            formatted = "\(seconds)s"
-        }
-        return Text(formatted).bold().foregroundColor(.red).monospacedDigit()
+        return Text(formatted).bold().foregroundColor(resolvedColor).monospacedDigit()
     }
 
     // MARK: - City Name Helpers

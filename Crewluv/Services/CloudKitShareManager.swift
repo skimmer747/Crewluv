@@ -116,40 +116,38 @@ final class CloudKitShareManager {
     /// Checks for recently accepted shares in the shared CloudKit database
     /// Useful for detecting shares accepted outside the app (e.g., from system share sheet)
     func checkForAcceptedShares() async {
-        debugLog("[CrewLuve] Checking for accepted shares...")
+        debugLog("[ShareManager] Checking for accepted shares...")
 
         let sharedDatabase = container.sharedCloudDatabase
 
         // Try multiple times with delays to handle CloudKit sync timing
         for attempt in 1...3 {
-            debugLog("[CrewLuve] Attempt \(attempt) to find shared zones...")
+            debugLog("[ShareManager] Attempt \(attempt) to find shared zones...")
 
             do {
                 let allZones = try await sharedDatabase.allRecordZones()
-                debugLog("[CrewLuve] Found \(allZones.count) shared zones")
+                debugLog("[ShareManager] Found \(allZones.count) shared zones")
 
                 // Look for PartnerBeaconZone
                 for zone in allZones {
-                    debugLog("[CrewLuve] Checking zone: \(zone.zoneID.zoneName) owned by \(zone.zoneID.ownerName)")
-
                     if zone.zoneID.zoneName == "PartnerBeaconZone" {
-                        debugLog("[CrewLuve] Found PartnerBeaconZone!")
+                        debugLog("[ShareManager] Found PartnerBeaconZone!")
 
                         // Store the zone owner name
                         let ownerName = zone.zoneID.ownerName
                         UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
-                        debugLog("[CrewLuve] Stored zone owner: \(ownerName)")
+                        debugLog("[ShareManager] Stored zone owner: \(ownerName)")
 
                         // Notify the app to refresh
                         NotificationCenter.default.post(name: .shareAccepted, object: nil)
-                        debugLog("[CrewLuve] Posted share acceptance notification")
+                        debugLog("[ShareManager] Posted share acceptance notification")
                         return
                     }
                 }
 
-                debugLog("[CrewLuve] No PartnerBeaconZone found in shared zones")
+                debugLog("[ShareManager] No PartnerBeaconZone found in shared zones")
             } catch {
-                debugLog("[CrewLuve] Error checking for shares (attempt \(attempt)): \(error)")
+                debugLog("[ShareManager] Error checking for shares (attempt \(attempt)): \(error)")
             }
 
             // Wait before retrying (except on last attempt)
@@ -158,7 +156,7 @@ final class CloudKitShareManager {
             }
         }
 
-        debugLog("[CrewLuve] No shared zones found after all attempts")
+        debugLog("[ShareManager] No shared zones found after all attempts")
     }
 
     /// Clears stored zone owner information
@@ -166,7 +164,11 @@ final class CloudKitShareManager {
     func resetShareData() {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
         UserDefaults.standard.removeObject(forKey: "PilotDataSource")
-        debugLog("[CrewLuve] Cleared stored zone owner and data source")
+        debugLog("[ShareManager] Cleared stored zone owner and data source")
+
+        Task.detached {
+            await CloudKitSubscriptionManager.shared.removeAllSubscriptions()
+        }
     }
 
     /// Resets the share state to idle

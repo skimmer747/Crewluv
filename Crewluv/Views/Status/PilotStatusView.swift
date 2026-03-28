@@ -314,7 +314,7 @@ struct CountdownCardView: View {
         for (index, component) in components.enumerated() {
             let str = String(component)
             
-            // Find where the unit letter starts (d, h, or m)
+            // Find where the unit letter starts (d, h, m, or s)
             if let unitIndex = str.firstIndex(where: { $0.isLetter }) {
                 let number = String(str[..<unitIndex])
                 let unit = String(str[unitIndex...])
@@ -352,13 +352,14 @@ struct CountdownCardView: View {
         let days = Int(interval) / 86400
         let hours = (Int(interval) % 86400) / 3600
         let minutes = (Int(interval) % 3600) / 60
+        let seconds = Int(interval) % 60
 
         if days > 0 {
             timeRemaining = String(format: "%dd %02dh %02dm", days, hours, minutes)
         } else if hours > 0 {
             timeRemaining = String(format: "%dh %02dm", hours, minutes)
         } else {
-            timeRemaining = String(format: "%dm", minutes)
+            timeRemaining = String(format: "%dm %02ds", minutes, seconds)
         }
     }
 }
@@ -686,31 +687,32 @@ struct LocationCardView: View {
 
     // MARK: - Helper Methods
 
-    private func loadWeather() async {
-        guard let iata = status.currentAirport,
+    private func fetchWeather(for iataCode: String?) async -> WeatherSnapshot? {
+        guard let iata = iataCode,
               let airport = AirportDataProvider.shared.airportInfo(forIataCode: iata) else {
-            currentWeather = nil
-            return
+            return nil
         }
-        currentWeather = await WeatherService.shared.currentWeather(
+        return await WeatherService.shared.currentWeather(
             forAirport: iata,
             latitude: airport.latitude,
             longitude: airport.longitude
         )
     }
 
-    private func loadHomeWeather() async {
-        guard let homeIata = status.homeAirportCode,
-              let airport = AirportDataProvider.shared.airportInfo(forIataCode: homeIata) else {
-            homeWeather = nil
-            return
-        }
-        homeWeather = await WeatherService.shared.currentWeather(
-            forAirport: homeIata,
-            latitude: airport.latitude,
-            longitude: airport.longitude
-        )
+    private func loadWeather() async {
+        currentWeather = await fetchWeather(for: status.currentAirport)
     }
+
+    private func loadHomeWeather() async {
+        homeWeather = await fetchWeather(for: status.homeAirportCode)
+    }
+
+    private static let liveTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.dateStyle = .none
+        return f
+    }()
 
     private func updateLiveLocalTime() {
         // When in-flight, show arrival airport's local time; otherwise departure/current
@@ -724,11 +726,8 @@ struct LocationCardView: View {
             return
         }
 
-        let formatter = DateFormatter()
-        formatter.timeZone = timezone
-        formatter.timeStyle = .short
-        formatter.dateStyle = .none
-        liveLocalTime = formatter.string(from: Date())
+        Self.liveTimeFormatter.timeZone = timezone
+        liveLocalTime = Self.liveTimeFormatter.string(from: Date())
     }
 }
 
