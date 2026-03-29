@@ -34,7 +34,7 @@ class PurchaseManager {
         // Xcode debug builds are never treated as TestFlight; use debug tools to test IAP.
         return false
         #else
-        guard case .verified(let appTransaction) = await AppTransaction.shared else {
+        guard case .verified(let appTransaction) = try? await AppTransaction.shared else {
             return false
         }
         // TestFlight installs report `.sandbox` for the app’s purchase environment.

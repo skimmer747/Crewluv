@@ -111,7 +111,7 @@ actor CloudKitSubscriptionManager {
             try await container.sharedCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: sharedSubKey)
             debugLog("[SubManager] Shared database subscription created: \(subscriptionID)")
-            await verifySubscriptionServerSide(database: container.sharedCloudDatabase, expectedID: subscriptionID)
+            await verifySubscriptionServerSide(database: container.sharedCloudDatabase, expectedID: subscriptionID, userDefaultsKey: sharedSubKey)
         } catch {
             debugLog("[SubManager] Failed to create shared database subscription: \(error)")
         }
@@ -141,7 +141,7 @@ actor CloudKitSubscriptionManager {
             try await container.privateCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: privateSubKey)
             debugLog("[SubManager] Private zone subscription created: \(subscriptionID)")
-            await verifySubscriptionServerSide(database: container.privateCloudDatabase, expectedID: subscriptionID)
+            await verifySubscriptionServerSide(database: container.privateCloudDatabase, expectedID: subscriptionID, userDefaultsKey: privateSubKey)
         } catch {
             debugLog("[SubManager] Failed to create private zone subscription: \(error)")
         }
@@ -151,12 +151,25 @@ actor CloudKitSubscriptionManager {
 
     /// Fetches all subscriptions from the database and confirms ours is present.
     /// Eliminates phantom saves where `save()` succeeds locally but the subscription doesn't persist server-side.
-    private func verifySubscriptionServerSide(database: CKDatabase, expectedID: String) async {
+    /// When the subscription is missing, clears the persisted flag so the next `ensure*` call recreates it.
+    private func verifySubscriptionServerSide(
+        database: CKDatabase,
+        expectedID: String,
+        userDefaultsKey: String
+    ) async {
         do {
             let serverSubscriptions = try await database.allSubscriptions()
             let ids = serverSubscriptions.map(\.subscriptionID)
             let isConfirmed = ids.contains(expectedID)
             debugLog("[SubManager] Server verification: \(expectedID) confirmed=\(isConfirmed), all IDs=\(ids)")
+
+            if !isConfirmed {
+                // The save() appeared to succeed but the subscription isn't actually on the server.
+                // Clear the stored flag so the subscription will be recreated on the next verification cycle
+                // rather than silently staying broken.
+                debugLog("[SubManager] Subscription \(expectedID) NOT found server-side — clearing persisted flag for key '\(userDefaultsKey)'")
+                UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            }
         } catch {
             debugLog("[SubManager] Server verification fetch failed: \(error)")
         }

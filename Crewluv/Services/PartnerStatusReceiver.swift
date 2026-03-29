@@ -164,6 +164,8 @@ class PartnerStatusReceiver {
                 throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
             }
 
+            debugLog("[StatusReceiver] Raw delay: \(newStatus.flightDelayMinutes.map(String.init) ?? "nil"), effective: \(newStatus.effectiveFlightDelayMinutes.map(String.init) ?? "nil")")
+
             // Resolve per-partner display name (stored separately — model stays immutable).
             // Reset so removals are reflected.
             resolvedDisplayName = nil
@@ -189,6 +191,17 @@ class PartnerStatusReceiver {
             let isInitialLoad = pilotStatus == nil
             let changed = pilotStatus.map { $0.lastUpdated != newStatus.lastUpdated } ?? true
             debugLog("[StatusReceiver] Data changed: \(changed ? "YES" : "NO"), initial: \(isInitialLoad)")
+
+            if changed {
+                let effectiveDelay = newStatus.effectiveFlightDelayMinutes
+                let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
+                    ?? newStatus.pilotFirstName
+                Task.detached {
+                    await StatusChangeNotifier.shared.evaluateChanges(
+                        old: nil, new: newStatus, pilotName: pilotName, newEffectiveDelay: effectiveDelay
+                    )
+                }
+            }
 
             logTripLegDiff(old: rawPilotStatus, new: newStatus, recordModDate: statusRecord.modificationDate)
             rawPilotStatus = newStatus
@@ -274,7 +287,7 @@ class PartnerStatusReceiver {
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
 
         let now = Date()
-        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, at: now)
+        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, at: now)
 
         // If resolver found an active leg, use its real-time data for status/location/flight.
         // Otherwise, trust Duty's pre-computed values entirely.
@@ -318,18 +331,18 @@ class PartnerStatusReceiver {
             isHome: raw.isHome,
             isInFlight: isInFlight,
             isOnDuty: raw.isOnDuty,
-            currentAirport: resolved?.currentAirport ?? raw.currentAirport,
+            currentAirport: resolved.flatMap(\.currentAirport) ?? raw.currentAirport,
             currentCity: resolved.map { $0.isInFlight ? nil : $0.currentCity } ?? raw.currentCity,
-            currentTimezone: resolved?.currentTimezone ?? raw.currentTimezone,
+            currentTimezone: resolved.flatMap(\.currentTimezone) ?? raw.currentTimezone,
             localTimeAtPilot: resolved == nil ? raw.localTimeAtPilot : nil,
             currentLatitude: resolved == nil ? raw.currentLatitude : nil,
             currentLongitude: resolved == nil ? raw.currentLongitude : nil,
-            currentFlightNumber: resolved?.currentFlightNumber ?? raw.currentFlightNumber,
-            currentFlightDeparture: resolved?.currentFlightDeparture ?? raw.currentFlightDeparture,
-            currentFlightArrival: resolved?.currentFlightArrival ?? raw.currentFlightArrival,
-            currentFlightDepartureTime: resolved?.currentFlightDepartureTime ?? raw.currentFlightDepartureTime,
-            currentFlightArrivalTime: resolved?.currentFlightArrivalTime ?? raw.currentFlightArrivalTime,
-            currentFlightArrivalTimezone: resolved?.currentFlightArrivalTimezone ?? raw.currentFlightArrivalTimezone,
+            currentFlightNumber: resolved.flatMap(\.currentFlightNumber) ?? raw.currentFlightNumber,
+            currentFlightDeparture: resolved.flatMap(\.currentFlightDeparture) ?? raw.currentFlightDeparture,
+            currentFlightArrival: resolved.flatMap(\.currentFlightArrival) ?? raw.currentFlightArrival,
+            currentFlightDepartureTime: resolved.flatMap(\.currentFlightDepartureTime) ?? raw.currentFlightDepartureTime,
+            currentFlightArrivalTime: resolved.flatMap(\.currentFlightArrivalTime) ?? raw.currentFlightArrivalTime,
+            currentFlightArrivalTimezone: resolved.flatMap(\.currentFlightArrivalTimezone) ?? raw.currentFlightArrivalTimezone,
             homeArrivalTime: effectiveHomeArrivalTime,
             homeArrivalLabel: effectiveHomeArrivalLabel,
             homeArrivalCity: effectiveHomeArrivalCity,
@@ -347,7 +360,7 @@ class PartnerStatusReceiver {
             quickStatus: raw.quickStatus,
             quickStatusIcon: raw.quickStatusIcon,
             quickStatusExpiry: raw.quickStatusExpiry,
-            flightDelayMinutes: resolved?.flightDelayMinutes ?? raw.flightDelayMinutes,
+            flightDelayMinutes: resolved.flatMap(\.flightDelayMinutes) ?? raw.flightDelayMinutes,
             displayNameByPartnerJSON: raw.displayNameByPartnerJSON,
             lastUpdated: raw.lastUpdated,
             appVersion: raw.appVersion

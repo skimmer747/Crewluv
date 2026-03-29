@@ -98,6 +98,7 @@ struct ContentView: View {
                     if !receiver.isSyncing {
                         Task { await receiver.refresh() }
                     }
+                    Task { await BackgroundRefreshManager.shared.scheduleNextRefresh() }
                 }
             }
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)

@@ -65,37 +65,43 @@ struct NarrativeCardView: View {
 
     private var name: String { status.pilotFirstName }
 
-    @ViewBuilder
-    private var homeNarrative: some View {
+    private var homeNarrative: Text {
         let hasPrevTrip = status.lastTripDurationDays != nil
         let hasNextTrip = upcomingTrip != nil
 
+        let base: Text
         if hasPrevTrip, let days = status.lastTripDurationDays, hasNextTrip, let trip = upcomingTrip {
             let depText = formattedDepartureDate(trip.departureDate)
             let durationText = Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()
             let prevText = Text("\(days) \(days == 1 ? "day" : "days")").bold()
             if let commuteCity = trip.commuteCity {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.last ?? "work"
-                Text("\(name) is finally home after being gone for \(prevText)! He commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is finally home after being gone for \(prevText)! He commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
             } else {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
-                Text("\(name) is finally home after being gone for \(prevText)! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is finally home after being gone for \(prevText)! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
             }
         } else if hasPrevTrip, let days = status.lastTripDurationDays {
-            Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
+            base = Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
         } else if hasNextTrip, let trip = upcomingTrip {
             let depText = formattedDepartureDate(trip.departureDate)
             let durationText = Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()
             if let commuteCity = trip.commuteCity {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.last ?? "work"
-                Text("\(name) is home — commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is home — commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
             } else {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
-                Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is home — heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
             }
         } else {
-            Text("\(name) is home and relaxing.")
+            base = Text("\(name) is home and relaxing.")
         }
+
+        guard status.hasFlightDelay, let leg = status.delayedFlightLeg,
+              let delay = leg.delayMinutes else { return base }
+        let dest = leg.arrivalCity ?? leg.arrivalAirport ?? "destination"
+        let delayStr = formattedDelayDuration(delay)
+        return Text("\(base) His flight to \(Text(dest).bold()) is delayed \(Text(delayStr).bold()).")
     }
 
     @ViewBuilder
@@ -147,7 +153,7 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var inFlightNarrative: some View {
         let verb = currentFlightIsCommercial ? "riding" : "flying"
-        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+        if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
             // Delayed flight narrative
             let dest = currentArrivalCity()
             let dep = currentDepartureCity()
@@ -203,7 +209,7 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var turnNarrative: some View {
-        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+        if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
             // Delay-aware turn narrative with shifted departure time
             if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
@@ -233,7 +239,7 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var layoverNarrative: some View {
-        if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+        if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
             // Delay-aware layover narrative with human-readable delay and shifted departure
             let delayStr = formattedDelayDuration(delayMinutes)
             if let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {

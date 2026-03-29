@@ -41,7 +41,7 @@ struct FlightRouteMapView: View {
     }
 
     private var delayInterval: TimeInterval {
-        status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+        status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
     }
 
     private var isInFlight: Bool {
@@ -368,7 +368,7 @@ struct FlightRouteMapView: View {
 
         let rawDepTime = status.currentFlightDepartureTime ?? Date()
         let rawArrTime = status.currentFlightArrivalTime ?? Date()
-        let delay: TimeInterval = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+        let delay: TimeInterval = status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
         let depTime = rawDepTime.addingTimeInterval(delay)
         let arrTime = rawArrTime.addingTimeInterval(delay)
 

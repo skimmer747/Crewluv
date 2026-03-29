@@ -49,7 +49,7 @@ enum TripStateResolver {
     /// Derive real-time status from trip legs.
     /// Handles both active legs (startTime <= now < endTime) and gaps between legs.
     /// Returns `nil` only when no leg has completed yet (before first leg starts)
-    static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, at now: Date) -> ActiveLegState? {
+    static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
         // Standard active candidates: startTime <= now < endTime
@@ -81,7 +81,7 @@ enum TripStateResolver {
         // Delayed flight wins over ground legs that assumed on-time arrival
         guard let leg = (delayedFlight ?? primary) else {
             // No active leg spans `now` — derive state from surrounding legs (gap handling)
-            return resolveGap(sorted: sorted, flightDelayMinutes: flightDelayMinutes, at: now)
+            return resolveGap(sorted: sorted, flightDelayMinutes: flightDelayMinutes, homeAirportCode: homeAirportCode, at: now)
         }
 
         let isInFlight = leg.type == .flight
@@ -260,7 +260,7 @@ enum TripStateResolver {
     /// which may be stale for cross-trip or jumpseat flights.
     ///
     /// Returns `nil` only when no leg has completed yet (before the first leg starts).
-    private static func resolveGap(sorted: [TripLeg], flightDelayMinutes: Int?, at now: Date) -> ActiveLegState? {
+    private static func resolveGap(sorted: [TripLeg], flightDelayMinutes: Int?, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
         guard let completedLeg = sorted.last(where: { $0.endTime <= now }) else {
             return nil
         }
@@ -282,6 +282,36 @@ enum TripStateResolver {
             airport = completedLeg.airportCode
             city = completedLeg.city
             timezone = completedLeg.timezoneIdentifier
+        }
+
+        // Detect home-between-trips: no next leg, or gap > 24 hours means the trip is over.
+        // If the pilot is at their home airport, return "Home" so the view shows "Leaves In".
+        let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
+        let isEndOfTrip = nextLeg == nil || nextLeg!.startTime.timeIntervalSince(now) > maxGapBetweenLegs
+
+        if isEndOfTrip {
+            if let home = homeAirportCode,
+               let current = airport,
+               current.caseInsensitiveCompare(home) == .orderedSame {
+                let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+                return ActiveLegState(
+                    displayStatus: "Home",
+                    isInFlight: false,
+                    currentAirport: airport,
+                    currentCity: city,
+                    currentTimezone: timezone,
+                    currentFlightNumber: nil,
+                    currentFlightDeparture: nil,
+                    currentFlightArrival: nil,
+                    currentFlightDepartureTime: nil,
+                    currentFlightArrivalTime: nil,
+                    currentFlightArrivalTimezone: nil,
+                    flightDelayMinutes: nil,
+                    timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
+                )
+            }
+            // Not at home airport — return nil to fall back to Duty's raw displayStatus
+            return nil
         }
 
         // Propagate per-leg delay from the next upcoming flight

@@ -55,19 +55,24 @@ actor StatusChangeNotifier {
 
     // MARK: - Evaluate Changes
 
-    func evaluateChanges(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String) {
-        performEvaluation(old: old, new: new, pilotName: pilotName)
+    /// - Parameter newEffectiveDelay: Pre-computed effective delay for `new`, computed
+    ///   on the MainActor side since `tripLegs` requires MainActor access.
+    func evaluateChanges(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil) {
+        performEvaluation(old: old, new: new, pilotName: pilotName, newEffectiveDelay: newEffectiveDelay)
     }
 
-    private func performEvaluation(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String) {
+    private func performEvaluation(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil) {
         let snapshot = loadSnapshot()
+        let resolvedNewDelay = newEffectiveDelay ?? new.flightDelayMinutes ?? 0
 
         // First-ever load — save snapshot, no notifications
         guard let baseline = old ?? snapshotToComparable(snapshot) else {
-            saveSnapshot(from: new)
+            saveSnapshot(from: new, effectiveDelay: newEffectiveDelay)
             debugLog("[Notifier] First load — saving baseline, no notifications")
             return
         }
+
+        debugLog("[Notifier] Baseline delay: \(baseline.flightDelayMinutes ?? 0), new delay: \(resolvedNewDelay)")
 
         var notifications: [NotificationSpec] = []
 
@@ -78,13 +83,13 @@ actor StatusChangeNotifier {
         notifications += evaluateQuickStatus(old: baseline, new: new, name: pilotName)
 
         // Flight delay
-        notifications += evaluateFlightDelay(old: baseline, new: new, name: pilotName)
+        notifications += evaluateFlightDelay(old: baseline, new: new, name: pilotName, newEffectiveDelay: newEffectiveDelay)
 
         // Display status transitions
         notifications += evaluateStatusTransitions(old: baseline, new: new, name: pilotName)
 
         // Save updated snapshot
-        saveSnapshot(from: new)
+        saveSnapshot(from: new, effectiveDelay: newEffectiveDelay)
 
         // Fire notifications
         for spec in notifications {
@@ -229,10 +234,12 @@ actor StatusChangeNotifier {
     private func evaluateFlightDelay(
         old: SharedPilotStatus,
         new: SharedPilotStatus,
-        name: String
+        name: String,
+        newEffectiveDelay: Int? = nil
     ) -> [NotificationSpec] {
+        // Baseline's flightDelayMinutes already holds the effective value from the previous snapshot.
         let oldDelay = old.flightDelayMinutes ?? 0
-        let newDelay = new.flightDelayMinutes ?? 0
+        let newDelay = newEffectiveDelay ?? new.flightDelayMinutes ?? 0
 
         guard oldDelay != newDelay else { return [] }
 
@@ -305,6 +312,8 @@ actor StatusChangeNotifier {
             trigger: nil // Fire immediately
         )
 
+        NotificationDiagnostics.shared.record(.localNotificationFired)
+
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
                 debugLog("[Notifier] Failed to schedule \(spec.id): \(error)")
@@ -314,10 +323,10 @@ actor StatusChangeNotifier {
 
     // MARK: - Snapshot Persistence
 
-    private func saveSnapshot(from status: SharedPilotStatus) {
+    private func saveSnapshot(from status: SharedPilotStatus, effectiveDelay: Int? = nil) {
         let snapshot = PilotSnapshot(
             quickStatus: status.quickStatus,
-            flightDelayMinutes: status.flightDelayMinutes,
+            flightDelayMinutes: effectiveDelay ?? status.flightDelayMinutes,
             displayStatus: status.displayStatus,
             currentTripId: status.currentTripId,
             tripTotalDays: status.tripTotalDays,

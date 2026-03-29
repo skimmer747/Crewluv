@@ -34,6 +34,9 @@ struct PilotStatusView: View {
     var onRefresh: (() -> Void)? = nil
 
     @State private var showSchedule = false
+    #if DEBUG
+    @State private var showDiagnostics = false
+    #endif
 
     /// Derive upcoming trip info once from trip legs (single source of truth)
     private var upcomingTrip: UpcomingTripInfo? {
@@ -77,7 +80,7 @@ struct PilotStatusView: View {
                                 title: countdownTitle,
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
-                                color: .blue,
+                                color: status.hasFlightDelay ? .orange : .blue,
                                 showChevron: !isCompanionLayout
                             )
                             .contentShape(.rect)
@@ -102,7 +105,7 @@ struct PilotStatusView: View {
 
                     // Countdown Timer (if not home) — taps open schedule
                     if let rawHomeTime = status.homeArrivalTime, status.displayStatus != "Home" {
-                        let delayShift = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+                        let delayShift = status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
                         let homeTime = rawHomeTime.addingTimeInterval(delayShift)
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
@@ -166,6 +169,7 @@ struct PilotStatusView: View {
                         scheduleLink {
                             UpcomingTripCard(
                                 trip: trip,
+                                delayedLeg: status.delayedFlightLeg,
                                 showChevron: !isCompanionLayout
                             )
                             .contentShape(.rect)
@@ -201,6 +205,12 @@ struct PilotStatusView: View {
                             lastSyncTime: lastSyncTime,
                             lastSyncError: lastSyncError
                         )
+                        #if DEBUG
+                        .onLongPressGesture { showDiagnostics = true }
+                        .sheet(isPresented: $showDiagnostics) {
+                            NotificationDiagnosticsView()
+                        }
+                        #endif
 
                         Spacer()
 
@@ -225,7 +235,7 @@ struct PilotStatusView: View {
             if let anchor,
                let rawHomeTime = status.homeArrivalTime,
                !["Home", "Base"].contains(status.displayStatus) {
-                let delayShift = status.hasFlightDelay ? TimeInterval((status.flightDelayMinutes ?? 0) * 60) : 0
+                let delayShift = status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
                 let homeTime = rawHomeTime.addingTimeInterval(delayShift)
                 if homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
                     GeometryReader { proxy in
@@ -242,7 +252,8 @@ struct PilotStatusView: View {
     private var effectiveNextDepartureTime: Date? {
         let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
         if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
-            return nextFlight.startTime
+            let delay = TimeInterval((nextFlight.delayMinutes ?? 0) * 60)
+            return nextFlight.startTime.addingTimeInterval(delay)
         }
         return status.nextDepartureTime
     }
@@ -419,7 +430,7 @@ struct LocationCardView: View {
             FlightRouteMapView(status: status)
 
             // Delay banner
-            if status.hasFlightDelay, let delayMinutes = status.flightDelayMinutes {
+            if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -587,7 +598,7 @@ struct LocationCardView: View {
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
                     nextDepartureTime: effectiveNextDepartureTime,
-                    flightDelayMinutes: status.flightDelayMinutes,
+                    flightDelayMinutes: status.effectiveFlightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
                     homeTimezone: status.homeTimezone
@@ -632,7 +643,7 @@ struct LocationCardView: View {
                     cityName: status.currentCity ?? "Unknown",
                     weather: weather,
                     nextDepartureTime: effectiveNextDepartureTime,
-                    flightDelayMinutes: status.flightDelayMinutes,
+                    flightDelayMinutes: status.effectiveFlightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
                     homeTimezone: status.homeTimezone
@@ -646,7 +657,8 @@ struct LocationCardView: View {
     private var effectiveNextDepartureTime: Date? {
         let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
         if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
-            return nextFlight.startTime
+            let delay = TimeInterval((nextFlight.delayMinutes ?? 0) * 60)
+            return nextFlight.startTime.addingTimeInterval(delay)
         }
         return status.nextDepartureTime
     }

@@ -90,7 +90,20 @@ struct SharedPilotStatus: Codable, Sendable {
 
     let flightDelayMinutes: Int?      // Delay duration in minutes (nil = no delay)
 
-    var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
+    /// The delay in minutes from either the record-level field or the first
+    /// per-leg delay found on an upcoming flight, whichever is set.
+    var effectiveFlightDelayMinutes: Int? {
+        if let delay = flightDelayMinutes, delay > 0 { return delay }
+        return tripLegs
+            .first(where: { $0.type == .flight && ($0.delayMinutes ?? 0) > 0 })?.delayMinutes
+    }
+
+    var hasFlightDelay: Bool { (effectiveFlightDelayMinutes ?? 0) > 0 }
+
+    /// The specific flight leg that has a delay, if any.
+    var delayedFlightLeg: TripLeg? {
+        tripLegs.first(where: { $0.type == .flight && ($0.delayMinutes ?? 0) > 0 })
+    }
 
     // MARK: - Per-Partner Display Names
 

@@ -17,10 +17,25 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        BackgroundRefreshManager.shared.registerTask()
         UNUserNotificationCenter.current().delegate = self
         application.registerForRemoteNotifications()
         Task { await StatusChangeNotifier.shared.requestAuthorizationIfNeeded() }
         Task { await CloudKitSubscriptionManager.shared.verifySubscriptions() }
+
+        // Clean up stale CK push notifications from force-quit scenario
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let delivered = await center.deliveredNotifications()
+            let staleIds = delivered
+                .filter { $0.request.content.categoryIdentifier == "CK_STATUS_UPDATE" }
+                .map { $0.request.identifier }
+            if !staleIds.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: staleIds)
+                debugLog("[AppDelegate] Cleaned up \(staleIds.count) stale CK notification(s)")
+            }
+        }
+
         return true
     }
 
@@ -31,6 +46,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         debugLog("[AppDelegate] Registered for remote notifications")
+        NotificationDiagnostics.shared.record(.apnsRegistered)
     }
 
     func application(
@@ -38,6 +54,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
         debugLog("[AppDelegate] Failed to register for remote notifications: \(error)")
+        NotificationDiagnostics.shared.record(.apnsRegistrationFailed, error: error.localizedDescription)
     }
 
     func application(
@@ -53,6 +70,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             return
         }
 
+        NotificationDiagnostics.shared.record(.silentPushReceived)
+
         // Post for foreground UI updates (PartnerStatusReceiver observes this)
         NotificationCenter.default.post(name: .cloudKitPushReceived, object: nil)
 
@@ -66,8 +85,23 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 await StatusChangeNotifier.shared.evaluateChanges(
                     old: nil,
                     new: newStatus,
-                    pilotName: pilotName
+                    pilotName: pilotName,
+                    newEffectiveDelay: newStatus.effectiveFlightDelayMinutes
                 )
+
+                // Re-schedule BG refresh after successful push handling
+                await BackgroundRefreshManager.shared.scheduleNextRefresh()
+
+                // Remove generic CK push so only the rich local notification remains
+                let notifCenter = UNUserNotificationCenter.current()
+                let delivered = await notifCenter.deliveredNotifications()
+                let ckIds = delivered
+                    .filter { $0.request.content.categoryIdentifier == "CK_STATUS_UPDATE" }
+                    .map { $0.request.identifier }
+                if !ckIds.isEmpty {
+                    notifCenter.removeDeliveredNotifications(withIdentifiers: ckIds)
+                    debugLog("[AppDelegate] Removed \(ckIds.count) generic CK notification(s)")
+                }
 
                 debugLog("[AppDelegate] Background fetch + evaluate completed")
                 completionHandler(.newData)
@@ -125,7 +159,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Show notifications even when app is in foreground
+        // Suppress generic CK push in foreground — evaluateChanges fires a richer local notification
+        if notification.request.content.categoryIdentifier == "CK_STATUS_UPDATE" {
+            completionHandler([])
+            return
+        }
+        // Show all other notifications (local rich banners) in foreground
         completionHandler([.banner, .sound])
     }
 
