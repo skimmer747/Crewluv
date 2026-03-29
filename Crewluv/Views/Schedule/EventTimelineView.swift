@@ -123,20 +123,26 @@ struct EventTimelineView: View {
 
     private func sectionView(_ section: DateSection) -> some View {
         Section {
-            sectionContent(section)
+            TimelineView(.periodic(from: Date(), by: 60)) { context in
+                sectionContent(section, upNextID: upNextLegID(at: context.date))
+            }
         } header: {
             sectionHeader(section)
         }
     }
 
     @ViewBuilder
-    private func sectionContent(_ section: DateSection) -> some View {
+    private func sectionContent(_ section: DateSection, upNextID: String?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
-                TimelineRowView(leg: leg, homeAirportCode: status.homeAirportCode)
-                    .onTapGesture {
-                        selectedDate = Calendar.current.startOfDay(for: leg.startTime)
-                    }
+                TimelineRowView(
+                    leg: leg,
+                    homeAirportCode: status.homeAirportCode,
+                    isUpNext: leg.id == upNextID
+                )
+                .onTapGesture {
+                    selectedDate = Calendar.current.startOfDay(for: leg.startTime)
+                }
 
                 // Gap between consecutive legs (hide when < 1 minute)
                 if index < section.legs.count - 1 {
@@ -166,6 +172,14 @@ struct EventTimelineView: View {
             isHighlighted: isToday || isPinned,
             date: section.date
         )
+    }
+
+    // MARK: - Up Next
+
+    /// Returns the ID of the first leg that hasn't started yet and isn't currently active.
+    private func upNextLegID(at now: Date) -> String? {
+        // Skip any leg that is currently active (already in progress)
+        legs.first { $0.startTime > now }?.id
     }
 
     // MARK: - Grouping

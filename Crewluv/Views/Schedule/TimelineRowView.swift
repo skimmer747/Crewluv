@@ -10,6 +10,7 @@ import SwiftUI
 struct TimelineRowView: View {
     let leg: TripLeg
     var homeAirportCode: String?
+    var isUpNext: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -73,22 +74,54 @@ struct TimelineRowView: View {
                 Spacer()
 
                 // Duration / countdown (dynamic — updates every second)
-                CountdownText(leg: leg, activeColor: iconColor)
+                CountdownText(leg: leg, activeColor: iconColor, isUpNext: isUpNext)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular, in: .rect(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        (isHomebound ? Color.green : iconColor)
-                            .opacity(isActive || isHomebound ? 0.5 : 0),
-                        lineWidth: 2
-                    )
+            .overlay(borderOverlay(isActive: isActive))
+            .overlay(alignment: .topTrailing) {
+                if isUpNext, !isActive {
+                    upNextBadge
+                }
+            }
+            .accessibilityHint(
+                isUpNext ? "Up next event" : (isHomebound ? "Arriving at home airport" : "")
             )
-            .accessibilityHint(isHomebound ? "Arriving at home airport" : "")
         }
+    }
+
+    // MARK: - Border
+
+    @ViewBuilder
+    private func borderOverlay(isActive: Bool) -> some View {
+        if isActive {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    (isHomebound ? Color.green : iconColor).opacity(0.5),
+                    lineWidth: 2
+                )
+        } else if isUpNext {
+            RotatingGradientBorder(cornerRadius: 14, lineWidth: 2)
+        } else if isHomebound {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(Color.green.opacity(0.5), lineWidth: 2)
+        }
+    }
+
+    // MARK: - Up Next Badge
+
+    private var upNextBadge: some View {
+        Text("UP NEXT")
+            .font(.caption2)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.red, in: Capsule())
+            .padding(.top, 6)
+            .padding(.trailing, 8)
     }
 
     // MARK: - Icon
@@ -221,31 +254,46 @@ struct TimelineRowView: View {
 private struct CountdownText: View {
     let leg: TripLeg
     let activeColor: Color
+    var isUpNext: Bool = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let now = context.date
             let isActive = leg.startTime <= now && now <= leg.endTime
+            let showUpNext = isUpNext && !isActive && now < leg.startTime
             VStack(alignment: .trailing, spacing: 2) {
-                Text(isActive ? "Ends in" : "Duration")
+                Text(label(isActive: isActive, showUpNext: showUpNext))
                     .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-                Text(durationText(now: now))
+                    .foregroundColor(showUpNext ? .cyan : .secondary)
+                Text(durationText(now: now, showUpNext: showUpNext))
                     .font(.system(size: 11))
-                    .fontWeight(isActive ? .semibold : .regular)
-                    .foregroundColor(isActive ? activeColor : .secondary)
+                    .fontWeight(isActive || showUpNext ? .semibold : .regular)
+                    .foregroundColor(
+                        showUpNext ? .cyan : (isActive ? activeColor : .secondary)
+                    )
                     .monospacedDigit()
             }
         }
         .frame(minWidth: 56, alignment: .trailing)
     }
 
-    private func durationText(now: Date) -> String {
+    private func label(isActive: Bool, showUpNext: Bool) -> String {
+        if isActive { return "Ends in" }
+        if showUpNext { return "Starts in" }
+        return "Duration"
+    }
+
+    private func durationText(now: Date, showUpNext: Bool) -> String {
         let isActive = leg.startTime <= now && now <= leg.endTime
-        let interval = isActive
-            ? leg.endTime.timeIntervalSince(now)
-            : leg.endTime.timeIntervalSince(leg.startTime)
-        return formattedDuration(max(interval, 0), showSeconds: isActive)
+        let interval: TimeInterval
+        if isActive {
+            interval = leg.endTime.timeIntervalSince(now)
+        } else if showUpNext {
+            interval = leg.startTime.timeIntervalSince(now)
+        } else {
+            interval = leg.endTime.timeIntervalSince(leg.startTime)
+        }
+        return formattedDuration(max(interval, 0), showSeconds: isActive || showUpNext)
     }
 
     private func formattedDuration(_ interval: TimeInterval, showSeconds: Bool = false) -> String {
