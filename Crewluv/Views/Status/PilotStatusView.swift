@@ -81,6 +81,7 @@ struct PilotStatusView: View {
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
                                 color: status.hasFlightDelay ? .orange : .blue,
+                                subtitle: departureSubtitle,
                                 showChevron: !isCompanionLayout
                             )
                             .contentShape(.rect)
@@ -267,6 +268,32 @@ struct PilotStatusView: View {
             }
         }
         return "Leaves In"
+    }
+
+    private var departureSubtitle: String? {
+        guard let departureTime = effectiveNextDepartureTime else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE MMMM d"
+        let datePart = formatter.string(from: departureTime)
+        let day = Calendar.current.component(.day, from: departureTime)
+        let suffix = ordinalSuffix(for: day)
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mma"
+        timeFormatter.amSymbol = "am"
+        timeFormatter.pmSymbol = "pm"
+        let timePart = timeFormatter.string(from: departureTime)
+        return "Departs \(datePart)\(suffix) at \(timePart)"
+    }
+
+    private func ordinalSuffix(for day: Int) -> String {
+        let teens = (11...13).contains(day % 100)
+        if teens { return "th" }
+        switch day % 10 {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
     }
 
     @ViewBuilder
