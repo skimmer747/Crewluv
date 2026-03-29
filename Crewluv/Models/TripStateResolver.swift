@@ -287,7 +287,7 @@ enum TripStateResolver {
         // Detect home-between-trips: no next leg, or gap > 24 hours means the trip is over.
         // If the pilot is at their home airport, return "Home" so the view shows "Leaves In".
         let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
-        let isEndOfTrip = nextLeg == nil || nextLeg!.startTime.timeIntervalSince(now) > maxGapBetweenLegs
+        let isEndOfTrip = nextLeg == nil || nextLeg!.startTime.timeIntervalSince(completedLeg.endTime) > maxGapBetweenLegs
 
         if isEndOfTrip {
             if let home = homeAirportCode,
