@@ -53,15 +53,18 @@ actor BackgroundRefreshManager {
         // Schedule the next refresh before doing work
         scheduleNextRefresh()
 
-        let fetchTask = Task {
-            try await fetchAndEvaluate()
+        // Register the expiration handler BEFORE creating the work task.
+        // CancellableHandle is thread-safe — if expiration fires before
+        // track(_:) is called, the task is cancelled on assignment.
+        let handle = CancellableHandle()
+
+        task.expirationHandler = {
+            handle.cancel()
+            debugLog("[BGRefresh] Task expired — cancelled in-flight work")
         }
 
-        // Handle task expiration
-        task.expirationHandler = {
-            fetchTask.cancel()
-            debugLog("[BGRefresh] Task expired")
-        }
+        let fetchTask = Task { try await self.fetchAndEvaluate() }
+        handle.track(fetchTask)
 
         do {
             try await fetchTask.value
@@ -112,5 +115,37 @@ actor BackgroundRefreshManager {
             pilotName: pilotName,
             newEffectiveDelay: effectiveDelay
         )
+    }
+}
+
+// MARK: - CancellableHandle
+
+/// Bridges BGAppRefreshTask expiration into Swift Task cancellation.
+///
+/// The expiration handler runs on an arbitrary system thread, but we need
+/// it to cancel a Task that may not exist yet when the handler fires.
+/// This class is thread-safe via NSLock: if `cancel()` is called before
+/// `track(_:)`, the task is cancelled the moment it's assigned.
+private final class CancellableHandle: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<Void, Error>?
+    private var expired = false
+
+    /// Registers the work task. If expiration already fired, cancels it immediately.
+    func track(_ work: Task<Void, Error>) {
+        let shouldCancel = lock.withLock {
+            task = work
+            return expired
+        }
+        if shouldCancel { work.cancel() }
+    }
+
+    /// Marks as expired and cancels the tracked task (if any).
+    func cancel() {
+        let work = lock.withLock {
+            expired = true
+            return task
+        }
+        work?.cancel()
     }
 }

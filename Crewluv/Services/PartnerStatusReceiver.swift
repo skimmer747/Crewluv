@@ -196,9 +196,10 @@ class PartnerStatusReceiver {
                 let effectiveDelay = newStatus.effectiveFlightDelayMinutes
                 let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
                     ?? newStatus.pilotFirstName
+                let previousStatus = pilotStatus
                 Task.detached {
                     await StatusChangeNotifier.shared.evaluateChanges(
-                        old: nil, new: newStatus, pilotName: pilotName, newEffectiveDelay: effectiveDelay
+                        old: previousStatus, new: newStatus, pilotName: pilotName, newEffectiveDelay: effectiveDelay
                     )
                 }
             }
