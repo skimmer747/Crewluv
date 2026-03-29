@@ -128,11 +128,13 @@ actor BackgroundRefreshManager {
 /// `track(_:)`, the task is cancelled the moment it's assigned.
 private final class CancellableHandle: @unchecked Sendable {
     private let lock = NSLock()
-    private var task: Task<Void, Error>?
-    private var expired = false
+    private nonisolated(unsafe) var task: Task<Void, Error>?
+    private nonisolated(unsafe) var expired = false
+
+    nonisolated init() {}
 
     /// Registers the work task. If expiration already fired, cancels it immediately.
-    func track(_ work: Task<Void, Error>) {
+    nonisolated func track(_ work: Task<Void, Error>) {
         let shouldCancel = lock.withLock {
             task = work
             return expired
@@ -141,7 +143,7 @@ private final class CancellableHandle: @unchecked Sendable {
     }
 
     /// Marks as expired and cancels the tracked task (if any).
-    func cancel() {
+    nonisolated func cancel() {
         let work = lock.withLock {
             expired = true
             return task
