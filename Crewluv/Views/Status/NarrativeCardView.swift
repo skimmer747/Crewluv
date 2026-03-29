@@ -76,13 +76,13 @@ struct NarrativeCardView: View {
             let prevText = Text("\(days) \(days == 1 ? "day" : "days")").bold()
             if let commuteCity = trip.commuteCity {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.last ?? "work"
-                base = Text("\(name) is finally home after being gone for \(prevText)! He commutes to \(Text(commuteCity).bold()) then heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is home after being gone for \(prevText)! Commuting to \(Text(commuteCity).bold()) then heading to \(Text(dest).bold()) \(depText) — gone for \(durationText).")
             } else {
                 let dest = trip.firstDestinationCity ?? trip.cityRoute.first ?? "work"
-                base = Text("\(name) is finally home after being gone for \(prevText)! He heads to \(Text(dest).bold()) \(depText) and will be gone for \(durationText).")
+                base = Text("\(name) is home after being gone for \(prevText)! Heading to \(Text(dest).bold()) \(depText) — gone for \(durationText).")
             }
         } else if hasPrevTrip, let days = status.lastTripDurationDays {
-            base = Text("\(name) is finally home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
+            base = Text("\(name) is home after being gone for \(Text("\(days) \(days == 1 ? "day" : "days")").bold()) and is relaxing.")
         } else if hasNextTrip, let trip = upcomingTrip {
             let depText = formattedDepartureDate(trip.departureDate)
             let durationText = Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")").bold()
@@ -101,7 +101,7 @@ struct NarrativeCardView: View {
               let delay = leg.delayMinutes else { return base }
         let dest = leg.arrivalCity ?? leg.arrivalAirport ?? "destination"
         let delayStr = formattedDelayDuration(delay)
-        return Text("\(base) His flight to \(Text(dest).bold()) is delayed \(Text(delayStr).bold()).")
+        return Text("\(base) The flight to \(Text(dest).bold()) is delayed \(Text(delayStr).bold()).")
     }
 
     @ViewBuilder
@@ -164,9 +164,9 @@ struct NarrativeCardView: View {
                 if now < shiftedDep {
                     // Before shifted departure: "is delayed in Paris and will be riding/flying to..."
                     if let dep, let dest {
-                        Text("\(name) is delayed in \(Text(dep).bold()) and will be \(verb) to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                        Text("\(name) is delayed in \(Text(dep).bold()) and will be \(verb) to \(Text(dest).bold())\(fltStr) — departing in \(countdownText(to: shiftedDep)).")
                     } else if let dest {
-                        Text("\(name) is delayed and will be \(verb) to \(Text(dest).bold())\(fltStr). He will be departing in \(countdownText(to: shiftedDep)).")
+                        Text("\(name) is delayed and will be \(verb) to \(Text(dest).bold())\(fltStr) — departing in \(countdownText(to: shiftedDep)).")
                     } else {
                         Text("\(name)'s flight is delayed — departing in \(countdownText(to: shiftedDep))")
                     }
@@ -175,7 +175,7 @@ struct NarrativeCardView: View {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
                     if let dep, let dest {
-                        Text("\(name) was delayed in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name) was delayed in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
                     } else if let dest {
                         Text("\(name)'s delayed flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: .red)) which is \(Text(arrTimeStr).bold()).")
                     } else {
@@ -196,9 +196,9 @@ struct NarrativeCardView: View {
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
             if let dep {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr). He will be landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
             Text("\(name) is \(verb) to \(Text(dest).bold())")
