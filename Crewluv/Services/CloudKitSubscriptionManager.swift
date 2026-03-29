@@ -16,7 +16,7 @@ actor CloudKitSubscriptionManager {
     private let sharedSubKey = "CK_SharedDBSubscriptionID"
     private let privateSubKey = "CK_PrivateZoneSubscriptionID"
     private let oldSharedSubID = "crewluv-shared-db"
-    private let currentSharedSubID = "crewluv-shared-zone"
+    private let currentSharedSubID = "crewluv-shared-db-v2"
 
     // MARK: - Verification
 
@@ -35,15 +35,16 @@ actor CloudKitSubscriptionManager {
     }
 
     private func verifySharedZoneSubscription() async {
-        // Migrate old CKDatabaseSubscription → CKRecordZoneSubscription (one-time)
+        // Clean up any stale subscription IDs from previous attempts
+        let staleIDs = [oldSharedSubID, "crewluv-shared-zone"]
         if let savedID = UserDefaults.standard.string(forKey: sharedSubKey),
-           savedID == oldSharedSubID {
-            debugLog("[SubManager] Migrating stale database subscription → zone subscription")
+           staleIDs.contains(savedID) {
+            debugLog("[SubManager] Migrating stale subscription: \(savedID)")
             do {
-                try await container.sharedCloudDatabase.deleteSubscription(withID: oldSharedSubID)
-                debugLog("[SubManager] Deleted old database subscription: \(oldSharedSubID)")
+                try await container.sharedCloudDatabase.deleteSubscription(withID: savedID)
+                debugLog("[SubManager] Deleted stale subscription: \(savedID)")
             } catch {
-                debugLog("[SubManager] Best-effort delete of old subscription failed: \(error)")
+                debugLog("[SubManager] Best-effort delete of stale subscription failed: \(error)")
             }
             UserDefaults.standard.removeObject(forKey: sharedSubKey)
             await ensureSharedZoneSubscription()
@@ -79,35 +80,40 @@ actor CloudKitSubscriptionManager {
         await ensurePrivateZoneSubscription()
     }
 
-    // MARK: - Shared Zone Subscription
+    // MARK: - Shared Database Subscription
 
-    /// Creates a zone-level subscription on the shared database targeting PartnerBeaconZone.
-    /// Zone subscriptions are more reliable than broad database subscriptions for shared data.
+    /// Creates a database-level subscription on the shared database.
+    /// CKDatabaseSubscription is the only subscription type Apple allows on the shared database.
+    /// It fires for any record change in the shared database.
     func ensureSharedZoneSubscription() async {
         if let existingID = UserDefaults.standard.string(forKey: sharedSubKey) {
-            debugLog("[SubManager] Shared zone subscription already registered: \(existingID)")
+            debugLog("[SubManager] Shared database subscription already registered: \(existingID)")
             return
         }
 
-        guard let ownerName = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-            debugLog("[SubManager] No stored zone owner, cannot create shared zone subscription")
+        guard UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil else {
+            debugLog("[SubManager] No stored zone owner, cannot create shared database subscription")
             return
         }
 
-        let zoneID = CKRecordZone.ID(zoneName: "PartnerBeaconZone", ownerName: ownerName)
-        let subscriptionID = "crewluv-shared-zone"
-        let subscription = CKRecordZoneSubscription(zoneID: zoneID, subscriptionID: subscriptionID)
+        let subscriptionID = "crewluv-shared-db-v2"
+        let subscription = CKDatabaseSubscription(subscriptionID: subscriptionID)
 
         let notificationInfo = CKSubscription.NotificationInfo()
         notificationInfo.shouldSendContentAvailable = true
+        notificationInfo.alertBody = "Pilot status update"
+        notificationInfo.soundName = "default"
+        notificationInfo.category = "CK_STATUS_UPDATE"
+        notificationInfo.desiredKeys = ["displayStatus"]
         subscription.notificationInfo = notificationInfo
 
         do {
             try await container.sharedCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: sharedSubKey)
-            debugLog("[SubManager] Shared zone subscription created: \(subscriptionID)")
+            debugLog("[SubManager] Shared database subscription created: \(subscriptionID)")
+            await verifySubscriptionServerSide(database: container.sharedCloudDatabase, expectedID: subscriptionID)
         } catch {
-            debugLog("[SubManager] Failed to create shared zone subscription: \(error)")
+            debugLog("[SubManager] Failed to create shared database subscription: \(error)")
         }
     }
 
@@ -125,14 +131,34 @@ actor CloudKitSubscriptionManager {
 
         let notificationInfo = CKSubscription.NotificationInfo()
         notificationInfo.shouldSendContentAvailable = true
+        notificationInfo.alertBody = "Pilot status update"
+        notificationInfo.soundName = "default"
+        notificationInfo.category = "CK_STATUS_UPDATE"
+        notificationInfo.desiredKeys = ["displayStatus"]
         subscription.notificationInfo = notificationInfo
 
         do {
             try await container.privateCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: privateSubKey)
             debugLog("[SubManager] Private zone subscription created: \(subscriptionID)")
+            await verifySubscriptionServerSide(database: container.privateCloudDatabase, expectedID: subscriptionID)
         } catch {
             debugLog("[SubManager] Failed to create private zone subscription: \(error)")
+        }
+    }
+
+    // MARK: - Server-Side Verification
+
+    /// Fetches all subscriptions from the database and confirms ours is present.
+    /// Eliminates phantom saves where `save()` succeeds locally but the subscription doesn't persist server-side.
+    private func verifySubscriptionServerSide(database: CKDatabase, expectedID: String) async {
+        do {
+            let serverSubscriptions = try await database.allSubscriptions()
+            let ids = serverSubscriptions.map(\.subscriptionID)
+            let isConfirmed = ids.contains(expectedID)
+            debugLog("[SubManager] Server verification: \(expectedID) confirmed=\(isConfirmed), all IDs=\(ids)")
+        } catch {
+            debugLog("[SubManager] Server verification fetch failed: \(error)")
         }
     }
 
