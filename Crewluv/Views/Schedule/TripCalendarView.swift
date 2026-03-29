@@ -10,6 +10,7 @@ import SwiftUI
 struct TripCalendarView: View {
     let tripLegs: [TripLeg]
     @Binding var selectedDate: Date?
+    var onCurrentEvent: () -> Void = {}
 
     @State private var displayedMonth: Date = {
         Calendar.current.startOfMonth(for: Date())
@@ -81,8 +82,8 @@ struct TripCalendarView: View {
             Button("Current Event") {
                 withAnimation {
                     displayedMonth = calendar.startOfMonth(for: Date())
-                    selectedDate = Date()
                 }
+                onCurrentEvent()
             }
             .font(.caption)
             .buttonStyle(.bordered)

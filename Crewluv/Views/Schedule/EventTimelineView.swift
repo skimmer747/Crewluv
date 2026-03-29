@@ -12,6 +12,7 @@ struct EventTimelineView: View {
 
     @State private var selectedDate: Date? = nil
     @State private var isProgrammaticScroll = false
+    @State private var isCurrentEventScroll = false
     @State private var pinnedSectionDate: Date?
 
     private var legs: [TripLeg] {
@@ -23,7 +24,11 @@ struct EventTimelineView: View {
             // Calendar grid – pinned at top
             TripCalendarView(
                 tripLegs: legs,
-                selectedDate: $selectedDate
+                selectedDate: $selectedDate,
+                onCurrentEvent: {
+                    isCurrentEventScroll = true
+                    selectedDate = Date()
+                }
             )
 
             Divider()
@@ -52,7 +57,36 @@ struct EventTimelineView: View {
                     let cal = Calendar.current
                     let now = Date()
 
-                    // If selecting today and there's an in-progress leg, scroll to its section
+                    if isCurrentEventScroll {
+                        isCurrentEventScroll = false
+
+                        // Find the section containing the up-next or active leg
+                        var targetSection: DateSection?
+
+                        if let upNextLeg = legs.first(where: { $0.startTime > now }) {
+                            let day = cal.startOfDay(for: upNextLeg.startTime)
+                            targetSection = groupedSections.first { cal.isDate($0.date, inSameDayAs: day) }
+                        } else if let activeLeg = legs.first(where: { $0.startTime <= now && now <= $0.endTime }) {
+                            let day = cal.startOfDay(for: activeLeg.startTime)
+                            targetSection = groupedSections.first { cal.isDate($0.date, inSameDayAs: day) }
+                        } else {
+                            targetSection = groupedSections.first { cal.isDate($0.date, inSameDayAs: now) }
+                        }
+
+                        if let targetSection {
+                            isProgrammaticScroll = true
+                            withAnimation {
+                                proxy.scrollTo(targetSection.dateId, anchor: .top)
+                            }
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(500))
+                                isProgrammaticScroll = false
+                            }
+                        }
+                        return
+                    }
+
+                    // Calendar date tap: scroll to the day section
                     var target: DateSection?
                     if cal.isDateInToday(newDate),
                        let activeLeg = legs.first(where: { $0.startTime <= now && now <= $0.endTime }) {
@@ -60,7 +94,6 @@ struct EventTimelineView: View {
                         target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: activeDay) })
                     }
 
-                    // Fallback: exact day match, then nearest earlier section
                     if target == nil {
                         target = groupedSections.first(where: { cal.isDate($0.date, inSameDayAs: newDate) })
                             ?? groupedSections.last(where: { $0.date <= cal.startOfDay(for: newDate) })
@@ -80,6 +113,7 @@ struct EventTimelineView: View {
             }
         }
         .task {
+            isCurrentEventScroll = true
             selectedDate = Date()
         }
         .navigationTitle("Schedule")
