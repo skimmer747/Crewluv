@@ -70,6 +70,24 @@ class PartnerStatusReceiver {
             }
         }
 
+        // Listen for share data reset (disconnect)
+        NotificationCenter.default.addObserver(
+            forName: .shareDataReset,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            debugLog("[StatusReceiver] Share data reset, clearing state")
+            guard let self else { return }
+            Task { @MainActor in
+                self.dataSource = nil
+                self.hasAcceptedShare = false
+                self.pilotStatus = nil
+                self.rawPilotStatus = nil
+                self.errorMessage = nil
+                self.lastSyncError = nil
+            }
+        }
+
         // Wait for any in-progress share acceptance to complete before checking
         Task {
             // Wait for share acceptance if currently in progress
@@ -295,31 +313,41 @@ class PartnerStatusReceiver {
         let displayStatus = resolved?.displayStatus ?? raw.displayStatus
         let isInFlight = resolved?.isInFlight ?? raw.isInFlight
 
-        // Countdown card uses `homeArrivalTime` / `homeArrivalLabel` from Duty. Those can stay stuck
-        // on an early stop (e.g. "Sacramento In") while legs already show PHL — same bug you saw.
-        // When Duty's target time is in the past and legs gave us a resolved state, rebuild trip end from legs.
-        let tripEndFromLegs: TripEndInfo? = {
-            guard let dutyArrival = raw.homeArrivalTime,
-                  dutyArrival <= now,
-                  resolved != nil,
-                  let derived = TripStateResolver.resolveTripEnd(
-                    legs: legs,
-                    homeAirportCode: raw.homeAirportCode,
-                    at: now
-                  ) else {
-                return nil
-            }
-            return derived
-        }()
+        // Find when the pilot arrives home by scanning ALL legs for the first
+        // future flight to the home airport (handles multi-trip absences).
+        let homeArrival = TripStateResolver.resolveHomeArrival(
+            legs: legs, homeAirportCode: raw.homeAirportCode, at: now
+        )
 
-        let effectiveHomeArrivalTime = tripEndFromLegs?.arrivalTime ?? raw.homeArrivalTime
-        let effectiveHomeArrivalLabel = tripEndFromLegs?.arrivalLabel ?? raw.homeArrivalLabel
-        let effectiveHomeArrivalCity = tripEndFromLegs?.arrivalCity ?? raw.homeArrivalCity
+        // When a homebound flight exists in legs, use it for the card.
+        // Fall back to Duty's values when no homebound leg is found,
+        // or when Duty's time is fresher (not stale).
+        let isDutyTimeStale = raw.homeArrivalTime.map { $0 <= now } ?? true
 
-        if let derived = tripEndFromLegs {
-            debugLog(
-                "[Resolve] Replaced stale homeArrival from legs: label=\(derived.arrivalLabel) time=\(derived.arrivalTime.formatted(date: .abbreviated, time: .shortened))"
-            )
+        let effectiveHomeArrivalLabel: String?
+        let effectiveHomeArrivalCity: String?
+        let effectiveHomeArrivalTime: Date?
+
+        if let homeArrival {
+            // Legs have a homebound flight — always use its label, city, and time.
+            // Duty's homeArrivalTime may refer to a different event (e.g. base return),
+            // so mixing it with the leg's label/city would produce incorrect results.
+            effectiveHomeArrivalLabel = homeArrival.arrivalLabel
+            effectiveHomeArrivalCity = homeArrival.arrivalCity
+            effectiveHomeArrivalTime = homeArrival.arrivalTime
+        } else {
+            // No homebound flight in legs — use Duty's data.
+            // If Duty's time is also stale, try resolveTripEnd for the trip-end fallback.
+            let tripEnd = isDutyTimeStale
+                ? TripStateResolver.resolveTripEnd(legs: legs, homeAirportCode: raw.homeAirportCode, at: now)
+                : nil
+            effectiveHomeArrivalLabel = tripEnd?.arrivalLabel ?? raw.homeArrivalLabel
+            effectiveHomeArrivalCity = tripEnd?.arrivalCity ?? raw.homeArrivalCity
+            effectiveHomeArrivalTime = tripEnd?.arrivalTime ?? raw.homeArrivalTime
+        }
+
+        if let homeArrival {
+            debugLog("[Resolve] Home arrival from legs: label=\(homeArrival.arrivalLabel) city=\(homeArrival.arrivalCity ?? "nil") time=\(homeArrival.arrivalTime.formatted(date: .abbreviated, time: .shortened))")
         }
 
         pilotStatus = SharedPilotStatus(
