@@ -350,6 +350,44 @@ class PartnerStatusReceiver {
             debugLog("[Resolve] Home arrival from legs: label=\(homeArrival.arrivalLabel) city=\(homeArrival.arrivalCity ?? "nil") time=\(homeArrival.arrivalTime.formatted(date: .abbreviated, time: .shortened))")
         }
 
+        // Compute trip progress from legs — always current, unlike
+        // raw.tripDayNumber/tripTotalDays which Duty writes once per trip.
+        let isHomeStatus = ["Home", "Base"].contains(displayStatus)
+        let sorted = legs.sorted { $0.startTime < $1.startTime }
+
+        let effectiveTripDayNumber: Int?
+        let effectiveTripTotalDays: Int?
+        let effectiveUpcomingCities: [String]
+
+        if isHomeStatus {
+            effectiveTripDayNumber = nil
+            effectiveTripTotalDays = nil
+            effectiveUpcomingCities = []
+        } else if let tripId = currentTripId(sorted: sorted, at: now) {
+            let tripLegs = sorted.filter { $0.tripId == tripId }
+            if let firstLeg = tripLegs.first, let lastLeg = tripLegs.last {
+                let calendar = Calendar.current
+                let startDay = calendar.startOfDay(for: firstLeg.startTime)
+                let today = calendar.startOfDay(for: now)
+                let endDay = calendar.startOfDay(for: lastLeg.endTime)
+
+                effectiveTripDayNumber = max(1, (calendar.dateComponents([.day], from: startDay, to: today).day ?? 0) + 1)
+                effectiveTripTotalDays = max(1, (calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0) + 1)
+                effectiveUpcomingCities = sorted
+                    .filter { $0.tripId == tripId && $0.type == .flight && $0.startTime > now }
+                    .compactMap(\.arrivalCity)
+            } else {
+                effectiveTripDayNumber = nil
+                effectiveTripTotalDays = nil
+                effectiveUpcomingCities = []
+            }
+        } else {
+            // No identifiable trip in legs — fall back to raw (best effort)
+            effectiveTripDayNumber = raw.tripDayNumber
+            effectiveTripTotalDays = raw.tripTotalDays
+            effectiveUpcomingCities = raw.upcomingCities
+        }
+
         pilotStatus = SharedPilotStatus(
             pilotId: raw.pilotId,
             pilotFirstName: displayName,
@@ -382,9 +420,9 @@ class PartnerStatusReceiver {
             lastTripEndDate: raw.lastTripEndDate,
             lastTripDurationDays: raw.lastTripDurationDays,
             currentTripId: raw.currentTripId,
-            tripDayNumber: raw.tripDayNumber,
-            tripTotalDays: raw.tripTotalDays,
-            upcomingCities: raw.upcomingCities,
+            tripDayNumber: effectiveTripDayNumber,
+            tripTotalDays: effectiveTripTotalDays,
+            upcomingCities: effectiveUpcomingCities,
             tripLegsJSON: raw.tripLegsJSON,
             quickStatus: raw.quickStatus,
             quickStatusIcon: raw.quickStatusIcon,
@@ -408,6 +446,26 @@ class PartnerStatusReceiver {
                 self.resolveAndSchedule()
             }
         }
+    }
+
+    // MARK: - Trip Identification
+
+    /// Find the tripId for the pilot's current context.
+    /// Active leg -> its trip. Same-trip gap -> that trip. Between trips -> next trip.
+    private func currentTripId(sorted: [TripLeg], at now: Date) -> String? {
+        let activeLeg = sorted.first { $0.startTime <= now && now < $0.endTime }
+        if let tripId = activeLeg?.tripId { return tripId }
+
+        let completedLeg = sorted.last { $0.endTime <= now }
+        let nextLeg = sorted.first { $0.startTime > now }
+
+        // Same-trip gap (Turn/Layover)
+        if let c = completedLeg, let n = nextLeg, c.tripId != nil, c.tripId == n.tripId {
+            return c.tripId
+        }
+
+        // Between trips -> show next trip. All done -> last trip.
+        return nextLeg?.tripId ?? completedLeg?.tripId
     }
 
     // MARK: - Diagnostic Logging
