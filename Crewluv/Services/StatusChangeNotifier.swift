@@ -57,17 +57,17 @@ actor StatusChangeNotifier {
 
     /// - Parameter newEffectiveDelay: Pre-computed effective delay for `new`, computed
     ///   on the MainActor side since `tripLegs` requires MainActor access.
-    func evaluateChanges(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil) {
-        performEvaluation(old: old, new: new, pilotName: pilotName, newEffectiveDelay: newEffectiveDelay)
+    func evaluateChanges(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil, resolvedHomeArrivalTime: Date? = nil) {
+        performEvaluation(old: old, new: new, pilotName: pilotName, newEffectiveDelay: newEffectiveDelay, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
     }
 
-    private func performEvaluation(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil) {
+    private func performEvaluation(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil, resolvedHomeArrivalTime: Date? = nil) {
         let snapshot = loadSnapshot()
         let resolvedNewDelay = newEffectiveDelay ?? new.flightDelayMinutes ?? 0
 
         // First-ever load — save snapshot, no notifications
         guard let baseline = old ?? snapshotToComparable(snapshot) else {
-            saveSnapshot(from: new, effectiveDelay: newEffectiveDelay)
+            saveSnapshot(from: new, effectiveDelay: newEffectiveDelay, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
             debugLog("[Notifier] First load — saving baseline, no notifications")
             return
         }
@@ -77,7 +77,7 @@ actor StatusChangeNotifier {
         var notifications: [NotificationSpec] = []
 
         // Schedule changes
-        notifications += evaluateScheduleChanges(old: baseline, new: new, name: pilotName)
+        notifications += evaluateScheduleChanges(old: baseline, new: new, name: pilotName, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
 
         // Quick status
         notifications += evaluateQuickStatus(old: baseline, new: new, name: pilotName)
@@ -89,7 +89,7 @@ actor StatusChangeNotifier {
         notifications += evaluateStatusTransitions(old: baseline, new: new, name: pilotName)
 
         // Save updated snapshot
-        saveSnapshot(from: new, effectiveDelay: newEffectiveDelay)
+        saveSnapshot(from: new, effectiveDelay: newEffectiveDelay, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
 
         // Fire notifications
         for spec in notifications {
@@ -106,7 +106,8 @@ actor StatusChangeNotifier {
     private func evaluateScheduleChanges(
         old: SharedPilotStatus,
         new: SharedPilotStatus,
-        name: String
+        name: String,
+        resolvedHomeArrivalTime: Date? = nil
     ) -> [NotificationSpec] {
         var specs: [NotificationSpec] = []
 
@@ -135,7 +136,10 @@ actor StatusChangeNotifier {
         }
 
         // Home arrival time shifted (>15 min)
-        if let oldHome = old.homeArrivalTime, let newHome = new.homeArrivalTime {
+        // Use the resolved homecoming time (from trip legs) instead of the raw
+        // CloudKit value, which may be the base-return time rather than actual homecoming.
+        let effectiveNewHome = resolvedHomeArrivalTime ?? new.homeArrivalTime
+        if let oldHome = old.homeArrivalTime, let newHome = effectiveNewHome {
             let shift = newHome.timeIntervalSince(oldHome)
             if abs(shift) > 15 * 60 {
                 let timeStr = Self.shortTimeFormatter.string(from: newHome)
@@ -323,14 +327,14 @@ actor StatusChangeNotifier {
 
     // MARK: - Snapshot Persistence
 
-    private func saveSnapshot(from status: SharedPilotStatus, effectiveDelay: Int? = nil) {
+    private func saveSnapshot(from status: SharedPilotStatus, effectiveDelay: Int? = nil, resolvedHomeArrivalTime: Date? = nil) {
         let snapshot = PilotSnapshot(
             quickStatus: status.quickStatus,
             flightDelayMinutes: effectiveDelay ?? status.flightDelayMinutes,
             displayStatus: status.displayStatus,
             currentTripId: status.currentTripId,
             tripTotalDays: status.tripTotalDays,
-            homeArrivalTime: status.homeArrivalTime,
+            homeArrivalTime: resolvedHomeArrivalTime ?? status.homeArrivalTime,
             nextDepartureTime: status.nextDepartureTime,
             pilotFirstName: status.pilotFirstName
         )

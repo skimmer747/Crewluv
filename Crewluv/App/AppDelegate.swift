@@ -81,12 +81,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 let newStatus = try await fetchPilotStatusFromCloudKit()
                 let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
                     ?? newStatus.pilotFirstName
+                let resolvedHome = TripStateResolver.resolveHomeArrival(
+                    legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
+                )?.arrivalTime
 
                 await StatusChangeNotifier.shared.evaluateChanges(
                     old: nil,
                     new: newStatus,
                     pilotName: pilotName,
-                    newEffectiveDelay: newStatus.effectiveFlightDelayMinutes
+                    newEffectiveDelay: newStatus.effectiveFlightDelayMinutes,
+                    resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
                 )
 
                 // Re-schedule BG refresh after successful push handling

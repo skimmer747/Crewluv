@@ -215,9 +215,14 @@ class PartnerStatusReceiver {
                 let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
                     ?? newStatus.pilotFirstName
                 let previousStatus = pilotStatus
+                let resolvedHome = TripStateResolver.resolveHomeArrival(
+                    legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
+                )?.arrivalTime
                 Task.detached {
                     await StatusChangeNotifier.shared.evaluateChanges(
-                        old: previousStatus, new: newStatus, pilotName: pilotName, newEffectiveDelay: effectiveDelay
+                        old: previousStatus, new: newStatus, pilotName: pilotName,
+                        newEffectiveDelay: effectiveDelay,
+                        resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
                     )
                 }
             }

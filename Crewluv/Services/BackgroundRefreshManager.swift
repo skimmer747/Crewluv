@@ -109,11 +109,17 @@ actor BackgroundRefreshManager {
             ?? newStatus.pilotFirstName
 
         let effectiveDelay: Int? = await MainActor.run { newStatus.effectiveFlightDelayMinutes }
+        let resolvedHome: Date? = await MainActor.run {
+            TripStateResolver.resolveHomeArrival(
+                legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
+            )?.arrivalTime
+        }
         await StatusChangeNotifier.shared.evaluateChanges(
             old: nil,
             new: newStatus,
             pilotName: pilotName,
-            newEffectiveDelay: effectiveDelay
+            newEffectiveDelay: effectiveDelay,
+            resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
         )
     }
 }
