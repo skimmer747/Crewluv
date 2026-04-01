@@ -250,6 +250,30 @@ enum TripStateResolver {
         )
     }
 
+    // MARK: - Home Arrival (cross-trip scan)
+
+    /// Finds the first future flight arriving at the home airport across ALL legs.
+    /// Unlike `resolveTripEnd()` which looks at the current trip segment's last leg,
+    /// this scans across all trips to find when the pilot actually gets home.
+    static func resolveHomeArrival(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
+        guard let home = homeAirportCode, !home.isEmpty else { return nil }
+
+        guard let homeLeg = legs
+            .filter({ $0.type == .flight && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
+            .min(by: { $0.startTime < $1.startTime })
+        else { return nil }
+
+        let delay = TimeInterval((homeLeg.delayMinutes ?? 0) * 60)
+        let arrivalTime = homeLeg.endTime.addingTimeInterval(delay)
+        let city = homeLeg.arrivalCity ?? home
+
+        return TripEndInfo(
+            arrivalTime: arrivalTime,
+            arrivalLabel: "Back Home In",
+            arrivalCity: city
+        )
+    }
+
     // MARK: - Gap Resolution
 
     /// Derive status when `now` falls between legs (e.g., turn at DFW between flights).
@@ -284,10 +308,16 @@ enum TripStateResolver {
             timezone = completedLeg.timezoneIdentifier
         }
 
-        // Detect home-between-trips: no next leg, or gap > 24 hours means the trip is over.
+        // Detect home-between-trips: no next leg, gap > 24 hours, or cross-trip boundary.
         // If the pilot is at their home airport, return "Home" so the view shows "Leaves In".
         let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
-        let isEndOfTrip = nextLeg == nil || nextLeg!.startTime.timeIntervalSince(completedLeg.endTime) > maxGapBetweenLegs
+        let isDifferentTrip: Bool = {
+            guard let completedId = completedLeg.tripId, let nextId = nextLeg?.tripId else { return false }
+            return completedId != nextId
+        }()
+        let isEndOfTrip = nextLeg == nil
+            || nextLeg!.startTime.timeIntervalSince(completedLeg.endTime) > maxGapBetweenLegs
+            || isDifferentTrip
 
         if isEndOfTrip {
             if let home = homeAirportCode,
@@ -310,8 +340,50 @@ enum TripStateResolver {
                     timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
                 )
             }
-            // Not at home airport — return nil to fall back to Duty's raw displayStatus
+
+            // Pilot is between trips but NOT at home airport → at base
+            if homeAirportCode != nil, airport != nil {
+                let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+                return ActiveLegState(
+                    displayStatus: "Base",
+                    isInFlight: false,
+                    currentAirport: airport,
+                    currentCity: city,
+                    currentTimezone: timezone,
+                    currentFlightNumber: nil,
+                    currentFlightDeparture: nil,
+                    currentFlightArrival: nil,
+                    currentFlightDepartureTime: nil,
+                    currentFlightArrivalTime: nil,
+                    currentFlightArrivalTimezone: nil,
+                    flightDelayMinutes: nil,
+                    timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
+                )
+            }
+
+            // homeAirportCode or airport unknown — fall back to Duty's raw displayStatus
             return nil
+        }
+
+        // Gap after a home/base leg before the next trip starts:
+        // pilot is still conceptually at home, not on a "Turn".
+        if completedLeg.type == .home || completedLeg.type == .base {
+            let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+            return ActiveLegState(
+                displayStatus: completedLeg.type == .home ? "Home" : "Base",
+                isInFlight: false,
+                currentAirport: airport,
+                currentCity: city,
+                currentTimezone: timezone,
+                currentFlightNumber: nil,
+                currentFlightDeparture: nil,
+                currentFlightArrival: nil,
+                currentFlightDepartureTime: nil,
+                currentFlightArrivalTime: nil,
+                currentFlightArrivalTimezone: nil,
+                flightDelayMinutes: nil,
+                timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
+            )
         }
 
         // Propagate per-leg delay from the next upcoming flight
