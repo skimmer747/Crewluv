@@ -207,7 +207,7 @@ struct NoShareView: View {
                         InstructionRow(
                             number: "1",
                             title: "Pilot Setup",
-                            description: "Your pilot needs the CrewLuve app to create a status share"
+                            description: "Your pilot needs the Crewlu app to create a status share"
                         )
 
                         InstructionRow(
