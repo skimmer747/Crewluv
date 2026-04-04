@@ -74,7 +74,7 @@ struct PilotStatusView: View {
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
 
                     // Next Departure (if at home) — taps open schedule
-                    if status.displayStatus == "Home", let departureTime = effectiveNextDepartureTime {
+                    if status.displayStatus == "Home", let departureTime = delayedNextDepartureTime {
                         scheduleLink {
                             CountdownCardView(
                                 title: countdownTitle,
@@ -105,9 +105,7 @@ struct PilotStatusView: View {
                     }
 
                     // Countdown Timer (if not home) — taps open schedule
-                    if let rawHomeTime = status.homeArrivalTime, status.displayStatus != "Home" {
-                        let delayShift = status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
-                        let homeTime = rawHomeTime.addingTimeInterval(delayShift)
+                    if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
                         let dateStr = Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
@@ -234,10 +232,8 @@ struct PilotStatusView: View {
         .scrollEdgeEffectStyle(.soft, for: .vertical)
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
             if let anchor,
-               let rawHomeTime = status.homeArrivalTime,
+               let homeTime = status.homeArrivalTime,
                !["Home", "Base"].contains(status.displayStatus) {
-                let delayShift = status.hasFlightDelay ? TimeInterval((status.effectiveFlightDelayMinutes ?? 0) * 60) : 0
-                let homeTime = rawHomeTime.addingTimeInterval(delayShift)
                 if homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
                     GeometryReader { proxy in
                         let rect = proxy[anchor]
@@ -250,13 +246,24 @@ struct PilotStatusView: View {
         }
     }
 
-    private var effectiveNextDepartureTime: Date? {
+    /// Scheduled (non-delayed) departure time — used by SunCircleView which applies delay itself.
+    private var scheduledNextDepartureTime: Date? {
         let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
         if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
-            let delay = TimeInterval((nextFlight.delayMinutes ?? 0) * 60)
-            return nextFlight.startTime.addingTimeInterval(delay)
+            return nextFlight.startTime
         }
         return status.nextDepartureTime
+    }
+
+    /// Departure time with per-leg delay applied — used by countdown card and subtitle.
+    private var delayedNextDepartureTime: Date? {
+        guard let base = scheduledNextDepartureTime else { return nil }
+        let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
+        if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }),
+           let delay = nextFlight.delayMinutes, delay > 0 {
+            return base.addingTimeInterval(TimeInterval(delay * 60))
+        }
+        return base
     }
 
     private var countdownTitle: String {
@@ -271,9 +278,11 @@ struct PilotStatusView: View {
     }
 
     private var departureSubtitle: String? {
-        guard let departureTime = effectiveNextDepartureTime else { return nil }
+        guard let departureTime = delayedNextDepartureTime else { return nil }
+        let timezone = status.homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE MMMM d"
+        formatter.timeZone = timezone
         let datePart = formatter.string(from: departureTime)
         let day = Calendar.current.component(.day, from: departureTime)
         let suffix = ordinalSuffix(for: day)
@@ -281,6 +290,7 @@ struct PilotStatusView: View {
         timeFormatter.dateFormat = "h:mma"
         timeFormatter.amSymbol = "am"
         timeFormatter.pmSymbol = "pm"
+        timeFormatter.timeZone = timezone
         let timePart = timeFormatter.string(from: departureTime)
         return "Departs \(datePart)\(suffix) at \(timePart)"
     }
@@ -624,7 +634,7 @@ struct LocationCardView: View {
                     sunset: sunset,
                     isDaylight: weather.isDaylight,
                     timezone: status.currentTimezone,
-                    nextDepartureTime: effectiveNextDepartureTime,
+                    nextDepartureTime: scheduledNextDepartureTime,
                     flightDelayMinutes: status.effectiveFlightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
@@ -669,7 +679,7 @@ struct LocationCardView: View {
                     timezone: status.currentTimezone,
                     cityName: status.currentCity ?? "Unknown",
                     weather: weather,
-                    nextDepartureTime: effectiveNextDepartureTime,
+                    nextDepartureTime: scheduledNextDepartureTime,
                     flightDelayMinutes: status.effectiveFlightDelayMinutes,
                     homeSunrise: homeWeather?.sunrise,
                     homeSunset: homeWeather?.sunset,
@@ -681,11 +691,11 @@ struct LocationCardView: View {
     
     // MARK: - Helper Properties
 
-    private var effectiveNextDepartureTime: Date? {
+    /// Scheduled (non-delayed) departure time — SunCircleView applies delay itself.
+    private var scheduledNextDepartureTime: Date? {
         let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
         if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }) {
-            let delay = TimeInterval((nextFlight.delayMinutes ?? 0) * 60)
-            return nextFlight.startTime.addingTimeInterval(delay)
+            return nextFlight.startTime
         }
         return status.nextDepartureTime
     }
