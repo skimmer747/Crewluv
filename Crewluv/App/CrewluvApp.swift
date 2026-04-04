@@ -11,6 +11,7 @@ import SwiftUI
 extension Notification.Name {
     static let shareAccepted = Notification.Name("shareAccepted")
     static let cloudKitPushReceived = Notification.Name("cloudKitPushReceived")
+    static let shareDataReset = Notification.Name("shareDataReset")
 }
 
 @main
@@ -42,6 +43,7 @@ struct CrewluvApp: App {
     }
 
     private func handleShareURL(_ url: URL) {
+        debugLog("[CrewLuve] handleShareURL: \(url)")
         Task {
             do {
                 try await shareManager.acceptShare(from: url)

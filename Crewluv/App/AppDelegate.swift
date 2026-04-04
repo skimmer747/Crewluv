@@ -23,19 +23,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         Task { await StatusChangeNotifier.shared.requestAuthorizationIfNeeded() }
         Task { await CloudKitSubscriptionManager.shared.verifySubscriptions() }
 
-        // Clean up stale CK push notifications from force-quit scenario
-        Task {
-            let center = UNUserNotificationCenter.current()
-            let delivered = await center.deliveredNotifications()
-            let staleIds = delivered
-                .filter { $0.request.content.categoryIdentifier == "CK_STATUS_UPDATE" }
-                .map { $0.request.identifier }
-            if !staleIds.isEmpty {
-                center.removeDeliveredNotifications(withIdentifiers: staleIds)
-                debugLog("[AppDelegate] Cleaned up \(staleIds.count) stale CK notification(s)")
-            }
-        }
-
         return true
     }
 
@@ -96,17 +83,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 // Re-schedule BG refresh after successful push handling
                 await BackgroundRefreshManager.shared.scheduleNextRefresh()
 
-                // Remove generic CK push so only the rich local notification remains
-                let notifCenter = UNUserNotificationCenter.current()
-                let delivered = await notifCenter.deliveredNotifications()
-                let ckIds = delivered
-                    .filter { $0.request.content.categoryIdentifier == "CK_STATUS_UPDATE" }
-                    .map { $0.request.identifier }
-                if !ckIds.isEmpty {
-                    notifCenter.removeDeliveredNotifications(withIdentifiers: ckIds)
-                    debugLog("[AppDelegate] Removed \(ckIds.count) generic CK notification(s)")
-                }
-
                 debugLog("[AppDelegate] Background fetch + evaluate completed")
                 completionHandler(.newData)
             } catch {
@@ -163,12 +139,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Suppress generic CK push in foreground — evaluateChanges fires a richer local notification
-        if notification.request.content.categoryIdentifier == "CK_STATUS_UPDATE" {
-            completionHandler([])
-            return
-        }
-        // Show all other notifications (local rich banners) in foreground
         completionHandler([.banner, .sound])
     }
 
@@ -188,17 +158,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 await CloudKitShareManager.shared.acceptShare(with: metadata)
             }
         }
-        // Path B: iCloud share URL in urlContexts
-        else if let shareCtx = options.urlContexts.first(where: { $0.url.absoluteString.contains("icloud.com/share") }) {
-            debugLog("[AppDelegate] Found share URL in urlContexts — accepting share")
-            let url = shareCtx.url
+        // Path B: Share URL in urlContexts (crewluv:// or icloud.com/share)
+        else if let shareCtx = options.urlContexts.first(where: { ShareURLResolver.isShareURL($0.url) }) {
+            debugLog("[AppDelegate] Found share URL in urlContexts — accepting share: \(shareCtx.url)")
             Task { @MainActor in
-                try? await CloudKitShareManager.shared.acceptShare(from: url)
+                try? await CloudKitShareManager.shared.acceptShare(from: shareCtx.url)
             }
         }
         // Path C: Share URL in user activities
-        else if let shareURL = options.userActivities.compactMap({ $0.webpageURL }).first(where: { $0.absoluteString.contains("icloud.com/share") }) {
-            debugLog("[AppDelegate] Found share URL in userActivities — accepting share")
+        else if let shareURL = options.userActivities.compactMap({ $0.webpageURL }).first(where: { ShareURLResolver.isShareURL($0) }) {
+            debugLog("[AppDelegate] Found share URL in userActivities — accepting share: \(shareURL)")
             Task { @MainActor in
                 try? await CloudKitShareManager.shared.acceptShare(from: shareURL)
             }
@@ -219,7 +188,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ app: UIApplication, open url: URL,
                      options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         debugLog("[AppDelegate] application(_:open:) URL: \(url)")
-        if url.absoluteString.contains("icloud.com/share") {
+        if ShareURLResolver.isShareURL(url) {
             Task { @MainActor in
                 try? await CloudKitShareManager.shared.acceptShare(from: url)
             }
@@ -233,8 +202,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication, continue userActivity: NSUserActivity,
                      restorationHandler: @escaping ([any UIUserActivityRestoring]?) -> Void) -> Bool {
         debugLog("[AppDelegate] continue userActivity: \(userActivity.activityType)")
-        if let url = userActivity.webpageURL, url.absoluteString.contains("icloud.com/share") {
-            debugLog("[AppDelegate] Found share URL in userActivity continuation")
+        if let url = userActivity.webpageURL, ShareURLResolver.isShareURL(url) {
+            debugLog("[AppDelegate] Found share URL in userActivity continuation: \(url)")
             Task { @MainActor in
                 try? await CloudKitShareManager.shared.acceptShare(from: url)
             }

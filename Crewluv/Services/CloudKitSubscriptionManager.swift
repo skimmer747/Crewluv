@@ -101,10 +101,6 @@ actor CloudKitSubscriptionManager {
 
         let notificationInfo = CKSubscription.NotificationInfo()
         notificationInfo.shouldSendContentAvailable = true
-        notificationInfo.alertBody = "Pilot status update"
-        notificationInfo.soundName = "default"
-        notificationInfo.category = "CK_STATUS_UPDATE"
-        notificationInfo.desiredKeys = ["displayStatus"]
         subscription.notificationInfo = notificationInfo
 
         do {
@@ -131,10 +127,6 @@ actor CloudKitSubscriptionManager {
 
         let notificationInfo = CKSubscription.NotificationInfo()
         notificationInfo.shouldSendContentAvailable = true
-        notificationInfo.alertBody = "Pilot status update"
-        notificationInfo.soundName = "default"
-        notificationInfo.category = "CK_STATUS_UPDATE"
-        notificationInfo.desiredKeys = ["displayStatus"]
         subscription.notificationInfo = notificationInfo
 
         do {

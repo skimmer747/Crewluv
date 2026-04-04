@@ -9,6 +9,29 @@
 import CloudKit
 import Foundation
 
+/// Extracts a CKShare URL from either a `crewluv://accept-share?url=…` wrapper
+/// or a direct `icloud.com/share` URL.
+enum ShareURLResolver {
+    /// Returns the inner CKShare URL if wrapped in `crewluv://accept-share`, otherwise returns the URL as-is.
+    static func resolve(_ url: URL) -> URL {
+        if url.scheme == "crewluv",
+           url.host == "accept-share",
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let encoded = components.queryItems?.first(where: { $0.name == "url" })?.value,
+           let inner = URL(string: encoded) {
+            debugLog("[ShareURLResolver] Unwrapped crewluv:// → \(inner)")
+            return inner
+        }
+        return url
+    }
+
+    /// Returns true if the URL is a CKShare URL (either wrapped or direct).
+    static func isShareURL(_ url: URL) -> Bool {
+        if url.scheme == "crewluv" && url.host == "accept-share" { return true }
+        return url.absoluteString.contains("icloud.com/share")
+    }
+}
+
 /// Manages CloudKit share acceptance and zone owner persistence
 @MainActor
 @Observable
@@ -36,13 +59,14 @@ final class CloudKitShareManager {
     /// - Parameter url: The CloudKit share URL
     /// - Throws: CloudKit errors or custom errors if metadata/share acceptance fails
     func acceptShare(from url: URL) async throws {
+        let resolvedURL = ShareURLResolver.resolve(url)
         shareState = .accepting
-        debugLog("[ShareManager] Starting share acceptance from URL: \(url)")
+        debugLog("[ShareManager] Starting share acceptance from URL: \(resolvedURL)")
 
         do {
             // Fetch share metadata
             let metadata = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKShare.Metadata, Error>) in
-                container.fetchShareMetadata(with: url) { metadata, error in
+                container.fetchShareMetadata(with: resolvedURL) { metadata, error in
                     if let error = error {
                         continuation.resume(throwing: error)
                     } else if let metadata = metadata {
@@ -57,9 +81,17 @@ final class CloudKitShareManager {
 
             try await acceptAndStore(metadata: metadata)
         } catch {
+            // Fallback: the share may already be accepted — scan for the zone
+            debugLog("[ShareManager] Share acceptance failed, scanning for zone: \(error)")
+            await checkForAcceptedShares()
+            if UserDefaults.standard.string(forKey: zoneOwnerKey) != nil {
+                shareState = .accepted
+                return  // Zone found — treat as success
+            }
             let message = userFriendlyError(error)
             shareState = .error(message)
-            debugLog("[ShareManager] ❌ Share acceptance failed: \(error.localizedDescription)")
+            let nsError = error as NSError
+            debugLog("[ShareManager] ❌ Share acceptance failed — code: \(nsError.code), domain: \(nsError.domain), userInfo: \(nsError.userInfo)")
             throw error
         }
     }
@@ -164,7 +196,12 @@ final class CloudKitShareManager {
     func resetShareData() {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
         UserDefaults.standard.removeObject(forKey: "PilotDataSource")
-        debugLog("[ShareManager] Cleared stored zone owner and data source")
+        UserDefaults.standard.removeObject(forKey: "ResolvedPilotDisplayName")
+        UserDefaults.standard.removeObject(forKey: "LastSeenPilotSnapshot")
+        shareState = .idle
+        debugLog("[ShareManager] Cleared stored zone owner, data source, display name, and pilot snapshot")
+
+        NotificationCenter.default.post(name: .shareDataReset, object: nil)
 
         Task.detached {
             await CloudKitSubscriptionManager.shared.removeAllSubscriptions()
@@ -194,8 +231,25 @@ final class CloudKitShareManager {
                 return "iCloud storage is full. Please free up space."
             case .participantMayNeedVerification:
                 return "Please verify your iCloud account in Settings."
+            case .unknownItem:
+                return "Share not found. It may have been deleted, or the pilot may be using a different app version (e.g. TestFlight vs. development build)."
+            case .alreadyShared:
+                return "This share has already been accepted."
+            case .zoneBusy:
+                return "iCloud is busy. Please try again in a moment."
+            case .requestRateLimited:
+                return "Too many requests. Please wait a moment and try again."
+            case .serviceUnavailable:
+                return "iCloud is temporarily unavailable. Please try again later."
+            case .operationCancelled:
+                return "The operation was cancelled."
+            case .invalidArguments:
+                if nsError.localizedDescription.contains("owner participant") {
+                    return "You're already connected as the pilot on this account."
+                }
+                return "The share link appears to be invalid. Please ask your pilot to share a new link."
             default:
-                return "Unable to connect to iCloud. Please try again later."
+                return "iCloud error (code \(nsError.code)). Please try again later."
             }
         }
 
