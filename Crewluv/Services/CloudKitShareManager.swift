@@ -81,12 +81,15 @@ final class CloudKitShareManager {
 
             try await acceptAndStore(metadata: metadata)
         } catch {
-            // Fallback: the share may already be accepted — scan for the zone
+            // The share may already be accepted (e.g., .alreadyShared) — scan for the zone.
+            // We rely on the Bool return rather than checking UserDefaults, because a stale
+            // zoneOwnerKey from a previous session would incorrectly mask the real failure.
             debugLog("[ShareManager] Share acceptance failed, scanning for zone: \(error)")
-            await checkForAcceptedShares()
-            if UserDefaults.standard.string(forKey: zoneOwnerKey) != nil {
+            let zoneConfirmed = await checkForAcceptedShares()
+            if zoneConfirmed {
+                debugLog("[ShareManager] Fallback scan confirmed PartnerBeaconZone — treating as accepted")
                 shareState = .accepted
-                return  // Zone found — treat as success
+                return
             }
             let message = userFriendlyError(error)
             shareState = .error(message)
@@ -106,9 +109,9 @@ final class CloudKitShareManager {
             try await acceptAndStore(metadata: metadata)
         } catch {
             debugLog("[ShareManager] accept(metadata) failed, scanning for zone: \(error)")
-            await checkForAcceptedShares()
-            // If scanning found the zone, we're good; otherwise report error
-            if UserDefaults.standard.string(forKey: zoneOwnerKey) != nil {
+            let zoneConfirmed = await checkForAcceptedShares()
+            if zoneConfirmed {
+                debugLog("[ShareManager] Fallback scan confirmed PartnerBeaconZone — treating as accepted")
                 shareState = .accepted
             } else {
                 shareState = .error(userFriendlyError(error))
@@ -145,9 +148,12 @@ final class CloudKitShareManager {
         debugLog("[ShareManager] Posted share acceptance notification")
     }
 
-    /// Checks for recently accepted shares in the shared CloudKit database
-    /// Useful for detecting shares accepted outside the app (e.g., from system share sheet)
-    func checkForAcceptedShares() async {
+    /// Checks for recently accepted shares in the shared CloudKit database.
+    /// Useful for detecting shares accepted outside the app (e.g., from system share sheet).
+    /// - Returns: `true` if PartnerBeaconZone was actively found and the owner stored,
+    ///   `false` if no zone was confirmed (callers must not assume success based on stale UserDefaults).
+    @discardableResult
+    func checkForAcceptedShares() async -> Bool {
         debugLog("[ShareManager] Checking for accepted shares...")
 
         let sharedDatabase = container.sharedCloudDatabase
@@ -173,7 +179,7 @@ final class CloudKitShareManager {
                         // Notify the app to refresh
                         NotificationCenter.default.post(name: .shareAccepted, object: nil)
                         debugLog("[ShareManager] Posted share acceptance notification")
-                        return
+                        return true
                     }
                 }
 
@@ -189,6 +195,7 @@ final class CloudKitShareManager {
         }
 
         debugLog("[ShareManager] No shared zones found after all attempts")
+        return false
     }
 
     /// Clears stored zone owner information
@@ -244,8 +251,18 @@ final class CloudKitShareManager {
             case .operationCancelled:
                 return "The operation was cancelled."
             case .invalidArguments:
-                if nsError.localizedDescription.contains("owner participant") {
-                    return "You're already connected as the pilot on this account."
+                // Detect "owner participant" via structured CKError data
+                // instead of fragile localizedDescription string matching.
+                if let ckError = error as? CKError,
+                   let partialErrors = ckError.partialErrorsByItemID {
+                    // When the share owner accepts their own share, CloudKit
+                    // nests per-item .invalidArguments inside partialErrorsByItemID.
+                    let isOwnerParticipant = partialErrors.values.contains { itemError in
+                        (itemError as? CKError)?.code == .invalidArguments
+                    }
+                    if isOwnerParticipant {
+                        return "You're already connected as the pilot on this account."
+                    }
                 }
                 return "The share link appears to be invalid. Please ask your pilot to share a new link."
             default:
