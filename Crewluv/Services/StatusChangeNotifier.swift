@@ -66,7 +66,7 @@ actor StatusChangeNotifier {
         let resolvedNewDelay = newEffectiveDelay ?? new.flightDelayMinutes ?? 0
 
         // First-ever load — save snapshot, no notifications
-        guard let baseline = old ?? snapshotToComparable(snapshot) else {
+        guard let baseline = snapshotToComparable(snapshot) ?? old else {
             saveSnapshot(from: new, effectiveDelay: newEffectiveDelay, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
             debugLog("[Notifier] First load — saving baseline, no notifications")
             return
