@@ -19,6 +19,7 @@ class PartnerStatusReceiver {
     var hasAcceptedShare: Bool = false
     var lastSyncTime: Date? = nil
     var lastSyncError: String? = nil
+    private(set) var isInDemoMode = false
 
     // MARK: - Data Source
 
@@ -249,8 +250,29 @@ class PartnerStatusReceiver {
         }
     }
 
+    // MARK: - Demo Mode
+
+    func enterDemoMode() {
+        isInDemoMode = true
+        pilotStatus = .demo
+        hasAcceptedShare = true
+        isLoading = false
+        errorMessage = nil
+    }
+
+    func exitDemoMode() {
+        isInDemoMode = false
+        pilotStatus = nil
+        hasAcceptedShare = false
+    }
+
     /// Refresh pilot status manually
     func refresh() async {
+        if isInDemoMode {
+            pilotStatus = .demo
+            return
+        }
+
         await checkForSharedData()
 
         // If shared path found nothing and we're not already in private mode, try private DB

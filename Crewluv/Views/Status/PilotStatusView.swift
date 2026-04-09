@@ -30,6 +30,8 @@ struct PilotStatusView: View {
     var lastSyncError: String? = nil
     var isSyncing: Bool = false
     var isCompanionLayout: Bool = false
+    var isInDemoMode: Bool = false
+    var onExitDemo: (() -> Void)? = nil
     var onPasteShareLink: (() -> Void)? = nil
     var onRefresh: (() -> Void)? = nil
 
@@ -70,6 +72,10 @@ struct PilotStatusView: View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
                 VStack(spacing: 24) {
+                    if isInDemoMode {
+                        DemoBannerView(onExit: { onExitDemo?() })
+                    }
+
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
 
@@ -2578,4 +2584,33 @@ struct QuickStatusIndicatorView: View {
     lastSyncTime: Date(),
     lastSyncError: nil
     )
+}
+
+// MARK: - Demo Banner
+
+private struct DemoBannerView: View {
+    var onExit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "play.circle.fill")
+                .foregroundStyle(.orange)
+            Text("Demo Mode — Sample Data")
+                .font(.subheadline)
+                .fontWeight(.medium)
+            Spacer()
+            Button("Exit", action: onExit)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.orange.gradient, in: Capsule())
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .glassEffect(.regular, in: .capsule)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Demo mode active with sample data")
+        .accessibilityHint("Tap Exit to leave demo mode")
+    }
 }

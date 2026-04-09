@@ -70,6 +70,8 @@ struct ContentView: View {
                                 lastSyncTime: receiver.lastSyncTime,
                                 lastSyncError: receiver.lastSyncError,
                                 isSyncing: receiver.isSyncing,
+                                isInDemoMode: receiver.isInDemoMode,
+                                onExitDemo: { receiver.exitDemoMode() },
                                 onPasteShareLink: { showPasteShareAlert = true },
                                 onRefresh: { Task { await receiver.refresh() } }
                             )
@@ -77,7 +79,7 @@ struct ContentView: View {
                     } else if receiver.hasAcceptedShare {
                         ConnectionErrorView(receiver: receiver)
                     } else {
-                        NoShareView()
+                        NoShareView(onTryDemo: { receiver.enterDemoMode() })
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -116,6 +118,8 @@ struct ContentView: View {
                     lastSyncError: receiver.lastSyncError,
                     isSyncing: receiver.isSyncing,
                     isCompanionLayout: true,
+                    isInDemoMode: receiver.isInDemoMode,
+                    onExitDemo: { receiver.exitDemoMode() },
                     onPasteShareLink: { showPasteShareAlert = true },
                     onRefresh: { Task { await receiver.refresh() } }
                 )
@@ -184,6 +188,7 @@ struct LoadingView: View {
 
 struct NoShareView: View {
     @State private var showPasteAlert = false
+    var onTryDemo: (() -> Void)? = nil
 
     var body: some View {
         ScrollView {
@@ -233,6 +238,16 @@ struct NoShareView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glassProminent)
+                        .padding(.horizontal, 32)
+
+                        Button(action: {
+                            onTryDemo?()
+                        }) {
+                            Label("Try Demo", systemImage: "play.circle")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
                         .padding(.horizontal, 32)
 
                         Divider()

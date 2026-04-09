@@ -211,6 +211,122 @@ struct SharedPilotStatus: Codable, Sendable {
         }
     }
 
+    // MARK: - Demo Data
+
+    /// Realistic mid-trip demo status with relative dates so timers always look alive.
+    static var demo: SharedPilotStatus {
+        let now = Date()
+        let calendar = Calendar.current
+        let tripId = "DEMO-001"
+
+        // Day 2 of 3: layover in Denver, departed ORD yesterday, SFO tomorrow, home day after
+        let day1Start = calendar.date(byAdding: .hour, value: -20, to: now)!
+        let day1ArrivalDEN = calendar.date(byAdding: .hour, value: -17, to: now)!
+        let layoverEnd = calendar.date(byAdding: .hour, value: 4, to: now)!
+        let day2DepartDEN = layoverEnd
+        let day2ArrivalSFO = calendar.date(byAdding: .hour, value: 7, to: now)!
+        let sfoLayoverEnd = calendar.date(byAdding: .hour, value: 22, to: now)!
+        let day3DepartSFO = sfoLayoverEnd
+        let day3ArrivalORD = calendar.date(byAdding: .hour, value: 26, to: now)!
+
+        let legs: [TripLeg] = [
+            // Day 1: ORD → DEN
+            TripLeg(id: "demo-1", tripId: tripId, type: .flight,
+                    startTime: day1Start, endTime: day1ArrivalDEN,
+                    airportCode: nil, city: nil, timezoneIdentifier: "America/Chicago",
+                    arrivalTimezoneIdentifier: "America/Denver",
+                    flightNumber: "UA 1234", departureAirport: "ORD", arrivalAirport: "DEN",
+                    departureCity: "Chicago", arrivalCity: "Denver",
+                    tripDayNumber: 1, tripTotalDays: 3,
+                    delayMinutes: nil, airlineCode: "UA", label: nil),
+            // Layover in DEN
+            TripLeg(id: "demo-2", tripId: tripId, type: .layover,
+                    startTime: day1ArrivalDEN, endTime: layoverEnd,
+                    airportCode: "DEN", city: "Denver", timezoneIdentifier: "America/Denver",
+                    arrivalTimezoneIdentifier: nil,
+                    flightNumber: nil, departureAirport: nil, arrivalAirport: nil,
+                    departureCity: nil, arrivalCity: nil,
+                    tripDayNumber: 2, tripTotalDays: 3,
+                    delayMinutes: nil, airlineCode: nil, label: nil),
+            // Day 2: DEN → SFO
+            TripLeg(id: "demo-3", tripId: tripId, type: .flight,
+                    startTime: day2DepartDEN, endTime: day2ArrivalSFO,
+                    airportCode: nil, city: nil, timezoneIdentifier: "America/Denver",
+                    arrivalTimezoneIdentifier: "America/Los_Angeles",
+                    flightNumber: "UA 5678", departureAirport: "DEN", arrivalAirport: "SFO",
+                    departureCity: "Denver", arrivalCity: "San Francisco",
+                    tripDayNumber: 2, tripTotalDays: 3,
+                    delayMinutes: nil, airlineCode: "UA", label: nil),
+            // Layover in SFO
+            TripLeg(id: "demo-4", tripId: tripId, type: .layover,
+                    startTime: day2ArrivalSFO, endTime: sfoLayoverEnd,
+                    airportCode: "SFO", city: "San Francisco", timezoneIdentifier: "America/Los_Angeles",
+                    arrivalTimezoneIdentifier: nil,
+                    flightNumber: nil, departureAirport: nil, arrivalAirport: nil,
+                    departureCity: nil, arrivalCity: nil,
+                    tripDayNumber: 2, tripTotalDays: 3,
+                    delayMinutes: nil, airlineCode: nil, label: nil),
+            // Day 3: SFO → ORD (home)
+            TripLeg(id: "demo-5", tripId: tripId, type: .flight,
+                    startTime: day3DepartSFO, endTime: day3ArrivalORD,
+                    airportCode: nil, city: nil, timezoneIdentifier: "America/Los_Angeles",
+                    arrivalTimezoneIdentifier: "America/Chicago",
+                    flightNumber: "UA 9012", departureAirport: "SFO", arrivalAirport: "ORD",
+                    departureCity: "San Francisco", arrivalCity: "Chicago",
+                    tripDayNumber: 3, tripTotalDays: 3,
+                    delayMinutes: nil, airlineCode: "UA", label: nil),
+        ]
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let tripLegsData = try? encoder.encode(legs)
+
+        return SharedPilotStatus(
+            pilotId: "demo-pilot",
+            pilotFirstName: "Alex",
+            homeAirportCode: "ORD",
+            homeTimezone: "America/Chicago",
+            displayStatus: "Layover",
+            isSleeping: false,
+            isHome: false,
+            isInFlight: false,
+            isOnDuty: true,
+            currentAirport: "DEN",
+            currentCity: "Denver",
+            currentTimezone: "America/Denver",
+            localTimeAtPilot: nil,
+            currentLatitude: nil,
+            currentLongitude: nil,
+            currentFlightNumber: nil,
+            currentFlightDeparture: nil,
+            currentFlightArrival: nil,
+            currentFlightDepartureTime: nil,
+            currentFlightArrivalTime: nil,
+            currentFlightArrivalTimezone: nil,
+            homeArrivalTime: day3ArrivalORD,
+            homeArrivalLabel: "Back Home In",
+            homeArrivalCity: "Chicago",
+            nextDepartureTime: day2DepartDEN,
+            nextFlightNumber: "UA 5678",
+            nextFlightDestination: "SFO",
+            nextDepartureLabel: nil,
+            lastTripEndDate: nil,
+            lastTripDurationDays: nil,
+            currentTripId: tripId,
+            tripDayNumber: 2,
+            tripTotalDays: 3,
+            upcomingCities: ["Denver", "San Francisco", "Chicago"],
+            tripLegsJSON: tripLegsData,
+            quickStatus: nil,
+            quickStatusIcon: nil,
+            quickStatusExpiry: nil,
+            flightDelayMinutes: nil,
+            displayNameByPartnerJSON: nil,
+            lastUpdated: now,
+            appVersion: "demo"
+        )
+    }
+
     // MARK: - CKRecord Conversion
 
     /// Convert to CloudKit record for storage in PartnerBeaconZone

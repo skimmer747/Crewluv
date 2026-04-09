@@ -52,7 +52,7 @@ struct SyncStatusBarView: View {
 
     @ViewBuilder
     private func content(at now: Date) -> some View {
-        if let error = lastSyncError, lastSyncTime != nil {
+        if let error = lastSyncError {
             Label(friendlyError(error), systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(.orange)
@@ -113,7 +113,7 @@ struct SyncStatusBarView: View {
         let secs = seconds % 60
 
         if hours >= 24 {
-            return pilotUpdatedAt.formatted(date: .abbreviated, time: .shortened)
+            return ">1 day"
         } else if hours > 0 {
             return String(format: "%dh %02dm", hours, minutes)
         } else if minutes > 0 {
