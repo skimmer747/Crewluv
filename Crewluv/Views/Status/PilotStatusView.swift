@@ -198,7 +198,7 @@ struct PilotStatusView: View {
 
                         Spacer()
 
-                        SyncExplanationView(
+                        SyncStatusBarView(
                             pilotName: status.pilotFirstName,
                             pilotUpdatedAt: status.lastUpdated,
                             lastSyncTime: lastSyncTime,
@@ -2528,67 +2528,6 @@ struct QuickStatusIndicatorView: View {
     }
 }
 
-// MARK: - Sync Explanation View
-
-struct SyncExplanationView: View {
-    let pilotName: String
-    let pilotUpdatedAt: Date
-    let lastSyncTime: Date?
-    let lastSyncError: String?
-
-    var body: some View {
-        VStack(spacing: 4) {
-            if let syncTime = lastSyncTime {
-                if let error = lastSyncError {
-                    Label(friendlyError(error), systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                } else {
-                    Text("Synced with iCloud at \(syncTime.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Text("\(pilotName)'s info was last sent \(relativeTimestamp)")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(pilotUpdatedAt)
-    }
-
-    private var relativeTimestamp: String {
-        let interval = Date().timeIntervalSince(pilotUpdatedAt)
-
-        if interval < 60 {
-            return "just now"
-        } else if interval < 3600 {
-            let minutes = Int(interval / 60)
-            return "\(minutes)m ago"
-        } else if isToday {
-            return "at \(pilotUpdatedAt.formatted(date: .omitted, time: .shortened))"
-        } else {
-            return "on \(pilotUpdatedAt.formatted(date: .abbreviated, time: .shortened))"
-        }
-    }
-
-    private func friendlyError(_ error: String) -> String {
-        let lowercased = error.lowercased()
-        if lowercased.contains("network") || lowercased.contains("connection") || lowercased.contains("internet") {
-            return "Sync failed — check your connection"
-        }
-        if lowercased.contains("not authenticated") || lowercased.contains("authentication") {
-            return "Sync failed — sign into iCloud"
-        }
-        if lowercased.contains("timeout") || lowercased.contains("timed out") {
-            return "Sync timed out — will retry"
-        }
-        return "Sync failed — will retry"
-    }
-}
 
 #Preview {
     PilotStatusView(status: SharedPilotStatus(
