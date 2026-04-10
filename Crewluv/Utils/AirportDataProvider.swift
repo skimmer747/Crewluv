@@ -345,6 +345,7 @@ class AirportDataProvider {
             ("MXP", "Milan", "Italy", 45.6306, 8.7281),
             ("STN", "London", "UK", 51.8850, 0.2350),
             ("BCN", "Barcelona", "Spain", 41.2971, 2.0785),
+            ("VLC", "Valencia", "Spain", 39.4893, -0.4816),
             ("VCE", "Venice", "Italy", 45.5053, 12.3519),
             ("MUC", "Munich", "Germany", 48.3537, 11.7750),
             ("ZRH", "Zurich", "Switzerland", 47.4647, 8.5492),
