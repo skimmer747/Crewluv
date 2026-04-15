@@ -576,6 +576,8 @@ struct LocationCardView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+
+                    WeatherAttributionView()
                 } else if let airport = status.currentAirport {
                     HStack {
                         Image(systemName: "airplane")

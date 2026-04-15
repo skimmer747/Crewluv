@@ -169,6 +169,10 @@ struct SunCircleDetailView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+
+                    // Apple Weather attribution
+                    WeatherAttributionView()
+                        .padding(.top, 4)
                 }
                 .padding(.bottom, 24)
             }
