@@ -17,7 +17,6 @@ extension Notification.Name {
 @main
 struct CrewluvApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var purchaseManager = PurchaseManager.shared
     @State private var shareManager = CloudKitShareManager.shared
 
     init() {
@@ -27,7 +26,6 @@ struct CrewluvApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(purchaseManager)
                 .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
                     debugLog("[CrewLuve] onContinueUserActivity: \(userActivity.webpageURL?.absoluteString ?? "nil")")

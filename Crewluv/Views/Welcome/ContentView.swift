@@ -12,30 +12,18 @@ struct ContentView: View {
     @State private var statusReceiver: PartnerStatusReceiver?
     @State private var showShareError = false
     @State private var showPasteShareAlert = false
-    @Environment(PurchaseManager.self) private var purchaseManager
     @Environment(CloudKitShareManager.self) private var shareManager
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Group {
-            if !purchaseManager.hasUnlockedApp {
-                // Show paywall if not purchased
-                PaywallView()
-            } else {
-                // Show main app content if purchased
-                ZStack {
-                    mainContent
+        ZStack {
+            mainContent
 
-                    if shareManager.isAcceptingShare {
-                        ShareAcceptingOverlay()
-                    }
-                }
+            if shareManager.isAcceptingShare {
+                ShareAcceptingOverlay()
             }
         }
         .onAppear {
-            #if DEBUG
-            purchaseManager.simulateUnlock()
-            #endif
             if statusReceiver == nil {
                 statusReceiver = PartnerStatusReceiver(shareManager: shareManager)
             }
@@ -459,6 +447,5 @@ extension View {
 
 #Preview {
     ContentView()
-        .environment(PurchaseManager.shared)
         .environment(CloudKitShareManager.shared)
 }
