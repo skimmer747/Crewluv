@@ -94,15 +94,24 @@ struct SharedPilotStatus: Codable, Sendable {
     /// per-leg delay found on an upcoming flight, whichever is set.
     var effectiveFlightDelayMinutes: Int? {
         if let delay = flightDelayMinutes, delay > 0 { return delay }
-        return tripLegs
-            .first(where: { $0.type == .flight && ($0.delayMinutes ?? 0) > 0 })?.delayMinutes
+        return currentlyRelevantDelayedLeg()?.delayMinutes
     }
 
     var hasFlightDelay: Bool { (effectiveFlightDelayMinutes ?? 0) > 0 }
 
     /// The specific flight leg that has a delay, if any.
-    var delayedFlightLeg: TripLeg? {
-        tripLegs.first(where: { $0.type == .flight && ($0.delayMinutes ?? 0) > 0 })
+    var delayedFlightLeg: TripLeg? { currentlyRelevantDelayedLeg() }
+
+    /// A per-leg delay is "currently relevant" only while `now` is still inside
+    /// the flight's delay-extended window. Past flights that still carry a tag
+    /// (older Duty builds hold the tag for up to 24h) are ignored so their
+    /// delay doesn't leak onto the next active flight.
+    private func currentlyRelevantDelayedLeg(at now: Date = Date()) -> TripLeg? {
+        tripLegs.first(where: { leg in
+            guard leg.type == .flight,
+                  let delay = leg.delayMinutes, delay > 0 else { return false }
+            return now < leg.endTime.addingTimeInterval(TimeInterval(delay * 60))
+        })
     }
 
     // MARK: - Per-Partner Display Names
