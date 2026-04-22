@@ -361,7 +361,9 @@ class PartnerStatusReceiver {
             // so mixing it with the leg's label/city would produce incorrect results.
             effectiveHomeArrivalLabel = homeArrival.arrivalLabel
             effectiveHomeArrivalCity = homeArrival.arrivalCity
-            effectiveHomeArrivalTime = homeArrival.arrivalTime
+            // Drop a past arrival time — resolve() will have flipped displayStatus to
+            // Home, and no surface should render a negative countdown during the transition.
+            effectiveHomeArrivalTime = homeArrival.arrivalTime > now ? homeArrival.arrivalTime : nil
         } else {
             // No homebound flight in legs — use Duty's data.
             // If Duty's time is also stale, try resolveTripEnd for the trip-end fallback.
