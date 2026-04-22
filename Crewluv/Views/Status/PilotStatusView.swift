@@ -86,7 +86,7 @@ struct PilotStatusView: View {
                                 title: countdownTitle,
                                 targetDate: departureTime,
                                 icon: "airplane.departure",
-                                color: status.hasFlightDelay ? .orange : .blue,
+                                color: status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .blue,
                                 subtitle: departureSubtitle,
                                 showChevron: !isCompanionLayout
                             )
@@ -122,7 +122,7 @@ struct PilotStatusView: View {
                                 title: label,
                                 targetDate: homeTime,
                                 icon: isGoingHome ? "house.fill" : "airplane.arrival",
-                                color: status.hasFlightDelay ? .red : .green,
+                                color: status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .red) : .green,
                                 subtitle: arrivalSubtitle,
                                 showChevron: !isCompanionLayout
                             )
@@ -266,7 +266,7 @@ struct PilotStatusView: View {
         guard let base = scheduledNextDepartureTime else { return nil }
         let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
         if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }),
-           let delay = nextFlight.delayMinutes, delay > 0 {
+           let delay = nextFlight.delayMinutes, delay != 0 {
             return base.addingTimeInterval(TimeInterval(delay * 60))
         }
         return base
@@ -472,18 +472,19 @@ struct LocationCardView: View {
             // Flight route map visualization
             FlightRouteMapView(status: status)
 
-            // Delay banner
+            // Delay / early banner
             if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
+                let isEarly = delayMinutes < 0
                 HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                    Image(systemName: isEarly ? "clock.badge.checkmark.fill" : "exclamationmark.triangle.fill")
                         .font(.caption)
-                    Text("DELAYED \(Self.formatDelayDuration(delayMinutes))")
+                    Text("\(isEarly ? "EARLY DEP" : "DELAYED") \(Self.formatDelayDuration(abs(delayMinutes)))")
                         .font(.caption.weight(.bold))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
-                .background(.orange)
+                .background(isEarly ? Color.green : Color.orange)
             }
 
             // Info bar (matching widget style)
@@ -1016,7 +1017,8 @@ struct SunCircleView: View {
         return pilotTZ.secondsFromGMT(for: now) != homeTZ.secondsFromGMT(for: now)
     }
 
-    private var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) > 0 }
+    private var hasFlightDelay: Bool { (flightDelayMinutes ?? 0) != 0 }
+    private var isEarlyDeparture: Bool { (flightDelayMinutes ?? 0) < 0 }
 
     private var delayedDepartureTime: Date? {
         guard let dep = nextDepartureTime, hasFlightDelay,
@@ -1467,8 +1469,8 @@ struct SunCircleView: View {
                         .opacity(departureArcOpacity)
                     }
 
-                    // Red delay extension (from scheduled to effective departure)
-                    if hasFlightDelay {
+                    // Delay extension (from scheduled to effective departure) — skipped for early dep
+                    if hasFlightDelay && !isEarlyDeparture {
                         DepartureArcShape(
                             progress: departureArcProgress,
                             currentAngle: currentAngle,
@@ -1493,7 +1495,7 @@ struct SunCircleView: View {
 
                     Image(systemName: "airplane")
                         .font(.system(size: 8 * scale, weight: .semibold))
-                        .foregroundColor(hasFlightDelay ? .red : .cyan)
+                        .foregroundColor(hasFlightDelay ? (isEarlyDeparture ? .green : .red) : .cyan)
                         .modifier(ArcEndpointModifier(
                             progress: departureArcProgress,
                             startAngleDeg: currentDeg,
@@ -1510,7 +1512,7 @@ struct SunCircleView: View {
                         Text("to go")
                             .font(.system(size: 7 * scale, weight: .medium, design: .rounded))
                     }
-                    .foregroundStyle(hasFlightDelay ? .red : .cyan)
+                    .foregroundStyle(hasFlightDelay ? (isEarlyDeparture ? .green : .red) : .cyan)
                     .position(center)
                     .opacity(departureArcProgress * departureArcOpacity)
                 }

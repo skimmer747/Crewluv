@@ -87,17 +87,18 @@ struct UpcomingTripCard: View {
     // MARK: - Delay Badge
 
     private var delayBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "clock.badge.exclamationmark")
+        let isEarly = (delayedLeg?.delayMinutes ?? 0) < 0
+        return HStack(spacing: 4) {
+            Image(systemName: isEarly ? "clock.badge.checkmark" : "clock.badge.exclamationmark")
                 .font(.caption2)
-            Text("Delayed")
+            Text(isEarly ? "Early" : "Delayed")
                 .font(.caption)
                 .fontWeight(.semibold)
         }
         .foregroundColor(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.orange, in: Capsule())
+        .background(isEarly ? Color.green : Color.orange, in: Capsule())
     }
 
     // MARK: - City Route Visual

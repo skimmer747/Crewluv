@@ -40,7 +40,10 @@ struct TripLeg: Codable, Sendable {
     let tripDayNumber: Int?
     let tripTotalDays: Int?
 
-    // Per-leg delay: only the specifically-delayed flight has a value here
+    /// Signed per-leg flight-time offset in minutes. Only the specifically-tagged
+    /// flight leg has a value here.
+    /// - Positive: delayed by this many minutes.
+    /// - Negative: departing early by `abs(value)` minutes.
     let delayMinutes: Int?
 
     // "AA", "DL", "WN" etc. — nil for company flights

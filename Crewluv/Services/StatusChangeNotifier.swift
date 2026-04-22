@@ -247,21 +247,21 @@ actor StatusChangeNotifier {
 
         guard oldDelay != newDelay else { return [] }
 
+        let body: String
         if newDelay > 0 {
-            return [NotificationSpec(
-                id: "flight-delay",
-                title: "\(name)'s Flight",
-                body: "Delayed \(newDelay) minutes",
-                sound: .default
-            )]
+            body = "Delayed \(newDelay) minutes"
+        } else if newDelay < 0 {
+            body = "Departing \(abs(newDelay)) minutes early"
         } else {
-            return [NotificationSpec(
-                id: "flight-delay",
-                title: "\(name)'s Flight",
-                body: "Delay cleared",
-                sound: .default
-            )]
+            body = oldDelay < 0 ? "Early departure cleared" : "Delay cleared"
         }
+
+        return [NotificationSpec(
+            id: "flight-delay",
+            title: "\(name)'s Flight",
+            body: body,
+            sound: .default
+        )]
     }
 
     // MARK: - Status Transitions

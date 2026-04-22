@@ -88,28 +88,36 @@ struct SharedPilotStatus: Codable, Sendable {
 
     // MARK: - Flight Delay
 
-    let flightDelayMinutes: Int?      // Delay duration in minutes (nil = no delay)
+    /// Signed flight-time offset in minutes.
+    /// - Positive: flight is delayed by this many minutes.
+    /// - Negative: flight is departing early by `abs(value)` minutes.
+    /// - `nil` or `0`: on-time (no partner-facing badge).
+    let flightDelayMinutes: Int?
 
-    /// The delay in minutes from either the record-level field or the first
-    /// per-leg delay found on an upcoming flight, whichever is set.
+    /// The signed offset in minutes from either the record-level field or the first
+    /// per-leg value found on an upcoming flight, whichever is set.
     var effectiveFlightDelayMinutes: Int? {
-        if let delay = flightDelayMinutes, delay > 0 { return delay }
+        if let delay = flightDelayMinutes, delay != 0 { return delay }
         return currentlyRelevantDelayedLeg()?.delayMinutes
     }
 
-    var hasFlightDelay: Bool { (effectiveFlightDelayMinutes ?? 0) > 0 }
+    /// True when the flight has a nonzero offset (either delayed or early).
+    var hasFlightDelay: Bool { (effectiveFlightDelayMinutes ?? 0) != 0 }
 
-    /// The specific flight leg that has a delay, if any.
+    /// True when the active offset is an early departure (`< 0`).
+    var isEarlyDeparture: Bool { (effectiveFlightDelayMinutes ?? 0) < 0 }
+
+    /// The specific flight leg that has a nonzero offset, if any.
     var delayedFlightLeg: TripLeg? { currentlyRelevantDelayedLeg() }
 
-    /// A per-leg delay is "currently relevant" only while `now` is still inside
-    /// the flight's delay-extended window. Past flights that still carry a tag
+    /// A per-leg offset is "currently relevant" only while `now` is still inside
+    /// the flight's offset-extended window. Past flights that still carry a tag
     /// (older Duty builds hold the tag for up to 24h) are ignored so their
-    /// delay doesn't leak onto the next active flight.
+    /// value doesn't leak onto the next active flight.
     private func currentlyRelevantDelayedLeg(at now: Date = Date()) -> TripLeg? {
         tripLegs.first(where: { leg in
             guard leg.type == .flight,
-                  let delay = leg.delayMinutes, delay > 0 else { return false }
+                  let delay = leg.delayMinutes, delay != 0 else { return false }
             return now < leg.endTime.addingTimeInterval(TimeInterval(delay * 60))
         })
     }

@@ -52,27 +52,26 @@ enum TripStateResolver {
     static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
-        // Standard active candidates: startTime <= now < endTime
-        // Flight legs take priority over reserve/hotStandby/event when overlapping
-        let candidates = sorted.filter { $0.startTime <= now && now < $0.endTime }
+        // Standard active candidates: effective window covers `now`.
+        // Flight legs take priority over reserve/hotStandby/event when overlapping.
+        let candidates = sorted.filter { Self.effectiveStart(of: $0) <= now && now < Self.effectiveEnd(of: $0) }
         let primary = candidates.first { $0.type == .flight }
             ?? candidates.first { $0.type != .reserve && $0.type != .hotStandby && $0.type != .event }
             ?? candidates.first
 
-        // Per-leg delay: extend the specifically-delayed flight (new Duty tags delay on the leg)
-        let perLegDelayed: TripLeg? = sorted.first {
-            $0.type == .flight &&
-            ($0.delayMinutes ?? 0) > 0 &&
-            $0.startTime <= now &&
-            now < $0.endTime.addingTimeInterval(TimeInterval(($0.delayMinutes ?? 0) * 60))
+        // Per-leg offset: the flight whose tagged signed offset is in effect.
+        let perLegDelayed: TripLeg? = candidates.first {
+            $0.type == .flight && ($0.delayMinutes ?? 0) != 0
         }
 
-        // Legacy fallback for old Duty without per-leg delay tagging
+        // Legacy fallback for old Duty without per-leg offset tagging.
         let legacyDelayed: TripLeg? = {
-            let interval = TimeInterval((flightDelayMinutes ?? 0) * 60)
-            guard interval > 0, !sorted.contains(where: { ($0.delayMinutes ?? 0) > 0 }) else { return nil }
+            let shift = TimeInterval((flightDelayMinutes ?? 0) * 60)
+            guard shift != 0, !sorted.contains(where: { ($0.delayMinutes ?? 0) != 0 }) else { return nil }
             return sorted.first {
-                $0.type == .flight && $0.startTime <= now && now < $0.endTime.addingTimeInterval(interval)
+                $0.type == .flight
+                    && $0.startTime.addingTimeInterval(shift) <= now
+                    && now < $0.endTime.addingTimeInterval(shift)
             }
         }()
 
@@ -93,27 +92,35 @@ enum TripStateResolver {
                 ?? sorted.first(where: { $0.startTime >= leg.endTime && $0.type != .flight })?.timezoneIdentifier
         }()
 
-        // Effective end time with delay extension
+        // Effective end time with offset (signed — early shortens, late extends)
         let legDelay = TimeInterval((leg.delayMinutes ?? 0) * 60)
         let legacyDelay = TimeInterval((flightDelayMinutes ?? 0) * 60)
         let effectiveEnd: Date = {
-            if isInFlight, legDelay > 0 { return leg.endTime.addingTimeInterval(legDelay) }
-            if isInFlight, perLegDelayed == nil, legacyDelayed?.id == leg.id, legacyDelay > 0 {
+            if isInFlight, legDelay != 0 { return leg.endTime.addingTimeInterval(legDelay) }
+            if isInFlight, perLegDelayed == nil, legacyDelayed?.id == leg.id, legacyDelay != 0 {
                 return leg.endTime.addingTimeInterval(legacyDelay)
+            }
+            // Ground leg before an early next flight: transition when the flight actually starts.
+            if !isInFlight,
+               let nf = sorted.first(where: { leg2 in
+                   leg2.type == .flight && Self.effectiveStart(of: leg2) > now
+               }),
+               let d = nf.delayMinutes, d < 0 {
+                return min(leg.endTime, Self.effectiveStart(of: nf))
             }
             return leg.endTime
         }()
 
         let transition = effectiveEnd.timeIntervalSince(now)
 
-        // Resolved delay: the delay relevant to the current state
+        // Resolved offset: the value relevant to the current state
         let resolvedDelay: Int? = {
-            if let d = delayedFlight, (d.delayMinutes ?? 0) > 0 { return d.delayMinutes }
+            if let d = delayedFlight, (d.delayMinutes ?? 0) != 0 { return d.delayMinutes }
             if delayedFlight != nil || legacyDelayed != nil { return flightDelayMinutes }
-            // Ground leg: check if next flight has per-leg delay
+            // Ground leg: check if next flight has a per-leg offset
             if !isInFlight {
                 let nextFlight = sorted.first { $0.type == .flight && $0.startTime > now }
-                if let nf = nextFlight, (nf.delayMinutes ?? 0) > 0 { return nf.delayMinutes }
+                if let nf = nextFlight, (nf.delayMinutes ?? 0) != 0 { return nf.delayMinutes }
             }
             return nil
         }()
@@ -186,7 +193,7 @@ enum TripStateResolver {
             if let active = segments.first(where: { segment in
                 guard let firstLeg = segment.first, let lastLeg = segment.last else { return false }
                 let effectiveEnd: Date = {
-                    guard lastLeg.type == .flight, let delay = lastLeg.delayMinutes, delay > 0 else {
+                    guard lastLeg.type == .flight, let delay = lastLeg.delayMinutes, delay != 0 else {
                         return lastLeg.endTime
                     }
                     return lastLeg.endTime.addingTimeInterval(TimeInterval(delay * 60))
@@ -285,11 +292,11 @@ enum TripStateResolver {
     ///
     /// Returns `nil` only when no leg has completed yet (before the first leg starts).
     private static func resolveGap(sorted: [TripLeg], flightDelayMinutes: Int?, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
-        guard let completedLeg = sorted.last(where: { $0.endTime <= now }) else {
+        guard let completedLeg = sorted.last(where: { Self.effectiveEnd(of: $0) <= now }) else {
             return nil
         }
 
-        let nextLeg = sorted.first(where: { $0.startTime > now })
+        let nextLeg = sorted.first(where: { Self.effectiveStart(of: $0) > now })
 
         // After a flight: pilot is at the arrival airport/city.
         // After a ground leg: pilot is still at that leg's airport/city.
@@ -323,7 +330,7 @@ enum TripStateResolver {
             if let home = homeAirportCode,
                let current = airport,
                current.caseInsensitiveCompare(home) == .orderedSame {
-                let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+                let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
                 return ActiveLegState(
                     displayStatus: "Home",
                     isInFlight: false,
@@ -343,7 +350,7 @@ enum TripStateResolver {
 
             // Pilot is between trips but NOT at home airport → at base
             if homeAirportCode != nil, airport != nil {
-                let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+                let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
                 return ActiveLegState(
                     displayStatus: "Base",
                     isInFlight: false,
@@ -368,7 +375,7 @@ enum TripStateResolver {
         // Gap after a home/base leg before the next trip starts:
         // pilot is still conceptually at home, not on a "Turn".
         if completedLeg.type == .home || completedLeg.type == .base {
-            let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+            let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
             return ActiveLegState(
                 displayStatus: completedLeg.type == .home ? "Home" : "Base",
                 isInFlight: false,
@@ -386,15 +393,15 @@ enum TripStateResolver {
             )
         }
 
-        // Propagate per-leg delay from the next upcoming flight
+        // Propagate per-leg offset from the next upcoming flight
         let nextFlightDelay: Int? = {
-            guard let nf = sorted.first(where: { $0.type == .flight && $0.startTime > now }),
-                  (nf.delayMinutes ?? 0) > 0 else { return nil }
+            guard let nf = sorted.first(where: { $0.type == .flight && Self.effectiveStart(of: $0) > now }),
+                  (nf.delayMinutes ?? 0) != 0 else { return nil }
             return nf.delayMinutes
         }()
 
-        // Re-resolve when the next leg starts so the status transitions in real time
-        let transition = nextLeg.map { $0.startTime.timeIntervalSince(now) }
+        // Re-resolve when the next leg starts (shifted) so the status transitions in real time
+        let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
 
         return ActiveLegState(
             displayStatus: "Turn",
@@ -414,6 +421,16 @@ enum TripStateResolver {
     }
 
     // MARK: - Private
+
+    /// Scheduled start shifted by the leg's signed `delayMinutes` (negative = earlier).
+    static func effectiveStart(of leg: TripLeg) -> Date {
+        leg.startTime.addingTimeInterval(TimeInterval((leg.delayMinutes ?? 0) * 60))
+    }
+
+    /// Scheduled end shifted by the leg's signed `delayMinutes`.
+    static func effectiveEnd(of leg: TripLeg) -> Date {
+        leg.endTime.addingTimeInterval(TimeInterval((leg.delayMinutes ?? 0) * 60))
+    }
 
     private static func statusString(for type: TripLeg.LegType) -> String {
         switch type {
