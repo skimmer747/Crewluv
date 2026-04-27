@@ -1928,6 +1928,7 @@ struct TripProgressView: View {
         "Jacksonville": "🐆", "Baltimore": "🦀", "Boise": "💎",
         "Tucson": "🌵", "El Paso": "☀️", "Omaha": "🥩",
         "Richmond": "🏛️", "Santa Fe": "🏜️", "Key West": "🐚",
+        "Lynchburg": "⛰️", "Roanoke": "⭐",
         // International
         "London": "🇬🇧", "Paris": "🇫🇷", "Tokyo": "🇯🇵", "Toronto": "🇨🇦",
         "Vancouver": "🇨🇦", "Montreal": "🇨🇦", "Calgary": "🇨🇦",
@@ -1974,6 +1975,7 @@ struct TripProgressView: View {
         "Jacksonville": "JAX", "Baltimore": "BWI", "Boise": "BOI",
         "Tucson": "TUS", "El Paso": "ELP", "Omaha": "OMA",
         "Richmond": "RIC", "Santa Fe": "SAF", "Key West": "EYW",
+        "Lynchburg": "LYH", "Roanoke": "ROA",
         "London": "LHR", "Paris": "CDG", "Tokyo": "NRT", "Toronto": "YYZ",
         "Vancouver": "YVR", "Montreal": "YUL", "Calgary": "YYC",
         "Mexico City": "MEX", "Cancun": "CUN", "Guadalajara": "GDL",
@@ -2014,6 +2016,7 @@ struct TripProgressView: View {
         "Jacksonville": "Jax", "Baltimore": "Crabcake", "Boise": "Gem State",
         "Tucson": "Sonoran", "El Paso": "Sun City", "Omaha": "Steaks",
         "Richmond": "RVA", "Santa Fe": "Adobe", "Key West": "Conch",
+        "Lynchburg": "Hill City", "Roanoke": "Star City",
         // International
         "London": "Cheerio", "Paris": "Bonjour", "Tokyo": "Konnichiwa",
         "Toronto": "Eh", "Vancouver": "Beautiful BC", "Montreal": "Bonjour",
