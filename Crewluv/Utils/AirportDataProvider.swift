@@ -172,6 +172,7 @@ class AirportDataProvider {
             ("CHO", "Charlottesville", "USA", 38.1386, -78.4529),
             ("LYH", "Lynchburg", "USA", 37.3267, -79.2004),
             ("ROA", "Roanoke", "USA", 37.3255, -79.9754),
+            ("SWF", "Newburgh", "USA", 41.5041, -74.1048),
 
             // Southeast regional
             ("CHS", "Charleston", "USA", 32.8986, -80.0405),
