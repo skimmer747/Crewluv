@@ -23,6 +23,7 @@ actor StatusChangeNotifier {
         let homeArrivalTime: Date?
         let nextDepartureTime: Date?
         let pilotFirstName: String
+        let tripLegsJSON: Data?
     }
 
     private static let shortTimeFormatter: DateFormatter = {
@@ -32,6 +33,7 @@ actor StatusChangeNotifier {
     }()
 
     private let snapshotKey = "LastSeenPilotSnapshot"
+    private let lastEvaluatedKey = "LastEvaluatedPilotStatusTimestamp"
     private var hasSnapshot: Bool {
         UserDefaults.standard.data(forKey: snapshotKey) != nil
     }
@@ -62,6 +64,15 @@ actor StatusChangeNotifier {
     }
 
     private func performEvaluation(old: SharedPilotStatus?, new: SharedPilotStatus, pilotName: String, newEffectiveDelay: Int? = nil, resolvedHomeArrivalTime: Date? = nil) {
+        // Skip evaluation entirely if Duty hasn't published anything new since
+        // the last time we evaluated. Prevents spurious notifications from
+        // silent-push replays and BG refreshes against an unchanged record.
+        let lastEvaluated = UserDefaults.standard.object(forKey: lastEvaluatedKey) as? Date
+        if let lastEvaluated, new.lastUpdated <= lastEvaluated {
+            debugLog("[Notifier] Skipping eval — lastUpdated unchanged (\(new.lastUpdated))")
+            return
+        }
+
         let snapshot = loadSnapshot()
         let resolvedNewDelay = newEffectiveDelay ?? new.flightDelayMinutes ?? 0
 
@@ -135,30 +146,28 @@ actor StatusChangeNotifier {
             ))
         }
 
-        // Home arrival time shifted (>15 min)
-        // Use the resolved homecoming time (from trip legs) instead of the raw
-        // CloudKit value, which may be the base-return time rather than actual homecoming.
+        // Home arrival time shifted (>15 min).
+        // Only evaluate when Duty's underlying data actually changed — either the
+        // published homeArrivalTime field or the trip-leg bytes. Otherwise any
+        // diff is wall-clock drift from the resolver picking a different leg.
         let effectiveNewHome = resolvedHomeArrivalTime ?? new.homeArrivalTime
-        if let oldHome = old.homeArrivalTime, let newHome = effectiveNewHome {
+        let publishedHomeChanged = old.homeArrivalTime != effectiveNewHome
+        let legsChanged = old.tripLegsJSON != new.tripLegsJSON
+
+        if (publishedHomeChanged || legsChanged),
+           let oldHome = old.homeArrivalTime, let newHome = effectiveNewHome {
             let shift = newHome.timeIntervalSince(oldHome)
             if abs(shift) > 15 * 60 {
                 let timeStr = Self.shortTimeFormatter.string(from: newHome)
-
-                if shift > 0 {
-                    specs.append(NotificationSpec(
-                        id: "schedule-home-arrival",
-                        title: name,
-                        body: "Getting home later — now \(timeStr)",
-                        sound: .default
-                    ))
-                } else {
-                    specs.append(NotificationSpec(
-                        id: "schedule-home-arrival",
-                        title: name,
-                        body: "Getting home earlier — now \(timeStr)",
-                        sound: .default
-                    ))
-                }
+                let body = shift > 0
+                    ? "Getting home later — now \(timeStr)"
+                    : "Getting home earlier — now \(timeStr)"
+                specs.append(NotificationSpec(
+                    id: "schedule-home-arrival",
+                    title: name,
+                    body: body,
+                    sound: .default
+                ))
             }
         }
 
@@ -336,12 +345,14 @@ actor StatusChangeNotifier {
             tripTotalDays: status.tripTotalDays,
             homeArrivalTime: resolvedHomeArrivalTime ?? status.homeArrivalTime,
             nextDepartureTime: status.nextDepartureTime,
-            pilotFirstName: status.pilotFirstName
+            pilotFirstName: status.pilotFirstName,
+            tripLegsJSON: status.tripLegsJSON
         )
 
         if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: snapshotKey)
         }
+        UserDefaults.standard.set(status.lastUpdated, forKey: lastEvaluatedKey)
     }
 
     private func loadSnapshot() -> PilotSnapshot? {
@@ -387,7 +398,7 @@ actor StatusChangeNotifier {
             tripDayNumber: nil,
             tripTotalDays: s.tripTotalDays,
             upcomingCities: [],
-            tripLegsJSON: nil,
+            tripLegsJSON: s.tripLegsJSON,
             quickStatus: s.quickStatus,
             quickStatusIcon: nil,
             quickStatusExpiry: nil,
