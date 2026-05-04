@@ -138,6 +138,8 @@ final class CloudKitShareManager {
         // Store the zone owner name for future access
         let ownerName = acceptedShare.recordID.zoneID.ownerName
         UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
+        // A real share is authoritative — break any prior .privateDB lock.
+        UserDefaults.standard.set("shared", forKey: "PilotDataSource")
         debugLog("[ShareManager] Stored zone owner: \(ownerName)")
 
         // Update state to accepted
@@ -174,6 +176,8 @@ final class CloudKitShareManager {
                         // Store the zone owner name
                         let ownerName = zone.zoneID.ownerName
                         UserDefaults.standard.set(ownerName, forKey: zoneOwnerKey)
+                        // A real share is authoritative — break any prior .privateDB lock.
+                        UserDefaults.standard.set("shared", forKey: "PilotDataSource")
                         debugLog("[ShareManager] Stored zone owner: \(ownerName)")
 
                         // Notify the app to refresh

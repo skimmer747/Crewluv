@@ -47,6 +47,16 @@ class PartnerStatusReceiver {
             debugLog("[StatusReceiver] Restored data source: \(raw)")
         }
 
+        // An accepted share takes precedence over a stale .privateDB lock.
+        // Why: a cross-account user who once tripped the same-account fallback
+        // would otherwise be stuck reading their own zone forever.
+        if dataSource == .privateDB,
+           UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
+            dataSource = .shared
+            UserDefaults.standard.set(DataSource.shared.rawValue, forKey: dataSourceKey)
+            debugLog("[StatusReceiver] Corrected data source to .shared (share owner present)")
+        }
+
         // Listen for share acceptance notification FIRST, before initial check
         NotificationCenter.default.addObserver(
             forName: .shareAccepted,
@@ -106,8 +116,10 @@ class PartnerStatusReceiver {
                 await shareManager.checkForAcceptedShares()
             }
 
-            // If still no data found, check private database (same-account scenario)
-            if !hasAcceptedShare {
+            // If still no data found, check private database (same-account scenario).
+            // Skip when a share has ever been recorded — its presence proves cross-account
+            // intent, and self-zone discovery would silently shadow the partner's zone.
+            if !hasAcceptedShare && UserDefaults.standard.string(forKey: "SharedZoneOwner") == nil {
                 await checkPrivateDatabase()
             }
         }
