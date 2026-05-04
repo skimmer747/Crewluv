@@ -40,17 +40,6 @@ struct PilotStatusView: View {
     @State private var showDiagnostics = false
     #endif
 
-    /// Resolved display name for the pilot whose schedule is currently shown.
-    /// Why: surfacing this prevents silent wrong-account confusion if the receiver
-    /// ever ends up reading the wrong zone (e.g. a cross-account user whose own
-    /// Duty zone got picked up by the same-account fallback).
-    private var displayedPilotName: String {
-        let resolved = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
-        let trimmed = resolved?.trimmingCharacters(in: .whitespaces)
-        if let trimmed, !trimmed.isEmpty { return trimmed }
-        return status.pilotFirstName
-    }
-
     /// Derive upcoming trip info once from trip legs (single source of truth)
     private var upcomingTrip: UpcomingTripInfo? {
         guard ["Home", "Base"].contains(status.displayStatus) else { return nil }
@@ -86,12 +75,6 @@ struct PilotStatusView: View {
                     if isInDemoMode {
                         DemoBannerView(onExit: { onExitDemo?() })
                     }
-
-                    Text("Showing schedule for \(displayedPilotName)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .accessibilityLabel("Showing schedule for \(displayedPilotName)")
 
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
