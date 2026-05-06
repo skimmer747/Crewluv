@@ -49,7 +49,7 @@ enum TripStateResolver {
     /// Derive real-time status from trip legs.
     /// Handles both active legs (startTime <= now < endTime) and gaps between legs.
     /// Returns `nil` only when no leg has completed yet (before first leg starts)
-    static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
+    static func resolve(legs: [TripLeg], flightDelayMinutes: Int? = nil, homeAirportCode: String? = nil, baseAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
         // Standard active candidates: effective window covers `now`.
@@ -80,7 +80,7 @@ enum TripStateResolver {
         // Delayed flight wins over ground legs that assumed on-time arrival
         guard let leg = (delayedFlight ?? primary) else {
             // No active leg spans `now` — derive state from surrounding legs (gap handling)
-            return resolveGap(sorted: sorted, flightDelayMinutes: flightDelayMinutes, homeAirportCode: homeAirportCode, at: now)
+            return resolveGap(sorted: sorted, flightDelayMinutes: flightDelayMinutes, homeAirportCode: homeAirportCode, baseAirportCode: baseAirportCode, at: now)
         }
 
         let isInFlight = leg.type == .flight
@@ -291,7 +291,7 @@ enum TripStateResolver {
     /// which may be stale for cross-trip or jumpseat flights.
     ///
     /// Returns `nil` only when no leg has completed yet (before the first leg starts).
-    private static func resolveGap(sorted: [TripLeg], flightDelayMinutes: Int?, homeAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
+    private static func resolveGap(sorted: [TripLeg], flightDelayMinutes: Int?, homeAirportCode: String? = nil, baseAirportCode: String? = nil, at now: Date) -> ActiveLegState? {
         guard let completedLeg = sorted.last(where: { Self.effectiveEnd(of: $0) <= now }) else {
             return nil
         }
@@ -327,48 +327,45 @@ enum TripStateResolver {
             || isDifferentTrip
 
         if isEndOfTrip {
-            if let home = homeAirportCode,
-               let current = airport,
+            let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
+            let timeUntilNextTransition = transition.flatMap { $0 > 0 ? $0 : nil }
+
+            func gapState(_ status: PilotDisplayStatus) -> ActiveLegState {
+                ActiveLegState(
+                    displayStatus: status,
+                    isInFlight: false,
+                    currentAirport: airport,
+                    currentCity: city,
+                    currentTimezone: timezone,
+                    currentFlightNumber: nil,
+                    currentFlightDeparture: nil,
+                    currentFlightArrival: nil,
+                    currentFlightDepartureTime: nil,
+                    currentFlightArrivalTime: nil,
+                    currentFlightArrivalTimezone: nil,
+                    flightDelayMinutes: nil,
+                    timeUntilNextTransition: timeUntilNextTransition
+                )
+            }
+
+            // 1. At the pilot's home airport.
+            if let home = homeAirportCode, let current = airport,
                current.caseInsensitiveCompare(home) == .orderedSame {
-                let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
-                return ActiveLegState(
-                    displayStatus: .home,
-                    isInFlight: false,
-                    currentAirport: airport,
-                    currentCity: city,
-                    currentTimezone: timezone,
-                    currentFlightNumber: nil,
-                    currentFlightDeparture: nil,
-                    currentFlightArrival: nil,
-                    currentFlightDepartureTime: nil,
-                    currentFlightArrivalTime: nil,
-                    currentFlightArrivalTimezone: nil,
-                    flightDelayMinutes: nil,
-                    timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
-                )
+                return gapState(.home)
             }
 
-            // Pilot is between trips but NOT at home airport → at base
-            if homeAirportCode != nil, airport != nil {
-                let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
-                return ActiveLegState(
-                    displayStatus: .base,
-                    isInFlight: false,
-                    currentAirport: airport,
-                    currentCity: city,
-                    currentTimezone: timezone,
-                    currentFlightNumber: nil,
-                    currentFlightDeparture: nil,
-                    currentFlightArrival: nil,
-                    currentFlightDepartureTime: nil,
-                    currentFlightArrivalTime: nil,
-                    currentFlightArrivalTimezone: nil,
-                    flightDelayMinutes: nil,
-                    timeUntilNextTransition: transition.flatMap { $0 > 0 ? $0 : nil }
-                )
+            // 2. At the pilot's base airport (commuter sitting at base between trips).
+            if let base = baseAirportCode, let current = airport,
+               current.caseInsensitiveCompare(base) == .orderedSame {
+                return gapState(.base)
             }
 
-            // homeAirportCode or airport unknown — fall back to Duty's raw displayStatus
+            // 3. Between trips somewhere else — surface the city; no inferred status word.
+            if airport != nil {
+                return gapState(.elsewhere(city: city))
+            }
+
+            // No location at all — fall back to Duty's raw displayStatus.
             return nil
         }
 

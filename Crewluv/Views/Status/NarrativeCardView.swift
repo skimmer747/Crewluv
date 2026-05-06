@@ -58,7 +58,9 @@ struct NarrativeCardView: View {
             trainingNarrative
         case .base:
             baseNarrative
-        case .elsewhere, .unknown:
+        case .elsewhere(let city):
+            elsewhereNarrative(city: city)
+        case .unknown:
             Text("On duty")
         }
     }
@@ -355,6 +357,27 @@ struct NarrativeCardView: View {
         }
     }
 
+    /// Pilot is between trips at an airport that is neither home nor base.
+    /// Surface the city as the headline; do not invent a status word.
+    @ViewBuilder
+    private func elsewhereNarrative(city resolverCity: String?) -> some View {
+        if let city = resolverCity ?? status.currentCity {
+            if let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
+                let depTimeStr = formattedLocalTime(nextTime)
+                Text("\(name) is in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            } else if let nextTime = nextFlightDepartureTime() {
+                let depTimeStr = formattedLocalTime(nextTime)
+                Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            } else {
+                Text("\(name) is in \(Text(city).bold())")
+            }
+        } else if let code = status.currentAirport {
+            Text("\(name) is in \(Text(code).bold())")
+        } else {
+            Text("\(name) is off duty")
+        }
+    }
+
     @ViewBuilder
     private var baseNarrative: some View {
         if let city = status.currentCity, let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
@@ -636,7 +659,8 @@ struct NarrativeCardView: View {
         case .hotStandby: return "bolt.fill"
         case .training: return "book.fill"
         case .base: return "building.2.fill"
-        case .elsewhere, .unknown: return "circle.fill"
+        case .elsewhere: return "mappin.and.ellipse"
+        case .unknown: return "circle.fill"
         }
     }
 
@@ -651,7 +675,8 @@ struct NarrativeCardView: View {
         case .hotStandby: return .orange
         case .training: return .purple
         case .base: return .purple
-        case .elsewhere, .unknown: return .gray
+        case .elsewhere: return .secondary
+        case .unknown: return .gray
         }
     }
 }
