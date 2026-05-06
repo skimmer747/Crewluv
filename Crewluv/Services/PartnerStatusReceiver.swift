@@ -393,7 +393,7 @@ class PartnerStatusReceiver {
 
         // Compute trip progress from legs — always current, unlike
         // raw.tripDayNumber/tripTotalDays which Duty writes once per trip.
-        let isHomeStatus = ["Home", "Base"].contains(displayStatus)
+        let isHomeStatus = displayStatus.isSettled
         let sorted = legs.sorted { $0.startTime < $1.startTime }
 
         let effectiveTripDayNumber: Int?
@@ -475,7 +475,7 @@ class PartnerStatusReceiver {
         )
 
         let transitionInfo = resolved?.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil"
-        debugLog("[StatusReceiver] Resolved status: \(displayStatus), next transition in \(transitionInfo)s")
+        debugLog("[StatusReceiver] Resolved status: \(displayStatus.rawDisplayString), next transition in \(transitionInfo)s")
 
         // Schedule re-resolve at next leg boundary for real-time updates
         transitionTask?.cancel()

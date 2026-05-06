@@ -17,7 +17,9 @@ actor StatusChangeNotifier {
     private struct PilotSnapshot: Codable {
         let quickStatus: String?
         let flightDelayMinutes: Int?
-        let displayStatus: String
+        /// Encodes/decodes as the same single-value String the previous
+        /// stringly-typed snapshot used, so persisted JSON stays byte-compatible.
+        let displayStatus: PilotDisplayStatus
         let currentTripId: String?
         let tripTotalDays: Int?
         let homeArrivalTime: Date?
@@ -283,21 +285,21 @@ actor StatusChangeNotifier {
         guard old.displayStatus != new.displayStatus else { return [] }
 
         switch new.displayStatus {
-        case "Home":
+        case .home:
             return [NotificationSpec(
                 id: "status-transition",
                 title: name,
                 body: "is home!",
                 sound: .default
             )]
-        case "In Flight":
+        case .inFlight:
             return [NotificationSpec(
                 id: "status-transition",
                 title: name,
                 body: "just took off",
                 sound: .default
             )]
-        default:
+        case .base, .commutingHome, .turn, .layover, .reserve, .hotStandby, .training, .elsewhere, .unknown:
             return []
         }
     }

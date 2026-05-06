@@ -28,7 +28,10 @@ struct SharedPilotStatus: Codable, Sendable {
 
     // MARK: - Current State
 
-    let displayStatus: String        // "Home", "In Flight", "Turn", or "Layover"
+    /// Type-safe pilot status. Bridges to `String` at the CloudKit boundary
+    /// (`rawDisplayString`) so the on-the-wire format remains compatible with
+    /// older Duty / Crewluv builds.
+    let displayStatus: PilotDisplayStatus
     let isSleeping: Bool             // User-toggled sleeping indicator
 
     // DEPRECATED: Use displayStatus instead
@@ -303,7 +306,7 @@ struct SharedPilotStatus: Codable, Sendable {
             pilotFirstName: "Alex",
             homeAirportCode: "ORD",
             homeTimezone: "America/Chicago",
-            displayStatus: "Layover",
+            displayStatus: .layover,
             isSleeping: false,
             isHome: false,
             isInFlight: false,
@@ -360,7 +363,7 @@ struct SharedPilotStatus: Codable, Sendable {
         if let homeTimezone = homeTimezone {
             record["homeTimezone"] = homeTimezone as CKRecordValue
         }
-        record["displayStatus"] = displayStatus as CKRecordValue
+        record["displayStatus"] = displayStatus.rawDisplayString as CKRecordValue
         record["isSleeping"] = (isSleeping ? 1 : 0) as CKRecordValue
         record["isHome"] = (isHome ? 1 : 0) as CKRecordValue
         record["isInFlight"] = (isInFlight ? 1 : 0) as CKRecordValue
@@ -479,7 +482,7 @@ struct SharedPilotStatus: Codable, Sendable {
             pilotFirstName: pilotFirstName,
             homeAirportCode: record["homeAirportCode"] as? String,
             homeTimezone: record["homeTimezone"] as? String,
-            displayStatus: record["displayStatus"] as? String ?? "Home",
+            displayStatus: PilotDisplayStatus(rawDisplayString: record["displayStatus"] as? String ?? "Home"),
             isSleeping: (record["isSleeping"] as? Int ?? 0) == 1,
             isHome: (record["isHome"] as? Int ?? 0) == 1,
             isInFlight: (record["isInFlight"] as? Int ?? 0) == 1,

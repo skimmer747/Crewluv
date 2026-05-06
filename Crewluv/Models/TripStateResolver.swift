@@ -13,7 +13,7 @@ import Foundation
 /// `nil` from `resolve()` means no leg data covers `now` (before first leg)
 /// — caller should fall back to Duty's pre-computed displayStatus.
 struct ActiveLegState {
-    let displayStatus: String
+    let displayStatus: PilotDisplayStatus
     let isInFlight: Bool
 
     // Location (from the active leg)
@@ -126,7 +126,7 @@ enum TripStateResolver {
         }()
 
         return ActiveLegState(
-            displayStatus: statusString(for: leg.type),
+            displayStatus: displayStatus(for: leg.type),
             isInFlight: isInFlight,
             currentAirport: isInFlight ? leg.departureAirport : leg.airportCode,
             currentCity: isInFlight ? nil : leg.city,
@@ -332,7 +332,7 @@ enum TripStateResolver {
                current.caseInsensitiveCompare(home) == .orderedSame {
                 let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
                 return ActiveLegState(
-                    displayStatus: "Home",
+                    displayStatus: .home,
                     isInFlight: false,
                     currentAirport: airport,
                     currentCity: city,
@@ -352,7 +352,7 @@ enum TripStateResolver {
             if homeAirportCode != nil, airport != nil {
                 let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
                 return ActiveLegState(
-                    displayStatus: "Base",
+                    displayStatus: .base,
                     isInFlight: false,
                     currentAirport: airport,
                     currentCity: city,
@@ -377,7 +377,7 @@ enum TripStateResolver {
         if completedLeg.type == .home || completedLeg.type == .base {
             let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
             return ActiveLegState(
-                displayStatus: completedLeg.type == .home ? "Home" : "Base",
+                displayStatus: completedLeg.type == .home ? .home : .base,
                 isInFlight: false,
                 currentAirport: airport,
                 currentCity: city,
@@ -404,7 +404,7 @@ enum TripStateResolver {
         let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
 
         return ActiveLegState(
-            displayStatus: "Turn",
+            displayStatus: .turn,
             isInFlight: false,
             currentAirport: airport,
             currentCity: city,
@@ -432,17 +432,17 @@ enum TripStateResolver {
         leg.endTime.addingTimeInterval(TimeInterval((leg.delayMinutes ?? 0) * 60))
     }
 
-    private static func statusString(for type: TripLeg.LegType) -> String {
+    private static func displayStatus(for type: TripLeg.LegType) -> PilotDisplayStatus {
         switch type {
-        case .flight:     "In Flight"
-        case .turn:       "Turn"
-        case .layover:    "Layover"
-        case .home:       "Home"
-        case .base:       "Base"
-        case .reserve:    "Reserve"
-        case .hotStandby: "Hot Standby"
-        case .event:      "Training"
-        case .unknown:    "On Duty"
+        case .flight:     .inFlight
+        case .turn:       .turn
+        case .layover:    .layover
+        case .home:       .home
+        case .base:       .base
+        case .reserve:    .reserve
+        case .hotStandby: .hotStandby
+        case .event:      .training
+        case .unknown:    .unknown("On Duty")
         }
     }
 }

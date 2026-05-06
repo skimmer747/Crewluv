@@ -42,7 +42,7 @@ struct PilotStatusView: View {
 
     /// Derive upcoming trip info once from trip legs (single source of truth)
     private var upcomingTrip: UpcomingTripInfo? {
-        guard ["Home", "Base"].contains(status.displayStatus) else { return nil }
+        guard status.displayStatus.isSettled else { return nil }
         return UpcomingTripInfo.from(
             tripLegs: status.tripLegs,
             at: Date(),
@@ -80,7 +80,7 @@ struct PilotStatusView: View {
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
 
                     // Next Departure (if at home) — taps open schedule
-                    if status.displayStatus == "Home", let departureTime = delayedNextDepartureTime {
+                    if status.displayStatus == .home, let departureTime = delayedNextDepartureTime {
                         scheduleLink {
                             CountdownCardView(
                                 title: countdownTitle,
@@ -95,7 +95,7 @@ struct PilotStatusView: View {
                     }
 
                     // Days home counter (only when home with last trip data)
-                    if status.displayStatus == "Home", let days = daysAtHome {
+                    if status.displayStatus == .home, let days = daysAtHome {
                         HStack(spacing: 8) {
                             Image(systemName: "house.fill")
                                 .font(.subheadline)
@@ -111,7 +111,7 @@ struct PilotStatusView: View {
                     }
 
                     // Countdown Timer (if not home) — taps open schedule
-                    if let homeTime = status.homeArrivalTime, status.displayStatus != "Home" {
+                    if let homeTime = status.homeArrivalTime, status.displayStatus != .home {
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
                         let dateStr = Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
@@ -129,7 +129,7 @@ struct PilotStatusView: View {
                             .anchorPreference(key: HomeCardBoundsKey.self, value: .bounds) { $0 }
                             .contentShape(.rect)
                         }
-                    } else if status.displayStatus != "Home",
+                    } else if status.displayStatus != .home,
                               let dayNumber = status.tripDayNumber,
                               let totalDays = status.tripTotalDays {
                         scheduleLink {
@@ -144,7 +144,7 @@ struct PilotStatusView: View {
                     }
 
                     // Schedule card when home with no departure time (hidden on iPad)
-                    if !isCompanionLayout, ["Home", "Base"].contains(status.displayStatus), status.nextDepartureTime == nil {
+                    if !isCompanionLayout, status.displayStatus.isSettled, status.nextDepartureTime == nil {
                         Button { showSchedule = true } label: {
                             HStack {
                                 Image(systemName: "calendar")
@@ -170,7 +170,7 @@ struct PilotStatusView: View {
                     LocationCardView(status: status)
 
                     // Upcoming trip card (when home with trip data)
-                    if ["Home", "Base"].contains(status.displayStatus), let trip = upcomingTrip {
+                    if status.displayStatus.isSettled, let trip = upcomingTrip {
                         scheduleLink {
                             UpcomingTripCard(
                                 trip: trip,
@@ -182,7 +182,7 @@ struct PilotStatusView: View {
                     }
 
                     // Trip Overview (if on trip)
-                    if !["Home", "Base"].contains(status.displayStatus),
+                    if !status.displayStatus.isSettled,
                        let dayNumber = status.tripDayNumber,
                        let totalDays = status.tripTotalDays {
                         TripProgressView(
@@ -239,7 +239,7 @@ struct PilotStatusView: View {
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in
             if let anchor,
                let homeTime = status.homeArrivalTime,
-               !["Home", "Base"].contains(status.displayStatus) {
+               !status.displayStatus.isSettled {
                 if homeTime.timeIntervalSinceNow < 86400 && homeTime.timeIntervalSinceNow > 0 {
                     GeometryReader { proxy in
                         let rect = proxy[anchor]
@@ -458,7 +458,7 @@ struct LocationCardView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        if status.displayStatus == "In Flight" {
+        if status.displayStatus == .inFlight {
             inFlightView
         } else {
             standardLocationView
@@ -2549,7 +2549,7 @@ struct QuickStatusIndicatorView: View {
         pilotFirstName: "Todd",
         homeAirportCode: nil,
         homeTimezone: nil,
-        displayStatus: "In Flight",
+        displayStatus: .inFlight,
         isSleeping: true,
         isHome: false,
         isInFlight: true,

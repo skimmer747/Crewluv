@@ -40,25 +40,25 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var narrativeText: some View {
         switch status.displayStatus {
-        case "Home":
+        case .home:
             homeNarrative
-        case "Commuting Home":
+        case .commutingHome:
             commutingHomeNarrative
-        case "In Flight":
+        case .inFlight:
             inFlightNarrative
-        case "Turn":
+        case .turn:
             turnNarrative
-        case "Layover":
+        case .layover:
             layoverNarrative
-        case "Reserve":
+        case .reserve:
             reserveNarrative
-        case "Hot Standby":
+        case .hotStandby:
             hotStandbyNarrative
-        case "Training":
+        case .training:
             trainingNarrative
-        case "Base":
+        case .base:
             baseNarrative
-        default:
+        case .elsewhere, .unknown:
             Text("On duty")
         }
     }
@@ -374,7 +374,7 @@ struct NarrativeCardView: View {
 
     private var statusIconView: some View {
         ZStack {
-            if ["Layover", "Base"].contains(status.displayStatus), let progress = layoverProgress {
+            if status.displayStatus.isLayoverLike, let progress = layoverProgress {
                 Circle()
                     .stroke(statusColor.opacity(0.2), lineWidth: 3)
                     .frame(width: 44, height: 44)
@@ -383,7 +383,7 @@ struct NarrativeCardView: View {
                     .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .frame(width: 44, height: 44)
                     .rotationEffect(.degrees(-90))
-            } else if ["Reserve", "Hot Standby", "Training"].contains(status.displayStatus),
+            } else if status.displayStatus.isDutyPeriod,
                       let progress = dutyPeriodProgress {
                 Circle()
                     .stroke(statusColor.opacity(0.2), lineWidth: 3)
@@ -393,7 +393,7 @@ struct NarrativeCardView: View {
                     .stroke(statusColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .frame(width: 44, height: 44)
                     .rotationEffect(.degrees(-90))
-            } else if status.displayStatus == "In Flight", let progress = flightProgress {
+            } else if status.displayStatus == .inFlight, let progress = flightProgress {
                 Circle()
                     .stroke(statusColor.opacity(0.2), lineWidth: 3)
                     .frame(width: 44, height: 44)
@@ -627,31 +627,31 @@ struct NarrativeCardView: View {
 
     private var statusIcon: String {
         switch status.displayStatus {
-        case "Home": return "house.fill"
-        case "Commuting Home": return "airplane"
-        case "In Flight": return AirlineBranding.symbolName(for: currentAirlineCode)
-        case "Turn": return "arrow.triangle.2.circlepath"
-        case "Layover": return "bed.double.fill"
-        case "Reserve": return "clock.badge.questionmark"
-        case "Hot Standby": return "bolt.fill"
-        case "Training": return "book.fill"
-        case "Base": return "building.2.fill"
-        default: return "circle.fill"
+        case .home: return "house.fill"
+        case .commutingHome: return "airplane"
+        case .inFlight: return AirlineBranding.symbolName(for: currentAirlineCode)
+        case .turn: return "arrow.triangle.2.circlepath"
+        case .layover: return "bed.double.fill"
+        case .reserve: return "clock.badge.questionmark"
+        case .hotStandby: return "bolt.fill"
+        case .training: return "book.fill"
+        case .base: return "building.2.fill"
+        case .elsewhere, .unknown: return "circle.fill"
         }
     }
 
     private var statusColor: Color {
         switch status.displayStatus {
-        case "Home": return .green
-        case "Commuting Home": return .blue
-        case "In Flight": return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
-        case "Turn": return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .orange
-        case "Layover": return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .purple
-        case "Reserve": return .red
-        case "Hot Standby": return .orange
-        case "Training": return .purple
-        case "Base": return .purple
-        default: return .gray
+        case .home: return .green
+        case .commutingHome: return .blue
+        case .inFlight: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
+        case .turn: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .orange
+        case .layover: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .purple
+        case .reserve: return .red
+        case .hotStandby: return .orange
+        case .training: return .purple
+        case .base: return .purple
+        case .elsewhere, .unknown: return .gray
         }
     }
 }
