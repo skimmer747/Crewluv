@@ -2548,6 +2548,7 @@ struct QuickStatusIndicatorView: View {
         pilotId: "test",
         pilotFirstName: "Todd",
         homeAirportCode: nil,
+        baseAirportCode: nil,
         homeTimezone: nil,
         displayStatus: .inFlight,
         isSleeping: true,

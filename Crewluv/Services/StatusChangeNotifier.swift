@@ -369,6 +369,7 @@ actor StatusChangeNotifier {
             pilotId: "",
             pilotFirstName: s.pilotFirstName,
             homeAirportCode: nil,
+            baseAirportCode: nil,
             homeTimezone: nil,
             displayStatus: s.displayStatus,
             isSleeping: false,

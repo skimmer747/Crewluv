@@ -345,7 +345,7 @@ class PartnerStatusReceiver {
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
 
         let now = Date()
-        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, at: now)
+        let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, baseAirportCode: raw.baseAirportCode, at: now)
 
         // If resolver found an active leg, use its real-time data for status/location/flight.
         // Otherwise, trust Duty's pre-computed values entirely.
@@ -433,6 +433,7 @@ class PartnerStatusReceiver {
             pilotId: raw.pilotId,
             pilotFirstName: displayName,
             homeAirportCode: raw.homeAirportCode,
+            baseAirportCode: raw.baseAirportCode,
             homeTimezone: raw.homeTimezone,
             displayStatus: displayStatus,
             isSleeping: raw.isSleeping,
