@@ -150,4 +150,68 @@ struct TripStateResolverGapTests {
 
         #expect(state?.displayStatus == .base)
     }
+
+    // MARK: - Mid-Trip Gap (Turn)
+
+    /// Regression guard: a gap between two flights of the same trip must remain `.turn`,
+    /// not get reclassified by the new home/base/elsewhere branch (which is end-of-trip only).
+    @Test func test_resolveGap_midTripGap_returnsTurn() {
+        let now = Date()
+        let firstArrival = now.addingTimeInterval(-3600)        // landed an hour ago at DFW
+        let secondDeparture = now.addingTimeInterval(2 * 3600)  // next leg leaves in 2 hours
+
+        let firstLeg = TripLeg(
+            id: "flight-1",
+            tripId: "trip-1",
+            type: .flight,
+            startTime: firstArrival.addingTimeInterval(-2 * 3600),
+            endTime: firstArrival,
+            airportCode: nil,
+            city: nil,
+            timezoneIdentifier: nil,
+            arrivalTimezoneIdentifier: nil,
+            flightNumber: "UA 100",
+            departureAirport: "ORD",
+            arrivalAirport: "DFW",
+            departureCity: "Chicago",
+            arrivalCity: "Dallas",
+            tripDayNumber: 1,
+            tripTotalDays: 1,
+            delayMinutes: nil,
+            airlineCode: "UA",
+            label: nil
+        )
+
+        let secondLeg = TripLeg(
+            id: "flight-2",
+            tripId: "trip-1",
+            type: .flight,
+            startTime: secondDeparture,
+            endTime: secondDeparture.addingTimeInterval(2 * 3600),
+            airportCode: nil,
+            city: nil,
+            timezoneIdentifier: nil,
+            arrivalTimezoneIdentifier: nil,
+            flightNumber: "UA 200",
+            departureAirport: "DFW",
+            arrivalAirport: "LAX",
+            departureCity: "Dallas",
+            arrivalCity: "Los Angeles",
+            tripDayNumber: 1,
+            tripTotalDays: 1,
+            delayMinutes: nil,
+            airlineCode: "UA",
+            label: nil
+        )
+
+        let state = TripStateResolver.resolve(
+            legs: [firstLeg, secondLeg],
+            homeAirportCode: "MCO",
+            baseAirportCode: "SDF",
+            at: now
+        )
+
+        #expect(state?.displayStatus == .turn)
+        #expect(state?.currentAirport == "DFW")
+    }
 }
