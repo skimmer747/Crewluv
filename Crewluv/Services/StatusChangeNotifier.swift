@@ -173,8 +173,12 @@ actor StatusChangeNotifier {
             }
         }
 
-        // Departure time shifted (>15 min)
-        if let oldDep = old.nextDepartureTime, let newDep = new.nextDepartureTime {
+        // Departure time shifted (>15 min).
+        // Only evaluate when the underlying trip-leg bytes changed. Otherwise
+        // any diff is the writer's findNextDeparture picking a later leg as
+        // the previous one becomes past-tense on each 5-min republish.
+        if legsChanged,
+           let oldDep = old.nextDepartureTime, let newDep = new.nextDepartureTime {
             let shift = newDep.timeIntervalSince(oldDep)
             if abs(shift) > 15 * 60 {
                 let timeStr = Self.shortTimeFormatter.string(from: newDep)
