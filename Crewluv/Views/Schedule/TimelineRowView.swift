@@ -10,16 +10,31 @@ import SwiftUI
 struct TimelineRowView: View {
     let leg: TripLeg
     var homeAirportCode: String?
+    var baseAirportCode: String?
     var isUpNext: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
     private var isHomebound: Bool {
-        guard leg.type == .flight,
-              let home = homeAirportCode, !home.isEmpty,
-              let arrival = leg.arrivalAirport
+        guard let home = homeAirportCode, !home.isEmpty else { return false }
+        if leg.type == .flight, let arrival = leg.arrivalAirport {
+            return arrival.caseInsensitiveCompare(home) == .orderedSame
+        }
+        // Manual events landing at the home airport (e.g. "Drive home in Orlando")
+        // are home arrivals too — sims/training don't happen at home for commuters.
+        if leg.type == .event, let apt = leg.airportCode {
+            return apt.caseInsensitiveCompare(home) == .orderedSame
+        }
+        return false
+    }
+
+    /// Manual event happening at the pilot's base airport (e.g. a sim or meeting at base)
+    private var isAtBaseAirportEvent: Bool {
+        guard leg.type == .event,
+              let base = baseAirportCode, !base.isEmpty,
+              let apt = leg.airportCode
         else { return false }
-        return arrival.caseInsensitiveCompare(home) == .orderedSame
+        return apt.caseInsensitiveCompare(base) == .orderedSame
     }
 
     private var staticIconName: String {
@@ -34,7 +49,10 @@ struct TimelineRowView: View {
         case .home:       return "house.fill"
         case .reserve:    return "clock.badge.questionmark"
         case .hotStandby: return "bolt.fill"
-        case .event:      return "book.fill"
+        case .event:
+            if isHomebound { return "house.fill" }
+            if isAtBaseAirportEvent { return "building.2.fill" }
+            return "book.fill"
         default:          return "clock"
         }
     }
@@ -139,7 +157,10 @@ struct TimelineRowView: View {
         case .home:       return "house.fill"
         case .reserve:    return "clock.badge.questionmark"
         case .hotStandby: return "bolt.fill"
-        case .event:      return "book.fill"
+        case .event:
+            if isHomebound { return "house.fill" }
+            if isAtBaseAirportEvent { return "building.2.fill" }
+            return "book.fill"
         default:          return "clock"
         }
     }
@@ -157,7 +178,10 @@ struct TimelineRowView: View {
         case .home:       return .green
         case .reserve:    return .red
         case .hotStandby: return .orange
-        case .event:      return .purple
+        case .event:
+            if isHomebound { return .green }
+            if isAtBaseAirportEvent { return .blue }
+            return .purple
         default:          return .gray
         }
     }

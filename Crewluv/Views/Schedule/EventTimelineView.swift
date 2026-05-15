@@ -172,6 +172,7 @@ struct EventTimelineView: View {
                 TimelineRowView(
                     leg: leg,
                     homeAirportCode: status.homeAirportCode,
+                    baseAirportCode: status.baseAirportCode,
                     isUpNext: leg.id == upNextID
                 )
                 .onTapGesture {

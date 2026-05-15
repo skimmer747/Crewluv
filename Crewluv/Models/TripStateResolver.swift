@@ -259,14 +259,18 @@ enum TripStateResolver {
 
     // MARK: - Home Arrival (cross-trip scan)
 
-    /// Finds the first future flight arriving at the home airport across ALL legs.
+    /// Finds the first future leg arriving at the home airport across ALL legs.
     /// Unlike `resolveTripEnd()` which looks at the current trip segment's last leg,
     /// this scans across all trips to find when the pilot actually gets home.
+    ///
+    /// Includes `.event` legs whose `arrivalAirport` equals the home airport — manual
+    /// events landing at home (e.g. "Drive home in Orlando") count as home arrivals.
+    /// Safe because sims/training are scheduled at the base airport, never home.
     static func resolveHomeArrival(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
         guard let home = homeAirportCode, !home.isEmpty else { return nil }
 
         guard let homeLeg = legs
-            .filter({ $0.type == .flight && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
+            .filter({ ($0.type == .flight || $0.type == .event) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
             .min(by: { $0.startTime < $1.startTime })
         else { return nil }
 
@@ -369,12 +373,25 @@ enum TripStateResolver {
             return nil
         }
 
-        // Gap after a home/base leg before the next trip starts:
-        // pilot is still conceptually at home, not on a "Turn".
-        if completedLeg.type == .home || completedLeg.type == .base {
+        // Gap after a home/base leg (or a manual event at the home/base airport)
+        // before the next leg starts: pilot is still at home or base, not on a "Turn".
+        let inferredHomeBase: PilotDisplayStatus? = {
+            if completedLeg.type == .home { return .home }
+            if completedLeg.type == .base { return .base }
+            if completedLeg.type == .event, let apt = completedLeg.airportCode {
+                if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
+                    return .home
+                }
+                if let base = baseAirportCode, apt.caseInsensitiveCompare(base) == .orderedSame {
+                    return .base
+                }
+            }
+            return nil
+        }()
+        if let homeBaseStatus = inferredHomeBase {
             let transition = nextLeg.map { Self.effectiveStart(of: $0).timeIntervalSince(now) }
             return ActiveLegState(
-                displayStatus: completedLeg.type == .home ? .home : .base,
+                displayStatus: homeBaseStatus,
                 isInFlight: false,
                 currentAirport: airport,
                 currentCity: city,

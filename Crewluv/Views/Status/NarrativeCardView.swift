@@ -380,7 +380,15 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var baseNarrative: some View {
-        if let city = status.currentCity, let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
+        if let city = status.currentCity,
+           let homeEvent = nextHomeEvent(),
+           nextFlight().map({ homeEvent.startTime < $0.startTime }) ?? true {
+            let homeCity = homeEvent.arrivalCity
+                ?? AirportDataProvider.shared.airportInfo(forIataCode: homeEvent.arrivalAirport ?? "")?.city
+                ?? "home"
+            let depTimeStr = formattedLocalTime(homeEvent.startTime)
+            Text("\(name) is at base in \(Text(city).bold()) — heads home to \(Text(homeCity).bold()) in \(countdownText(to: homeEvent.startTime)) which is \(Text(depTimeStr).bold()).")
+        } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
             let depTimeStr = formattedLocalTime(nextTime)
             Text("\(name) is at base in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
@@ -520,6 +528,15 @@ struct NarrativeCardView: View {
     /// Returns the first flight leg where startTime > now
     private func nextFlight() -> TripLeg? {
         sortedTripLegs.first(where: { $0.type == .flight && $0.startTime > now })
+    }
+
+    private func nextHomeEvent() -> TripLeg? {
+        guard let home = status.homeAirportCode, !home.isEmpty else { return nil }
+        return sortedTripLegs.first(where: {
+            $0.type == .event
+            && $0.startTime > now
+            && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame
+        })
     }
 
     private func currentDepartureCity() -> String? {
