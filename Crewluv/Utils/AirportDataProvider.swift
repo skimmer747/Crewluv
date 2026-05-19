@@ -264,6 +264,7 @@ class AirportDataProvider {
             ("CUN", "Cancun", "Mexico", 21.0365, -86.8771),
             ("PVR", "Puerto Vallarta", "Mexico", 20.6801, -105.2544),
             ("SJD", "San Jose del Cabo", "Mexico", 23.1518, -109.7215),
+            ("MTY", "Monterrey", "Mexico", 25.7785, -100.1075),
 
             // Caribbean
             ("STT", "Charlotte Amalie", "US Virgin Islands", 18.3373, -64.9734),
