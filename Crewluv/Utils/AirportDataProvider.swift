@@ -356,6 +356,7 @@ class AirportDataProvider {
             ("VIE", "Vienna", "Austria", 48.1103, 16.5697),
             ("CPH", "Copenhagen", "Denmark", 55.6180, 12.6508),
             ("ARN", "Stockholm", "Sweden", 59.6519, 17.9186),
+            ("MMX", "Malmö", "Sweden", 55.5363, 13.3762),
             ("OSL", "Oslo", "Norway", 60.1939, 11.1004),
             ("HEL", "Helsinki", "Finland", 60.3172, 24.9633),
             ("DUB", "Dublin", "Ireland", 53.4213, -6.2701),
