@@ -2114,18 +2114,26 @@ struct TripProgressView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Array(upcomingCities.enumerated()), id: \.offset) { index, city in
-                    Text(city)
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .fixedSize()
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(
-                            Self.pillGradients[index % Self.pillGradients.count]
-                        )
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
+                    VStack(spacing: 0) {
+                        Text(city)
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .fixedSize()
+                        if let subtitle = locationSubtitle(city) {
+                            Text(subtitle)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white.opacity(0.85))
+                                .fixedSize()
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        Self.pillGradients[index % Self.pillGradients.count]
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
                 }
             }
             .padding(.horizontal, 4)
@@ -2141,11 +2149,20 @@ struct TripProgressView: View {
                     VStack(spacing: 6) {
                         Text(flagForCity(city))
                             .font(.title)
-                        Text(city)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .fixedSize()
-                            .lineLimit(1)
+                        VStack(spacing: 1) {
+                            Text(city)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .fixedSize()
+                                .lineLimit(1)
+                            if let subtitle = locationSubtitle(city) {
+                                Text(subtitle)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                    .fixedSize()
+                                    .lineLimit(1)
+                            }
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -2173,10 +2190,18 @@ struct TripProgressView: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                             }
-                            Text(city)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .fixedSize()
+                            VStack(spacing: 1) {
+                                Text(city)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .fixedSize()
+                                if let subtitle = locationSubtitle(city) {
+                                    Text(subtitle)
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                        .fixedSize()
+                                }
+                            }
                         }
 
                         if index < upcomingCities.count - 1 {
@@ -2204,6 +2229,15 @@ struct TripProgressView: View {
         Self.cityGreetings[city] ?? "Hello"
     }
 
+    /// US state abbreviation for domestic cities, country name for international. `nil` if the city isn't in the airport database.
+    private func locationSubtitle(_ city: String) -> String? {
+        let provider = AirportDataProvider.shared
+        if let airport = provider.airportInfo(forIataCode: iataCode(city)) {
+            return airport.subtitleSuffix
+        }
+        return provider.airportInfo(forCity: city).first?.subtitleSuffix
+    }
+
     private static let tagColors: [Color] = [.blue, .purple, .orange, .teal, .indigo]
 
     // MARK: - Style E: Boarding Pass Stubs
@@ -2217,10 +2251,18 @@ struct TripProgressView: View {
                             Text("BOARDING PASS")
                                 .font(.system(size: 7, weight: .semibold, design: .monospaced))
                                 .foregroundColor(.secondary)
-                            Text(city)
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .fixedSize()
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(city)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .fixedSize()
+                                if let subtitle = locationSubtitle(city) {
+                                    Text(subtitle)
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.secondary)
+                                        .fixedSize()
+                                }
+                            }
                             Text(iataCode(city))
                                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                                 .foregroundColor(.secondary)
@@ -2271,10 +2313,18 @@ struct TripProgressView: View {
                         Text(iataCode(city))
                             .font(.system(size: 20, weight: .heavy, design: .rounded))
                             .foregroundColor(color)
-                        Text(city)
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-                            .fixedSize()
+                        VStack(spacing: 1) {
+                            Text(city)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .fixedSize()
+                            if let subtitle = locationSubtitle(city) {
+                                Text(subtitle)
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.secondary.opacity(0.75))
+                                    .fixedSize()
+                            }
+                        }
                     }
                     .padding(.horizontal, 14)
                     .padding(.top, 6)
@@ -2307,12 +2357,20 @@ struct TripProgressView: View {
                                 .padding(.trailing, 4)
                         }
 
-                        Text(city)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .fixedSize()
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 6)
+                        VStack(spacing: 1) {
+                            Text(city)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .fixedSize()
+                            if let subtitle = locationSubtitle(city) {
+                                Text(subtitle)
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.secondary)
+                                    .fixedSize()
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 6)
                     }
                     .frame(width: 80)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
