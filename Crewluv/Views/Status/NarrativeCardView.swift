@@ -347,7 +347,9 @@ struct NarrativeCardView: View {
 
     @ViewBuilder
     private var trainingNarrative: some View {
-        if let city = status.currentCity, let endTime = status.homeArrivalTime {
+        if let eventTitle = activeEventLabel() {
+            eventNarrative(title: eventTitle)
+        } else if let city = status.currentCity, let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
             Text("\(name) is in training in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
         } else if let city = status.currentCity {
@@ -355,6 +357,45 @@ struct NarrativeCardView: View {
         } else {
             Text("\(name) is in training")
         }
+    }
+
+    @ViewBuilder
+    private func eventNarrative(title: String) -> some View {
+        if let city = status.currentCity, let endTime = status.homeArrivalTime {
+            let endTimeStr = formattedLocalTime(endTime)
+            Text("\(name): \(Text(title).bold()) in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+        } else if let endTime = status.homeArrivalTime {
+            let endTimeStr = formattedLocalTime(endTime)
+            Text("\(name): \(Text(title).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+        } else if let city = status.currentCity {
+            Text("\(name): \(Text(title).bold()) in \(Text(city).bold())")
+        } else {
+            Text("\(name): \(Text(title).bold())")
+        }
+    }
+
+    /// The trimmed label of the currently-active manual event leg, if any.
+    /// Returns nil when no event leg covers `now` or the label is empty/whitespace —
+    /// callers fall back to the generic "in training" copy.
+    private func activeEventLabel() -> String? {
+        let currentTime = now
+        let activeEvent: TripLeg? = sortedTripLegs.first(where: { (leg: TripLeg) in
+            leg.type == .event && leg.startTime <= currentTime && currentTime < leg.endTime
+        })
+        guard let raw = activeEvent?.label else { return nil }
+        let trimmed = raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Picks an SF Symbol that better matches the active event's title, e.g.
+    /// a car for "Driving the truck home". Returns nil to keep the default
+    /// `book.fill` icon used for training-style events.
+    private func eventIconOverride() -> String? {
+        guard let label = activeEventLabel()?.lowercased() else { return nil }
+        if label.contains("driv") || label.contains("truck") || label.contains("car") {
+            return "car.fill"
+        }
+        return nil
     }
 
     /// Pilot is between trips at an airport that is neither home nor base.
@@ -674,7 +715,7 @@ struct NarrativeCardView: View {
         case .layover: return "bed.double.fill"
         case .reserve: return "clock.badge.questionmark"
         case .hotStandby: return "bolt.fill"
-        case .training: return "book.fill"
+        case .training: return eventIconOverride() ?? "book.fill"
         case .base: return "building.2.fill"
         case .elsewhere: return "mappin.and.ellipse"
         case .unknown: return "circle.fill"
