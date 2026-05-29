@@ -127,6 +127,12 @@ struct ContentView: View {
 struct ConnectionErrorView: View {
     var receiver: PartnerStatusReceiver
 
+    /// Peek at the receiver's error message to distinguish "share was revoked" from
+    /// "iCloud unreachable." Keeps the view single-purpose without a separate component.
+    private var isShareEnded: Bool {
+        (receiver.errorMessage ?? "").lowercased().contains("sharing has ended")
+    }
+
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "icloud.slash")
@@ -134,7 +140,7 @@ struct ConnectionErrorView: View {
                 .foregroundStyle(.orange.gradient)
 
             VStack(spacing: 8) {
-                Text("Unable to Reach iCloud")
+                Text(isShareEnded ? "Sharing Ended" : "Unable to Reach iCloud")
                     .font(.title2)
                     .fontWeight(.semibold)
 

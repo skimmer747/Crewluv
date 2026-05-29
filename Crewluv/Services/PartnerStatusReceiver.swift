@@ -136,6 +136,13 @@ class PartnerStatusReceiver {
             isSyncing = false
         }
 
+        // Sync in-memory dataSource with whatever UserDefaults says before fetching.
+        // CloudKitShareManager.acceptShare writes "shared" to UserDefaults to break a prior
+        // .privateDB lock (which can fire when Duty is installed on the same device and
+        // its own PartnerBeaconZone is visible in the private DB), but the in-memory enum
+        // would otherwise stay stuck on .privateDB and keep showing the local Duty data.
+        syncDataSourceFromDefaults()
+
         let syncStartTime = Date()
         debugLog("[StatusReceiver] Starting sync")
 
@@ -205,10 +212,14 @@ class PartnerStatusReceiver {
                 if cachedUserRecordName == nil {
                     cachedUserRecordName = try? await container.userRecordID().recordName
                 }
-                // Look up by this user's record ID (works for shared-database partners)
-                let matched: String? = cachedUserRecordName.flatMap { nameMap[$0] }
-                // Same-account mode: user is the owner, not a participant — pick deterministically
-                let name = matched ?? (dataSource == .privateDB ? nameMap.min(by: { $0.key < $1.key })?.value : nil)
+                // Look up strictly by this user's own recordID. Previously we fell back to
+                // `nameMap.min(...)` in .privateDB mode, but that picked an arbitrary entry
+                // (typically intended for some OTHER partner) and applied it as the pilot's
+                // own display name — so e.g. setting Mom's Display Name to "Magic man"
+                // would make the pilot's own Crewluve label themselves "Magic man." Falling
+                // through to pilotFirstName when there is no entry for this user is the
+                // correct behavior.
+                let name = cachedUserRecordName.flatMap { nameMap[$0] }
                 if let name, !name.isEmpty {
                     resolvedDisplayName = name
                     UserDefaults.standard.set(name, forKey: "ResolvedPilotDisplayName")
@@ -248,6 +259,22 @@ class PartnerStatusReceiver {
             lastSyncError = nil
 
             debugLog("[StatusReceiver] Sync complete")
+        } catch let ckError as CKError
+                where (ckError.code == .unknownItem || ckError.code == .zoneNotFound)
+                && (UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil
+                    || dataSource == .privateDB) {
+            // The pilot revoked sharing — either the pilot-status record was deleted
+            // (`unknownItem`) or the entire shared zone is gone (`zoneNotFound`, which
+            // is what shows up on the receiver after CloudKit tears down access). Both
+            // are permanent; reset local share state so we stop hammering a zone that
+            // no longer exists and surface a copy that says so.
+            debugLog("[StatusReceiver] ⚠️ Fetch returned \(ckError.code) — treating as share revoked")
+            CloudKitShareManager.shared.resetShareData()
+            hasAcceptedShare = false
+            pilotStatus = nil
+            rawPilotStatus = nil
+            errorMessage = "Sharing has ended. Ask your pilot for a new pairing link."
+            lastSyncError = "share ended"
         } catch {
             debugLog("[StatusReceiver] ❌ Error fetching status: \(error)")
             lastSyncError = error.localizedDescription
@@ -291,6 +318,18 @@ class PartnerStatusReceiver {
         if !hasAcceptedShare && dataSource != .privateDB {
             await checkPrivateDatabase()
         }
+    }
+
+    /// Pulls the persisted data source out of UserDefaults and applies it to the in-memory
+    /// enum. Called at the top of each `checkForSharedData()` so a write from
+    /// `CloudKitShareManager.acceptShare` (e.g., after the user taps an incoming share
+    /// link) takes effect on the very next fetch instead of waiting for app relaunch.
+    private func syncDataSourceFromDefaults() {
+        guard let raw = UserDefaults.standard.string(forKey: dataSourceKey),
+              let source = DataSource(rawValue: raw),
+              source != dataSource else { return }
+        debugLog("[StatusReceiver] dataSource synced from UserDefaults: \(dataSource?.rawValue ?? "nil") → \(raw)")
+        dataSource = source
     }
 
     /// Check the private database for PartnerBeaconZone (same-account scenario)
