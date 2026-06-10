@@ -1090,21 +1090,19 @@ struct SunCircleView: View {
                         ))
                     }
 
-                    // Shared daylight overlap wedge fill (detail view only)
-                    if size > 160,
-                       let oStart = overlapStart(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
-                       let oEnd = overlapEnd(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
-                       oStart < oEnd {
-                        let oStartAngle = angleForTime(oStart)
-                        let oEndAngle = angleForTime(oEnd)
-                        let overlapWedge = Path { p in
-                            p.move(to: center)
-                            p.addArc(center: center, radius: radius,
-                                     startAngle: oStartAngle, endAngle: oEndAngle,
-                                     clockwise: false)
-                            p.closeSubpath()
+                    // Shared daylight wedge fill, on the home clock (detail view only)
+                    if size > 160, hasDifferentTimezone {
+                        for window in sharedDaylightWindows {
+                            let overlapWedge = Path { p in
+                                p.move(to: center)
+                                p.addArc(center: center, radius: radius,
+                                         startAngle: angleForClockHour(window.startHour),
+                                         endAngle: angleForClockHour(window.endHour),
+                                         clockwise: false)
+                                p.closeSubpath()
+                            }
+                            context.fill(overlapWedge, with: .color(.yellow.opacity(0.15)))
                         }
-                        context.fill(overlapWedge, with: .color(.yellow.opacity(0.15)))
                     }
 
                     // Daytime arc stroke (orange/yellow gradient)
@@ -1192,20 +1190,20 @@ struct SunCircleView: View {
                         ctx.stroke(eveningBlue, with: .color(.blue), style: StrokeStyle(lineWidth: glowWidth, lineCap: .round))
                     }
 
-                    // Shared daylight overlap arc stroke (detail view only)
-                    if size > 160,
-                       let oStart = overlapStart(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
-                       let oEnd = overlapEnd(sunriseAngle: sunriseAngle, sunsetAngle: sunsetAngle),
-                       oStart < oEnd {
-                        let oStartAngle = angleForTime(oStart)
-                        let oEndAngle = angleForTime(oEnd)
-                        let overlapArc = Path { p in
-                            p.addArc(center: center, radius: radius,
-                                     startAngle: oStartAngle, endAngle: oEndAngle,
-                                     clockwise: false)
+                    // Shared daylight arc stroke, on the home clock (detail view only).
+                    // The house icon travels through these spans exactly while
+                    // both the pilot and the home user are in daylight.
+                    if size > 160, hasDifferentTimezone {
+                        for window in sharedDaylightWindows {
+                            let overlapArc = Path { p in
+                                p.addArc(center: center, radius: radius,
+                                         startAngle: angleForClockHour(window.startHour),
+                                         endAngle: angleForClockHour(window.endHour),
+                                         clockwise: false)
+                            }
+                            context.stroke(overlapArc, with: .color(.white.opacity(0.8)),
+                                           style: StrokeStyle(lineWidth: dayArcWidth * 1.5, lineCap: .round))
                         }
-                        context.stroke(overlapArc, with: .color(.white.opacity(0.8)),
-                                       style: StrokeStyle(lineWidth: dayArcWidth * 1.5, lineCap: .round))
                     }
 
                     // Tick marks at sunrise and sunset
@@ -1678,16 +1676,22 @@ struct SunCircleView: View {
         return v < 0 ? v + 1.0 : v
     }
 
-    /// Overlap start: max(pilotSunrise, homeSunrise) — both are absolute UTC dates
-    private func overlapStart(sunriseAngle: Angle, sunsetAngle: Angle) -> Date? {
-        guard let hSunrise = homeSunrise else { return nil }
-        return max(sunrise, hSunrise)
+    /// Shared daylight windows positioned by home wall-clock time, so the
+    /// house icon passes through them exactly while both are in daylight.
+    private var sharedDaylightWindows: [SharedDaylight.Window] {
+        guard let homeSunrise, let homeSunset else { return [] }
+        return SharedDaylight.windows(
+            pilotSunrise: sunrise,
+            pilotSunset: sunset,
+            homeSunrise: homeSunrise,
+            homeSunset: homeSunset,
+            homeTimeZone: homeTZ
+        )
     }
 
-    /// Overlap end: min(pilotSunset, homeSunset) — both are absolute UTC dates
-    private func overlapEnd(sunriseAngle: Angle, sunsetAngle: Angle) -> Date? {
-        guard let hSunset = homeSunset else { return nil }
-        return min(sunset, hSunset)
+    /// Angle on the dial face for a wall-clock hour in [0, 24).
+    private func angleForClockHour(_ hour: Double) -> Angle {
+        .degrees(90 + (hour / 24) * 360)
     }
 
     private func pointOnCircle(angle: Angle, radius: CGFloat, center: CGPoint) -> CGPoint {
