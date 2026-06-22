@@ -463,6 +463,9 @@ enum TripStateResolver {
         case .layover:    .layover
         case .home:       .home
         case .base:       .base
+        // Unreachable on the live path: active `.drive` legs route through `driveStatus`
+        // (call site above), which resolves direction. This default only keeps the
+        // switch exhaustive; the directional truth lives in `driveStatus`, not here.
         case .drive:      .drivingToWork
         case .reserve:    .reserve
         case .hotStandby: .hotStandby
