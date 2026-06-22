@@ -207,6 +207,7 @@ enum CalendarDataBuilder {
 
                 let category: CalendarBarSegment.Category = switch leg.type {
                 case .layover: .offDuty
+                case .drive: .offDuty   // personal commute time — not duty (dedicated category is future polish)
                 case .reserve, .hotStandby: .reserve
                 case .event: .training
                 case .flight where leg.tripId == nil: .jumpseat
