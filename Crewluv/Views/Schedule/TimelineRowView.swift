@@ -17,7 +17,7 @@ struct TimelineRowView: View {
 
     private var isHomebound: Bool {
         guard let home = homeAirportCode, !home.isEmpty else { return false }
-        if leg.type == .flight, let arrival = leg.arrivalAirport {
+        if leg.type == .flight || leg.type == .drive, let arrival = leg.arrivalAirport {
             return arrival.caseInsensitiveCompare(home) == .orderedSame
         }
         // Manual events landing at the home airport (e.g. "Drive home in Orlando")
@@ -53,6 +53,7 @@ struct TimelineRowView: View {
             if isHomebound { return "house.fill" }
             if isAtBaseAirportEvent { return "building.2.fill" }
             return "book.fill"
+        case .drive:      return "car.fill"
         default:          return "clock"
         }
     }
@@ -161,6 +162,7 @@ struct TimelineRowView: View {
             if isHomebound { return "house.fill" }
             if isAtBaseAirportEvent { return "building.2.fill" }
             return "book.fill"
+        case .drive:      return "car.fill"
         default:          return "clock"
         }
     }
@@ -182,6 +184,7 @@ struct TimelineRowView: View {
             if isHomebound { return .green }
             if isAtBaseAirportEvent { return .blue }
             return .purple
+        case .drive:      return isHomebound ? .green : .blue
         default:          return .gray
         }
     }
@@ -229,6 +232,13 @@ struct TimelineRowView: View {
             if let city = leg.city { return "\(prefix) in \(city)" }
             if let apt = leg.airportCode { return "\(prefix) at \(apt)" }
             return prefix
+
+        case .drive:
+            let prefix = leg.label ?? "Driving"
+            let route = [leg.departureAirport, leg.arrivalAirport]
+                .compactMap { $0 }
+                .joined(separator: " → ")
+            return route.isEmpty ? prefix : "\(prefix): \(route)"
 
         default:
             return "On Duty"
