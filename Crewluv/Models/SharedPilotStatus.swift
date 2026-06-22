@@ -200,6 +200,9 @@ struct SharedPilotStatus: Codable, Sendable {
         let flights = legs.filter { $0.type == .flight }
         guard !flights.isEmpty else { return legs }
 
+        // `.drive` legs are intentionally excluded from overlap trimming, on both
+        // sides: a base<->home commute drive lives in a >24h between-trips gap, never
+        // inside a layover, so it neither trims nor is trimmed by flights.
         return legs.map { leg in
             guard leg.type == .layover || leg.type == .home || leg.type == .base else { return leg }
 
