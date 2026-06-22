@@ -44,6 +44,10 @@ struct NarrativeCardView: View {
             homeNarrative
         case .commutingHome:
             commutingHomeNarrative
+        case .drivingHome:
+            drivingNarrative(toHome: true)
+        case .drivingToWork:
+            drivingNarrative(toHome: false)
         case .inFlight:
             inFlightNarrative
         case .turn:
@@ -160,6 +164,29 @@ struct NarrativeCardView: View {
         } else {
             Text("\(name) is heading home")
         }
+    }
+
+    @ViewBuilder
+    private func drivingNarrative(toHome: Bool) -> some View {
+        let drive = activeDriveLeg()
+        let destCity = drive?.arrivalCity
+            ?? AirportDataProvider.shared.airportInfo(forIataCode: drive?.arrivalAirport ?? "")?.city
+            ?? (toHome ? "home" : "work")
+        if let arrival = drive?.endTime ?? status.homeArrivalTime {
+            let arrTimeStr = formattedLocalTime(arrival)
+            if toHome {
+                Text("\(name) is driving home to \(Text(destCity).bold()) — back in \(countdownText(to: arrival, color: .green)) at \(Text(arrTimeStr).bold()).")
+            } else {
+                Text("\(name) is driving to work in \(Text(destCity).bold()) — arrives in \(countdownText(to: arrival)) at \(Text(arrTimeStr).bold()), then the trip starts.")
+            }
+        } else {
+            Text(toHome ? "\(name) is driving home" : "\(name) is driving to work")
+        }
+    }
+
+    /// The drive leg currently in progress (startTime <= now < endTime), if any.
+    private func activeDriveLeg() -> TripLeg? {
+        sortedTripLegs.first(where: { $0.type == .drive && $0.startTime <= now && now < $0.endTime })
     }
 
     // MARK: - Date Formatting Helpers
@@ -710,6 +737,8 @@ struct NarrativeCardView: View {
         switch status.displayStatus {
         case .home: return "house.fill"
         case .commutingHome: return "airplane"
+        case .drivingHome: return "car.fill"
+        case .drivingToWork: return "car.fill"
         case .inFlight: return AirlineBranding.symbolName(for: currentAirlineCode)
         case .turn: return "arrow.triangle.2.circlepath"
         case .layover: return "bed.double.fill"
@@ -726,6 +755,8 @@ struct NarrativeCardView: View {
         switch status.displayStatus {
         case .home: return .green
         case .commutingHome: return .blue
+        case .drivingHome: return .green
+        case .drivingToWork: return .blue
         case .inFlight: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case .turn: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .orange
         case .layover: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .purple

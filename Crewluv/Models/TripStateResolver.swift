@@ -126,7 +126,9 @@ enum TripStateResolver {
         }()
 
         return ActiveLegState(
-            displayStatus: displayStatus(for: leg.type),
+            displayStatus: leg.type == .drive
+                ? driveStatus(for: leg, homeAirportCode: homeAirportCode, baseAirportCode: baseAirportCode)
+                : displayStatus(for: leg.type),
             isInFlight: isInFlight,
             currentAirport: isInFlight ? leg.departureAirport : leg.airportCode,
             currentCity: isInFlight ? nil : leg.city,
@@ -453,10 +455,21 @@ enum TripStateResolver {
         case .layover:    .layover
         case .home:       .home
         case .base:       .base
+        case .drive:      .drivingToWork
         case .reserve:    .reserve
         case .hotStandby: .hotStandby
         case .event:      .training
         case .unknown:    .unknown("On Duty")
         }
+    }
+
+    /// Direction of a drive leg from its arrival airport: home -> `.drivingHome`,
+    /// otherwise `.drivingToWork`.
+    private static func driveStatus(for leg: TripLeg, homeAirportCode: String?, baseAirportCode: String?) -> PilotDisplayStatus {
+        if let home = homeAirportCode,
+           leg.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame {
+            return .drivingHome
+        }
+        return .drivingToWork
     }
 }
