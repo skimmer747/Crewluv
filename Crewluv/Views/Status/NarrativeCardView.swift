@@ -99,6 +99,15 @@ struct NarrativeCardView: View {
     }
 
     private var homeNarrative: Text {
+        // Commuter about to drive to work: surface the drive countdown (phase 1).
+        if let drive = nextDriveToWork() {
+            let destCity = drive.arrivalCity
+                ?? AirportDataProvider.shared.airportInfo(forIataCode: drive.arrivalAirport ?? "")?.city
+                ?? "work"
+            let depTimeStr = formattedLocalTime(drive.startTime)
+            return Text("\(name) is home — heads to work in \(Text(destCity).bold()) in \(countdownText(to: drive.startTime)) at \(Text(depTimeStr).bold()).")
+        }
+
         let hasPrevTrip = status.lastTripDurationDays != nil
         let hasNextTrip = upcomingTrip != nil
 
@@ -187,6 +196,16 @@ struct NarrativeCardView: View {
     /// The drive leg currently in progress (startTime <= now < endTime), if any.
     private func activeDriveLeg() -> TripLeg? {
         sortedTripLegs.first(where: { $0.type == .drive && $0.startTime <= now && now < $0.endTime })
+    }
+
+    /// The next upcoming drive whose destination is the base airport ("heads to work").
+    private func nextDriveToWork() -> TripLeg? {
+        guard let base = status.baseAirportCode, !base.isEmpty else { return nil }
+        return sortedTripLegs.first(where: {
+            $0.type == .drive
+            && $0.startTime > now
+            && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame
+        })
     }
 
     // MARK: - Date Formatting Helpers
@@ -601,7 +620,7 @@ struct NarrativeCardView: View {
     private func nextHomeEvent() -> TripLeg? {
         guard let home = status.homeAirportCode, !home.isEmpty else { return nil }
         return sortedTripLegs.first(where: {
-            $0.type == .event
+            ($0.type == .event || $0.type == .drive)
             && $0.startTime > now
             && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame
         })
