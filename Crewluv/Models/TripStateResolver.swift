@@ -272,7 +272,7 @@ enum TripStateResolver {
         guard let home = homeAirportCode, !home.isEmpty else { return nil }
 
         guard let homeLeg = legs
-            .filter({ ($0.type == .flight || $0.type == .event) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
+            .filter({ ($0.type == .flight || $0.type == .event || $0.type == .drive) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
             .min(by: { $0.startTime < $1.startTime })
         else { return nil }
 
@@ -310,7 +310,7 @@ enum TripStateResolver {
         let city: String?
         let timezone: String?
 
-        if completedLeg.type == .flight {
+        if completedLeg.type == .flight || completedLeg.type == .drive {
             airport = completedLeg.arrivalAirport
             city = completedLeg.arrivalCity
             timezone = nextLeg?.timezoneIdentifier
@@ -381,6 +381,14 @@ enum TripStateResolver {
             if completedLeg.type == .home { return .home }
             if completedLeg.type == .base { return .base }
             if completedLeg.type == .event, let apt = completedLeg.airportCode {
+                if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
+                    return .home
+                }
+                if let base = baseAirportCode, apt.caseInsensitiveCompare(base) == .orderedSame {
+                    return .base
+                }
+            }
+            if completedLeg.type == .drive, let apt = completedLeg.arrivalAirport {
                 if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
                     return .home
                 }
@@ -464,7 +472,8 @@ enum TripStateResolver {
     }
 
     /// Direction of a drive leg from its arrival airport: home -> `.drivingHome`,
-    /// otherwise `.drivingToWork`.
+    /// otherwise `.drivingToWork`. `baseAirportCode` is reserved for symmetry with the
+    /// other direction-detection sites; direction currently keys off the home match only.
     private static func driveStatus(for leg: TripLeg, homeAirportCode: String?, baseAirportCode: String?) -> PilotDisplayStatus {
         if let home = homeAirportCode,
            leg.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame {

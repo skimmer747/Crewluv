@@ -70,4 +70,38 @@ final class CommuteDriveSupportTests: XCTestCase {
         let state = TripStateResolver.resolve(legs: [leg], homeAirportCode: "MCO", baseAirportCode: "SDF", at: now)
         XCTAssertEqual(state?.displayStatus, .drivingToWork)
     }
+
+    func test_resolveHomeArrival_includesDriveHomeLeg() {
+        let now = Date()
+        let drive = driveLeg(from: "SDF", to: "MCO", arrivalCity: "Orlando",
+                             start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 6))
+        let info = TripStateResolver.resolveHomeArrival(legs: [drive], homeAirportCode: "MCO", at: now)
+        XCTAssertEqual(info?.arrivalTime, drive.endTime)
+        XCTAssertEqual(info?.arrivalLabel, "Back Home In")
+    }
+
+    func test_resolveGap_afterCompletedDriveHome_isHome() {
+        let now = Date()
+        let drive = driveLeg(from: "SDF", to: "MCO", arrivalCity: "Orlando",
+                             start: now.addingTimeInterval(-3600 * 6), end: now.addingTimeInterval(-3600))
+        let state = TripStateResolver.resolve(legs: [drive], homeAirportCode: "MCO", baseAirportCode: "SDF", at: now)
+        XCTAssertEqual(state?.displayStatus, .home)
+        XCTAssertEqual(state?.currentAirport, "MCO")
+    }
+
+    func test_resolveGap_afterCompletedDriveToWork_beforeTrip_isBase() {
+        let now = Date()
+        let drive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(-3600 * 3), end: now.addingTimeInterval(-3600))
+        let flight = TripLeg(
+            id: "f1", tripId: "t1", type: .flight,
+            startTime: now.addingTimeInterval(3600 * 2), endTime: now.addingTimeInterval(3600 * 4),
+            airportCode: nil, city: nil, timezoneIdentifier: nil, arrivalTimezoneIdentifier: nil,
+            flightNumber: "DAL1", departureAirport: "SDF", arrivalAirport: "ATL",
+            departureCity: "Louisville", arrivalCity: "Atlanta",
+            tripDayNumber: 1, tripTotalDays: 3, delayMinutes: nil, airlineCode: nil, label: nil)
+        let state = TripStateResolver.resolve(legs: [drive, flight], homeAirportCode: "MCO", baseAirportCode: "SDF", at: now)
+        XCTAssertEqual(state?.displayStatus, .base)
+        XCTAssertEqual(state?.currentAirport, "SDF")
+    }
 }
