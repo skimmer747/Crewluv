@@ -79,14 +79,15 @@ struct PilotStatusView: View {
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
 
-                    // Next Departure (if at home) — taps open schedule
-                    if status.displayStatus == .home, let departureTime = delayedNextDepartureTime {
+                    // Leaving home (if at home) — the commute drive when commuting,
+                    // otherwise the flight departure. Taps open schedule.
+                    if status.displayStatus == .home, let departureTime = leaveHomeTarget {
                         scheduleLink {
                             CountdownCardView(
                                 title: countdownTitle,
                                 targetDate: departureTime,
-                                icon: "airplane.departure",
-                                color: status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .blue,
+                                icon: leaveHomeDrive != nil ? "car.fill" : "airplane.departure",
+                                color: leaveHomeDrive != nil ? .blue : (status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .blue),
                                 subtitle: departureSubtitle,
                                 showChevron: !isCompanionLayout
                             )
@@ -144,7 +145,7 @@ struct PilotStatusView: View {
                     }
 
                     // Schedule card when home with no departure time (hidden on iPad)
-                    if !isCompanionLayout, status.displayStatus.isSettled, status.nextDepartureTime == nil {
+                    if !isCompanionLayout, status.displayStatus.isSettled, status.nextDepartureTime == nil, leaveHomeTarget == nil {
                         Button { showSchedule = true } label: {
                             HStack {
                                 Image(systemName: "calendar")
@@ -272,7 +273,21 @@ struct PilotStatusView: View {
         return base
     }
 
+    /// The next "leaving for work" commute drive (home → base), if the pilot commutes.
+    /// nil for non-commuters, who leave home via the flight itself.
+    private var leaveHomeDrive: TripLeg? {
+        TripStateResolver.nextDriveToWork(legs: status.tripLegs, baseAirportCode: status.baseAirportCode, at: Date())
+    }
+
+    /// When the pilot physically leaves home: the commute drive's start when commuting,
+    /// otherwise the next flight departure (delay-adjusted).
+    private var leaveHomeTarget: Date? {
+        leaveHomeDrive?.startTime ?? delayedNextDepartureTime
+    }
+
     private var countdownTitle: String {
+        // A commute drive departs from home, so it is always "Leaves Home In".
+        if leaveHomeDrive != nil { return "Leaves Home In" }
         if let home = status.homeAirportCode {
             let sorted = status.tripLegs.sorted { $0.startTime < $1.startTime }
             if let nextFlight = sorted.first(where: { $0.type == .flight && $0.startTime > Date() }),
@@ -284,7 +299,7 @@ struct PilotStatusView: View {
     }
 
     private var departureSubtitle: String? {
-        guard let departureTime = delayedNextDepartureTime else { return nil }
+        guard let departureTime = leaveHomeTarget else { return nil }
         let timezone = status.homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE MMMM d"

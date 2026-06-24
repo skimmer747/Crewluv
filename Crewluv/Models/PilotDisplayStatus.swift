@@ -14,6 +14,8 @@ nonisolated enum PilotDisplayStatus: Equatable, Hashable, Sendable {
     case home
     case base
     case commutingHome
+    case drivingHome
+    case drivingToWork
     case inFlight
     case turn
     case layover
@@ -33,6 +35,8 @@ nonisolated enum PilotDisplayStatus: Equatable, Hashable, Sendable {
         case "Home":           self = .home
         case "Base":           self = .base
         case "Commuting Home": self = .commutingHome
+        case "Driving Home":   self = .drivingHome
+        case "Driving to Work": self = .drivingToWork
         case "In Flight":      self = .inFlight
         case "Turn":           self = .turn
         case "Layover":        self = .layover
@@ -49,6 +53,8 @@ nonisolated enum PilotDisplayStatus: Equatable, Hashable, Sendable {
         case .home:           "Home"
         case .base:           "Base"
         case .commutingHome:  "Commuting Home"
+        case .drivingHome:    "Driving Home"
+        case .drivingToWork:  "Driving to Work"
         case .inFlight:       "In Flight"
         case .turn:           "Turn"
         case .layover:        "Layover"

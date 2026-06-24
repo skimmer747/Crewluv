@@ -44,6 +44,10 @@ struct NarrativeCardView: View {
             homeNarrative
         case .commutingHome:
             commutingHomeNarrative
+        case .drivingHome:
+            drivingNarrative(toHome: true)
+        case .drivingToWork:
+            drivingNarrative(toHome: false)
         case .inFlight:
             inFlightNarrative
         case .turn:
@@ -95,6 +99,18 @@ struct NarrativeCardView: View {
     }
 
     private var homeNarrative: Text {
+        // Commuter at home: the top card tells the WORK story (first flight); the
+        // big "Leaves Home In" block carries the commute drive. Detect the commute
+        // via the pending drive-to-work, then describe the flight. If legs haven't
+        // synced a flight yet, fall through to the generic home narrative below.
+        if nextDriveToWork() != nil, let flight = nextFlight() {
+            let destCity = flight.arrivalCity
+                ?? AirportDataProvider.shared.airportInfo(forIataCode: flight.arrivalAirport ?? "")?.city
+                ?? "work"
+            let depTimeStr = formattedLocalTime(flight.startTime)
+            return Text("\(name) is home — heads to work in \(Text(destCity).bold()) in \(countdownText(to: flight.startTime)) at \(Text(depTimeStr).bold()).")
+        }
+
         let hasPrevTrip = status.lastTripDurationDays != nil
         let hasNextTrip = upcomingTrip != nil
 
@@ -160,6 +176,34 @@ struct NarrativeCardView: View {
         } else {
             Text("\(name) is heading home")
         }
+    }
+
+    @ViewBuilder
+    private func drivingNarrative(toHome: Bool) -> some View {
+        let drive = activeDriveLeg()
+        let destCity = drive?.arrivalCity
+            ?? AirportDataProvider.shared.airportInfo(forIataCode: drive?.arrivalAirport ?? "")?.city
+            ?? (toHome ? "home" : "work")
+        if let arrival = drive?.endTime ?? status.homeArrivalTime {
+            let arrTimeStr = formattedLocalTime(arrival)
+            if toHome {
+                Text("\(name) is driving home to \(Text(destCity).bold()) — back in \(countdownText(to: arrival, color: .green)) at \(Text(arrTimeStr).bold()).")
+            } else {
+                Text("\(name) is driving to work in \(Text(destCity).bold()) — arrives in \(countdownText(to: arrival)) at \(Text(arrTimeStr).bold()), then the trip starts.")
+            }
+        } else {
+            Text(toHome ? "\(name) is driving home" : "\(name) is driving to work")
+        }
+    }
+
+    /// The drive leg currently in progress (startTime <= now < endTime), if any.
+    private func activeDriveLeg() -> TripLeg? {
+        sortedTripLegs.first(where: { $0.type == .drive && $0.startTime <= now && now < $0.endTime })
+    }
+
+    /// The next upcoming drive whose destination is the base airport ("heads to work").
+    private func nextDriveToWork() -> TripLeg? {
+        TripStateResolver.nextDriveToWork(legs: status.tripLegs, baseAirportCode: status.baseAirportCode, at: now)
     }
 
     // MARK: - Date Formatting Helpers
@@ -574,7 +618,7 @@ struct NarrativeCardView: View {
     private func nextHomeEvent() -> TripLeg? {
         guard let home = status.homeAirportCode, !home.isEmpty else { return nil }
         return sortedTripLegs.first(where: {
-            $0.type == .event
+            ($0.type == .event || $0.type == .drive)
             && $0.startTime > now
             && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame
         })
@@ -710,6 +754,8 @@ struct NarrativeCardView: View {
         switch status.displayStatus {
         case .home: return "house.fill"
         case .commutingHome: return "airplane"
+        case .drivingHome: return "car.fill"
+        case .drivingToWork: return "car.fill"
         case .inFlight: return AirlineBranding.symbolName(for: currentAirlineCode)
         case .turn: return "arrow.triangle.2.circlepath"
         case .layover: return "bed.double.fill"
@@ -726,6 +772,8 @@ struct NarrativeCardView: View {
         switch status.displayStatus {
         case .home: return .green
         case .commutingHome: return .blue
+        case .drivingHome: return .green
+        case .drivingToWork: return .blue
         case .inFlight: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : AirlineBranding.color(for: currentAirlineCode, colorScheme: colorScheme)
         case .turn: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .orange
         case .layover: return status.hasFlightDelay ? (status.isEarlyDeparture ? .green : .orange) : .purple

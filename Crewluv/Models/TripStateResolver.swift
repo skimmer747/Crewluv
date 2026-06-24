@@ -126,7 +126,9 @@ enum TripStateResolver {
         }()
 
         return ActiveLegState(
-            displayStatus: displayStatus(for: leg.type),
+            displayStatus: leg.type == .drive
+                ? driveStatus(for: leg, homeAirportCode: homeAirportCode, baseAirportCode: baseAirportCode)
+                : displayStatus(for: leg.type),
             isInFlight: isInFlight,
             currentAirport: isInFlight ? leg.departureAirport : leg.airportCode,
             currentCity: isInFlight ? nil : leg.city,
@@ -270,7 +272,7 @@ enum TripStateResolver {
         guard let home = homeAirportCode, !home.isEmpty else { return nil }
 
         guard let homeLeg = legs
-            .filter({ ($0.type == .flight || $0.type == .event) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
+            .filter({ ($0.type == .flight || $0.type == .event || $0.type == .drive) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
             .min(by: { $0.startTime < $1.startTime })
         else { return nil }
 
@@ -283,6 +285,18 @@ enum TripStateResolver {
             arrivalLabel: "Back Home In",
             arrivalCity: city
         )
+    }
+
+    // MARK: - Drive To Work (leave-home countdown)
+
+    /// The next upcoming drive from home to base ("leaving for work"), if any.
+    /// Returns `nil` for non-commuters (no drive legs) — they leave home via the
+    /// flight itself, so the leave-home countdown falls back to the departure.
+    static func nextDriveToWork(legs: [TripLeg], baseAirportCode: String?, at now: Date) -> TripLeg? {
+        guard let base = baseAirportCode, !base.isEmpty else { return nil }
+        return legs
+            .filter { $0.type == .drive && $0.startTime > now && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame }
+            .min(by: { $0.startTime < $1.startTime })
     }
 
     // MARK: - Gap Resolution
@@ -308,7 +322,7 @@ enum TripStateResolver {
         let city: String?
         let timezone: String?
 
-        if completedLeg.type == .flight {
+        if completedLeg.type == .flight || completedLeg.type == .drive {
             airport = completedLeg.arrivalAirport
             city = completedLeg.arrivalCity
             timezone = nextLeg?.timezoneIdentifier
@@ -386,6 +400,14 @@ enum TripStateResolver {
                     return .base
                 }
             }
+            if completedLeg.type == .drive, let apt = completedLeg.arrivalAirport {
+                if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
+                    return .home
+                }
+                if let base = baseAirportCode, apt.caseInsensitiveCompare(base) == .orderedSame {
+                    return .base
+                }
+            }
             return nil
         }()
         if let homeBaseStatus = inferredHomeBase {
@@ -453,10 +475,25 @@ enum TripStateResolver {
         case .layover:    .layover
         case .home:       .home
         case .base:       .base
+        // Unreachable on the live path: active `.drive` legs route through `driveStatus`
+        // (call site above), which resolves direction. This default only keeps the
+        // switch exhaustive; the directional truth lives in `driveStatus`, not here.
+        case .drive:      .drivingToWork
         case .reserve:    .reserve
         case .hotStandby: .hotStandby
         case .event:      .training
         case .unknown:    .unknown("On Duty")
         }
+    }
+
+    /// Direction of a drive leg from its arrival airport: home -> `.drivingHome`,
+    /// otherwise `.drivingToWork`. `baseAirportCode` is reserved for symmetry with the
+    /// other direction-detection sites; direction currently keys off the home match only.
+    private static func driveStatus(for leg: TripLeg, homeAirportCode: String?, baseAirportCode: String?) -> PilotDisplayStatus {
+        if let home = homeAirportCode,
+           leg.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame {
+            return .drivingHome
+        }
+        return .drivingToWork
     }
 }

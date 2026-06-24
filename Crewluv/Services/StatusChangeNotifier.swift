@@ -303,7 +303,7 @@ actor StatusChangeNotifier {
                 body: "just took off",
                 sound: .default
             )]
-        case .base, .commutingHome, .turn, .layover, .reserve, .hotStandby, .training, .elsewhere, .unknown:
+        case .base, .commutingHome, .drivingHome, .drivingToWork, .turn, .layover, .reserve, .hotStandby, .training, .elsewhere, .unknown:
             return []
         }
     }
