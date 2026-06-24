@@ -99,13 +99,16 @@ struct NarrativeCardView: View {
     }
 
     private var homeNarrative: Text {
-        // Commuter about to drive to work: surface the drive countdown (phase 1).
-        if let drive = nextDriveToWork() {
-            let destCity = drive.arrivalCity
-                ?? AirportDataProvider.shared.airportInfo(forIataCode: drive.arrivalAirport ?? "")?.city
+        // Commuter at home: the top card tells the WORK story (first flight); the
+        // big "Leaves Home In" block carries the commute drive. Detect the commute
+        // via the pending drive-to-work, then describe the flight. If legs haven't
+        // synced a flight yet, fall through to the generic home narrative below.
+        if nextDriveToWork() != nil, let flight = nextFlight() {
+            let destCity = flight.arrivalCity
+                ?? AirportDataProvider.shared.airportInfo(forIataCode: flight.arrivalAirport ?? "")?.city
                 ?? "work"
-            let depTimeStr = formattedLocalTime(drive.startTime)
-            return Text("\(name) is home — heads to work in \(Text(destCity).bold()) in \(countdownText(to: drive.startTime)) at \(Text(depTimeStr).bold()).")
+            let depTimeStr = formattedLocalTime(flight.startTime)
+            return Text("\(name) is home — heads to work in \(Text(destCity).bold()) in \(countdownText(to: flight.startTime)) at \(Text(depTimeStr).bold()).")
         }
 
         let hasPrevTrip = status.lastTripDurationDays != nil
@@ -200,12 +203,7 @@ struct NarrativeCardView: View {
 
     /// The next upcoming drive whose destination is the base airport ("heads to work").
     private func nextDriveToWork() -> TripLeg? {
-        guard let base = status.baseAirportCode, !base.isEmpty else { return nil }
-        return sortedTripLegs.first(where: {
-            $0.type == .drive
-            && $0.startTime > now
-            && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame
-        })
+        TripStateResolver.nextDriveToWork(legs: status.tripLegs, baseAirportCode: status.baseAirportCode, at: now)
     }
 
     // MARK: - Date Formatting Helpers

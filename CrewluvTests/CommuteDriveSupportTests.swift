@@ -104,4 +104,45 @@ final class CommuteDriveSupportTests: XCTestCase {
         XCTAssertEqual(state?.displayStatus, .base)
         XCTAssertEqual(state?.currentAirport, "SDF")
     }
+
+    // MARK: - nextDriveToWork (leave-home countdown)
+
+    func test_nextDriveToWork_returnsUpcomingDriveToBase() {
+        let now = Date()
+        let drive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 3))
+        let leg = TripStateResolver.nextDriveToWork(legs: [drive], baseAirportCode: "SDF", at: now)
+        XCTAssertEqual(leg?.id, drive.id)
+    }
+
+    func test_nextDriveToWork_ignoresPastDrive() {
+        let now = Date()
+        let drive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(-3600 * 3), end: now.addingTimeInterval(-3600))
+        XCTAssertNil(TripStateResolver.nextDriveToWork(legs: [drive], baseAirportCode: "SDF", at: now))
+    }
+
+    func test_nextDriveToWork_ignoresDriveHome() {
+        let now = Date()
+        let driveHome = driveLeg(from: "SDF", to: "MCO", arrivalCity: "Orlando",
+                                 start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 3))
+        XCTAssertNil(TripStateResolver.nextDriveToWork(legs: [driveHome], baseAirportCode: "SDF", at: now))
+    }
+
+    func test_nextDriveToWork_nilBase_returnsNil() {
+        let now = Date()
+        let drive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 3))
+        XCTAssertNil(TripStateResolver.nextDriveToWork(legs: [drive], baseAirportCode: nil, at: now))
+    }
+
+    func test_nextDriveToWork_picksEarliestOfMultiple() {
+        let now = Date()
+        let soon = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                            start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 3))
+        let later = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(3600 * 10), end: now.addingTimeInterval(3600 * 12))
+        let leg = TripStateResolver.nextDriveToWork(legs: [later, soon], baseAirportCode: "SDF", at: now)
+        XCTAssertEqual(leg?.startTime, soon.startTime)
+    }
 }

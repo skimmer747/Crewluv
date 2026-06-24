@@ -287,6 +287,18 @@ enum TripStateResolver {
         )
     }
 
+    // MARK: - Drive To Work (leave-home countdown)
+
+    /// The next upcoming drive from home to base ("leaving for work"), if any.
+    /// Returns `nil` for non-commuters (no drive legs) — they leave home via the
+    /// flight itself, so the leave-home countdown falls back to the departure.
+    static func nextDriveToWork(legs: [TripLeg], baseAirportCode: String?, at now: Date) -> TripLeg? {
+        guard let base = baseAirportCode, !base.isEmpty else { return nil }
+        return legs
+            .filter { $0.type == .drive && $0.startTime > now && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame }
+            .min(by: { $0.startTime < $1.startTime })
+    }
+
     // MARK: - Gap Resolution
 
     /// Derive status when `now` falls between legs (e.g., turn at DFW between flights).
