@@ -214,4 +214,191 @@ struct TripStateResolverGapTests {
         #expect(state?.displayStatus == .turn)
         #expect(state?.currentAirport == "DFW")
     }
+
+    // MARK: - Between Trips at Home: Jumpseat Commuter (regression)
+
+    /// Fixture: a flight/jumpseat that *departs* `from` and *arrives* `to`.
+    private static func flightLeg(
+        id: String,
+        tripId: String?,
+        from: String,
+        to: String,
+        arrivalCity: String?,
+        startTime: Date,
+        endTime: Date
+    ) -> TripLeg {
+        TripLeg(
+            id: id,
+            tripId: tripId,
+            type: .flight,
+            startTime: startTime,
+            endTime: endTime,
+            airportCode: nil,
+            city: nil,
+            timezoneIdentifier: nil,
+            arrivalTimezoneIdentifier: nil,
+            flightNumber: id,
+            departureAirport: from,
+            arrivalAirport: to,
+            departureCity: nil,
+            arrivalCity: arrivalCity,
+            tripDayNumber: nil,
+            tripTotalDays: nil,
+            delayMinutes: nil,
+            airlineCode: nil,
+            label: nil
+        )
+    }
+
+    /// A jumpseat commuter (home != base) who has flown home and is waiting to
+    /// leave for the next trip. His ride home is a standalone jumpseat with no
+    /// trip id, so the gap to tonight's trip can't be linked by trip id. The
+    /// resolver must still report `.home` — not a mid-trip `.turn` — otherwise
+    /// the UI suppresses "Leaves In" and shows a bogus "Back Home In" countdown
+    /// while the pilot is sitting at home.
+    @Test func test_resolveGap_jumpseatedHomeBeforeNextTrip_returnsHome() {
+        let now = Date()
+
+        // Jumpseated home to PHL 6h ago — standalone, no trip id.
+        let jumpseatHome = Self.flightLeg(
+            id: "js-home",
+            tripId: nil,
+            from: "SDF",
+            to: "PHL",
+            arrivalCity: "Philadelphia",
+            startTime: now.addingTimeInterval(-8 * 3600),
+            endTime: now.addingTimeInterval(-6 * 3600)
+        )
+
+        // Tonight's trip departs from home (PHL) in 5h — gap < 24h, different trip.
+        let nextTripFlight = Self.flightLeg(
+            id: "UPS1189",
+            tripId: "trip-tonight",
+            from: "PHL",
+            to: "SDF",
+            arrivalCity: "Louisville",
+            startTime: now.addingTimeInterval(5 * 3600),
+            endTime: now.addingTimeInterval(7 * 3600)
+        )
+
+        let state = TripStateResolver.resolve(
+            legs: [jumpseatHome, nextTripFlight],
+            homeAirportCode: "PHL",
+            baseAirportCode: "SDF",
+            at: now
+        )
+
+        #expect(state?.displayStatus == .home)
+        #expect(state?.currentAirport == "PHL")
+    }
+
+    /// Mirror of the above for a commuter who jumpseated to *base* and is waiting
+    /// for the next trip: he is settled at base, not on a turn.
+    @Test func test_resolveGap_jumpseatedToBaseBeforeNextTrip_returnsBase() {
+        let now = Date()
+
+        let jumpseatToBase = Self.flightLeg(
+            id: "js-base",
+            tripId: nil,
+            from: "PHL",
+            to: "SDF",
+            arrivalCity: "Louisville",
+            startTime: now.addingTimeInterval(-8 * 3600),
+            endTime: now.addingTimeInterval(-6 * 3600)
+        )
+
+        let nextTripFlight = Self.flightLeg(
+            id: "UPS1070",
+            tripId: "trip-tonight",
+            from: "SDF",
+            to: "EWR",
+            arrivalCity: "Newark",
+            startTime: now.addingTimeInterval(5 * 3600),
+            endTime: now.addingTimeInterval(7 * 3600)
+        )
+
+        let state = TripStateResolver.resolve(
+            legs: [jumpseatToBase, nextTripFlight],
+            homeAirportCode: "PHL",
+            baseAirportCode: "SDF",
+            at: now
+        )
+
+        #expect(state?.displayStatus == .base)
+        #expect(state?.currentAirport == "SDF")
+    }
+
+    /// Guard for the jumpseat-home fix: a *same-trip* turn that happens to pass
+    /// through the home airport must remain `.turn` (the pilot is mid-duty, not
+    /// home between trips). The shared, non-nil trip id is what distinguishes it.
+    @Test func test_resolveGap_sameTripTurnThroughHome_staysTurn() {
+        let now = Date()
+
+        let inbound = Self.flightLeg(
+            id: "UPS10",
+            tripId: "trip-1",
+            from: "SDF",
+            to: "PHL",
+            arrivalCity: "Philadelphia",
+            startTime: now.addingTimeInterval(-3 * 3600),
+            endTime: now.addingTimeInterval(-3600)
+        )
+
+        let outbound = Self.flightLeg(
+            id: "UPS20",
+            tripId: "trip-1",
+            from: "PHL",
+            to: "SDF",
+            arrivalCity: "Louisville",
+            startTime: now.addingTimeInterval(2 * 3600),
+            endTime: now.addingTimeInterval(4 * 3600)
+        )
+
+        let state = TripStateResolver.resolve(
+            legs: [inbound, outbound],
+            homeAirportCode: "PHL",
+            baseAirportCode: "SDF",
+            at: now
+        )
+
+        #expect(state?.displayStatus == .turn)
+        #expect(state?.currentAirport == "PHL")
+    }
+
+    /// Same guard for the base airport: a mid-trip turn that lands at the pilot's
+    /// base and continues the same trip must stay `.turn`, never `.base`/`.home`.
+    /// He is mid-duty passing through base, not settled there between trips.
+    @Test func test_resolveGap_sameTripTurnThroughBase_staysTurn() {
+        let now = Date()
+
+        let inbound = Self.flightLeg(
+            id: "UPS30",
+            tripId: "trip-1",
+            from: "ORD",
+            to: "SDF",
+            arrivalCity: "Louisville",
+            startTime: now.addingTimeInterval(-3 * 3600),
+            endTime: now.addingTimeInterval(-3600)
+        )
+
+        let outbound = Self.flightLeg(
+            id: "UPS40",
+            tripId: "trip-1",
+            from: "SDF",
+            to: "EWR",
+            arrivalCity: "Newark",
+            startTime: now.addingTimeInterval(2 * 3600),
+            endTime: now.addingTimeInterval(4 * 3600)
+        )
+
+        let state = TripStateResolver.resolve(
+            legs: [inbound, outbound],
+            homeAirportCode: "PHL",
+            baseAirportCode: "SDF",
+            at: now
+        )
+
+        #expect(state?.displayStatus == .turn)
+        #expect(state?.currentAirport == "SDF")
+    }
 }

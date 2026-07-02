@@ -387,6 +387,14 @@ enum TripStateResolver {
             return nil
         }
 
+        // A genuine mid-trip turn links the completed and next legs by a shared,
+        // non-nil trip id. A commuter's ride home (a standalone jumpseat) carries
+        // no trip id, so the absence of that link means "between trips", not a turn.
+        let isSameTripContinuation: Bool = {
+            guard let completedId = completedLeg.tripId, let nextId = nextLeg?.tripId else { return false }
+            return completedId == nextId
+        }()
+
         // Gap after a home/base leg (or a manual event at the home/base airport)
         // before the next leg starts: pilot is still at home or base, not on a "Turn".
         let inferredHomeBase: PilotDisplayStatus? = {
@@ -401,6 +409,21 @@ enum TripStateResolver {
                 }
             }
             if completedLeg.type == .drive, let apt = completedLeg.arrivalAirport {
+                if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
+                    return .home
+                }
+                if let base = baseAirportCode, apt.caseInsensitiveCompare(base) == .orderedSame {
+                    return .base
+                }
+            }
+            // A completed flight/jumpseat that landed at home or base, when the next
+            // leg is NOT a same-trip continuation — e.g. a commuter who jumpseated
+            // home and is waiting to leave for the next trip. Without this, the
+            // missing trip-id link makes the between-trips gap look like a mid-trip
+            // "Turn", which suppresses "Leaves In" and drives a bogus "Back Home In"
+            // countdown while the pilot is actually sitting at home.
+            if !isSameTripContinuation,
+               let apt = completedLeg.arrivalAirport ?? completedLeg.airportCode {
                 if let home = homeAirportCode, apt.caseInsensitiveCompare(home) == .orderedSame {
                     return .home
                 }
