@@ -391,8 +391,8 @@ class PartnerStatusReceiver {
         let displayStatus = resolved?.displayStatus ?? raw.displayStatus
         let isInFlight = resolved?.isInFlight ?? raw.isInFlight
 
-        // Find when the pilot arrives home by scanning ALL legs for the first
-        // future flight to the home airport (handles multi-trip absences).
+        // Find when the pilot's current trip brings him home: the last homebound
+        // leg — flight or drive — of the trip block he is in (see resolveHomeArrival).
         let homeArrival = TripStateResolver.resolveHomeArrival(
             legs: legs, homeAirportCode: raw.homeAirportCode, at: now
         )
@@ -423,7 +423,10 @@ class PartnerStatusReceiver {
                 : nil
             effectiveHomeArrivalLabel = tripEnd?.arrivalLabel ?? raw.homeArrivalLabel
             effectiveHomeArrivalCity = tripEnd?.arrivalCity ?? raw.homeArrivalCity
-            effectiveHomeArrivalTime = tripEnd?.arrivalTime ?? raw.homeArrivalTime
+            // Drop a past arrival (e.g. a commuter already sitting at base with no
+            // homebound leg logged): a past instant would render a frozen "Now!" card.
+            // The view then falls back to the schedule link instead of lying.
+            effectiveHomeArrivalTime = (tripEnd?.arrivalTime ?? raw.homeArrivalTime).flatMap { $0 > now ? $0 : nil }
         }
 
         if let homeArrival {

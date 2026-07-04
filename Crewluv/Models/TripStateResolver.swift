@@ -169,25 +169,10 @@ enum TripStateResolver {
     /// - Returns: `nil` only when `legs` is empty.
     static func resolveTripEnd(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
         let sorted = legs.sorted { $0.startTime < $1.startTime }
-        guard let first = sorted.first else { return nil }
+        guard !sorted.isEmpty else { return nil }
 
-        let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
-
-        // Build contiguous segments separated by > maxGapBetweenLegs.
-        var segments: [[TripLeg]] = []
-        var current: [TripLeg] = [first]
-        for i in 1..<sorted.count {
-            let prev = sorted[i - 1]
-            let leg = sorted[i]
-            let gap = leg.startTime.timeIntervalSince(prev.endTime)
-            if gap > maxGapBetweenLegs {
-                segments.append(current)
-                current = [leg]
-            } else {
-                current.append(leg)
-            }
-        }
-        segments.append(current)
+        // Contiguous trip blocks separated by > 24h (see contiguousSegments).
+        let segments = contiguousSegments(sorted)
 
         // Pick the segment that covers `now`, accounting for per-leg delay on the
         // last flight so delayed flights keep the segment "active" until actual arrival.
@@ -259,25 +244,33 @@ enum TripStateResolver {
         )
     }
 
-    // MARK: - Home Arrival (cross-trip scan)
+    // MARK: - Home Arrival (current trip block)
 
-    /// Finds the first future leg arriving at the home airport across ALL legs.
-    /// Unlike `resolveTripEnd()` which looks at the current trip segment's last leg,
-    /// this scans across all trips to find when the pilot actually gets home.
+    /// Finds when the pilot's **current** trip brings him home, for the "Back Home In" card.
+    ///
+    /// Bounded to the one contiguous trip block that covers `now` (or the imminent block
+    /// when `now` sits in an at-home gap). A later trip's homebound leg — beyond a >24h
+    /// at-home gap — must NOT hijack this countdown; that produced a homecoming days or
+    /// weeks early. Within the block the **last** arrival home is the true homecoming, so
+    /// a turn that merely touches home mid-trip is ignored.
     ///
     /// Includes `.event` legs whose `arrivalAirport` equals the home airport — manual
     /// events landing at home (e.g. "Drive home in Orlando") count as home arrivals.
     /// Safe because sims/training are scheduled at the base airport, never home.
     static func resolveHomeArrival(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
         guard let home = homeAirportCode, !home.isEmpty else { return nil }
+        let sorted = legs.sorted { $0.startTime < $1.startTime }
 
-        guard let homeLeg = legs
-            .filter({ ($0.type == .flight || $0.type == .event || $0.type == .drive) && $0.endTime > now && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
-            .min(by: { $0.startTime < $1.startTime })
+        guard let segment = currentOrNextSegment(sorted, at: now) else { return nil }
+
+        guard let homeLeg = segment
+            .filter({ ($0.type == .flight || $0.type == .event || $0.type == .drive)
+                      && effectiveEnd(of: $0) > now
+                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
+            .max(by: { effectiveEnd(of: $0) < effectiveEnd(of: $1) })
         else { return nil }
 
-        let delay = TimeInterval((homeLeg.delayMinutes ?? 0) * 60)
-        let arrivalTime = homeLeg.endTime.addingTimeInterval(delay)
+        let arrivalTime = effectiveEnd(of: homeLeg)
         let city = homeLeg.arrivalCity ?? home
 
         return TripEndInfo(
@@ -292,11 +285,22 @@ enum TripStateResolver {
     /// The next upcoming drive from home to base ("leaving for work"), if any.
     /// Returns `nil` for non-commuters (no drive legs) — they leave home via the
     /// flight itself, so the leave-home countdown falls back to the departure.
+    /// A drive only counts when it starts before the next flight: a drive after it
+    /// belongs to a later trip, meaning the upcoming trip has no scheduled commute.
     static func nextDriveToWork(legs: [TripLeg], baseAirportCode: String?, at now: Date) -> TripLeg? {
         guard let base = baseAirportCode, !base.isEmpty else { return nil }
+        // Compare on effective (delay-shifted) starts. A home flight sitting in its
+        // delay window must keep gating out a later trip's drive; comparing scheduled
+        // starts would drop the delayed flight and resurface the later drive, so the
+        // countdown jumps to a trip weeks away.
+        let nextFlightStart = legs
+            .filter { $0.type == .flight && Self.effectiveStart(of: $0) > now }
+            .map { Self.effectiveStart(of: $0) }
+            .min()
         return legs
-            .filter { $0.type == .drive && $0.startTime > now && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame }
-            .min(by: { $0.startTime < $1.startTime })
+            .filter { $0.type == .drive && Self.effectiveStart(of: $0) > now && $0.arrivalAirport?.caseInsensitiveCompare(base) == .orderedSame }
+            .filter { drive in nextFlightStart.map { Self.effectiveStart(of: drive) < $0 } ?? true }
+            .min(by: { Self.effectiveStart(of: $0) < Self.effectiveStart(of: $1) })
     }
 
     // MARK: - Gap Resolution
@@ -489,6 +493,53 @@ enum TripStateResolver {
     /// Scheduled end shifted by the leg's signed `delayMinutes`.
     static func effectiveEnd(of leg: TripLeg) -> Date {
         leg.endTime.addingTimeInterval(TimeInterval((leg.delayMinutes ?? 0) * 60))
+    }
+
+    // MARK: - Trip Blocks
+
+    /// Splits sorted legs into contiguous trip blocks, breaking wherever the gap between
+    /// one leg's end and the next leg's start exceeds 24h (a new trip / an at-home stretch).
+    /// Returns `[]` only for empty input; otherwise every leg lands in exactly one block.
+    private static func contiguousSegments(_ sorted: [TripLeg]) -> [[TripLeg]] {
+        guard let firstLeg = sorted.first else { return [] }
+        let maxGapBetweenLegs: TimeInterval = 24 * 60 * 60
+        var segments: [[TripLeg]] = []
+        var current: [TripLeg] = [firstLeg]
+        for i in 1..<sorted.count {
+            let gap = sorted[i].startTime.timeIntervalSince(sorted[i - 1].endTime)
+            if gap > maxGapBetweenLegs {
+                segments.append(current)
+                current = [sorted[i]]
+            } else {
+                current.append(sorted[i])
+            }
+        }
+        segments.append(current)
+        return segments
+    }
+
+    /// The contiguous trip block the pilot is currently within (`now` inside its span),
+    /// or — when `now` sits in an at-home gap or before all legs — the next block that
+    /// starts after `now`. `nil` only when no block covers or follows `now`.
+    private static func currentOrNextSegment(_ sorted: [TripLeg], at now: Date) -> [TripLeg]? {
+        let segments = contiguousSegments(sorted)
+        if let covering = segments.first(where: { seg in
+            guard let f = seg.first, let l = seg.last else { return false }
+            return now >= f.startTime && now < effectiveEnd(of: l)
+        }) {
+            return covering
+        }
+        return segments.first(where: { ($0.first?.startTime ?? .distantPast) > now })
+    }
+
+    /// The contiguous trip block containing `instant` (legs chained with ≤24h gaps),
+    /// or `[]` when no block spans it. Exposed so callers can bound a scan to one trip.
+    static func contiguousSegment(covering instant: Date, in legs: [TripLeg]) -> [TripLeg] {
+        let sorted = legs.sorted { $0.startTime < $1.startTime }
+        return contiguousSegments(sorted).first(where: { seg in
+            guard let f = seg.first, let l = seg.last else { return false }
+            return instant >= f.startTime && instant <= effectiveEnd(of: l)
+        }) ?? []
     }
 
     private static func displayStatus(for type: TripLeg.LegType) -> PilotDisplayStatus {

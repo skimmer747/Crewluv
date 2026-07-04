@@ -50,11 +50,29 @@ struct PilotStatusView: View {
         )
     }
 
-    /// Days home since last trip ended
+    /// Days home since the pilot actually reached home. For a commuter the trip ends
+    /// at base and the drive home follows hours or a day later, so counting from
+    /// `lastTripEndDate` (the base arrival) overstates the days home — prefer the most
+    /// recent real arrival at the home airport when the legs record one.
     private var daysAtHome: Int? {
-        guard let lastEnd = status.lastTripEndDate else { return nil }
-        let days = Calendar.current.dateComponents([.day], from: lastEnd, to: Date()).day ?? 0
+        guard let reference = [status.lastTripEndDate, homeReturnDate].compactMap({ $0 }).max() else { return nil }
+        let days = Calendar.current.dateComponents([.day], from: reference, to: Date()).day ?? 0
         return days > 0 ? days : nil
+    }
+
+    /// The most recent past arrival at the home airport, used to start the "been home"
+    /// counter at the real homecoming for commuters. Only actual arrivals home — a
+    /// flight or a drive — count; an event AT home mid-stay is not an arrival and would
+    /// push the reference forward, undercounting the days.
+    private var homeReturnDate: Date? {
+        guard let home = status.homeAirportCode, !home.isEmpty else { return nil }
+        let now = Date()
+        return status.tripLegs
+            .filter { ($0.type == .flight || $0.type == .drive)
+                      && $0.endTime <= now
+                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame }
+            .map(\.endTime)
+            .max()
     }
 
     private static func formatHomeArrival(_ date: Date, homeTimezone: String?) -> String {

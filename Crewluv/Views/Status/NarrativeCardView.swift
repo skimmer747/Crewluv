@@ -71,15 +71,20 @@ struct NarrativeCardView: View {
 
     private var name: String { status.pilotFirstName }
 
-    /// The arrival date of the first future flight back to the home airport,
-    /// scanning all trip legs (not just the immediate next trip).
+    /// When the upcoming trip brings the pilot home: the **last** arrival at the home
+    /// airport within that trip's contiguous block, counting the drive home as well as
+    /// flights. Bounding to the trip block keeps a mid-trip turn that merely touches
+    /// home — and a later trip's homecoming — from being announced as the return.
     private var homecomingDate: Date? {
         guard let home = status.homeAirportCode,
               let trip = upcomingTrip else { return nil }
-        return status.tripLegs
-            .filter { $0.type == .flight && $0.endTime > trip.departureDate && $0.arrivalAirport == home }
-            .min(by: { $0.startTime < $1.startTime })
-            .map(\.endTime)
+        let segment = TripStateResolver.contiguousSegment(covering: trip.departureDate, in: status.tripLegs)
+        return segment
+            .filter { ($0.type == .flight || $0.type == .drive)
+                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame
+                      && $0.endTime > trip.departureDate }
+            .map { TripStateResolver.effectiveEnd(of: $0) }
+            .max()
     }
 
     /// Live countdown + arrival date for when the pilot gets home, e.g.
@@ -108,7 +113,7 @@ struct NarrativeCardView: View {
                 ?? AirportDataProvider.shared.airportInfo(forIataCode: flight.arrivalAirport ?? "")?.city
                 ?? "work"
             let depTimeStr = formattedLocalTime(flight.startTime)
-            return Text("\(name) is home — heads to work in \(Text(destCity).bold()) in \(countdownText(to: flight.startTime)) at \(Text(depTimeStr).bold()).")
+            return Text("\(name) is home — heads to base, then on to \(Text(destCity).bold()), departing in \(countdownText(to: flight.startTime)) at \(Text(depTimeStr).bold()).")
         }
 
         let hasPrevTrip = status.lastTripDurationDays != nil
@@ -208,10 +213,22 @@ struct NarrativeCardView: View {
 
     // MARK: - Date Formatting Helpers
 
+    /// True when the device is set to a 24-hour clock. Explicit `dateFormat`
+    /// strings must match this preference themselves: leaving it to iOS's
+    /// automatic format rewriting produced artifacts like "14:50pm EDT".
+    private var prefers24HourClock: Bool {
+        switch Locale.current.hourCycle {
+        case .zeroToTwentyThree, .oneToTwentyFour: return true
+        case .oneToTwelve, .zeroToEleven: return false
+        @unknown default: return false
+        }
+    }
+
     private func formattedDepartureDate(_ date: Date) -> String {
         let calendar = Calendar.current
         let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mma"
+        timeFormatter.locale = Locale(identifier: "en_US_POSIX")
+        timeFormatter.dateFormat = prefers24HourClock ? "HH:mm" : "h:mma"
         timeFormatter.amSymbol = "am"
         timeFormatter.pmSymbol = "pm"
         let timeStr = timeFormatter.string(from: date)
@@ -711,10 +728,12 @@ struct NarrativeCardView: View {
         }
     }
 
-    /// Formats a date as local time with timezone abbreviation, e.g. "3:00pm EST"
+    /// Formats a date as local time with timezone abbreviation, honoring the
+    /// device's 12/24-hour setting, e.g. "3:00pm EST" or "15:00 EST".
     private func formattedLocalTime(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mma z"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = prefers24HourClock ? "HH:mm z" : "h:mma z"
         formatter.amSymbol = "am"
         formatter.pmSymbol = "pm"
         formatter.timeZone = TimeZone.current
