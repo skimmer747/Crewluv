@@ -122,6 +122,7 @@ class AirportDataProvider {
             ("ORD", "Chicago", "IL", "USA", 41.9742, -87.9073),
             ("ORF", "Norfolk", "VA", "USA", 36.8946, -76.2012),
             ("PBI", "West Palm Beach", "FL", "USA", 26.6832, -80.0956),
+            ("DJT", "West Palm Beach", "FL", "USA", 26.6832, -80.0956),  // Renamed from PBI; IATA code effective 2026-08-18
             ("PDX", "Portland", "OR", "USA", 45.5887, -122.5968),
             ("PHX", "Phoenix", "AZ", "USA", 33.4352, -112.0101),
             ("PIT", "Pittsburgh", "PA", "USA", 40.4915, -80.2329),
@@ -362,6 +363,7 @@ class AirportDataProvider {
             ("OSL", "Oslo", nil, "Norway", 60.1939, 11.1004),
             ("HEL", "Helsinki", nil, "Finland", 60.3172, 24.9633),
             ("DUB", "Dublin", nil, "Ireland", 53.4213, -6.2701),
+            ("SNN", "Shannon", nil, "Ireland", 52.7019, -8.9248),
             ("WAW", "Warsaw", nil, "Poland", 52.1657, 20.9671),
             ("PRG", "Prague", nil, "Czech Republic", 50.1008, 14.2600),
             ("BUD", "Budapest", nil, "Hungary", 47.4369, 19.2556),
