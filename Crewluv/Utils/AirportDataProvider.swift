@@ -106,6 +106,7 @@ class AirportDataProvider {
             ("LAX", "Los Angeles", "CA", "USA", 33.9416, -118.4085),
             ("LGB", "Long Beach", "CA", "USA", 33.8177, -118.1516),
             ("LCK", "Columbus", "OH", "USA", 39.8138, -82.9278),
+            ("LFT", "Lafayette", "LA", "USA", 30.2053, -91.9876),
             ("LRD", "Laredo", "TX", "USA", 27.5438, -99.4616),
             ("MCI", "Kansas City", "MO", "USA", 39.2976, -94.7139),
             ("MCO", "Orlando", "FL", "USA", 28.4312, -81.3081),
