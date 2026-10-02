@@ -142,6 +142,8 @@ class AirportDataProvider {
             ("STL", "St. Louis", "MO", "USA", 38.7487, -90.3700),
             ("SYR", "Syracuse", "NY", "USA", 43.1112, -76.1063),
             ("PNS", "Pensacola", "FL", "USA", 30.4734, -87.1866),
+            ("VPS", "Destin/Fort Walton Beach", "FL", "USA", 30.4813, -86.5158),
+            ("ECP", "Panama City Beach", "FL", "USA", 30.3571, -85.7954),
             ("TPA", "Tampa", "FL", "USA", 27.9756, -82.5333),
             ("TUL", "Tulsa", "OK", "USA", 36.1984, -95.8881),
             ("TYS", "Knoxville", "TN", "USA", 35.8107, -83.9940),

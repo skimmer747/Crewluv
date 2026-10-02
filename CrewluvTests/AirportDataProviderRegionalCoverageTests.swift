@@ -22,6 +22,8 @@ final class AirportDataProviderRegionalCoverageTests: XCTestCase {
         Expected(iata: "AEX", city: "Alexandria", state: "LA", latitude: 31.0...32.0, longitude: -93.0...(-92.0)),
         Expected(iata: "LCH", city: "Lake Charles", state: "LA", latitude: 30.0...31.0, longitude: -94.0...(-93.0)),
         Expected(iata: "MOB", city: "Mobile", state: "AL", latitude: 30.0...31.0, longitude: -89.0...(-88.0)),
+        Expected(iata: "VPS", city: "Destin/Fort Walton Beach", state: "FL", latitude: 30.0...31.0, longitude: -87.0...(-86.0)),
+        Expected(iata: "ECP", city: "Panama City Beach", state: "FL", latitude: 30.0...31.0, longitude: -86.0...(-85.0)),
     ]
 
     private let provider = AirportDataProvider.shared
