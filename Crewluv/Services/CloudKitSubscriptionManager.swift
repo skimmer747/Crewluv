@@ -104,7 +104,7 @@ actor CloudKitSubscriptionManager {
         subscription.notificationInfo = notificationInfo
 
         do {
-            try await container.sharedCloudDatabase.save(subscription)
+            _ = try await container.sharedCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: sharedSubKey)
             debugLog("[SubManager] Shared database subscription created: \(subscriptionID)")
             await verifySubscriptionServerSide(database: container.sharedCloudDatabase, expectedID: subscriptionID, userDefaultsKey: sharedSubKey)
@@ -130,7 +130,7 @@ actor CloudKitSubscriptionManager {
         subscription.notificationInfo = notificationInfo
 
         do {
-            try await container.privateCloudDatabase.save(subscription)
+            _ = try await container.privateCloudDatabase.save(subscription)
             UserDefaults.standard.set(subscriptionID, forKey: privateSubKey)
             debugLog("[SubManager] Private zone subscription created: \(subscriptionID)")
             await verifySubscriptionServerSide(database: container.privateCloudDatabase, expectedID: subscriptionID, userDefaultsKey: privateSubKey)
