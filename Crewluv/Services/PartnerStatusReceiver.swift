@@ -81,6 +81,19 @@ class PartnerStatusReceiver {
             }
         }
 
+        // Retry when iCloud reports an account change — Apple's signal that an account
+        // that was temporarily unavailable (CKError 36) is ready for CloudKit again.
+        NotificationCenter.default.addObserver(
+            forName: .CKAccountChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            debugLog("[StatusReceiver] iCloud account changed, refreshing...")
+            Task { @MainActor in
+                await self?.refresh()
+            }
+        }
+
         // Listen for share data reset (disconnect)
         NotificationCenter.default.addObserver(
             forName: .shareDataReset,
@@ -149,11 +162,14 @@ class PartnerStatusReceiver {
         do {
             // Use the account status to check if we have iCloud access
             let accountStatus = try await container.accountStatus()
-            guard accountStatus == .available else {
+            if let issue = CloudAccountIssue(accountStatus: accountStatus) {
                 debugLog("[StatusReceiver] iCloud account not available: \(accountStatus.rawValue)")
-                errorMessage = "Please sign in to iCloud to access shared pilot status."
+                errorMessage = issue.message
                 lastSyncError = "iCloud unavailable"
-                hasAcceptedShare = false
+                // An account that isn't ready says nothing about the share. Keep a recorded
+                // connection so the partner sees how to fix iCloud rather than onboarding;
+                // the CKAccountChanged observer retries once the account is available.
+                hasAcceptedShare = hasRecordedConnection
                 return
             }
 
@@ -279,7 +295,7 @@ class PartnerStatusReceiver {
             debugLog("[StatusReceiver] ❌ Error fetching status: \(error)")
             lastSyncError = error.localizedDescription
             // Keep hasAcceptedShare true if we have a known data source
-            if dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
+            if hasRecordedConnection {
                 hasAcceptedShare = true
                 errorMessage = "Unable to load pilot status. Please try again."
             } else {
@@ -330,6 +346,12 @@ class PartnerStatusReceiver {
               source != dataSource else { return }
         debugLog("[StatusReceiver] dataSource synced from UserDefaults: \(dataSource?.rawValue ?? "nil") → \(raw)")
         dataSource = source
+    }
+
+    /// Whether this device has connected to pilot data — a stored share owner or the
+    /// same-account private zone. Transient iCloud failures must not undo that.
+    private var hasRecordedConnection: Bool {
+        dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil
     }
 
     /// Check the private database for PartnerBeaconZone (same-account scenario)

@@ -91,7 +91,7 @@ final class CloudKitShareManager {
                 shareState = .accepted
                 return
             }
-            let message = userFriendlyError(error)
+            let message = Self.userFriendlyError(error)
             shareState = .error(message)
             let nsError = error as NSError
             debugLog("[ShareManager] ❌ Share acceptance failed — code: \(nsError.code), domain: \(nsError.domain), userInfo: \(nsError.userInfo)")
@@ -114,7 +114,7 @@ final class CloudKitShareManager {
                 debugLog("[ShareManager] Fallback scan confirmed PartnerBeaconZone — treating as accepted")
                 shareState = .accepted
             } else {
-                shareState = .error(userFriendlyError(error))
+                shareState = .error(Self.userFriendlyError(error))
             }
         }
     }
@@ -225,7 +225,7 @@ final class CloudKitShareManager {
     }
 
     /// Converts CloudKit errors to user-friendly messages
-    private func userFriendlyError(_ error: Error) -> String {
+    nonisolated static func userFriendlyError(_ error: Error) -> String {
         let nsError = error as NSError
 
         if nsError.domain == CKErrorDomain {
@@ -234,6 +234,8 @@ final class CloudKitShareManager {
                 return "No internet connection. Please check your network and try again."
             case .notAuthenticated:
                 return "Please sign in to iCloud in Settings."
+            case .accountTemporarilyUnavailable:
+                return CloudAccountIssue.needsAttention.message
             case .permissionFailure:
                 return "You don't have permission to access this share."
             case .serverRejectedRequest:
