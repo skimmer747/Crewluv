@@ -229,8 +229,8 @@ struct FlightRouteMapView: View {
         let depTime = rawDepTime.addingTimeInterval(delayInterval)
         let arrTime = rawArrTime.addingTimeInterval(delayInterval)
 
-        let depSunUp = isSunUp(lat: departure.latitude, lon: departure.longitude, at: depTime)
-        let arrSunUp = isSunUp(lat: arrival.latitude, lon: arrival.longitude, at: arrTime)
+        let depSunUp = SolarPosition.isSunUp(latitude: departure.latitude, longitude: departure.longitude, at: depTime)
+        let arrSunUp = SolarPosition.isSunUp(latitude: arrival.latitude, longitude: arrival.longitude, at: arrTime)
 
         let depX = depPoint.x / size.width
         let arrX = arrPoint.x / size.width
@@ -372,8 +372,8 @@ struct FlightRouteMapView: View {
         let depTime = rawDepTime.addingTimeInterval(delay)
         let arrTime = rawArrTime.addingTimeInterval(delay)
 
-        let depSunUp = isSunUp(lat: departure.latitude, lon: departure.longitude, at: depTime)
-        let arrSunUp = isSunUp(lat: arrival.latitude, lon: arrival.longitude, at: arrTime)
+        let depSunUp = SolarPosition.isSunUp(latitude: departure.latitude, longitude: departure.longitude, at: depTime)
+        let arrSunUp = SolarPosition.isSunUp(latitude: arrival.latitude, longitude: arrival.longitude, at: arrTime)
 
         let depLocalTime = formatLocalTime(date: depTime, timezoneId: status.currentTimezone)
         let arrLocalTime = formatLocalTime(date: arrTime, timezoneId: status.currentFlightArrivalTimezone)
@@ -637,30 +637,6 @@ struct FlightRouteMapView: View {
 
     // MARK: - Solar Calculations
 
-    private func sunAltitude(lat: Double, lon: Double, at date: Date) -> Double {
-        let julianDay = date.timeIntervalSince1970 / 86400.0 + 2440587.5
-        let n = julianDay - 2451545.0
-        let L = (280.460 + 0.9856474 * n).truncatingRemainder(dividingBy: 360)
-        let g = (357.528 + 0.9856003 * n).truncatingRemainder(dividingBy: 360) * .pi / 180
-        let eclipticLongitude = L + 1.915 * sin(g) + 0.020 * sin(2 * g)
-        let epsilon = (23.439 - 0.0000004 * n) * .pi / 180
-        let sunDeclination = asin(sin(epsilon) * sin(eclipticLongitude * .pi / 180))
-        let E = 4 * (L - eclipticLongitude) - 1.915 * sin(g) * 57.3
-        let hours = date.timeIntervalSince1970.truncatingRemainder(dividingBy: 86400) / 3600.0
-        let subsolarLongitude = -(hours - 12.0) * 15.0 + (E / 4.0)
-        var hourAngleDeg = lon - subsolarLongitude
-        while hourAngleDeg > 180 { hourAngleDeg -= 360 }
-        while hourAngleDeg < -180 { hourAngleDeg += 360 }
-        let hourAngle = hourAngleDeg * .pi / 180
-        let latRad = lat * .pi / 180
-        let altitude = asin(sin(latRad) * sin(sunDeclination) + cos(latRad) * cos(sunDeclination) * cos(hourAngle))
-        return altitude * 180 / .pi
-    }
-
-    private func isSunUp(lat: Double, lon: Double, at date: Date) -> Bool {
-        sunAltitude(lat: lat, lon: lon, at: date) > -0.833
-    }
-
     private func findSolarTransitionPoint(departure: AirportData, arrival: AirportData) -> (progress: Double, isSunrise: Bool)? {
         guard let rawDepTime = status.currentFlightDepartureTime,
               let rawArrTime = status.currentFlightArrivalTime else { return nil }
@@ -682,7 +658,7 @@ struct FlightRouteMapView: View {
                 to: CLLocationCoordinate2D(latitude: arrival.latitude, longitude: arrival.longitude),
                 fraction: progress
             )
-            let sunUp = isSunUp(lat: position.latitude, lon: position.longitude, at: sampleTime)
+            let sunUp = SolarPosition.isSunUp(latitude: position.latitude, longitude: position.longitude, at: sampleTime)
             if let prevSunUp = previousSunUp, sunUp != prevSunUp {
                 let transitionProgress = (Double(i) - 0.5) / Double(numSamples)
                 return (progress: transitionProgress, isSunrise: sunUp)
