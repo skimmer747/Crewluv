@@ -197,7 +197,10 @@ class PartnerStatusReceiver {
             lastSyncError = nil
             errorMessage = "Waiting for your pilot's first update."
         case .notConnected:
+            // Nothing to show: no share, and no Crewlu Cloud connection, or its key is gone.
             debugLog("[StatusReceiver] No stored zone owner - share not yet accepted")
+            transitionTask?.cancel()
+            pilotStatus = nil
             hasAcceptedShare = false
             lastSyncError = "No share accepted"
             errorMessage = "Please accept the share invitation from your pilot."

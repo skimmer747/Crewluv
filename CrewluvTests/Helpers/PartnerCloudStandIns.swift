@@ -131,6 +131,7 @@ final class Heard {
 @MainActor
 enum Make {
     static let partnerA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    static let partnerB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
     static let key = String(repeating: "5e", count: 32)
 
     /// A summary with the four fields every summary has, and `fields`.
@@ -140,9 +141,11 @@ enum Make {
         return try CloudSummary.decoder().decode(CloudSummary.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
-    /// partner_view's answer with a summary for partner A.
-    static func answer(updatedAt: String, _ summary: CloudSummary) -> Result<PartnerViewAnswer, PartnerDoorError> {
-        .success(PartnerViewAnswer(partnerID: partnerA, updatedAt: updatedAt, content: .summary(summary)))
+    /// partner_view's answer with a summary for a partner, A unless said.
+    static func answer(
+        updatedAt: String, _ summary: CloudSummary, partnerID: String = partnerA
+    ) -> Result<PartnerViewAnswer, PartnerDoorError> {
+        .success(PartnerViewAnswer(partnerID: partnerID, updatedAt: updatedAt, content: .summary(summary)))
     }
 
     static func unchanged(updatedAt: String) -> Result<PartnerViewAnswer, PartnerDoorError> {

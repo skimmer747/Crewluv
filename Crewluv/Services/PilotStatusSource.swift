@@ -74,12 +74,16 @@ final class PilotStatusSource {
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
     @ObservationIgnored private let periodicCheck: RepeatingRefresh
+    /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
+    @ObservationIgnored private let didConnect: @MainActor () -> Void
     /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
     /// The first read after a launch sends none, since the app doesn't keep the summary.
     @ObservationIgnored private var since: String?
     @ObservationIgnored private var readUnderWay: Task<RefreshOutcome, Never>?
     /// The read that starts once the one under way ends, shared by every refresh asked for meanwhile.
     @ObservationIgnored private var queuedRead: Task<RefreshOutcome, Never>?
+    /// Goes up each time the connection is forgotten, so a read begun before then brings nothing back.
+    @ObservationIgnored private var connectionGeneration = 0
 
     /// Where the alerts' title name is kept, as before.
     private static let displayNameKey = "ResolvedPilotDisplayName"
@@ -94,7 +98,8 @@ final class PilotStatusSource {
         defaults: UserDefaults = .standard,
         notifier: StatusNotifying = StatusChangeNotifier.shared,
         iCloudShareEnded: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.resetShareData() },
-        periodicCheck: RepeatingRefresh = RepeatingRefresh()
+        periodicCheck: RepeatingRefresh = RepeatingRefresh(),
+        didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } }
     ) {
         self.iCloud = iCloud
         self.door = door
@@ -103,6 +108,7 @@ final class PilotStatusSource {
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
         self.periodicCheck = periodicCheck
+        self.didConnect = didConnect
         connection = PartnerConnection(defaults: defaults)
         crewluCloudPartnerID = connection.partnerID
     }
@@ -170,6 +176,7 @@ final class PilotStatusSource {
     /// Forgets this device's key and its Crewlu Cloud connection, as today's iCloud reset forgets
     /// the share (spec §7.6).
     private func forgetConnection() {
+        connectionGeneration += 1
         keys.forgetDeviceKey()
         connection.partnerID = nil
         crewluCloudPartnerID = nil
@@ -214,17 +221,26 @@ final class PilotStatusSource {
         guard let key = keys.deviceKey() else {
             connection.partnerID = nil
             crewluCloudPartnerID = nil
+            reading = nil
+            since = nil
             return .notConnected
         }
+        let generation = connectionGeneration
+        let answer: PartnerViewAnswer
         do {
-            return await take(try await door.view(key: key, since: since))
+            answer = try await door.view(key: key, since: since)
         } catch .refused(.sharingEnded) {
             forgetConnection()
             return .sharingEnded
         } catch {
+            guard generation == connectionGeneration else { return .sharingEnded }
             since = nil
             return .failed(Self.unreachable)
         }
+        // Sharing ended while the door answered, say through the push registration: the answer
+        // is for a connection that's gone.
+        guard generation == connectionGeneration else { return .sharingEnded }
+        return await take(answer)
     }
 
     /// A key with no Crewlu Cloud connection saved is what a reinstall leaves: iOS keeps an app's
@@ -246,10 +262,12 @@ final class PilotStatusSource {
         }
         connection.partnerID = answer.partnerID
         crewluCloudPartnerID = answer.partnerID
+        didConnect()
         return await take(answer)
     }
 
-    /// Takes partner_view's answer. A summary newer than the one already read becomes the reading.
+    /// Takes partner_view's answer. A summary other than the one already read, or one trimmed for
+    /// another partner, becomes the reading.
     private func take(_ answer: PartnerViewAnswer) async -> RefreshOutcome {
         switch answer.content {
         case .unchanged:
@@ -258,7 +276,8 @@ final class PilotStatusSource {
             return .noStatusYet
         case .summary(let summary):
             since = answer.updatedAt
-            if case .crewluCloud(_, _, let updatedAt)? = reading, updatedAt != nil, updatedAt == answer.updatedAt {
+            if case .crewluCloud(_, let partnerID, let updatedAt)? = reading, updatedAt != nil,
+               updatedAt == answer.updatedAt, partnerID == answer.partnerID {
                 return .unchanged
             }
             return await adopt(.crewluCloud(summary, partnerID: answer.partnerID, updatedAt: answer.updatedAt))

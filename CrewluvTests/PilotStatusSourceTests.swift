@@ -19,6 +19,7 @@ final class PilotStatusSourceTests {
     private let keys = InMemoryDeviceKeyStore()
     private let notifier = RecordingNotifier()
     private let iCloudResets = Counter()
+    private let connects = Counter()
     private let clock = HandClock()
 
     init() throws {
@@ -37,7 +38,8 @@ final class PilotStatusSourceTests {
             defaults: defaults,
             notifier: notifier,
             iCloudShareEnded: { [iCloudResets] in iCloudResets.count += 1 },
-            periodicCheck: RepeatingRefresh(sleep: clock.sleep)
+            periodicCheck: RepeatingRefresh(sleep: clock.sleep),
+            didConnect: { [connects] in connects.count += 1 }
         )
     }
 
@@ -142,6 +144,7 @@ final class PilotStatusSourceTests {
         #expect(await notifier.evaluations.count == 1)
         #expect(source.isOnCrewluCloud)
         #expect(iCloud.fetches == 0)
+        #expect(connects.count == 0)
     }
 
     @Test func test_crewluCloud_alertsWithThisPartnersNameAndQuickStatus() async throws {
@@ -221,6 +224,62 @@ final class PilotStatusSourceTests {
         #expect(door.views.isEmpty)
     }
 
+    @Test func test_crewluCloud_keyGone_forgetsTheReading() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        keys.key = nil
+        #expect(await source.refresh() == .notConnected)
+        #expect(source.reading == nil)
+        #expect(!source.isOnCrewluCloud)
+    }
+
+    @Test func test_crewluCloud_summaryAnsweredAfterSharingEnded_isDropped() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        source.endSharing()
+        door.release()
+
+        #expect(await read.value == .sharingEnded)
+        #expect(source.reading == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+        #expect(await notifier.evaluations.isEmpty)
+    }
+
+    @Test func test_crewluCloud_failureAfterSharingEnded_isSharingEnded() async {
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        source.endSharing()
+        door.release()
+
+        #expect(await read.value == .sharingEnded)
+    }
+
+    @Test func test_crewluCloud_sameTimeForAnotherPartner_isANewStatus() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary()),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .newStatus)
+        guard case .crewluCloud(_, let partnerID, _)? = source.reading else {
+            Issue.record("no Crewlu Cloud reading")
+            return
+        }
+        #expect(partnerID == Make.partnerB)
+    }
+
     // MARK: - A Key Left by a Reinstall
 
     @Test func test_leftoverKey_withASummary_connects() async throws {
@@ -233,6 +292,7 @@ final class PilotStatusSourceTests {
         #expect(defaults.string(forKey: "partnerCloud.partnerID") == Make.partnerA)
         #expect(door.views.map(\.since) == [nil])
         #expect(iCloud.fetches == 0)
+        #expect(connects.count == 1)
     }
 
     @Test func test_leftoverKey_sharingEnded_isForgotten_andICloudIsRead() async throws {
@@ -269,6 +329,7 @@ final class PilotStatusSourceTests {
         #expect(await source.refresh() == .newStatus)
         #expect(!source.isOnCrewluCloud)
         #expect(iCloud.fetches == 1)
+        #expect(connects.count == 0)
     }
 
     @Test func test_leftoverKey_beforeTheFirstSummary_withoutICloud_connects() async {
@@ -279,6 +340,7 @@ final class PilotStatusSourceTests {
         #expect(await source.refresh() == .noStatusYet)
         #expect(source.isOnCrewluCloud)
         #expect(iCloud.fetches == 0)
+        #expect(connects.count == 1)
     }
 
     // MARK: - Refreshes and the Screen
