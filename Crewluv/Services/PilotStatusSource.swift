@@ -96,8 +96,9 @@ final class PilotStatusSource {
     }
 
     /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
-    /// forget the connection, and tell the screen.
+    /// forget the connection, and tell the screen. A refusal Disconnect's own leave caused ends nothing.
     func endSharing() {
+        guard !device.isLeaving else { return }
         device.forget()
         noteSharingEnded()
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))

@@ -834,6 +834,25 @@ final class PilotStatusSourceTests {
         #expect(source.lastUpdate?.outcome != .notConnected)
     }
 
+    @Test func test_disconnect_aRefusalItsOwnLeaveCaused_leavesNoNote() async {
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        let source = connectedSource()
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        door.holdsLeaves = true
+
+        let disconnecting = Task { await source.disconnect() }
+        await eventually { door.leaves.count == 1 }
+        let read = await source.refresh()
+        door.release()
+
+        #expect(read == .superseded)
+        #expect(await disconnecting.value)
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+        #expect(source.lastUpdate?.outcome == .notConnected)
+        #expect(keys.key == nil)
+    }
+
     // MARK: - The 60-Second Check
 
     @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {

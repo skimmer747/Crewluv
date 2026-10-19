@@ -141,6 +141,22 @@ final class PushRegistrarTests {
         #expect(log.entries == ["Sharing ended"])
     }
 
+    @Test func test_sharingEnded_thatDisconnectsOwnLeaveCaused_endsNothing() async {
+        door.setPushAnswers = [.failure(.refused(.sharingEnded))]
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        let (registrar, source) = makeRegistrar()
+        door.holdsLeaves = true
+
+        let disconnecting = Task { await source.disconnect() }
+        await eventually { door.leaves.count == 1 }
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+        door.release()
+
+        #expect(await disconnecting.value)
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.lastUpdate?.outcome == .notConnected)
+    }
+
     @Test func test_refused_isntTriedAgainUntilTheNextLaunch() async {
         door.setPushAnswers = [.failure(.refused(.invalidInput))]
         let (registrar, source) = makeRegistrar()
