@@ -99,14 +99,20 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - `PartnerStatusReceiver` is the screen's model: it shows how every read went
 - Refreshes on coming to the front, on pull-to-refresh and the refresh button, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
+#### Connecting (`App/LinkRouter.swift`, `Services/PartnerJoiner.swift`)
+- `LinkRouter` takes every link the app is given, and the welcome screen's paste box: Crewluve's own `https://crewluve.crewlu.net/join#t=…` and `#c=…` links (`PartnerLink`) go to the joiner, and iCloud share links to `CloudKitShareManager`
+- `PartnerJoiner` joins Crewlu Cloud with an invite link or a 6-character code from another device, asking first when the link is from another pilot
+- `CrewluCloudDevice` (`Services/PartnerCloud/`) is this device on Crewlu Cloud: its key, joining with a pending key, switching, Disconnect and hand-off codes. Every connection change moves its generation on, so an answer for a key the device has let go of changes nothing
+- Logs show Crewluve's links only by host and path: what follows the `#` is a secret
+
 #### Data Model (`Models/SharedPilotStatus.swift`)
 - Privacy-conscious: excludes crew names, hotel details, pay info
 - CloudKit-optimized struct (not SwiftData)
 - Includes flight info, location, timers, and trip progress
 
 ### App Flow
-1. **Onboarding**: User accepts CloudKit share link from pilot
-2. **Share Processing**: `CloudKitShareManager` handles share acceptance
+1. **Onboarding**: User taps the pilot's invite link, or types a code from another of their devices, and `PartnerJoiner` connects to Crewlu Cloud. A pilot on an older CrewLu sends a CloudKit share link instead
+2. **Share Processing**: `CloudKitShareManager` handles a CloudKit share's acceptance
 3. **Status Sync**: `PilotStatusSource` reads the pilot's status, and `PartnerStatusReceiver` displays it
 4. **Refresh**: On coming to the front, pull-to-refresh and the refresh button, silent pushes, the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
@@ -115,7 +121,8 @@ Use Xcode for all development tasks. The project follows iOS development convent
 ```
 Crewluv/
 ├── App/                      # App lifecycle and URL handling
-│   └── CrewluvApp.swift     # Main entry point with CloudKit share URLs
+│   ├── CrewluvApp.swift     # Main entry point
+│   └── LinkRouter.swift     # Where each opened or pasted link goes
 ├── Views/                    # SwiftUI views by feature
 │   ├── Welcome/             # Onboarding screens
 │   └── Status/              # Status display
@@ -125,7 +132,8 @@ Crewluv/
 │   ├── CloudKitShareManager.swift    # CloudKit share operations
 │   ├── PilotStatusSource.swift       # Reads the status, from Crewlu Cloud or iCloud
 │   ├── PartnerStatusReceiver.swift   # The status screen's model
-│   └── PartnerCloud/                 # Crewlu Cloud's partner door and this device's key
+│   ├── PartnerJoiner.swift           # Joining with an invite link or a code
+│   └── PartnerCloud/                 # Crewlu Cloud's partner door, and this device on it
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
 ```
