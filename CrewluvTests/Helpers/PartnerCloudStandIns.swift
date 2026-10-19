@@ -102,8 +102,11 @@ final class StandInICloud: ICloudStatusFetching {
 @MainActor
 final class InMemoryDeviceKeyStore: DeviceKeyStore {
     var key: String?
-    /// While true, reading the key fails, as the Keychain's does before the phone's first unlock.
+    var pending: String?
+    /// While true, reading a key fails, as the Keychain's does before the phone's first unlock.
     var readFails = false
+    /// While true, saving a key fails.
+    var savesFail = false
 
     func deviceKey() throws(DeviceKeyUnreadable) -> String? {
         if readFails {
@@ -113,12 +116,30 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
     }
 
     func save(deviceKey: String) -> Bool {
+        guard !savesFail else { return false }
         key = deviceKey
         return true
     }
 
     func forgetDeviceKey() {
         key = nil
+    }
+
+    func pendingKey() throws(DeviceKeyUnreadable) -> String? {
+        if readFails {
+            throw DeviceKeyUnreadable(status: errSecInteractionNotAllowed)
+        }
+        return pending
+    }
+
+    func save(pendingKey: String) -> Bool {
+        guard !savesFail else { return false }
+        pending = pendingKey
+        return true
+    }
+
+    func forgetPendingKey() {
+        pending = nil
     }
 }
 

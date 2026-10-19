@@ -2,8 +2,8 @@
 //  KeychainDeviceKeyStoreTests.swift
 //  CrewluvTests
 //
-//  The device key in the Keychain (partner links piece 4 spec §5.3). These run only in
-//  Xcode: the Mac harness can't reach the iOS Keychain.
+//  The device key and the pending key in the Keychain (partner links piece 4 spec §5.3). These
+//  run only in Xcode: the Mac harness can't reach the iOS Keychain.
 //
 
 import Foundation
@@ -19,6 +19,7 @@ struct KeychainDeviceKeyStoreTests {
 
     init() {
         store.forgetDeviceKey()
+        store.forgetPendingKey()
     }
 
     @Test func test_noKey_readsNil() throws {
@@ -54,11 +55,31 @@ struct KeychainDeviceKeyStoreTests {
         #expect(try store.deviceKey() == nil)
     }
 
-    @Test func test_key_staysOnThisDevice_andCanBeReadWhileLocked() throws {
-        store.save(deviceKey: "first")
+    @Test func test_pendingKey_isKeptApartFromTheDeviceKey() throws {
+        store.save(deviceKey: "device")
+        #expect(store.save(pendingKey: "pending"))
+        #expect(try store.deviceKey() == "device")
+        #expect(try store.pendingKey() == "pending")
+
+        store.forgetPendingKey()
+        #expect(try store.pendingKey() == nil)
+        #expect(try store.deviceKey() == "device")
+    }
+
+    @Test func test_pendingKey_replacesTheLastOne() throws {
+        store.save(pendingKey: "first")
+        #expect(store.save(pendingKey: "second"))
+        #expect(try store.pendingKey() == "second")
+    }
+
+    @Test(arguments: ["deviceKey", "pendingKey"])
+    func test_keys_stayOnThisDevice_andCanBeReadWhileLocked(account: String) throws {
+        store.save(deviceKey: "device")
+        store.save(pendingKey: "pending")
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.ToddAnderson.Crewluv.partnerCloud.tests",
+            kSecAttrAccount as String: account,
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
