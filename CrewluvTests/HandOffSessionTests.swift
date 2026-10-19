@@ -96,7 +96,7 @@ final class HandOffSessionTests {
 
         let making = Task { await session.makeCode() }
         await eventually { door.handOffs.count == 1 }
-        _ = await source.device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
+        _ = source.device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
         door.release()
         await making.value
 

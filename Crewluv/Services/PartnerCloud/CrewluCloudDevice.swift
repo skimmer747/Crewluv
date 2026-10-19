@@ -24,7 +24,7 @@ final class CrewluCloudDevice {
     @ObservationIgnored private let keys: DeviceKeyStore
     @ObservationIgnored private let connection: PartnerConnection
     /// Goes up each time the connection changes, so a read begun before then brings nothing back.
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private(set) var generation = 0
 
     init(door: PartnerDoor, keys: DeviceKeyStore, connection: PartnerConnection) {
         self.door = door
@@ -84,21 +84,27 @@ final class CrewluCloudDevice {
     /// A key with no connection saved is what a reinstall leaves: iOS keeps an app's Keychain items,
     /// not its settings (spec §5.3). Reads with it, and connects when Crewlu Cloud answers with a
     /// summary, or with none yet on a device without an iCloud share. Nil carries on with iCloud;
-    /// it's tried on every refresh until Crewlu Cloud answers, or the Keychain can be read.
+    /// it's tried on every refresh until Crewlu Cloud answers, or the Keychain can be read. An
+    /// answer that a switch overtook, say a join with the same key, forgets and connects nothing.
     func adoptLeftoverKey() async -> PartnerViewAnswer? {
         guard let key = try? keys.deviceKey() else { return nil }
+        let generation = generation
         let answer: PartnerViewAnswer
         do {
             answer = try await door.view(key: key, since: nil)
         } catch .refused(.sharingEnded) {
-            keys.forgetDeviceKey()
+            if generation == self.generation {
+                keys.forgetDeviceKey()
+            }
             return nil
         } catch {
             return nil
         }
+        guard generation == self.generation else { return nil }
         if case .noSummaryYet = answer.content, connection.hasICloudShare {
             return nil
         }
+        self.generation += 1
         connection.partnerID = answer.partnerID
         partnerID = answer.partnerID
         return answer
@@ -139,23 +145,36 @@ final class CrewluCloudDevice {
         try await door.view(key: joined.key, since: nil)
     }
 
+    /// The device a switch replaced, which `leave(_:)` lets go.
+    struct Replaced: Equatable {
+        /// Its key, or nil when the switch kept this device's key.
+        let key: String?
+    }
+
     /// Makes this device `joined`'s device (spec §7.2's switching): its key becomes this device's
-    /// key, and the device it replaces leaves Crewlu Cloud, tried once. False when the key couldn't
-    /// be saved, and then nothing changes.
-    func switchTo(_ joined: Joined) async -> Bool {
+    /// key, all at once, so no read sees half a switch. A key forgotten since the join sent it, say
+    /// by a leftover key's refusal, is saved again. Nil when the key couldn't be saved, and then
+    /// nothing changes.
+    func switchTo(_ joined: Joined) -> Replaced? {
         let replacedKey = try? keys.deviceKey()
+        if replacedKey != joined.key {
+            guard keys.save(deviceKey: joined.key) else { return nil }
+        }
         if !joined.isDeviceKey {
-            guard keys.save(deviceKey: joined.key) else { return false }
             keys.forgetPendingKey()
         }
         generation += 1
         connection.partnerID = joined.partnerID
         partnerID = joined.partnerID
         since = nil
-        if let replacedKey, replacedKey != joined.key {
-            try? await door.leave(key: replacedKey)
-        }
-        return true
+        return Replaced(key: replacedKey == joined.key ? nil : replacedKey)
+    }
+
+    /// The device a switch replaced leaves Crewlu Cloud, tried once: one that doesn't stays in the
+    /// pilot's list, where the pilot can remove it (spec §7.2).
+    func leave(_ replaced: Replaced) async {
+        guard let key = replaced.key else { return }
+        try? await door.leave(key: key)
     }
 
     /// The partner chose not to switch: the device the join made leaves Crewlu Cloud, tried once, and

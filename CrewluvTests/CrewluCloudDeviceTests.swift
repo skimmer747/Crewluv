@@ -159,44 +159,54 @@ final class CrewluCloudDeviceTests {
 
     // MARK: - Switching and Cancelling
 
-    @Test func test_switch_makesThePendingKeyThisDevicesKey_andTheOldDeviceLeaves() async {
+    @Test func test_switch_makesThePendingKeyThisDevicesKey_andTheOldDeviceLeaves() async throws {
         let device = connectedDevice()
         device.since = "t1"
         keys.pending = "pending"
 
-        let switched = await device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
+        let replaced = try #require(device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false)))
 
-        #expect(switched)
         #expect(keys.key == "pending")
         #expect(keys.pending == nil)
         #expect(device.partnerID == Make.partnerB)
         #expect(defaults.string(forKey: "partnerCloud.partnerID") == Make.partnerB)
         #expect(device.since == nil)
+        #expect(door.leaves.isEmpty)
+        await device.leave(replaced)
         #expect(door.leaves == [Make.key])
     }
 
-    @Test func test_switch_withThisDevicesOwnKey_leavesNothing() async {
+    @Test func test_switch_withThisDevicesOwnKey_leavesNothing() async throws {
         keys.key = Make.key
         let device = device()
 
-        _ = await device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: Make.key, isDeviceKey: true))
+        let replaced = try #require(device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: Make.key, isDeviceKey: true)))
+        await device.leave(replaced)
 
         #expect(device.partnerID == Make.partnerA)
         #expect(keys.key == Make.key)
         #expect(door.leaves.isEmpty)
     }
 
-    @Test func test_switch_keyThatCantBeSaved_changesNothing() async {
+    @Test func test_switch_savesAKeyThatWasForgottenSinceTheJoinSentIt() {
+        let device = device()
+
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true))
+
+        #expect(keys.key == Make.key)
+        #expect(device.partnerID == Make.partnerB)
+    }
+
+    @Test func test_switch_keyThatCantBeSaved_changesNothing() {
         let device = connectedDevice()
         keys.pending = "pending"
         keys.savesFail = true
 
-        let switched = await device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
+        let replaced = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
 
-        #expect(!switched)
+        #expect(replaced == nil)
         #expect(keys.key == Make.key)
         #expect(device.partnerID == Make.partnerA)
-        #expect(door.leaves.isEmpty)
     }
 
     @Test func test_aReadThatASwitchOvertook_bringsNothingBack() async throws {
@@ -206,7 +216,7 @@ final class CrewluCloudDeviceTests {
 
         let read = Task { await device.read() }
         await eventually { door.views.count == 1 }
-        _ = await device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
         door.release()
 
         guard case .superseded = await read.value else {
@@ -228,6 +238,39 @@ final class CrewluCloudDeviceTests {
     }
 
     // MARK: - Reads the Connection Changed Under
+
+    @Test func test_aLeftoverKeysRefusal_thatASwitchOvertook_forgetsNothing() async {
+        keys.key = Make.key
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        door.holdsViews = true
+        let device = device()
+
+        let adopting = Task { await device.adoptLeftoverKey() }
+        await eventually { door.views.count == 1 }
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true))
+        door.release()
+
+        #expect(await adopting.value == nil)
+        #expect(keys.key == Make.key)
+        #expect(device.partnerID == Make.partnerB)
+    }
+
+    @Test func test_aLeftoverKeysAnswer_thatASwitchOvertook_connectsNothing() async throws {
+        keys.key = Make.key
+        keys.pending = "pending"
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        door.holdsViews = true
+        let device = device()
+
+        let adopting = Task { await device.adoptLeftoverKey() }
+        await eventually { door.views.count == 1 }
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false))
+        door.release()
+
+        #expect(await adopting.value == nil)
+        #expect(device.partnerID == Make.partnerB)
+        #expect(defaults.string(forKey: "partnerCloud.partnerID") == Make.partnerB)
+    }
 
     @Test func test_sharingEnded_forAKeyReplacedMeanwhile_forgetsNothing() async {
         door.viewAnswers = [.failure(.refused(.sharingEnded))]

@@ -675,6 +675,67 @@ final class PilotStatusSourceTests {
         #expect(connects.count == 0)
     }
 
+    @Test func test_connect_changesEverything_beforeTheReplacedDeviceLeaves() async {
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = connectedSource()
+        keys.pending = "pending"
+        door.holdsLeaves = true
+
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { door.leaves.count == 1 }
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(keys.key == "pending")
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(connects.count == 1)
+        door.release()
+        #expect(await connecting.value)
+        #expect(door.leaves == [Make.key])
+    }
+
+    @Test func test_connect_whileALeftoverKeyIsRead_keepsTheKey_andReadsTheNewConnection() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [
+            .failure(.refused(.sharingEnded)),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        door.holdsViews = false
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true)
+        let connecting = Task { await source.connect(joined, keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        door.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_connect_afterALeftoverKeysRefusal_savesTheKeyAgain() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [
+            .failure(.refused(.sharingEnded)),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        let source = makeSource()
+        #expect(await source.refresh() == .notConnected)
+
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true)
+        #expect(await source.connect(joined, keepingAlerts: false))
+
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
     // MARK: - Disconnect
 
     @Test func test_disconnect_leaves_thenForgetsTheKeyTheConnectionAndThePilot() async throws {

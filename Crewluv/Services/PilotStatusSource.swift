@@ -105,9 +105,11 @@ final class PilotStatusSource {
 
     /// Switches this device to what a join joined (spec §7.2): its key, an iCloud share forgotten
     /// quietly, the push token sent and the new connection read. For another pilot, what the alerts
-    /// kept of the last goes first. False when the key couldn't be saved; then nothing changes.
+    /// kept of the last goes first. All that changes before anything waits, so no read sees half a
+    /// switch; the replaced device leaves after. False when the key couldn't be saved; then nothing
+    /// changes.
     func connect(_ joined: CrewluCloudDevice.Joined, keepingAlerts: Bool) async -> Bool {
-        guard await device.switchTo(joined) else { return false }
+        guard let replaced = device.switchTo(joined) else { return false }
         if !keepingAlerts {
             connection.forgetPilot()
         }
@@ -118,6 +120,7 @@ final class PilotStatusSource {
         sharingEndedWith = nil
         reading = nil
         didConnect()
+        await device.leave(replaced)
         _ = await refresh()
         return true
     }
@@ -180,9 +183,12 @@ final class PilotStatusSource {
         if isOnCrewluCloud {
             return await readCrewluCloud()
         }
+        let generation = device.generation
         if let outcome = await adoptLeftoverKey() {
             return outcome
         }
+        // A switch while the leftover key was read: the read that follows tells.
+        guard generation == device.generation else { return .superseded }
         return await readICloud()
     }
 
