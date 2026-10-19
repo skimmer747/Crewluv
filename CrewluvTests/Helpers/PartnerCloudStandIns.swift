@@ -102,12 +102,24 @@ final class StandInPartnerDoor: PartnerDoor {
 final class StandInICloud: ICloudStatusFetching {
     /// The reads' results, in order. With none left, there's no share.
     var results: [Result<ICloudReading, any Error>] = []
+    /// While true, each read waits for `release()`.
+    var holdsFetches = false
     private(set) var fetches = 0
+    private var held: [CheckedContinuation<Void, Never>] = []
 
     func fetch() async throws -> ICloudReading {
         fetches += 1
+        if holdsFetches {
+            await withCheckedContinuation { held.append($0) }
+        }
         guard !results.isEmpty else { throw ICloudFetchError.notConnected }
         return try results.removeFirst().get()
+    }
+
+    /// Lets every held read go on.
+    func release() {
+        held.forEach { $0.resume() }
+        held.removeAll()
     }
 }
 

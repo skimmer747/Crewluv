@@ -736,6 +736,49 @@ final class PilotStatusSourceTests {
         #expect(source.lastUpdate?.outcome == .newStatus)
     }
 
+    @Test func test_iCloud_aReadThatASwitchOvertook_bringsNothingBack() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        iCloud.holdsFetches = true
+        keys.pending = "pending"
+        let sam = try Make.summary(["pilotId": "sam", "pilotFirstName": "Sam"])
+        door.viewAnswers = [Make.answer(updatedAt: "t1", sam, partnerID: Make.partnerB)]
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { iCloud.fetches == 1 }
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        iCloud.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(await notifier.evaluations.map(\.status.pilotId) == ["sam"])
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "sam")
+    }
+
+    @Test func test_iCloud_shareGoneThatASwitchOvertook_endsNothing() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        iCloud.holdsFetches = true
+        keys.pending = "pending"
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { iCloud.fetches == 1 }
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        iCloud.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(iCloudResets.count == 0)
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.isOnCrewluCloud)
+    }
+
     // MARK: - Disconnect
 
     @Test func test_disconnect_leaves_thenForgetsTheKeyTheConnectionAndThePilot() async throws {

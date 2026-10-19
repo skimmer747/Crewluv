@@ -241,14 +241,20 @@ final class PilotStatusSource {
 
     // MARK: - iCloud
 
+    /// iCloud's read. One that a switch to Crewlu Cloud overtook was the old connection's: it brings
+    /// nothing back, and ends nothing.
     private func readICloud() async -> RefreshOutcome {
+        let generation = device.generation
         do {
             let fetched = try await iCloud.fetch()
+            guard generation == device.generation else { return .superseded }
             if let reading, reading.lastUpdated == fetched.status.lastUpdated {
                 takeLookedUpName(from: fetched)
                 return .unchanged
             }
             return await adopt(.iCloud(fetched))
+        } catch _ where generation != device.generation {
+            return .superseded
         } catch ICloudFetchError.notConnected {
             return .notConnected
         } catch ICloudFetchError.shareGone {
