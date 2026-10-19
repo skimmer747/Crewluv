@@ -62,15 +62,24 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         NotificationDiagnostics.shared.record(.silentPushReceived)
 
         // Read the status now, so alerts fire even when the app is suspended. The source hands a
-        // new status to the alerts, and the screen hears of it from the source.
+        // new status to the alerts, and the screen hears of it from the source. iOS allows about
+        // 30 seconds, and a push that lands mid-read waits for that read and one more, so a read
+        // still going after 25 seconds is reported as failed and carries on.
+        let complete = OneTimeCompletion(completionHandler)
+        let deadline = Task {
+            try await Task.sleep(for: .seconds(25))
+            debugLog("[AppDelegate] Push read still going after 25 s")
+            complete(.failed)
+        }
         Task {
             let outcome = await source.refresh().backgroundFetchOutcome
+            deadline.cancel()
             if outcome != .failed {
                 // Re-schedule BG refresh after successful push handling
                 await BackgroundRefreshManager.shared.scheduleNextRefresh()
             }
             debugLog("[AppDelegate] Push handled: \(outcome)")
-            completionHandler(outcome.backgroundFetchResult)
+            complete(outcome.backgroundFetchResult)
         }
     }
 

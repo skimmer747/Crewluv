@@ -2,7 +2,7 @@
 //  OneTimeCompletionTests.swift
 //  CrewluvTests
 //
-//  The background refresh's task ends once, whoever ends it first
+//  The background refresh's task and a push's read end once, whoever ends them first
 //
 
 import Foundation
@@ -12,7 +12,7 @@ import Testing
 struct OneTimeCompletionTests {
 
     @Test func test_onlyTheFirstEndCounts() {
-        let ends = Ends()
+        let ends = Ends<Bool>()
         let completion = OneTimeCompletion { ends.add($0) }
 
         completion(success: false)
@@ -21,8 +21,18 @@ struct OneTimeCompletionTests {
         #expect(ends.all == [false])
     }
 
+    @Test func test_endsWithTheFirstEndsValue() {
+        let ends = Ends<String>()
+        let completion = OneTimeCompletion { ends.add($0) }
+
+        completion("read")
+        completion("deadline")
+
+        #expect(ends.all == ["read"])
+    }
+
     @Test func test_endsOnce_whenEndedFromManyThreadsAtOnce() async {
-        let ends = Ends()
+        let ends = Ends<Bool>()
         let completion = OneTimeCompletion { ends.add($0) }
 
         await withTaskGroup(of: Void.self) { group in
@@ -36,15 +46,15 @@ struct OneTimeCompletionTests {
 }
 
 /// The ends a completion saw, added to from any thread.
-private nonisolated final class Ends: @unchecked Sendable {
+private nonisolated final class Ends<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var ends: [Bool] = []
+    private var ends: [Value] = []
 
-    func add(_ success: Bool) {
-        lock.withLock { ends.append(success) }
+    func add(_ value: Value) {
+        lock.withLock { ends.append(value) }
     }
 
-    var all: [Bool] {
+    var all: [Value] {
         lock.withLock { ends }
     }
 }
