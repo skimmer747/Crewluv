@@ -20,6 +20,14 @@ class PartnerStatusReceiver {
     var lastSyncTime: Date? = nil
     var lastSyncError: String? = nil
     private(set) var isInDemoMode = false
+    /// Connected to Crewlu Cloud with no status yet: the loading screen waits for the pilot's first
+    /// update (partner links piece 4 spec §7.7).
+    private(set) var isWaitingForFirstUpdate = false
+
+    /// Whether this device follows its pilot on Crewlu Cloud, for the screens' wording (spec §7.7).
+    var isOnCrewluCloud: Bool { statusSource.isOnCrewluCloud }
+    /// The pilot whose sharing with this device ended, for the welcome screen's note (spec §7.6).
+    var sharingEndedWith: String? { statusSource.sharingEndedWith }
 
     // MARK: - Data Source
 
@@ -185,6 +193,9 @@ class PartnerStatusReceiver {
     /// Shows how a read went, whoever asked for it.
     private func show(_ update: PilotStatusUpdate) {
         guard !isInDemoMode else { return }
+        if update.outcome != .superseded {
+            isWaitingForFirstUpdate = update.outcome == .noStatusYet
+        }
         switch update.outcome {
         case .newStatus, .unchanged:
             showReading()
@@ -192,10 +203,12 @@ class PartnerStatusReceiver {
             lastSyncError = nil
             debugLog("[StatusReceiver] Sync complete")
         case .noStatusYet:
+            transitionTask?.cancel()
+            pilotStatus = nil
             hasAcceptedShare = true
             lastSyncTime = update.readAt
             lastSyncError = nil
-            errorMessage = "Waiting for your pilot's first update."
+            errorMessage = nil
         case .notConnected:
             // Nothing to show: no share, and no Crewlu Cloud connection, or its key is gone.
             debugLog("[StatusReceiver] No stored zone owner - share not yet accepted")
@@ -237,6 +250,11 @@ class PartnerStatusReceiver {
     private func showFailure(_ message: String) {
         debugLog("[StatusReceiver] ❌ Error fetching status: \(message)")
         lastSyncError = message
+        // A status the source no longer holds isn't the pilot's, say after switching pilots.
+        if statusSource.reading == nil {
+            transitionTask?.cancel()
+            pilotStatus = nil
+        }
         // Keep hasAcceptedShare true if we have a known data source
         if hasRecordedConnection {
             hasAcceptedShare = true
@@ -245,6 +263,11 @@ class PartnerStatusReceiver {
             hasAcceptedShare = false
             errorMessage = "Please accept the share invitation from your pilot."
         }
+    }
+
+    /// Disconnect (spec §7.5). False when Crewlu Cloud couldn't be reached.
+    func disconnect() async -> Bool {
+        await statusSource.disconnect()
     }
 
     // MARK: - Demo Mode
