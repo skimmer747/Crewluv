@@ -48,7 +48,8 @@ struct KeychainDeviceKeyStore: DeviceKeyStore {
         self.service = service
     }
 
-    /// Nil only when the Keychain has no key for this device. Any other failure throws.
+    /// Nil when the Keychain has no key for this device, or holds one that isn't text, which can't
+    /// be used and which the next save replaces. Any other failure throws.
     func deviceKey() throws(DeviceKeyUnreadable) -> String? {
         var query = item
         query[kSecReturnData as String] = true
@@ -58,11 +59,15 @@ struct KeychainDeviceKeyStore: DeviceKeyStore {
         if status == errSecItemNotFound {
             return nil
         }
-        if status == errSecSuccess, let data = result as? Data, let key = String(data: data, encoding: .utf8) {
-            return key
+        guard status == errSecSuccess else {
+            debugLog("[DeviceKey] The key couldn't be read: OSStatus \(status)")
+            throw DeviceKeyUnreadable(status: status)
         }
-        debugLog("[DeviceKey] The key couldn't be read: OSStatus \(status)")
-        throw DeviceKeyUnreadable(status: status)
+        guard let data = result as? Data, let key = String(data: data, encoding: .utf8) else {
+            debugLog("[DeviceKey] The Keychain holds a key that isn't text")
+            return nil
+        }
+        return key
     }
 
     @discardableResult

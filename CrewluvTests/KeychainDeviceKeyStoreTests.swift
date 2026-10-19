@@ -42,6 +42,18 @@ struct KeychainDeviceKeyStoreTests {
         #expect(try store.deviceKey() == nil)
     }
 
+    @Test func test_aKeyThatIsntText_readsNil() throws {
+        let item: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.ToddAnderson.Crewluv.partnerCloud.tests",
+            kSecAttrAccount as String: "deviceKey",
+            kSecValueData as String: Data([0xFF, 0xFE]),
+        ]
+        #expect(SecItemAdd(item as CFDictionary, nil) == errSecSuccess)
+
+        #expect(try store.deviceKey() == nil)
+    }
+
     @Test func test_key_staysOnThisDevice_andCanBeReadWhileLocked() throws {
         store.save(deviceKey: "first")
         let query: [String: Any] = [
