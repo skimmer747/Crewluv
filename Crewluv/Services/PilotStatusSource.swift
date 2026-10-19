@@ -9,9 +9,8 @@ import Foundation
 import Observation
 
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
-/// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud, through `CrewluCloudDevice`,
-/// once this device is connected there, and iCloud otherwise, as before. Each new status goes to
-/// the alerts once, from here.
+/// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud through `device` once connected
+/// there, and iCloud otherwise, as before. Each new status goes to the alerts once, from here.
 @Observable
 final class PilotStatusSource {
     static let shared = PilotStatusSource()
@@ -42,13 +41,10 @@ final class PilotStatusSource {
     @ObservationIgnored private let connection: PartnerConnection
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
-    @ObservationIgnored private let periodicCheck: RepeatingRefresh
-    /// The screens in front, each with what says whether it shows the demo. iPad can show several.
-    @ObservationIgnored private var screensInFront: [ObjectIdentifier: () -> Bool] = [:]
+    @ObservationIgnored private let periodicCheck: PeriodicCheck
     /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
     @ObservationIgnored private let didConnect: @MainActor () -> Void
-    /// Forgets the iCloud share without showing the welcome screen, once this device is on Crewlu
-    /// Cloud instead (spec §7.2).
+    /// Forgets the iCloud share without showing the welcome screen (spec §7.2).
     @ObservationIgnored private let forgetICloudShare: @MainActor () -> Void
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
 
@@ -69,7 +65,7 @@ final class PilotStatusSource {
         self.iCloud = iCloud
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
-        self.periodicCheck = periodicCheck
+        self.periodicCheck = PeriodicCheck(timer: periodicCheck)
         self.didConnect = didConnect
         self.forgetICloudShare = forgetICloudShare
         connection = PartnerConnection(defaults: defaults)
@@ -107,10 +103,9 @@ final class PilotStatusSource {
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
     }
 
-    /// Switches this device to what a join joined (spec §7.2): the joined key becomes its key, an
-    /// iCloud share is forgotten without showing the welcome screen, the push token goes to Crewlu
-    /// Cloud, and the new connection is read. For another pilot, what the alerts kept of the last one
-    /// goes first. False when the key couldn't be saved, and then nothing changes.
+    /// Switches this device to what a join joined (spec §7.2): its key, an iCloud share forgotten
+    /// quietly, the push token sent and the new connection read. For another pilot, what the alerts
+    /// kept of the last goes first. False when the key couldn't be saved; then nothing changes.
     func connect(_ joined: CrewluCloudDevice.Joined, keepingAlerts: Bool) async -> Bool {
         guard await device.switchTo(joined) else { return false }
         if !keepingAlerts {
@@ -139,6 +134,10 @@ final class PilotStatusSource {
     private func noteSharingEnded() {
         connection.sharingEndedWith = connection.pilotName
         sharingEndedWith = connection.pilotName
+        forgetPilot()
+    }
+
+    private func forgetPilot() {
         reading = nil
         connection.forgetPilot()
     }
@@ -150,20 +149,15 @@ final class PilotStatusSource {
     /// With nothing new, Crewlu Cloud answers "unchanged". Each tick asks again, so a device that
     /// connects or leaves mid-session needs no restart.
     func startPeriodicCheck(for screen: AnyObject, pausedWhile isPaused: @escaping () -> Bool) {
-        screensInFront[ObjectIdentifier(screen)] = isPaused
-        guard !periodicCheck.isRunning else { return }
-        periodicCheck.start { [weak self] in
-            guard let self, self.isOnCrewluCloud, self.screensInFront.values.contains(where: { !$0() }) else { return }
+        periodicCheck.start(for: screen, pausedWhile: isPaused) { [weak self] in
+            guard let self, self.isOnCrewluCloud else { return }
             _ = await self.refresh()
         }
     }
 
     /// `screen` left the front. The check stops once no screen is in front.
     func stopPeriodicCheck(for screen: AnyObject) {
-        screensInFront[ObjectIdentifier(screen)] = nil
-        if screensInFront.isEmpty {
-            periodicCheck.stop()
-        }
+        periodicCheck.stop(for: screen)
     }
 
     // MARK: - Reading
@@ -253,7 +247,8 @@ final class PilotStatusSource {
               !current.isDisplayNameKnown || current.displayName != fetched.displayName
         else { return }
         let newReading = PilotReading.iCloud(fetched)
-        rememberPilot(of: newReading, named: keepDisplayName(of: newReading))
+        _ = connection.remember(newReading)
+        sharingEndedWith = nil
         reading = newReading
     }
 
@@ -263,31 +258,11 @@ final class PilotStatusSource {
     /// the read ends.
     private func adopt(_ newReading: PilotReading) async -> RefreshOutcome {
         let previous = reading
-        let name = keepDisplayName(of: newReading)
-        rememberPilot(of: newReading, named: name)
+        let name = connection.remember(newReading)
+        sharingEndedWith = nil
         PilotReading.logLegChanges(from: previous, to: newReading)
         reading = newReading
         await notifier.evaluate(newReading, titledWith: name)
         return .newStatus
-    }
-
-    /// Saves the reading's name for the alerts' titles, and gives the name to title them with now.
-    /// When an iCloud read couldn't look the name up, the saved one stays.
-    private func keepDisplayName(of reading: PilotReading) -> String? {
-        guard reading.isDisplayNameKnown else {
-            return connection.savedDisplayName
-        }
-        connection.savedDisplayName = reading.displayName
-        return reading.displayName
-    }
-
-    /// Saves the reading's pilot, by the name the alerts use or else their first name (spec §5.1). A
-    /// status means a connection, so a note that sharing ended goes.
-    private func rememberPilot(of reading: PilotReading, named name: String?) {
-        let status = reading.status(at: Date())
-        connection.pilotID = status.pilotId
-        connection.pilotName = name ?? status.pilotFirstName
-        connection.sharingEndedWith = nil
-        sharingEndedWith = nil
     }
 }

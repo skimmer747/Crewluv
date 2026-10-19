@@ -50,6 +50,21 @@ struct PartnerConnection {
         nonmutating set { defaults.set(newValue, forKey: Self.displayNameKey) }
     }
 
+    /// Remembers the pilot of a new reading (spec §5.1), and gives the name to title the alerts with:
+    /// the nickname the pilot set for this partner, kept while an iCloud read can't look it up. A
+    /// status means a connection, so a note that sharing ended goes.
+    func remember(_ reading: PilotReading) -> String? {
+        if reading.isDisplayNameKnown {
+            savedDisplayName = reading.displayName
+        }
+        let name = savedDisplayName
+        let status = reading.status(at: Date())
+        pilotID = status.pilotId
+        pilotName = name ?? status.pilotFirstName
+        sharingEndedWith = nil
+        return name
+    }
+
     /// Forgets the pilot: their id and name, and what the alerts keep of them, which is the title
     /// name, what they compare against and when they last looked, as today's iCloud reset does.
     func forgetPilot() {
