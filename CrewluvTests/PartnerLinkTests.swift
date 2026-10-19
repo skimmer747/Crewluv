@@ -81,6 +81,20 @@ struct PartnerLinkTests {
         #expect(PartnerLink(text: text) == nil)
     }
 
+    // MARK: - The Code Boxes
+
+    @Test(arguments: [
+        ("k7m", "K7M"),
+        ("k7m-q2x", "K7MQ2X"),
+        ("K7M Q2X", "K7MQ2X"),
+        ("K7MQ2X9", "K7MQ2X"),
+        ("K7Mé!Q2", "K7MQ2"),
+        ("", ""),
+    ])
+    func test_theCodeBoxes_keepLettersAndDigits_inCapitals_atMostSix(text: String, expected: String) {
+        #expect(PartnerLink.codeBoxes(text) == expected)
+    }
+
     // MARK: - Logs
 
     @Test func test_logs_showOnlyTheHostAndPath_ofAPartnerLink() throws {

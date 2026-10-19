@@ -11,7 +11,7 @@ import Foundation
 
 /// Extracts a CKShare URL from either a `crewluv://accept-share?url=…` wrapper
 /// or a direct `icloud.com/share` URL.
-enum ShareURLResolver {
+nonisolated enum ShareURLResolver {
     /// Returns the inner CKShare URL if wrapped in `crewluv://accept-share`, otherwise returns the URL as-is.
     static func resolve(_ url: URL) -> URL {
         if url.scheme == "crewluv",

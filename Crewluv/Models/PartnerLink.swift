@@ -67,6 +67,11 @@ nonisolated enum PartnerLink: Equatable, Sendable {
         return code
     }
 
+    /// What the code boxes keep of their text (spec §7.4): letters and digits in capitals, at most six.
+    static func codeBoxes(_ text: String) -> String {
+        String(text.filter { $0.isASCII && ($0.isLetter || $0.isNumber) }.uppercased().prefix(6))
+    }
+
     /// How logs show a link: one of Crewluve's own only by its host and path, since what follows the
     /// `#` is a secret (spec §9). Any other link as it is.
     static func logDescription(of url: URL) -> String {
