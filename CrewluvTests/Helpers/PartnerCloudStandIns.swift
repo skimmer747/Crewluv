@@ -136,8 +136,9 @@ final class Heard {
 /// Summaries, door answers and iCloud readings for tests, made from a few fields.
 @MainActor
 enum Make {
-    static let partnerA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-    static let partnerB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    /// Plain strings, so a default argument can name them.
+    nonisolated static let partnerA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    nonisolated static let partnerB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
     static let key = String(repeating: "5e", count: 32)
 
     /// A summary with the four fields every summary has, and `fields`.
