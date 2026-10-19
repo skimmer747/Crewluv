@@ -8,48 +8,6 @@
 import Foundation
 import Observation
 
-extension Notification.Name {
-    /// A read ended, or sharing ended outside one: the source's `lastUpdate` says how it went.
-    /// Posted on the main actor.
-    static let pilotStatusDidUpdate = Notification.Name("pilotStatusDidUpdate")
-}
-
-/// How a read went, for the screen, whoever asked for the read.
-nonisolated struct PilotStatusUpdate: Equatable, Sendable {
-    let outcome: RefreshOutcome
-    /// When the read began, for the screen's "Synced" line.
-    let readAt: Date
-}
-
-/// How a refresh ended.
-nonisolated enum RefreshOutcome: Equatable, Sendable {
-    /// A status the source hadn't read before.
-    case newStatus
-    /// The same status as last time.
-    case unchanged
-    /// On Crewlu Cloud, but the pilot's CrewLu hasn't sent a status yet.
-    case noStatusYet
-    /// No accepted share, and no Crewlu Cloud connection.
-    case notConnected
-    /// The pilot stopped sharing with this device, which has forgotten the connection.
-    case sharingEnded
-    /// The read failed. The message says why, for the sync line.
-    case failed(String)
-}
-
-/// What hears of each new status: the alerts.
-nonisolated protocol StatusNotifying: Sendable {
-    func evaluateChanges(
-        old: SharedPilotStatus?,
-        new: SharedPilotStatus,
-        pilotName: String,
-        newEffectiveDelay: Int?,
-        resolvedHomeArrivalTime: Date?
-    ) async
-}
-
-extension StatusChangeNotifier: StatusNotifying {}
-
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
 /// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud once this device is connected
 /// there, and iCloud otherwise, as before. Each new status goes to the alerts once, from here.
@@ -88,9 +46,7 @@ final class PilotStatusSource {
     /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
     /// The first read after a launch sends none, since the app doesn't keep the summary.
     @ObservationIgnored private var since: String?
-    @ObservationIgnored private var readUnderWay: Task<RefreshOutcome, Never>?
-    /// The read that starts once the one under way ends, shared by every refresh asked for meanwhile.
-    @ObservationIgnored private var queuedRead: Task<RefreshOutcome, Never>?
+    @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
     /// Goes up each time the connection is forgotten, so a read begun before then brings nothing back.
     @ObservationIgnored private var connectionGeneration = 0
 
@@ -126,42 +82,18 @@ final class PilotStatusSource {
     // MARK: - Refreshing
 
     /// Whether a read waits for the one under way to end.
-    var isReadQueued: Bool { queuedRead != nil }
+    var isReadQueued: Bool { reads.isReadQueued }
 
-    /// Reads the status from wherever this device follows its pilot. A refresh asked for while a
-    /// read is under way, say for a push that came mid-read, reads again once that read ends, since
-    /// that read may have missed what the push was for. Every refresh asked for meanwhile shares that
-    /// one read.
+    /// Reads the status from wherever this device follows its pilot, and tells the screen how it
+    /// went before anyone waiting on the read carries on. A refresh asked for during a read, say
+    /// for a push that came mid-read, gets one more read once that one ends (`ReadQueue`).
     func refresh() async -> RefreshOutcome {
-        if let queuedRead {
-            return await queuedRead.value
-        }
-        guard let readUnderWay else {
-            return await runRead()
-        }
-        let next = Task {
-            _ = await readUnderWay.value
-            return await self.runRead()
-        }
-        queuedRead = next
-        return await next.value
-    }
-
-    /// Runs one read, and tells the screen how it went before anyone waiting on it carries on.
-    private func runRead() async -> RefreshOutcome {
-        queuedRead = nil
-        let read = Task {
+        await reads.run { [self] in
             let readAt = Date()
-            let outcome = await self.read()
-            self.report(PilotStatusUpdate(outcome: outcome, readAt: readAt))
+            let outcome = await read()
+            report(PilotStatusUpdate(outcome: outcome, readAt: readAt))
             return outcome
         }
-        readUnderWay = read
-        let outcome = await read.value
-        if readUnderWay == read {
-            readUnderWay = nil
-        }
-        return outcome
     }
 
     private func report(_ update: PilotStatusUpdate) {
@@ -346,9 +278,9 @@ final class PilotStatusSource {
     private func adopt(_ newReading: PilotReading) async -> RefreshOutcome {
         let previous = reading
         let name = keepDisplayName(of: newReading)
-        logLegChanges(from: previous, to: newReading)
+        PilotReading.logLegChanges(from: previous, to: newReading)
         reading = newReading
-        await alert(newReading, titledWith: name)
+        await notifier.evaluate(newReading, titledWith: name)
         return .newStatus
     }
 
@@ -364,55 +296,5 @@ final class PilotStatusSource {
             defaults.removeObject(forKey: Self.displayNameKey)
         }
         return reading.displayName
-    }
-
-    /// Hands a new status to the alerts, titled with `name` or else the pilot's first name, with what
-    /// they compare: the effective delay and the resolved home arrival, worked out as the screen
-    /// used to.
-    private func alert(_ reading: PilotReading, titledWith name: String?) async {
-        let now = Date()
-        let status = reading.status(at: now)
-        let homeArrival = TripStateResolver.resolveHomeArrival(
-            legs: status.tripLegs, homeAirportCode: status.homeAirportCode, at: now
-        )?.arrivalTime
-        await notifier.evaluateChanges(
-            old: nil,
-            new: status,
-            pilotName: name ?? status.pilotFirstName,
-            newEffectiveDelay: status.effectiveFlightDelayMinutes,
-            resolvedHomeArrivalTime: homeArrival ?? status.homeArrivalTime
-        )
-    }
-
-    // MARK: - Diagnostic Logging
-
-    /// Logs legs that appeared or disappeared between two readings, to catch disappearing legs.
-    private func logLegChanges(from old: PilotReading?, to new: PilotReading) {
-        let now = Date()
-        let oldLegs = old?.status(at: now).tripLegs ?? []
-        let newLegs = new.status(at: now).tripLegs
-        let oldIds = Set(oldLegs.map(\.id))
-        let newIds = Set(newLegs.map(\.id))
-        guard oldIds != newIds else { return }
-
-        debugLog("[TripLegDiff] === LEG CHANGE DETECTED ===")
-        debugLog("[TripLegDiff] Count: \(oldLegs.count) → \(newLegs.count)")
-        debugLog("[TripLegDiff] Record mod date: \(new.recordModifiedAt?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
-        for leg in oldLegs where !newIds.contains(leg.id) {
-            debugLog("[TripLegDiff] REMOVED: \(Self.describe(leg))")
-        }
-        for leg in newLegs where !oldIds.contains(leg.id) {
-            debugLog("[TripLegDiff] ADDED: \(Self.describe(leg))")
-        }
-    }
-
-    private static func describe(_ leg: TripLeg) -> String {
-        let route = leg.type == .flight
-            ? "\(leg.departureAirport ?? "?")→\(leg.arrivalAirport ?? "?")"
-            : leg.airportCode ?? "?"
-        let trip = leg.tripId.map { "trip:\($0)" } ?? "standalone"
-        let start = leg.startTime.formatted(date: .abbreviated, time: .shortened)
-        let end = leg.endTime.formatted(date: .abbreviated, time: .shortened)
-        return "[\(leg.type.rawValue)] \(route) (\(trip)) \(start)–\(end)"
     }
 }
