@@ -41,6 +41,12 @@ struct SyncStatusBarView: View {
     let pilotUpdatedAt: Date
     let lastSyncTime: Date?
     let lastSyncError: String?
+    /// On Crewlu Cloud, the line doesn't mention iCloud (partner links piece 4 spec §7.7).
+    var isOnCrewluCloud = false
+
+    private var wording: SyncLineWording {
+        SyncLineWording(isOnCrewluCloud: isOnCrewluCloud)
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -53,7 +59,7 @@ struct SyncStatusBarView: View {
     @ViewBuilder
     private func content(at now: Date) -> some View {
         if let error = lastSyncError {
-            Label(friendlyError(error), systemImage: "exclamationmark.triangle")
+            Label(wording.error(error), systemImage: "exclamationmark.triangle")
                 .font(.caption)
                 .foregroundStyle(.orange)
         } else {
@@ -64,7 +70,7 @@ struct SyncStatusBarView: View {
                         icon: "icloud.fill",
                         text: agoText("Synced", elapsed: syncElapsed),
                         elapsed: syncElapsed,
-                        label: "iCloud sync"
+                        label: wording.syncLabel
                     )
                 }
 
@@ -129,22 +135,6 @@ struct SyncStatusBarView: View {
             return "\(prefix) just now"
         }
         return "\(prefix) \(text) ago"
-    }
-
-    // MARK: - Friendly Error
-
-    private func friendlyError(_ error: String) -> String {
-        let lowercased = error.lowercased()
-        if lowercased.contains("network") || lowercased.contains("connection") || lowercased.contains("internet") {
-            return "Sync failed — check your connection"
-        }
-        if lowercased.contains("not authenticated") || lowercased.contains("authentication") {
-            return "Sync failed — sign into iCloud"
-        }
-        if lowercased.contains("timeout") || lowercased.contains("timed out") {
-            return "Sync timed out — will retry"
-        }
-        return "Sync failed — will retry"
     }
 }
 
