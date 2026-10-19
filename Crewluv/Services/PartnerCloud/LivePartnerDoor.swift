@@ -48,7 +48,8 @@ struct LivePartnerDoor: PartnerDoor {
 
     // MARK: - Calls
 
-    /// Posts one RPC and decodes its answer, or the door's refusal.
+    /// Posts one RPC and decodes its answer, or the door's refusal. A failure is logged with the
+    /// RPC's name and why, but never the request, which holds the key and the token.
     private func call<Answer: Decodable>(
         _ name: String, _ parameters: some Encodable
     ) async throws(PartnerDoorError) -> Answer {
@@ -58,22 +59,49 @@ struct LivePartnerDoor: PartnerDoor {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: Data
+        let response: URLResponse
         do {
             request.httpBody = try JSONEncoder().encode(parameters)
-            let (data, response) = try await transport(request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw PartnerDoorError.unavailable }
-            body = data
+            (body, response) = try await transport(request)
         } catch {
+            let error = error as NSError
+            debugLog("[PartnerDoor] \(name) failed: \(error.domain) \(error.code)")
+            throw .unavailable
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode
+        guard status == 200 else {
+            debugLog("[PartnerDoor] \(name) answered HTTP \(status.map(String.init) ?? "without a status")")
             throw .unavailable
         }
 
         let decoder = CloudSummary.decoder()
         if let refusal = try? decoder.decode(RefusalAnswer.self, from: body) {
-            guard let reason = PartnerDoorError.Refusal(rawValue: refusal.error) else { throw .unavailable }
+            guard let reason = PartnerDoorError.Refusal(rawValue: refusal.error) else {
+                debugLog("[PartnerDoor] \(name) refused for a reason this app doesn't know: \(refusal.error)")
+                throw .unavailable
+            }
             throw .refused(reason)
         }
-        guard let answer = try? decoder.decode(Answer.self, from: body) else { throw .unavailable }
-        return answer
+        do {
+            return try decoder.decode(Answer.self, from: body)
+        } catch {
+            debugLog("[PartnerDoor] \(name)'s answer didn't decode: \(Self.describe(error))")
+            throw .unavailable
+        }
+    }
+
+    /// Where an answer failed to decode, and why.
+    private static func describe(_ error: any Error) -> String {
+        let context: DecodingError.Context
+        switch error as? DecodingError {
+        case .typeMismatch(_, let found)?, .valueNotFound(_, let found)?, .keyNotFound(_, let found)?,
+             .dataCorrupted(let found)?:
+            context = found
+        default:
+            return String(describing: type(of: error))
+        }
+        let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+        return "\(path.isEmpty ? "the answer" : path): \(context.debugDescription)"
     }
 }
 
