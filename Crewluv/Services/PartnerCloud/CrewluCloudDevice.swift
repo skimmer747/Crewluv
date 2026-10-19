@@ -22,7 +22,7 @@ final class CrewluCloudDevice {
     @ObservationIgnored private let door: PartnerDoor
     @ObservationIgnored private let keys: DeviceKeyStore
     @ObservationIgnored private let connection: PartnerConnection
-    /// Goes up each time the connection is forgotten, so a read begun before then brings nothing back.
+    /// Goes up each time the connection changes, so a read begun before then brings nothing back.
     @ObservationIgnored private var generation = 0
 
     init(door: PartnerDoor, keys: DeviceKeyStore, connection: PartnerConnection) {
@@ -43,6 +43,8 @@ final class CrewluCloudDevice {
         /// The pilot stopped sharing with this device, which has forgotten its key and the connection.
         case sharingEnded
         case unavailable
+        /// The connection changed while the door answered, so the answer is for one that's gone.
+        case superseded
     }
 
     /// partner_view with this device's key, sending `since` back.
@@ -64,16 +66,17 @@ final class CrewluCloudDevice {
         do {
             answer = try await door.view(key: key, since: since)
         } catch .refused(.sharingEnded) {
+            // A refusal for a key the connection has since let go of forgets nothing: the key
+            // saved now may be a new one.
+            guard generation == self.generation else { return .superseded }
             forget()
             return .sharingEnded
         } catch {
-            guard generation == self.generation else { return .sharingEnded }
+            guard generation == self.generation else { return .superseded }
             since = nil
             return .unavailable
         }
-        // Sharing ended while the door answered, say through the push registration: the answer
-        // is for a connection that's gone.
-        guard generation == self.generation else { return .sharingEnded }
+        guard generation == self.generation else { return .superseded }
         return .answer(answer)
     }
 

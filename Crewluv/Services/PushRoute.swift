@@ -38,7 +38,7 @@ extension RefreshOutcome {
     nonisolated var backgroundFetchOutcome: BackgroundFetchOutcome {
         switch self {
         case .newStatus, .sharingEnded: .newData
-        case .unchanged, .noStatusYet, .notConnected: .noData
+        case .unchanged, .noStatusYet, .notConnected, .superseded: .noData
         case .failed: .failed
         }
     }

@@ -48,6 +48,7 @@ struct PushRouteTests {
         (.unchanged, .noData),
         (.noStatusYet, .noData),
         (.notConnected, .noData),
+        (.superseded, .noData),
         (.failed("No connection to Crewlu Cloud"), .failed),
     ])
     func test_whatIOSIsTold(outcome: RefreshOutcome, expected: BackgroundFetchOutcome) {

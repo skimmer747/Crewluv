@@ -26,6 +26,8 @@ final class StandInPartnerDoor: PartnerDoor {
     var leaveAnswers: [Result<Void, PartnerDoorError>] = []
     /// While true, each `view` waits for `release()`.
     var holdsViews = false
+    /// Runs while `setPush` waits for its answer, as if something happened meanwhile.
+    var whileSettingPush: (() -> Void)?
 
     private(set) var views: [(key: String, since: String?)] = []
     private(set) var pushes: [(key: String, token: String, environment: PushEnvironment)] = []
@@ -46,6 +48,7 @@ final class StandInPartnerDoor: PartnerDoor {
 
     func setPush(key: String, token: String, environment: PushEnvironment) async throws(PartnerDoorError) {
         pushes.append((key, token, environment))
+        whileSettingPush?()
         guard !setPushAnswers.isEmpty else { return }
         try setPushAnswers.removeFirst().get()
     }

@@ -314,7 +314,7 @@ final class PilotStatusSourceTests {
         #expect(!source.isOnCrewluCloud)
     }
 
-    @Test func test_crewluCloud_summaryAnsweredAfterSharingEnded_isDropped() async throws {
+    @Test func test_crewluCloud_summaryAnsweredAfterSharingEnded_bringsNothingBack() async throws {
         door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
         door.holdsViews = true
         let source = connectedSource()
@@ -324,14 +324,14 @@ final class PilotStatusSourceTests {
         source.endSharing()
         door.release()
 
-        #expect(await read.value == .sharingEnded)
+        #expect(await read.value == .superseded)
         #expect(source.reading == nil)
         #expect(!source.isOnCrewluCloud)
         #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
         #expect(await notifier.evaluations.isEmpty)
     }
 
-    @Test func test_crewluCloud_failureAfterSharingEnded_isSharingEnded() async {
+    @Test func test_crewluCloud_failureAfterSharingEnded_bringsNothingBack() async {
         door.holdsViews = true
         let source = connectedSource()
 
@@ -340,7 +340,7 @@ final class PilotStatusSourceTests {
         source.endSharing()
         door.release()
 
-        #expect(await read.value == .sharingEnded)
+        #expect(await read.value == .superseded)
     }
 
     @Test func test_crewluCloud_sameTimeForAnotherPartner_isANewStatus() async throws {

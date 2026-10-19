@@ -129,6 +129,18 @@ final class PushRegistrarTests {
         #expect(!registrar.isOwed)
     }
 
+    @Test func test_sharingEnded_forAKeyReplacedMeanwhile_endsNothing() async {
+        door.setPushAnswers = [.failure(.refused(.sharingEnded))]
+        let (registrar, source) = makeRegistrar()
+        door.whileSettingPush = { [keys] in keys.key = "new" }
+
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        #expect(source.isOnCrewluCloud)
+        #expect(keys.key == "new")
+        #expect(log.entries == ["Sharing ended"])
+    }
+
     @Test func test_refused_isntTriedAgainUntilTheNextLaunch() async {
         door.setPushAnswers = [.failure(.refused(.invalidInput))]
         let (registrar, source) = makeRegistrar()

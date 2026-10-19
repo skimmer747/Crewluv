@@ -34,4 +34,7 @@ nonisolated enum RefreshOutcome: Equatable, Sendable {
     case sharingEnded
     /// The read failed. The message says why, for the sync line.
     case failed(String)
+    /// The connection changed while this read waited, so it brings nothing back. The read the change
+    /// asks for tells.
+    case superseded
 }

@@ -166,6 +166,8 @@ final class PilotStatusSource {
             return .sharingEnded
         case .unavailable:
             return .failed(Self.unreachable)
+        case .superseded:
+            return .superseded
         }
     }
 

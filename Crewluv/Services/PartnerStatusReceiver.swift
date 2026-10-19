@@ -215,6 +215,9 @@ class PartnerStatusReceiver {
             lastSyncError = "share ended"
         case .failed(let message):
             showFailure(message)
+        case .superseded:
+            // The read that follows tells.
+            break
         }
     }
 

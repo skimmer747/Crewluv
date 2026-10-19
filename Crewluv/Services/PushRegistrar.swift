@@ -72,7 +72,10 @@ final class PushRegistrar {
         } catch .refused(.sharingEnded) {
             isOwed = false
             record("Sharing ended")
-            statusSource.endSharing()
+            // A refusal for a key this device has since replaced, say by switching, ends nothing.
+            if (try? keys.deviceKey()) == key {
+                statusSource.endSharing()
+            }
         } catch .refused(let refusal) {
             isOwed = false
             record("Refused: \(refusal.rawValue)")
