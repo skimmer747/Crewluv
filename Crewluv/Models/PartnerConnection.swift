@@ -15,6 +15,7 @@ struct PartnerConnection {
     static let pilotIDKey = "partnerCloud.pilotID"
     static let pilotNameKey = "partnerCloud.pilotName"
     static let sharingEndedWithKey = "partnerCloud.sharingEndedWith"
+    static let leftICloudKey = "partnerCloud.leftICloud"
     /// Where the alerts' title name is kept, as before.
     static let displayNameKey = "ResolvedPilotDisplayName"
 
@@ -77,5 +78,20 @@ struct PartnerConnection {
     /// Whether an iCloud share was accepted, or Crewluve runs on the pilot's own iCloud.
     var hasICloudShare: Bool {
         defaults.string(forKey: "SharedZoneOwner") != nil || defaults.string(forKey: "PilotDataSource") == "privateDB"
+    }
+
+    /// Whether this device let iCloud go, by connecting to Crewlu Cloud or by Disconnect, so the
+    /// launch doesn't find its iCloud share again (spec §7.5). Accepting a share brings iCloud back.
+    var hasLeftICloud: Bool {
+        get { defaults.bool(forKey: Self.leftICloudKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.leftICloudKey) }
+    }
+
+    /// Lets iCloud go: an iCloud share is forgotten with `forgetShare`, and not found again.
+    func leaveICloud(forgetShare: () -> Void) {
+        hasLeftICloud = true
+        if hasICloudShare {
+            forgetShare()
+        }
     }
 }

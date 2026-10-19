@@ -61,6 +61,8 @@ final class CloudKitShareManager {
     func acceptShare(from url: URL) async throws {
         let resolvedURL = ShareURLResolver.resolve(url)
         shareState = .accepting
+        // The partner asked for this share, so iCloud is theirs again (partner links piece 4 spec §7.5).
+        PartnerConnection(defaults: .standard).hasLeftICloud = false
         debugLog("[ShareManager] Starting share acceptance from URL: \(resolvedURL)")
 
         do {
@@ -103,6 +105,7 @@ final class CloudKitShareManager {
     /// - Parameter metadata: The CKShare.Metadata delivered by iOS after the user accepted a share
     func acceptShare(with metadata: CKShare.Metadata) async {
         shareState = .accepting
+        PartnerConnection(defaults: .standard).hasLeftICloud = false
         debugLog("[ShareManager] Starting share acceptance from metadata")
 
         do {

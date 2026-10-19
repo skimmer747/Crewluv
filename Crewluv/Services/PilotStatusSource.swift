@@ -114,9 +114,7 @@ final class PilotStatusSource {
         if !keepingAlerts {
             connection.forgetPilot()
         }
-        if connection.hasICloudShare {
-            forgetICloudShare()
-        }
+        connection.leaveICloud(forgetShare: forgetICloudShare)
         connection.sharingEndedWith = nil
         sharingEndedWith = nil
         reading = nil
@@ -126,9 +124,9 @@ final class PilotStatusSource {
         return true
     }
 
-    /// Disconnect (spec §7.5): this device leaves, then forgets its key, the connection and the pilot,
-    /// with no note. False when Crewlu Cloud couldn't be reached; then the device stays connected. A
-    /// join that switched this device meanwhile keeps its new connection.
+    /// Disconnect (spec §7.5): this device leaves, then forgets its key, the connection, the pilot and
+    /// any iCloud share, with no note. False when Crewlu Cloud couldn't be reached; then the device
+    /// stays connected. A join that switched this device meanwhile keeps its new connection.
     func disconnect() async -> Bool {
         do {
             guard try await device.leave() else { return true }
@@ -136,12 +134,13 @@ final class PilotStatusSource {
             return false
         }
         forgetPilot()
+        connection.leaveICloud(forgetShare: forgetICloudShare)
         report(PilotStatusUpdate(outcome: .notConnected, readAt: Date()))
         return true
     }
 
-    /// iCloud's share data was reset, by Reset Share Data or the share ending: an iCloud reading
-    /// is no longer the pilot's status. The screen clears itself on the same reset.
+    /// iCloud's share data was reset, as the share ended: an iCloud reading is no longer the pilot's
+    /// status. The screen clears itself on the same reset.
     func forgetICloudReading() {
         guard case .iCloud? = reading else { return }
         reading = nil

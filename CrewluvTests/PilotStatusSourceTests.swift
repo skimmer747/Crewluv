@@ -630,6 +630,17 @@ final class PilotStatusSourceTests {
         #expect(iCloudForgets.count == 1)
         #expect(iCloudResets.count == 0)
         #expect(source.isOnCrewluCloud)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_connect_fromNothing_alsoKeepsTheLaunchFromFindingAnICloudShare() async {
+        keys.pending = "pending"
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(iCloudForgets.count == 0)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
     }
 
     @Test func test_connect_toAnotherPilot_forgetsWhatTheAlertsKeptOfTheLastOne() async throws {
@@ -798,6 +809,18 @@ final class PilotStatusSourceTests {
         #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
         #expect(source.sharingEndedWith == nil)
         #expect(source.lastUpdate?.outcome == .notConnected)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_disconnect_letsAnICloudShareGo_soTheLaunchDoesntFindItAgain() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        let source = connectedSource()
+
+        #expect(await source.disconnect())
+
+        #expect(iCloudForgets.count == 1)
+        #expect(iCloudResets.count == 0)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
     }
 
     @Test func test_disconnect_withoutAConnection_staysConnected() async throws {
@@ -808,6 +831,7 @@ final class PilotStatusSourceTests {
 
         #expect(await !source.disconnect())
 
+        #expect(!defaults.bool(forKey: "partnerCloud.leftICloud"))
         #expect(keys.key == Make.key)
         #expect(source.isOnCrewluCloud)
         #expect(source.reading != nil)

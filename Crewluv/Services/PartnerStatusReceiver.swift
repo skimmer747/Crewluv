@@ -132,15 +132,17 @@ class PartnerStatusReceiver {
             await checkForSharedData()
 
             // If no data found, scan shared database for accepted shares
-            // Handles: cold launch from share link, shares accepted outside the app
-            if !hasAcceptedShare {
+            // Handles: cold launch from share link, shares accepted outside the app. Not once this
+            // device let iCloud go, for Crewlu Cloud or by Disconnect (partner links piece 4 spec §7.5).
+            let hasLeftICloud = PartnerConnection(defaults: .standard).hasLeftICloud
+            if !hasAcceptedShare && !hasLeftICloud {
                 await shareManager.checkForAcceptedShares()
             }
 
             // If still no data found, check private database (same-account scenario).
             // Skip when a share has ever been recorded — its presence proves cross-account
             // intent, and self-zone discovery would silently shadow the partner's zone.
-            if !hasAcceptedShare && UserDefaults.standard.string(forKey: "SharedZoneOwner") == nil {
+            if !hasAcceptedShare && !hasLeftICloud && UserDefaults.standard.string(forKey: "SharedZoneOwner") == nil {
                 await checkPrivateDatabase()
             }
         }
