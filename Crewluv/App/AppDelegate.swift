@@ -109,19 +109,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 await CloudKitShareManager.shared.acceptShare(with: metadata)
             }
         }
-        // Path B: Share URL in urlContexts (crewluv:// or icloud.com/share)
-        else if let shareCtx = options.urlContexts.first(where: { ShareURLResolver.isShareURL($0.url) }) {
-            debugLog("[AppDelegate] Found share URL in urlContexts — accepting share: \(shareCtx.url)")
-            Task { @MainActor in
-                try? await CloudKitShareManager.shared.acceptShare(from: shareCtx.url)
-            }
+        // Path B: an invite or code link, or a share URL (crewluv:// or icloud.com/share), in urlContexts
+        else if let linkCtx = options.urlContexts.first(where: { OpenedLink(url: $0.url) != .neither }) {
+            debugLog("[AppDelegate] Found a link in urlContexts: \(PartnerLink.logDescription(of: linkCtx.url))")
+            LinkRouter.open(linkCtx.url)
         }
-        // Path C: Share URL in user activities
-        else if let shareURL = options.userActivities.compactMap({ $0.webpageURL }).first(where: { ShareURLResolver.isShareURL($0) }) {
-            debugLog("[AppDelegate] Found share URL in userActivities — accepting share: \(shareURL)")
-            Task { @MainActor in
-                try? await CloudKitShareManager.shared.acceptShare(from: shareURL)
-            }
+        // Path C: an invite or code link, or a share URL, in user activities
+        else if let link = options.userActivities.compactMap({ $0.webpageURL }).first(where: { OpenedLink(url: $0) != .neither }) {
+            debugLog("[AppDelegate] Found a link in userActivities: \(PartnerLink.logDescription(of: link))")
+            LinkRouter.open(link)
         }
 
         let config = UISceneConfiguration(
@@ -138,14 +134,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     @available(iOS, deprecated: 26.0)
     func application(_ app: UIApplication, open url: URL,
                      options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        debugLog("[AppDelegate] application(_:open:) URL: \(url)")
-        if ShareURLResolver.isShareURL(url) {
-            Task { @MainActor in
-                try? await CloudKitShareManager.shared.acceptShare(from: url)
-            }
-            return true
-        }
-        return false
+        debugLog("[AppDelegate] application(_:open:) URL: \(PartnerLink.logDescription(of: url))")
+        return LinkRouter.open(url)
     }
 
     // MARK: - User activity continuation fallback
@@ -153,14 +143,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication, continue userActivity: NSUserActivity,
                      restorationHandler: @escaping ([any UIUserActivityRestoring]?) -> Void) -> Bool {
         debugLog("[AppDelegate] continue userActivity: \(userActivity.activityType)")
-        if let url = userActivity.webpageURL, ShareURLResolver.isShareURL(url) {
-            debugLog("[AppDelegate] Found share URL in userActivity continuation: \(url)")
-            Task { @MainActor in
-                try? await CloudKitShareManager.shared.acceptShare(from: url)
-            }
-            return true
-        }
-        return false
+        guard let url = userActivity.webpageURL else { return false }
+        debugLog("[AppDelegate] Found a link in userActivity continuation: \(PartnerLink.logDescription(of: url))")
+        return LinkRouter.open(url)
     }
 
     // MARK: - Warm-launch fallback

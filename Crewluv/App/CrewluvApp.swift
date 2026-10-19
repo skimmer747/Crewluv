@@ -27,27 +27,14 @@ struct CrewluvApp: App {
             ContentView()
                 .environment(shareManager)
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                    debugLog("[CrewLuve] onContinueUserActivity: \(userActivity.webpageURL?.absoluteString ?? "nil")")
-                    if let url = userActivity.webpageURL {
-                        handleShareURL(url)
-                    }
+                    guard let url = userActivity.webpageURL else { return }
+                    debugLog("[CrewLuve] onContinueUserActivity: \(PartnerLink.logDescription(of: url))")
+                    LinkRouter.open(url)
                 }
                 .onOpenURL { url in
-                    debugLog("[CrewLuve] 🔗 onOpenURL triggered with: \(url)")
-                    handleShareURL(url)
+                    debugLog("[CrewLuve] 🔗 onOpenURL triggered with: \(PartnerLink.logDescription(of: url))")
+                    LinkRouter.open(url)
                 }
-        }
-    }
-
-    private func handleShareURL(_ url: URL) {
-        debugLog("[CrewLuve] handleShareURL: \(url)")
-        Task {
-            do {
-                try await shareManager.acceptShare(from: url)
-            } catch {
-                debugLog("[CrewLuve] ❌ Share acceptance failed: \(error)")
-                // Error is already set in shareManager.shareState
-            }
         }
     }
 }
