@@ -72,6 +72,8 @@ class PartnerStatusReceiver {
         ) { [weak self] _ in
             debugLog("[StatusReceiver] Received share acceptance notification, refreshing...")
             Task { @MainActor in
+                // A new connection: the loading screen shows until its first read.
+                self?.hasCheckedOnce = false
                 await self?.refresh()
             }
         }
@@ -142,7 +144,7 @@ class PartnerStatusReceiver {
             // If still no data found, check private database (same-account scenario).
             // Skip when a share has ever been recorded — its presence proves cross-account
             // intent, and self-zone discovery would silently shadow the partner's zone.
-            if !hasAcceptedShare && !hasLeftICloud && UserDefaults.standard.string(forKey: "SharedZoneOwner") == nil {
+            if !hasAcceptedShare && UserDefaults.standard.string(forKey: "SharedZoneOwner") == nil {
                 await checkPrivateDatabase()
             }
         }
@@ -330,6 +332,8 @@ class PartnerStatusReceiver {
 
     /// Check the private database for PartnerBeaconZone (same-account scenario)
     private func checkPrivateDatabase() async {
+        // Not once this device let iCloud go (partner links piece 4 spec §7.5).
+        guard !PartnerConnection(defaults: .standard).hasLeftICloud else { return }
         debugLog("[StatusReceiver] Checking private database for PartnerBeaconZone...")
 
         do {
