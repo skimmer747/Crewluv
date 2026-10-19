@@ -102,7 +102,7 @@ Use Xcode for all development tasks. The project follows iOS development convent
 #### Connecting (`App/LinkRouter.swift`, `Services/PartnerJoiner.swift`)
 - `LinkRouter` takes every link the app is given, and the welcome screen's paste box: Crewluve's own `https://crewluve.crewlu.net/join#t=…` and `#c=…` links (`PartnerLink`) go to the joiner, and iCloud share links to `CloudKitShareManager`
 - `PartnerJoiner` joins Crewlu Cloud with an invite link or a 6-character code from another device, asking first when the link is from another pilot
-- `CrewluCloudDevice` (`Services/PartnerCloud/`) is this device on Crewlu Cloud: its key, joining with a pending key, switching, Disconnect and hand-off codes. Every connection change moves its generation on, so an answer for a key the device has let go of changes nothing
+- `CrewluCloudDevice` (`Services/PartnerCloud/`) is this device on Crewlu Cloud: its key, joining with a pending key, switching, Disconnect and hand-off codes. Each switch and each forget moves its generation on, so an answer for a key the device has let go of changes nothing
 - Logs show Crewluve's links only by host and path: what follows the `#` is a secret
 
 #### Data Model (`Models/SharedPilotStatus.swift`)

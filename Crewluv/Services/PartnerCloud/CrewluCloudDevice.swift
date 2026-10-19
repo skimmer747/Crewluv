@@ -23,10 +23,10 @@ final class CrewluCloudDevice {
     @ObservationIgnored private let door: PartnerDoor
     @ObservationIgnored private let keys: DeviceKeyStore
     @ObservationIgnored private let connection: PartnerConnection
-    /// Goes up each time the connection changes, so a read begun before then brings nothing back.
+    /// Goes up at each switch and each forget, so a read begun before then brings nothing back.
     @ObservationIgnored private(set) var generation = 0
     /// Whether Disconnect is under way: a refusal its own leave caused ends nothing (spec §7.6).
-    @ObservationIgnored private(set) var isLeaving = false
+    @ObservationIgnored private(set) var isDisconnecting = false
 
     init(door: PartnerDoor, keys: DeviceKeyStore, connection: PartnerConnection) {
         self.door = door
@@ -71,7 +71,7 @@ final class CrewluCloudDevice {
         } catch .refused(.sharingEnded) {
             // A refusal for a key the connection has since let go of forgets nothing: the key
             // saved now may be a new one. One that Disconnect's own leave caused leaves no note.
-            guard generation == self.generation, !isLeaving else { return .superseded }
+            guard generation == self.generation, !isDisconnecting else { return .superseded }
             forget()
             return .sharingEnded
         } catch {
@@ -237,10 +237,10 @@ final class CrewluCloudDevice {
     /// Disconnect (spec §7.5): partner_leave with this device's key, then forgets the key and the
     /// connection. Throws when the door couldn't be reached, and then nothing changes. False when a
     /// join switched this device while the door answered: its new connection stays.
-    func leave() async throws(PartnerDoorError) -> Bool {
+    func disconnect() async throws(PartnerDoorError) -> Bool {
         let generation = generation
-        isLeaving = true
-        defer { isLeaving = false }
+        isDisconnecting = true
+        defer { isDisconnecting = false }
         if let key = try? keys.deviceKey() {
             try await door.leave(key: key)
         }

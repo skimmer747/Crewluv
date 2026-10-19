@@ -98,7 +98,7 @@ final class PilotStatusSource {
     /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
     /// forget the connection, and tell the screen. A refusal Disconnect's own leave caused ends nothing.
     func endSharing() {
-        guard !device.isLeaving else { return }
+        guard !device.isDisconnecting else { return }
         device.forget()
         noteSharingEnded()
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
@@ -129,7 +129,7 @@ final class PilotStatusSource {
     /// stays connected. A join that switched this device meanwhile keeps its new connection.
     func disconnect() async -> Bool {
         do {
-            guard try await device.leave() else { return true }
+            guard try await device.disconnect() else { return true }
         } catch {
             return false
         }
