@@ -27,6 +27,7 @@ struct ContentView: View {
             if statusReceiver == nil {
                 statusReceiver = PartnerStatusReceiver(shareManager: shareManager)
             }
+            statusReceiver?.startPeriodicCheck()
         }
         .alert("Share Error", isPresented: $showShareError) {
             Button("OK") { shareManager.resetShareState() }
@@ -88,7 +89,10 @@ struct ContentView: View {
                     if !receiver.isSyncing {
                         Task { await receiver.refresh() }
                     }
+                    receiver.startPeriodicCheck()
                     Task { await BackgroundRefreshManager.shared.scheduleNextRefresh() }
+                } else {
+                    receiver.stopPeriodicCheck()
                 }
             }
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
