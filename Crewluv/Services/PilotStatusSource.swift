@@ -74,6 +74,8 @@ final class PilotStatusSource {
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
     @ObservationIgnored private let periodicCheck: RepeatingRefresh
+    /// The screens in front, each with what says whether it shows the demo. iPad can show several.
+    @ObservationIgnored private var screensInFront: [ObjectIdentifier: () -> Bool] = [:]
     /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
     @ObservationIgnored private let didConnect: @MainActor () -> Void
     /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
@@ -189,19 +191,25 @@ final class PilotStatusSource {
 
     // MARK: - The 60-Second Check
 
-    /// While the app is in front, reads every 60 seconds whenever this device is on Crewlu Cloud
-    /// and `isPaused` (the demo) says no (partner links piece 4 spec §5.5). With nothing new,
-    /// Crewlu Cloud answers "unchanged". Each tick asks again, so a device that connects or leaves
-    /// mid-session needs no restart.
-    func startPeriodicCheck(pausedWhile isPaused: @escaping () -> Bool = { false }) {
+    /// `screen` is in front. While any screen is, reads every 60 seconds whenever this device is on
+    /// Crewlu Cloud and a screen in front isn't showing the demo (partner links piece 4 spec §5.5).
+    /// With nothing new, Crewlu Cloud answers "unchanged". Each tick asks again, so a device that
+    /// connects or leaves mid-session needs no restart.
+    func startPeriodicCheck(for screen: AnyObject, pausedWhile isPaused: @escaping () -> Bool) {
+        screensInFront[ObjectIdentifier(screen)] = isPaused
+        guard !periodicCheck.isRunning else { return }
         periodicCheck.start { [weak self] in
-            guard let self, self.isOnCrewluCloud, !isPaused() else { return }
+            guard let self, self.isOnCrewluCloud, self.screensInFront.values.contains(where: { !$0() }) else { return }
             _ = await self.refresh()
         }
     }
 
-    func stopPeriodicCheck() {
-        periodicCheck.stop()
+    /// `screen` left the front. The check stops once no screen is in front.
+    func stopPeriodicCheck(for screen: AnyObject) {
+        screensInFront[ObjectIdentifier(screen)] = nil
+        if screensInFront.isEmpty {
+            periodicCheck.stop()
+        }
     }
 
     // MARK: - Reading

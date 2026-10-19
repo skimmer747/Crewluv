@@ -511,16 +511,17 @@ final class PilotStatusSourceTests {
 
     @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {
         door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        let screen = StandInScreen()
         let source = connectedSource()
 
-        source.startPeriodicCheck()
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
         await eventually { clock.sleeps.count == 1 }
         #expect(door.views.isEmpty)
         clock.tick()
         await eventually { clock.sleeps.count == 2 }
         clock.tick()
         await eventually { clock.sleeps.count == 3 }
-        source.stopPeriodicCheck()
+        source.stopPeriodicCheck(for: screen)
         await eventually { clock.waitingCount == 0 }
 
         #expect(door.views.map(\.since) == [nil, "t1"])
@@ -529,25 +530,27 @@ final class PilotStatusSourceTests {
 
     @Test func test_periodicCheck_stopsReading_onceSharingEnds() async throws {
         door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let screen = StandInScreen()
         let source = connectedSource()
 
-        source.startPeriodicCheck()
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
         await eventually { clock.sleeps.count == 1 }
         clock.tick()
         await eventually { clock.sleeps.count == 2 }
         source.endSharing()
         clock.tick()
         await eventually { clock.sleeps.count == 3 }
-        source.stopPeriodicCheck()
+        source.stopPeriodicCheck(for: screen)
 
         #expect(door.views.count == 1)
         #expect(iCloud.fetches == 0)
     }
 
     @Test func test_periodicCheck_startsReading_onceTheDeviceConnects() async throws {
+        let screen = StandInScreen()
         let source = makeSource()
 
-        source.startPeriodicCheck()
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
         await eventually { clock.sleeps.count == 1 }
         clock.tick()
         await eventually { clock.sleeps.count == 2 }
@@ -559,27 +562,48 @@ final class PilotStatusSourceTests {
         #expect(await source.refresh() == .newStatus)
         clock.tick()
         await eventually { clock.sleeps.count == 3 }
-        source.stopPeriodicCheck()
+        source.stopPeriodicCheck(for: screen)
 
         #expect(door.views.map(\.since) == [nil, "t1"])
     }
 
-    @Test func test_periodicCheck_readsNothingWhilePaused() async throws {
+    @Test func test_periodicCheck_readsNothing_whileEveryScreenInFrontShowsTheDemo() async throws {
         door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
-        let inDemo = Flag(isOn: true)
+        let demo = StandInScreen(isInDemo: true)
+        let status = StandInScreen()
         let source = connectedSource()
 
-        source.startPeriodicCheck(pausedWhile: { inDemo.isOn })
+        source.startPeriodicCheck(for: demo, pausedWhile: { demo.isInDemo })
         await eventually { clock.sleeps.count == 1 }
         clock.tick()
         await eventually { clock.sleeps.count == 2 }
         #expect(door.views.isEmpty)
-        inDemo.isOn = false
+        source.startPeriodicCheck(for: status, pausedWhile: { status.isInDemo })
         clock.tick()
         await eventually { clock.sleeps.count == 3 }
-        source.stopPeriodicCheck()
+        source.stopPeriodicCheck(for: demo)
+        source.stopPeriodicCheck(for: status)
 
         #expect(door.views.count == 1)
+    }
+
+    @Test func test_periodicCheck_runsWhileAnyScreenIsInFront() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let first = StandInScreen()
+        let second = StandInScreen()
+        let source = connectedSource()
+
+        source.startPeriodicCheck(for: first, pausedWhile: { first.isInDemo })
+        source.startPeriodicCheck(for: second, pausedWhile: { second.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        source.stopPeriodicCheck(for: second)
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.count == 1)
+        source.stopPeriodicCheck(for: first)
+
+        await eventually { clock.waitingCount == 0 }
+        #expect(clock.sleeps.count == 2)
     }
 
     // MARK: - The Reading

@@ -106,13 +106,13 @@ final class Counter {
     var count = 0
 }
 
-/// A setting a test turns on and off.
+/// A screen in front, as the 60-second check sees it: iPad can show several.
 @MainActor
-final class Flag {
-    var isOn: Bool
+final class StandInScreen {
+    var isInDemo: Bool
 
-    init(isOn: Bool = false) {
-        self.isOn = isOn
+    init(isInDemo: Bool = false) {
+        self.isInDemo = isInDemo
     }
 }
 

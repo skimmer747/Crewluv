@@ -524,13 +524,14 @@ class PartnerStatusReceiver {
 
     // MARK: - The 60-Second Check
 
-    /// Starts the status source's 60-second check while the app is in front (partner links
-    /// piece 4 spec §5.5). It reads only while on Crewlu Cloud, and never in the demo.
+    /// This screen is in front: the status source's 60-second check runs (partner links piece 4
+    /// spec §5.5). It reads only while on Crewlu Cloud, and not for a screen showing the demo.
     func startPeriodicCheck() {
-        statusSource.startPeriodicCheck(pausedWhile: { [weak self] in self?.isInDemoMode ?? true })
+        statusSource.startPeriodicCheck(for: self, pausedWhile: { [weak self] in self?.isInDemoMode ?? true })
     }
 
+    /// This screen left the front. The check stops once no screen is in front.
     func stopPeriodicCheck() {
-        statusSource.stopPeriodicCheck()
+        statusSource.stopPeriodicCheck(for: self)
     }
 }
