@@ -19,6 +19,7 @@ final class PilotStatusSourceTests {
     private let keys = InMemoryDeviceKeyStore()
     private let notifier = RecordingNotifier()
     private let iCloudResets = Counter()
+    private let clock = HandClock()
 
     init() throws {
         defaults = try #require(UserDefaults(suiteName: defaultsName))
@@ -35,7 +36,8 @@ final class PilotStatusSourceTests {
             keys: keys,
             defaults: defaults,
             notifier: notifier,
-            iCloudShareEnded: { [iCloudResets] in iCloudResets.count += 1 }
+            iCloudShareEnded: { [iCloudResets] in iCloudResets.count += 1 },
+            periodicCheck: RepeatingRefresh(sleep: clock.sleep)
         )
     }
 
@@ -341,6 +343,80 @@ final class PilotStatusSourceTests {
         #expect(heard.outcomes == [.sharingEnded])
         #expect(!source.isOnCrewluCloud)
         #expect(keys.key == nil)
+    }
+
+    // MARK: - The 60-Second Check
+
+    @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        let source = connectedSource()
+
+        source.startPeriodicCheck()
+        await eventually { clock.sleeps.count == 1 }
+        #expect(door.views.isEmpty)
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck()
+
+        #expect(door.views.map(\.since) == [nil, "t1"])
+        #expect(clock.sleeps.allSatisfy { $0 == .seconds(60) })
+    }
+
+    @Test func test_periodicCheck_stopsReading_onceSharingEnds() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+
+        source.startPeriodicCheck()
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        source.endSharing()
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck()
+
+        #expect(door.views.count == 1)
+        #expect(iCloud.fetches == 0)
+    }
+
+    @Test func test_periodicCheck_startsReading_onceTheDeviceConnects() async throws {
+        let source = makeSource()
+
+        source.startPeriodicCheck()
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.isEmpty)
+        #expect(iCloud.fetches == 0)
+
+        keys.key = Make.key
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        #expect(await source.refresh() == .newStatus)
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck()
+
+        #expect(door.views.map(\.since) == [nil, "t1"])
+    }
+
+    @Test func test_periodicCheck_readsNothingWhilePaused() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let inDemo = Flag(isOn: true)
+        let source = connectedSource()
+
+        source.startPeriodicCheck(pausedWhile: { inDemo.isOn })
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.isEmpty)
+        inDemo.isOn = false
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck()
+
+        #expect(door.views.count == 1)
     }
 
     // MARK: - The Reading

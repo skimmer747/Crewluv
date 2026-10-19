@@ -73,6 +73,7 @@ final class PilotStatusSource {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
+    @ObservationIgnored private let periodicCheck: RepeatingRefresh
     /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
     /// The first read after a launch sends none, since the app doesn't keep the summary.
     @ObservationIgnored private var since: String?
@@ -92,7 +93,8 @@ final class PilotStatusSource {
         keys: DeviceKeyStore = KeychainDeviceKeyStore(),
         defaults: UserDefaults = .standard,
         notifier: StatusNotifying = StatusChangeNotifier.shared,
-        iCloudShareEnded: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.resetShareData() }
+        iCloudShareEnded: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.resetShareData() },
+        periodicCheck: RepeatingRefresh = RepeatingRefresh()
     ) {
         self.iCloud = iCloud
         self.door = door
@@ -100,6 +102,7 @@ final class PilotStatusSource {
         self.defaults = defaults
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
+        self.periodicCheck = periodicCheck
         connection = PartnerConnection(defaults: defaults)
         crewluCloudPartnerID = connection.partnerID
     }
@@ -175,6 +178,25 @@ final class PilotStatusSource {
         defaults.removeObject(forKey: Self.displayNameKey)
         defaults.removeObject(forKey: Self.snapshotKey)
     }
+
+    // MARK: - The 60-Second Check
+
+    /// While the app is in front, reads every 60 seconds whenever this device is on Crewlu Cloud
+    /// and `isPaused` (the demo) says no (partner links piece 4 spec §5.5). With nothing new,
+    /// Crewlu Cloud answers "unchanged". Each tick asks again, so a device that connects or leaves
+    /// mid-session needs no restart.
+    func startPeriodicCheck(pausedWhile isPaused: @escaping () -> Bool = { false }) {
+        periodicCheck.start { [weak self] in
+            guard let self, self.isOnCrewluCloud, !isPaused() else { return }
+            _ = await self.refresh()
+        }
+    }
+
+    func stopPeriodicCheck() {
+        periodicCheck.stop()
+    }
+
+    // MARK: - Reading
 
     private func read() async -> RefreshOutcome {
         if isOnCrewluCloud {

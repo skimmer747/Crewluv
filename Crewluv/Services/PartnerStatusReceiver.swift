@@ -34,7 +34,6 @@ class PartnerStatusReceiver {
     private var privateDatabase: CKDatabase { container.privateCloudDatabase }
     private let dataSourceKey = "PilotDataSource"
     private let statusSource: PilotStatusSource
-    private let periodicCheck = RepeatingRefresh()
     private var transitionTask: Task<Void, Never>?
 
     init(shareManager: CloudKitShareManager) {
@@ -522,19 +521,13 @@ class PartnerStatusReceiver {
 
     // MARK: - The 60-Second Check
 
-    /// While the app is in front, on Crewlu Cloud and outside the demo, reads every 60 seconds
-    /// (partner links piece 4 spec §5.5). With nothing new, Crewlu Cloud answers "unchanged".
+    /// Starts the status source's 60-second check while the app is in front (partner links
+    /// piece 4 spec §5.5). It reads only while on Crewlu Cloud, and never in the demo.
     func startPeriodicCheck() {
-        guard statusSource.isOnCrewluCloud, !isInDemoMode else {
-            periodicCheck.stop()
-            return
-        }
-        periodicCheck.start { [weak self] in
-            await self?.refresh()
-        }
+        statusSource.startPeriodicCheck(pausedWhile: { [weak self] in self?.isInDemoMode ?? true })
     }
 
     func stopPeriodicCheck() {
-        periodicCheck.stop()
+        statusSource.stopPeriodicCheck()
     }
 }

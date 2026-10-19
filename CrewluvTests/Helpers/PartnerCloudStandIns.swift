@@ -100,6 +100,16 @@ final class Counter {
     var count = 0
 }
 
+/// A setting a test turns on and off.
+@MainActor
+final class Flag {
+    var isOn: Bool
+
+    init(isOn: Bool = false) {
+        self.isOn = isOn
+    }
+}
+
 /// What the status source told the screen, in order.
 @MainActor
 final class Heard {
