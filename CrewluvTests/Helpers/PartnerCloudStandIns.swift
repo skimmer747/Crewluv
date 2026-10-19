@@ -28,6 +28,8 @@ final class StandInPartnerDoor: PartnerDoor {
     var holdsViews = false
     /// While true, each `leave` waits for `release()`.
     var holdsLeaves = false
+    /// While true, each `makeHandOffCode` waits for `release()`.
+    var holdsHandOffs = false
     /// Runs while `setPush` waits for its answer, as if something happened meanwhile.
     var whileSettingPush: (() -> Void)?
 
@@ -67,6 +69,9 @@ final class StandInPartnerDoor: PartnerDoor {
 
     func makeHandOffCode(key: String) async throws(PartnerDoorError) -> HandOffCode {
         handOffs.append(key)
+        if holdsHandOffs {
+            await withCheckedContinuation { held.append($0) }
+        }
         guard !handOffAnswers.isEmpty else { throw .unavailable }
         return try handOffAnswers.removeFirst().get()
     }

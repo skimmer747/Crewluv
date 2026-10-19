@@ -198,6 +198,19 @@ final class CrewluCloudDevice {
         }
     }
 
+    /// partner_handoff_create with this device's key: a code for another of this partner's devices
+    /// (spec §7.5). A refusal for a key this device has since let go of, say by switching, ends
+    /// nothing: the code is unavailable.
+    func makeHandOffCode() async throws(PartnerDoorError) -> HandOffCode {
+        guard let key = try? keys.deviceKey() else { throw .unavailable }
+        let generation = generation
+        do {
+            return try await door.makeHandOffCode(key: key)
+        } catch .refused(.sharingEnded) where generation != self.generation {
+            throw .unavailable
+        }
+    }
+
     // MARK: - Leaving and Forgetting
 
     /// Disconnect (spec §7.5): partner_leave with this device's key, then forgets the key and the
