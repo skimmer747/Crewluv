@@ -9,7 +9,8 @@ import Foundation
 import Observation
 
 /// This device on Crewlu Cloud: the key it holds, the partner it's a device of, and what its reads
-/// send back (partner links piece 4 spec §5.1–§5.3). The status source reads through it.
+/// send back (partner links piece 4 spec §5.1–§5.3). The status source reads through it, and joining
+/// switches it (§7.2).
 @Observable
 final class CrewluCloudDevice {
     /// This device's partner id on Crewlu Cloud, or nil while it follows its pilot through iCloud.
@@ -102,6 +103,102 @@ final class CrewluCloudDevice {
         partnerID = answer.partnerID
         return answer
     }
+
+    // MARK: - Joining
+
+    /// What a join used and got (spec §7.2 steps 1–2).
+    struct Joined: Equatable {
+        let partnerID: String
+        /// The key the join sent: this device's own, or the pending one.
+        let key: String
+        let isDeviceKey: Bool
+    }
+
+    /// Joins with an invite or a code, as `label` in the pilot's list (spec §7.2 steps 1–2): with this
+    /// device's key, or else the pending key, saved first, so this device's key changes only when it
+    /// switches. A key another person's device has gets a pending key and one more try.
+    func join(_ link: PartnerLink, label: String) async throws(PartnerDoorError) -> Joined {
+        if let deviceKey = try readKey(keys.deviceKey) {
+            do {
+                return try await join(link, key: deviceKey, label: label, isDeviceKey: true)
+            } catch .refused(.keyInUse) {
+                return try await join(link, key: pendingKey(reusingKept: true), label: label, isDeviceKey: false)
+            }
+        }
+        do {
+            return try await join(link, key: pendingKey(reusingKept: true), label: label, isDeviceKey: false)
+        } catch .refused(.keyInUse) {
+            return try await join(link, key: pendingKey(reusingKept: false), label: label, isDeviceKey: false)
+        }
+    }
+
+    /// partner_view with the key that joined, asking for everything, so the joiner can see whose
+    /// status it is (spec §7.2 step 3).
+    func view(_ joined: Joined) async throws(PartnerDoorError) -> PartnerViewAnswer {
+        try await door.view(key: joined.key, since: nil)
+    }
+
+    /// Makes this device `joined`'s device (spec §7.2's switching): its key becomes this device's
+    /// key, and the device it replaces leaves Crewlu Cloud, tried once. False when the key couldn't
+    /// be saved, and then nothing changes.
+    func switchTo(_ joined: Joined) async -> Bool {
+        let replacedKey = try? keys.deviceKey()
+        if !joined.isDeviceKey {
+            guard keys.save(deviceKey: joined.key) else { return false }
+            keys.forgetPendingKey()
+        }
+        generation += 1
+        connection.partnerID = joined.partnerID
+        partnerID = joined.partnerID
+        since = nil
+        if let replacedKey, replacedKey != joined.key {
+            try? await door.leave(key: replacedKey)
+        }
+        return true
+    }
+
+    /// The partner chose not to switch: the device the join made leaves Crewlu Cloud, tried once, and
+    /// its key is forgotten.
+    func cancel(_ joined: Joined) async {
+        try? await door.leave(key: joined.key)
+        if joined.isDeviceKey {
+            forget()
+        } else {
+            keys.forgetPendingKey()
+        }
+    }
+
+    private func join(_ link: PartnerLink, key: String, label: String, isDeviceKey: Bool) async throws(PartnerDoorError) -> Joined {
+        let answer: PartnerJoinAnswer
+        switch link {
+        case .invite(let invite):
+            answer = try await door.join(invite: invite, key: key, label: label)
+        case .code(let code):
+            answer = try await door.redeem(code: code, key: key, label: label)
+        }
+        return Joined(partnerID: answer.partnerID, key: key, isDeviceKey: isDeviceKey)
+    }
+
+    /// The pending key: the one a join that didn't finish kept, when `reusingKept`, so trying again
+    /// gets the same device, or else a new one, saved before it's sent (spec §5.3).
+    private func pendingKey(reusingKept: Bool) throws(PartnerDoorError) -> String {
+        if reusingKept, let kept = try readKey(keys.pendingKey) {
+            return kept
+        }
+        guard let key = DeviceKey.make(), keys.save(pendingKey: key) else { throw .unavailable }
+        return key
+    }
+
+    /// A key from the Keychain. One it can't read means the join can't go on.
+    private func readKey(_ read: () throws(DeviceKeyUnreadable) -> String?) throws(PartnerDoorError) -> String? {
+        do {
+            return try read()
+        } catch {
+            throw .unavailable
+        }
+    }
+
+    // MARK: - Forgetting
 
     /// Forgets this device's key and its connection.
     func forget() {
