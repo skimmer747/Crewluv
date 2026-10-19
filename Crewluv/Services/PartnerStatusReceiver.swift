@@ -148,16 +148,21 @@ class PartnerStatusReceiver {
         }
     }
 
+    /// Whether a check has ended. Later checks keep the screen that shows, so the welcome screen
+    /// keeps what's typed in it and the waiting screen stays (partner links piece 4 spec §7.4, §7.7).
+    private var hasCheckedOnce = false
+
     /// Reads the pilot's status through the status source. How the read went reaches `show(_:)`,
     /// as every read's does.
     func checkForSharedData() async {
-        if pilotStatus == nil {
+        if pilotStatus == nil, !hasCheckedOnce {
             isLoading = true
         }
         isSyncing = true
         defer {
             isLoading = false
             isSyncing = false
+            hasCheckedOnce = true
         }
 
         // Sync in-memory dataSource with whatever UserDefaults says before fetching.

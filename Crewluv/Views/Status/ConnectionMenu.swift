@@ -35,9 +35,16 @@ struct DisconnectAlerts: ViewModifier {
     let onDisconnect: () async -> Bool
 
     @State private var showsFailure = false
+    @State private var isDisconnecting = false
 
     func body(content: Content) -> some View {
         content
+            .disabled(isDisconnecting)
+            .overlay {
+                if isDisconnecting {
+                    ProgressOverlay(title: "Disconnecting...")
+                }
+            }
             .alert(question?.title ?? "", isPresented: isAsking, presenting: question) { _ in
                 Button("Disconnect", role: .destructive, action: disconnect)
                 Button("Cancel", role: .cancel) {}
@@ -56,8 +63,11 @@ struct DisconnectAlerts: ViewModifier {
     }
 
     private func disconnect() {
+        isDisconnecting = true
         Task {
-            if await !onDisconnect() {
+            let disconnected = await onDisconnect()
+            isDisconnecting = false
+            if !disconnected {
                 showsFailure = true
             }
         }

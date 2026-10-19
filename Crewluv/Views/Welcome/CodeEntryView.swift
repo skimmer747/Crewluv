@@ -17,6 +17,9 @@ struct CodeEntryView: View {
     @State private var code = ""
     @State private var isJoining = false
     @FocusState private var isFocused: Bool
+    /// The boxes grow with the text size, and share the width when six that size don't fit.
+    @ScaledMetric(relativeTo: .title2) private var boxWidth = 40.0
+    @ScaledMetric(relativeTo: .title2) private var boxHeight = 50.0
 
     var body: some View {
         ZStack {
@@ -63,7 +66,10 @@ struct CodeEntryView: View {
         let isNext = isFocused && index == min(characters.count, 5)
         return Text(index < characters.count ? String(characters[index]) : " ")
             .font(.title2.monospaced().weight(.semibold))
-            .frame(width: 40, height: 50)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .frame(maxWidth: boxWidth)
+            .frame(height: boxHeight)
             .glassEffect(.regular, in: .rect(cornerRadius: 10))
             .overlay {
                 RoundedRectangle(cornerRadius: 10)

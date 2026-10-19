@@ -73,6 +73,8 @@ private struct HandOffCodeView: View {
 
     /// Made once per code: the countdown redraws every second.
     private let qrCode: UIImage?
+    /// The code grows with the text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var codeSize = 40.0
 
     init(code: HandOffCode, onNewCode: @escaping () -> Void) {
         self.code = code
@@ -107,7 +109,9 @@ private struct HandOffCodeView: View {
     private var codeAndQRCode: some View {
         VStack(spacing: 20) {
             Text(code.grouped)
-                .font(.system(size: 40, weight: .semibold, design: .monospaced))
+                .font(.system(size: codeSize, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .textSelection(.enabled)
 
             if let qrCode {
