@@ -92,10 +92,12 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - Container ID: `iCloud.com.toddanderson.duty`
 - Zone: `PartnerBeaconZone`
 
-#### Status Management (`Services/PartnerStatusReceiver.swift`)
-- Fetches pilot status from shared CloudKit zone
-- Auto-refresh every 2 minutes
-- Handles CloudKit sync timing with retry logic
+#### Status Management (`Services/PilotStatusSource.swift`)
+- The one place that reads the pilot's status, whoever asks: the screen, a push or the background refresh
+- Reads Crewlu Cloud's partner door once this device is connected there (`Services/PartnerCloud/`), and the shared CloudKit zone otherwise
+- Hands each new status to the alerts (`StatusChangeNotifier`) once
+- `PartnerStatusReceiver` is the screen's model: it shows how every read went
+- Refreshes on coming to the front, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
 #### Data Model (`Models/SharedPilotStatus.swift`)
 - Privacy-conscious: excludes crew names, hotel details, pay info
@@ -105,8 +107,8 @@ Use Xcode for all development tasks. The project follows iOS development convent
 ### App Flow
 1. **Onboarding**: User accepts CloudKit share link from pilot
 2. **Share Processing**: `CloudKitShareManager` handles share acceptance
-3. **Status Sync**: `PartnerStatusReceiver` fetches and displays pilot status
-4. **Auto-refresh**: Status updates every 2 minutes
+3. **Status Sync**: `PilotStatusSource` reads the pilot's status, and `PartnerStatusReceiver` displays it
+4. **Refresh**: On coming to the front, silent pushes, the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
 ## File Structure
 
@@ -121,7 +123,9 @@ Crewluv/
 │   └── SharedPilotStatus.swift
 ├── Services/                 # Business logic
 │   ├── CloudKitShareManager.swift    # CloudKit share operations
-│   └── PartnerStatusReceiver.swift   # Status fetching
+│   ├── PilotStatusSource.swift       # Reads the status, from Crewlu Cloud or iCloud
+│   ├── PartnerStatusReceiver.swift   # The status screen's model
+│   └── PartnerCloud/                 # Crewlu Cloud's partner door and this device's key
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
 ```
