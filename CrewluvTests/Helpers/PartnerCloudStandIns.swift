@@ -86,7 +86,7 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
 }
 
 /// The alerts, recording what they're handed.
-actor RecordingNotifier: StatusNotifying {
+actor RecordingNotifier {
     private(set) var evaluations: [(status: SharedPilotStatus, pilotName: String)] = []
 
     func evaluateChanges(
@@ -99,6 +99,11 @@ actor RecordingNotifier: StatusNotifying {
         evaluations.append((new, pilotName))
     }
 }
+
+// In an extension, not on the actor: declared on the actor, the conformance to a `nonisolated`
+// protocol can make Swift infer `nonisolated` for the whole actor, depending on the order the
+// files compile in, and then reject it.
+extension RecordingNotifier: StatusNotifying {}
 
 /// Counts what a test is told.
 @MainActor
