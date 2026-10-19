@@ -31,8 +31,11 @@ struct PilotStatusView: View {
     var isSyncing: Bool = false
     var isCompanionLayout: Bool = false
     var isInDemoMode: Bool = false
+    /// On Crewlu Cloud, the sync line doesn't mention iCloud (partner links piece 4 spec §7.7).
+    var isOnCrewluCloud: Bool = false
     var onExitDemo: (() -> Void)? = nil
-    var onPasteShareLink: (() -> Void)? = nil
+    /// The ••• menu, on Crewlu Cloud outside the demo (spec §7.5).
+    var connectionMenu: ConnectionMenu? = nil
     var onRefresh: (() -> Void)? = nil
 
     @State private var showSchedule = false
@@ -213,12 +216,8 @@ struct PilotStatusView: View {
 
                     // Sync explanation with action buttons
                     HStack {
-                        if let onPasteShareLink {
-                            Button(action: onPasteShareLink) {
-                                Image(systemName: "link.badge.plus")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.glass)
+                        if let connectionMenu {
+                            connectionMenu
                         }
 
                         Spacer()
@@ -227,7 +226,8 @@ struct PilotStatusView: View {
                             pilotName: status.pilotFirstName,
                             pilotUpdatedAt: status.lastUpdated,
                             lastSyncTime: lastSyncTime,
-                            lastSyncError: lastSyncError
+                            lastSyncError: lastSyncError,
+                            isOnCrewluCloud: isOnCrewluCloud
                         )
                         #if DEBUG
                         .onLongPressGesture { showDiagnostics = true }

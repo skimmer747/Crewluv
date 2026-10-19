@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var statusReceiver: PartnerStatusReceiver?
     @State private var showShareError = false
     @State private var showPasteShareAlert = false
+    @State private var showsHandOff = false
+    @State private var disconnectQuestion: DisconnectQuestion?
     @Environment(CloudKitShareManager.self) private var shareManager
     @Environment(\.scenePhase) private var scenePhase
 
@@ -60,8 +62,9 @@ struct ContentView: View {
                                 lastSyncError: receiver.lastSyncError,
                                 isSyncing: receiver.isSyncing,
                                 isInDemoMode: receiver.isInDemoMode,
+                                isOnCrewluCloud: receiver.isOnCrewluCloud,
                                 onExitDemo: { receiver.exitDemoMode() },
-                                onPasteShareLink: { showPasteShareAlert = true },
+                                connectionMenu: connectionMenu(for: receiver),
                                 onRefresh: { Task { await receiver.refresh() } }
                             )
                         }
@@ -97,6 +100,10 @@ struct ContentView: View {
                 }
             }
             .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
+            .sheet(isPresented: $showsHandOff) {
+                HandOffSheet()
+            }
+            .modifier(DisconnectAlerts(question: $disconnectQuestion, onDisconnect: { await receiver.disconnect() }))
         } else {
             LoadingView()
         }
@@ -112,8 +119,9 @@ struct ContentView: View {
                     isSyncing: receiver.isSyncing,
                     isCompanionLayout: true,
                     isInDemoMode: receiver.isInDemoMode,
+                    isOnCrewluCloud: receiver.isOnCrewluCloud,
                     onExitDemo: { receiver.exitDemoMode() },
-                    onPasteShareLink: { showPasteShareAlert = true },
+                    connectionMenu: connectionMenu(for: receiver),
                     onRefresh: { Task { await receiver.refresh() } }
                 )
                 .frame(width: geometry.size.width * 0.4)
@@ -124,6 +132,19 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
             }
         }
+    }
+
+    /// The ••• menu, on Crewlu Cloud outside the demo (partner links piece 4 spec §7.5).
+    private func connectionMenu(for receiver: PartnerStatusReceiver) -> ConnectionMenu? {
+        guard receiver.isOnCrewluCloud, !receiver.isInDemoMode else { return nil }
+        return ConnectionMenu(
+            onUseOnAnotherDevice: { showsHandOff = true },
+            onDisconnect: {
+                disconnectQuestion = DisconnectQuestion(
+                    pilot: receiver.pilotStatus?.pilotFirstName ?? "your pilot", deviceModel: UIDevice.current.model
+                )
+            }
+        )
     }
 }
 
