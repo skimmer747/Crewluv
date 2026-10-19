@@ -97,7 +97,7 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - Reads Crewlu Cloud's partner door once this device is connected there (`Services/PartnerCloud/`), and the shared CloudKit zone otherwise
 - Hands each new status to the alerts (`StatusChangeNotifier`) once
 - `PartnerStatusReceiver` is the screen's model: it shows how every read went
-- Refreshes on coming to the front, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
+- Refreshes on coming to the front, on pull-to-refresh and the refresh button, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
 #### Data Model (`Models/SharedPilotStatus.swift`)
 - Privacy-conscious: excludes crew names, hotel details, pay info
@@ -108,7 +108,7 @@ Use Xcode for all development tasks. The project follows iOS development convent
 1. **Onboarding**: User accepts CloudKit share link from pilot
 2. **Share Processing**: `CloudKitShareManager` handles share acceptance
 3. **Status Sync**: `PilotStatusSource` reads the pilot's status, and `PartnerStatusReceiver` displays it
-4. **Refresh**: On coming to the front, silent pushes, the background refresh, and every 60 seconds while in front on Crewlu Cloud
+4. **Refresh**: On coming to the front, pull-to-refresh and the refresh button, silent pushes, the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
 ## File Structure
 
