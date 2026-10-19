@@ -281,20 +281,31 @@ final class PilotStatusSourceTests {
 
     // MARK: - Refreshes and the Screen
 
-    @Test func test_overlappingRefreshes_shareOneRead() async throws {
-        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+    @Test func test_refreshesAskedForDuringARead_shareOneMoreReadAfterIt() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "t2", try Make.summary(lastUpdated: 2)),
+        ]
         door.holdsViews = true
         let source = connectedSource()
 
-        async let first = source.refresh()
-        async let second = source.refresh()
-        while door.views.isEmpty {
+        let first = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        let second = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        let third = Task { await source.refresh() }
+        for _ in 0..<10 {
             await Task.yield()
         }
         door.release()
+        await eventually { door.views.count == 2 }
+        door.holdsViews = false
+        door.release()
 
-        #expect(await [first, second] == [.newStatus, .newStatus])
-        #expect(door.views.count == 1)
+        #expect(await [first.value, second.value, third.value] == [.newStatus, .newStatus, .newStatus])
+        #expect(door.views.map(\.since) == [nil, "t1"])
+        #expect(source.reading?.lastUpdated == Date(timeIntervalSince1970: 2))
+        #expect(!source.isReadQueued)
     }
 
     @Test func test_theScreenHearsOfNewStatusesAndOfSharingEnding() async throws {

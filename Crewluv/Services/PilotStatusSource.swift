@@ -66,7 +66,9 @@ final class PilotStatusSource {
     /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
     /// The first read after a launch sends none, since the app doesn't keep the summary.
     @ObservationIgnored private var since: String?
-    @ObservationIgnored private var refreshInFlight: Task<RefreshOutcome, Never>?
+    @ObservationIgnored private var readUnderWay: Task<RefreshOutcome, Never>?
+    /// The read that starts once the one under way ends, shared by every refresh asked for meanwhile.
+    @ObservationIgnored private var queuedRead: Task<RefreshOutcome, Never>?
 
     /// Where the alerts' title name is kept, as before.
     private static let displayNameKey = "ResolvedPilotDisplayName"
@@ -94,16 +96,36 @@ final class PilotStatusSource {
 
     // MARK: - Refreshing
 
-    /// Reads the status from wherever this device follows its pilot. A refresh asked for while
-    /// another is under way gets that one's outcome.
+    /// Whether a read waits for the one under way to end.
+    var isReadQueued: Bool { queuedRead != nil }
+
+    /// Reads the status from wherever this device follows its pilot. A refresh asked for while a
+    /// read is under way, say for a push that came mid-read, reads again once that read ends, since
+    /// that read may have missed what the push was for. Every refresh asked for meanwhile shares that
+    /// one read.
     func refresh() async -> RefreshOutcome {
-        if let refreshInFlight {
-            return await refreshInFlight.value
+        if let queuedRead {
+            return await queuedRead.value
         }
+        guard let readUnderWay else {
+            return await runRead()
+        }
+        let next = Task {
+            _ = await readUnderWay.value
+            return await self.runRead()
+        }
+        queuedRead = next
+        return await next.value
+    }
+
+    private func runRead() async -> RefreshOutcome {
+        queuedRead = nil
         let read = Task { await self.read() }
-        refreshInFlight = read
+        readUnderWay = read
         let outcome = await read.value
-        refreshInFlight = nil
+        if readUnderWay == read {
+            readUnderWay = nil
+        }
         return outcome
     }
 
