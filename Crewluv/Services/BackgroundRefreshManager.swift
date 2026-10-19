@@ -51,73 +51,21 @@ actor BackgroundRefreshManager {
         // Schedule the next refresh before doing work
         scheduleNextRefresh()
 
-        // Register the expiration handler BEFORE creating the work task.
-        // CancellableHandle is thread-safe — if expiration fires before
-        // track(_:) is called, the task is cancelled on assignment.
-        let handle = CancellableHandle()
-
+        // The read can't be cut short, since a push or the screen may share it. So when iOS asks
+        // the app to stop, the task ends right then, and the read's own end changes nothing.
+        let completion = OneTimeCompletion { task.setTaskCompleted(success: $0) }
         task.expirationHandler = {
-            handle.cancel()
-            debugLog("[BGRefresh] Task expired — cancelled in-flight work")
+            debugLog("[BGRefresh] Task expired before the read ended")
+            completion(success: false)
         }
 
-        let fetchTask = Task { try await self.fetchAndEvaluate() }
-        handle.track(fetchTask)
-
-        do {
-            try await fetchTask.value
-            task.setTaskCompleted(success: true)
+        // The status source hands a new status to the alerts.
+        if case .failed(let reason) = await PilotStatusSource.shared.refresh() {
+            debugLog("[BGRefresh] Background refresh failed: \(reason)")
+            completion(success: false)
+        } else {
             debugLog("[BGRefresh] Background refresh completed successfully")
-        } catch {
-            task.setTaskCompleted(success: false)
-            debugLog("[BGRefresh] Background refresh failed: \(error)")
+            completion(success: true)
         }
-    }
-
-    /// Reads the status through the status source, which hands a new one to the alerts.
-    private func fetchAndEvaluate() async throws {
-        let outcome = await PilotStatusSource.shared.refresh()
-        if case .failed(let reason) = outcome {
-            throw BackgroundReadFailed(reason: reason)
-        }
-    }
-}
-
-/// A background read that didn't get the status.
-private struct BackgroundReadFailed: Error {
-    let reason: String
-}
-
-// MARK: - CancellableHandle
-
-/// Bridges BGAppRefreshTask expiration into Swift Task cancellation.
-///
-/// The expiration handler runs on an arbitrary system thread, but we need
-/// it to cancel a Task that may not exist yet when the handler fires.
-/// This class is thread-safe via NSLock: if `cancel()` is called before
-/// `track(_:)`, the task is cancelled the moment it's assigned.
-private final class CancellableHandle: @unchecked Sendable {
-    private let lock = NSLock()
-    private nonisolated(unsafe) var task: Task<Void, Error>?
-    private nonisolated(unsafe) var expired = false
-
-    nonisolated init() {}
-
-    /// Registers the work task. If expiration already fired, cancels it immediately.
-    nonisolated func track(_ work: Task<Void, Error>) {
-        let shouldCancel = lock.withLock {
-            task = work
-            return expired
-        }
-        if shouldCancel { work.cancel() }
-    }
-
-    /// Marks as expired and cancels the tracked task (if any).
-    nonisolated func cancel() {
-        let work = lock.withLock {
-            expired = true
-            return task
-        }
-        work?.cancel()
     }
 }
