@@ -112,6 +112,20 @@ final class PilotStatusSourceTests {
         #expect(await notifier.evaluations.count == 1)
     }
 
+    @Test func test_iCloud_nameLookedUpLater_asNone_forgetsTheSavedName() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 1)),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.isDisplayNameKnown == true)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+    }
+
     @Test func test_iCloud_nameNotLookedUpLater_keepsTheNameShown() async throws {
         iCloud.results = [
             .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
@@ -434,6 +448,30 @@ final class PilotStatusSourceTests {
         #expect(!source.isReadQueued)
     }
 
+    @Test func test_aRefreshDuringTheQueuedRead_waitsForItToEnd() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "t2", try Make.summary(lastUpdated: 2)),
+            Make.answer(updatedAt: "t3", try Make.summary(lastUpdated: 3)),
+        ]
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let first = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        let second = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        door.release()
+        await eventually { door.views.count == 2 && !source.isReadQueued }
+        let third = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        door.holdsViews = false
+        door.release()
+
+        #expect(await [first.value, second.value, third.value] == [.newStatus, .newStatus, .newStatus])
+        #expect(door.views.map(\.since) == [nil, "t1", "t2"])
+    }
+
     @Test func test_theScreenHearsHowEveryReadWent() async throws {
         door.viewAnswers = [
             Make.answer(updatedAt: "t1", try Make.summary()),
@@ -483,6 +521,7 @@ final class PilotStatusSourceTests {
         clock.tick()
         await eventually { clock.sleeps.count == 3 }
         source.stopPeriodicCheck()
+        await eventually { clock.waitingCount == 0 }
 
         #expect(door.views.map(\.since) == [nil, "t1"])
         #expect(clock.sleeps.allSatisfy { $0 == .seconds(60) })
