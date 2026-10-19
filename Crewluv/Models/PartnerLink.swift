@@ -60,9 +60,9 @@ nonisolated enum PartnerLink: Equatable, Sendable {
     }
 
     /// A code as the door takes it: 6 letters or digits in capitals, from text in any case that may
-    /// hold spaces or dashes. Nil for anything else.
+    /// hold spaces, line breaks or dashes. Nil for anything else.
     static func code(from text: String) -> String? {
-        let code = text.filter { $0 != " " && $0 != "-" }.uppercased()
+        let code = text.filter { !$0.isWhitespace && $0 != "-" }.uppercased()
         guard code.count == 6, code.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
         return code
     }

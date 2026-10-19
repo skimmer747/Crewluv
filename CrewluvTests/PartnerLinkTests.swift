@@ -71,7 +71,7 @@ struct PartnerLinkTests {
         #expect(PartnerLink(text: "  https://crewluve.crewlu.net/join#t=\(invite)\n") == .invite(invite))
     }
 
-    @Test(arguments: ["K7MQ2X", "k7mq2x", "K7M Q2X", "k7m-q2x", " K7M-Q2X ", "K 7 M Q 2 X"])
+    @Test(arguments: ["K7MQ2X", "k7mq2x", "K7M Q2X", "k7m-q2x", " K7M-Q2X ", "K 7 M Q 2 X", "K7M\tQ2X", "K7M\nQ2X", "K7M\u{00A0}Q2X"])
     func test_typedCode_inAnyCase_withSpacesOrDashes(text: String) {
         #expect(PartnerLink(text: text) == .code("K7MQ2X"))
     }
