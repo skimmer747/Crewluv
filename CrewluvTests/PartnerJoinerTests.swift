@@ -194,6 +194,39 @@ final class PartnerJoinerTests {
         #expect(joiner.message == nil)
     }
 
+    @Test func test_anotherPilot_cancelled_whenThisDevicesKeyJoinedAnew_endsSharingWithTheLastOne() async throws {
+        onCrewluCloud()
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Self.summaryFromSam(), partnerID: Make.partnerB)]
+        let (joiner, source) = makeJoiner()
+
+        let join = Task { await joiner.join(.invite("invite")) }
+        await eventually { joiner.switchQuestion != nil }
+        joiner.answerSwitch(false)
+
+        #expect(await !join.value)
+        #expect(door.leaves == [Make.key])
+        #expect(!source.isOnCrewluCloud)
+        #expect(keys.key == nil)
+        #expect(source.sharingEndedWith == "Dad")
+        #expect(source.lastUpdate?.outcome == .sharingEnded)
+    }
+
+    @Test func test_followingAPilotNotSavedYet_readsThemFirst_thenAsks() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad"))]
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Self.summaryFromSam(), partnerID: Make.partnerB)]
+        let (joiner, _) = makeJoiner()
+
+        let join = Task { await joiner.join(.invite("invite")) }
+        await eventually { joiner.switchQuestion != nil }
+
+        #expect(joiner.switchQuestion == SwitchQuestion(newPilot: "Sam", currentPilot: "Dad", deviceModel: "iPhone"))
+        joiner.answerSwitch(false)
+        #expect(await !join.value)
+    }
+
     @Test func test_anotherPilot_onICloud_asksToo() async throws {
         onICloud()
         door.joinAnswers = [.success(Self.joinedB)]

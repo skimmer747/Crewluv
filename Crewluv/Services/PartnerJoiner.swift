@@ -101,6 +101,11 @@ final class PartnerJoiner {
         } catch {
             return .failed(.couldntConnect)
         }
+        // The pilot followed is saved with their first status, so on the first launch since this
+        // update it may not be yet: read it before comparing.
+        if isFollowingAPilot, connection.pilotID == nil {
+            _ = await source.refresh()
+        }
         let newPilot = Self.pilot(in: answer)
         if let newPilot, let followedPilotID, newPilot.id != followedPilotID {
             let question = SwitchQuestion(
@@ -108,6 +113,11 @@ final class PartnerJoiner {
             )
             guard await ask(question) else {
                 await device.cancel(joined)
+                if joined.isDeviceKey {
+                    // This device's key joined anew, so its old device was gone: sharing with the
+                    // pilot it followed has ended (spec §7.6).
+                    source.endSharing()
+                }
                 return .cancelled
             }
         }
