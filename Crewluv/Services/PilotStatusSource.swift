@@ -66,6 +66,13 @@ final class PilotStatusSource {
 
     var isOnCrewluCloud: Bool { crewluCloudPartnerID != nil }
 
+    /// The name the pilot set for this partner, for the screen's title: the reading's, or the saved
+    /// one while an iCloud read can't look it up, as the alerts use.
+    var displayName: String? {
+        guard let reading else { return nil }
+        return reading.isDisplayNameKnown ? reading.displayName : defaults.string(forKey: Self.displayNameKey)
+    }
+
     @ObservationIgnored private let iCloud: ICloudStatusFetching
     @ObservationIgnored private let door: PartnerDoor
     @ObservationIgnored private let keys: DeviceKeyStore

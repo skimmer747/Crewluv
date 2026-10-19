@@ -337,7 +337,7 @@ class PartnerStatusReceiver {
         }
 
         let raw = reading.status(at: now)
-        let displayName = reading.displayName ?? raw.pilotFirstName
+        let displayName = statusSource.displayName ?? raw.pilotFirstName
 
         guard raw.hasTripLegs else {
             debugLog("[Resolve] No trip legs, using raw status")

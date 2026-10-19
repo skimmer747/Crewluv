@@ -139,6 +139,21 @@ final class PilotStatusSourceTests {
         #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
     }
 
+    @Test func test_displayName_forTheScreen_isTheSavedOne_whileICloudCantLookItUp() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 2, displayName: "Pops")),
+        ]
+        let source = makeSource()
+        #expect(source.displayName == nil)
+
+        _ = await source.refresh()
+        #expect(source.displayName == "Dad")
+        _ = await source.refresh()
+        #expect(source.displayName == "Pops")
+    }
+
     @Test func test_iCloud_noShare_isNotConnected() async {
         iCloud.results = [.failure(ICloudFetchError.notConnected)]
         let source = makeSource()
