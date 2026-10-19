@@ -99,6 +99,20 @@ final class CrewluCloudDeviceTests {
         #expect(joined.key == pending)
     }
 
+    @Test func test_join_withThisDevicesKey_aKeptPendingKeyAnotherPersonsDeviceHas_isReplaced() async throws {
+        keys.key = Make.key
+        keys.pending = "kept"
+        door.joinAnswers = [.failure(.refused(.keyInUse)), .failure(.refused(.keyInUse)), .success(Self.joinedB)]
+
+        let joined = try await device().join(.invite("invite"), label: "iPhone")
+
+        let pending = try #require(keys.pending)
+        #expect(pending != "kept")
+        #expect(door.joins.map(\.key) == [Make.key, "kept", pending])
+        #expect(joined.key == pending)
+        #expect(keys.key == Make.key)
+    }
+
     @Test func test_join_thatDoesntFinish_keepsThePendingKey() async {
         await #expect(throws: PartnerDoorError.unavailable) { try await self.device().join(.invite("invite"), label: "iPhone") }
 

@@ -116,13 +116,14 @@ final class CrewluCloudDevice {
 
     /// Joins with an invite or a code, as `label` in the pilot's list (spec §7.2 steps 1–2): with this
     /// device's key, or else the pending key, saved first, so this device's key changes only when it
-    /// switches. A key another person's device has gets a pending key and one more try.
+    /// switches. A key another person's device has gets the pending key a join that didn't finish
+    /// kept, and then, if that one is another person's too, a new one.
     func join(_ link: PartnerLink, label: String) async throws(PartnerDoorError) -> Joined {
         if let deviceKey = try readKey(keys.deviceKey) {
             do {
                 return try await join(link, key: deviceKey, label: label, isDeviceKey: true)
             } catch .refused(.keyInUse) {
-                return try await join(link, key: pendingKey(reusingKept: true), label: label, isDeviceKey: false)
+                // Another person's device has this key: a pending key joins instead.
             }
         }
         do {
