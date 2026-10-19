@@ -1,0 +1,77 @@
+//
+//  DeviceKeyStore.swift
+//  CrewLuve
+//
+//  This device's partner-door key, and where it's kept
+//
+
+import Foundation
+import Security
+
+/// A device's partner-door key: 32 random bytes as 64 lower-case hex characters, made on the
+/// device itself (partner-api.md, "The device key").
+nonisolated enum DeviceKey {
+    /// A new key, or nil if the system couldn't give random bytes.
+    static func make() -> String? {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return nil }
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// Where this device keeps its partner-door key.
+protocol DeviceKeyStore {
+    /// This device's key, or nil when it has none.
+    func deviceKey() -> String?
+    /// Saves this device's key in place of any other. False if it couldn't be saved.
+    @discardableResult func save(deviceKey: String) -> Bool
+    func forgetDeviceKey()
+}
+
+/// This device's key in the Keychain, as a generic password for this device only. iOS can read it
+/// in the background once the phone has been unlocked since it started, so a push at night still
+/// finds it. It never syncs, and never moves to another device in a backup.
+struct KeychainDeviceKeyStore: DeviceKeyStore {
+    static let service = "com.ToddAnderson.Crewluv.partnerCloud"
+    private static let account = "deviceKey"
+
+    private let service: String
+
+    init(service: String = Self.service) {
+        self.service = service
+    }
+
+    func deviceKey() -> String? {
+        var query = item
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data
+        else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    @discardableResult
+    func save(deviceKey: String) -> Bool {
+        let data = Data(deviceKey.utf8)
+        let updated = SecItemUpdate(item as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        guard updated == errSecItemNotFound else { return updated == errSecSuccess }
+        var newItem = item
+        newItem[kSecValueData as String] = data
+        newItem[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return SecItemAdd(newItem as CFDictionary, nil) == errSecSuccess
+    }
+
+    func forgetDeviceKey() {
+        SecItemDelete(item as CFDictionary)
+    }
+
+    private var item: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: Self.account,
+        ]
+    }
+}
