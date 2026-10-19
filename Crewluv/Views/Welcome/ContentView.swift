@@ -91,6 +91,7 @@ struct ContentView: View {
                     }
                     receiver.startPeriodicCheck()
                     Task { await BackgroundRefreshManager.shared.scheduleNextRefresh() }
+                    Task { await PushRegistrar.shared.appBecameActive() }
                 } else {
                     receiver.stopPeriodicCheck()
                 }

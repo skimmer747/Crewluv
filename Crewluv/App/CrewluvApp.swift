@@ -10,7 +10,6 @@ import SwiftUI
 // Notification names
 extension Notification.Name {
     static let shareAccepted = Notification.Name("shareAccepted")
-    static let cloudKitPushReceived = Notification.Name("cloudKitPushReceived")
     static let shareDataReset = Notification.Name("shareDataReset")
 }
 

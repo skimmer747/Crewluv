@@ -3,18 +3,16 @@
 //  CrewLuve
 //
 //  Schedules BGAppRefreshTask as a fallback for when iOS throttles
-//  silent push notifications, ensuring periodic CloudKit polling.
+//  silent push notifications, ensuring the status is read now and then.
 //
 
 import BackgroundTasks
-import CloudKit
 import Foundation
 
 actor BackgroundRefreshManager {
     static let shared = BackgroundRefreshManager()
 
     private let taskIdentifier = "com.ToddAnderson.Crewluv.statusRefresh"
-    private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
 
     // MARK: - Registration
 
@@ -76,52 +74,18 @@ actor BackgroundRefreshManager {
         }
     }
 
-    /// Fetches CloudKit status and evaluates changes — mirrors `AppDelegate.fetchPilotStatusFromCloudKit`.
+    /// Reads the status through the status source, which hands a new one to the alerts.
     private func fetchAndEvaluate() async throws {
-        let database: CKDatabase
-        let ownerName: String
-
-        if UserDefaults.standard.string(forKey: "PilotDataSource") == "privateDB" {
-            database = container.privateCloudDatabase
-            ownerName = CKCurrentUserDefaultName
-        } else {
-            guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                debugLog("[BGRefresh] No stored zone owner, skipping")
-                return
-            }
-            database = container.sharedCloudDatabase
-            ownerName = storedOwner
+        let outcome = await PilotStatusSource.shared.refresh()
+        if case .failed(let reason) = outcome {
+            throw BackgroundReadFailed(reason: reason)
         }
-
-        let zoneID = CKRecordZone.ID(zoneName: "PartnerBeaconZone", ownerName: ownerName)
-        let recordID = CKRecord.ID(recordName: "pilot-status", zoneID: zoneID)
-        let record = try await database.record(for: recordID)
-
-        guard let newStatus = await SharedPilotStatus.from(record: record) else {
-            throw NSError(
-                domain: "CrewLuve",
-                code: -2,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"]
-            )
-        }
-
-        let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
-            ?? newStatus.pilotFirstName
-
-        let effectiveDelay: Int? = await MainActor.run { newStatus.effectiveFlightDelayMinutes }
-        let resolvedHome: Date? = await MainActor.run {
-            TripStateResolver.resolveHomeArrival(
-                legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
-            )?.arrivalTime
-        }
-        await StatusChangeNotifier.shared.evaluateChanges(
-            old: nil,
-            new: newStatus,
-            pilotName: pilotName,
-            newEffectiveDelay: effectiveDelay,
-            resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
-        )
     }
+}
+
+/// A background read that didn't get the status.
+private struct BackgroundReadFailed: Error {
+    let reason: String
 }
 
 // MARK: - CancellableHandle

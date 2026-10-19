@@ -34,6 +34,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         debugLog("[AppDelegate] Registered for remote notifications")
         NotificationDiagnostics.shared.record(.apnsRegistered)
+        Task { await PushRegistrar.shared.didReceive(deviceToken: deviceToken) }
     }
 
     func application(
@@ -51,85 +52,26 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         debugLog("[AppDelegate] Received remote notification")
 
-        guard userInfo["ck"] != nil else {
-            debugLog("[AppDelegate] Not a CloudKit notification, ignoring")
+        let source = PilotStatusSource.shared
+        guard PushRoute(userInfo: userInfo, isOnCrewluCloud: source.isOnCrewluCloud) == .refresh else {
+            debugLog("[AppDelegate] Not a status push, ignoring")
             completionHandler(.noData)
             return
         }
 
         NotificationDiagnostics.shared.record(.silentPushReceived)
 
-        // Post for foreground UI updates (PartnerStatusReceiver observes this)
-        NotificationCenter.default.post(name: .cloudKitPushReceived, object: nil)
-
-        // Fetch status directly so notifications fire even when the app is suspended
+        // Read the status now, so alerts fire even when the app is suspended. The source hands a
+        // new status to the alerts, and the screen hears of it from the source.
         Task {
-            do {
-                let newStatus = try await fetchPilotStatusFromCloudKit()
-                let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
-                    ?? newStatus.pilotFirstName
-                let resolvedHome = TripStateResolver.resolveHomeArrival(
-                    legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
-                )?.arrivalTime
-
-                await StatusChangeNotifier.shared.evaluateChanges(
-                    old: nil,
-                    new: newStatus,
-                    pilotName: pilotName,
-                    newEffectiveDelay: newStatus.effectiveFlightDelayMinutes,
-                    resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
-                )
-
+            let outcome = await source.refresh().backgroundFetchOutcome
+            if outcome != .failed {
                 // Re-schedule BG refresh after successful push handling
                 await BackgroundRefreshManager.shared.scheduleNextRefresh()
-
-                debugLog("[AppDelegate] Background fetch + evaluate completed")
-                completionHandler(.newData)
-            } catch {
-                debugLog("[AppDelegate] Background fetch failed: \(error)")
-                completionHandler(.failed)
             }
+            debugLog("[AppDelegate] Push handled: \(outcome)")
+            completionHandler(outcome.backgroundFetchResult)
         }
-    }
-
-    // MARK: - Background CloudKit Fetch
-
-    /// Fetches the pilot-status record directly from CloudKit using persisted config.
-    /// Mirrors the database/owner resolution logic in PartnerStatusReceiver.
-    private func fetchPilotStatusFromCloudKit() async throws -> SharedPilotStatus {
-        let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
-
-        let database: CKDatabase
-        let ownerName: String
-
-        if UserDefaults.standard.string(forKey: "PilotDataSource") == "privateDB" {
-            database = container.privateCloudDatabase
-            ownerName = CKCurrentUserDefaultName
-        } else {
-            guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                throw NSError(
-                    domain: "CrewLuve",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "No stored zone owner"]
-                )
-            }
-            database = container.sharedCloudDatabase
-            ownerName = storedOwner
-        }
-
-        let zoneID = CKRecordZone.ID(zoneName: "PartnerBeaconZone", ownerName: ownerName)
-        let recordID = CKRecord.ID(recordName: "pilot-status", zoneID: zoneID)
-        let record = try await database.record(for: recordID)
-
-        guard let status = SharedPilotStatus.from(record: record) else {
-            throw NSError(
-                domain: "CrewLuve",
-                code: -2,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"]
-            )
-        }
-
-        return status
     }
 
     // MARK: - UNUserNotificationCenterDelegate
@@ -221,6 +163,18 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         debugLog("[AppDelegate] userDidAcceptCloudKitShareWith called")
         Task { @MainActor in
             await CloudKitShareManager.shared.acceptShare(with: cloudKitShareMetadata)
+        }
+    }
+}
+
+// MARK: - Background Fetch Results
+
+private extension BackgroundFetchOutcome {
+    var backgroundFetchResult: UIBackgroundFetchResult {
+        switch self {
+        case .newData: .newData
+        case .noData: .noData
+        case .failed: .failed
         }
     }
 }
