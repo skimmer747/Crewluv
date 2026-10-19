@@ -344,7 +344,7 @@ class PartnerStatusReceiver {
 
         guard raw.hasTripLegs else {
             debugLog("[Resolve] No trip legs, using raw status")
-            pilotStatus = raw
+            pilotStatus = raw.named(displayName)
             scheduleResolve(transition: nil, reading: reading, now: now)
             return
         }
