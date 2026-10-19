@@ -18,11 +18,21 @@ final class StandInPartnerDoor: PartnerDoor {
     var viewAnswers: [Result<PartnerViewAnswer, PartnerDoorError>] = []
     /// The answers to `setPush`, in order. With none left, it says ok.
     var setPushAnswers: [Result<Void, PartnerDoorError>] = []
+    /// The answers to `join` and `redeem`, in order. With none left, the door can't be reached.
+    var joinAnswers: [Result<PartnerJoinAnswer, PartnerDoorError>] = []
+    /// The answers to `makeHandOffCode`, in order. With none left, the door can't be reached.
+    var handOffAnswers: [Result<HandOffCode, PartnerDoorError>] = []
+    /// The answers to `leave`, in order. With none left, it says ok.
+    var leaveAnswers: [Result<Void, PartnerDoorError>] = []
     /// While true, each `view` waits for `release()`.
     var holdsViews = false
 
     private(set) var views: [(key: String, since: String?)] = []
     private(set) var pushes: [(key: String, token: String, environment: PushEnvironment)] = []
+    /// Each join and redeem: what it joined with, and the key and label it sent.
+    private(set) var joins: [(link: PartnerLink, key: String, label: String)] = []
+    private(set) var handOffs: [String] = []
+    private(set) var leaves: [String] = []
     private var held: [CheckedContinuation<Void, Never>] = []
 
     func view(key: String, since: String?) async throws(PartnerDoorError) -> PartnerViewAnswer {
@@ -38,6 +48,33 @@ final class StandInPartnerDoor: PartnerDoor {
         pushes.append((key, token, environment))
         guard !setPushAnswers.isEmpty else { return }
         try setPushAnswers.removeFirst().get()
+    }
+
+    func join(invite: String, key: String, label: String) async throws(PartnerDoorError) -> PartnerJoinAnswer {
+        joins.append((.invite(invite), key, label))
+        return try nextJoinAnswer()
+    }
+
+    func redeem(code: String, key: String, label: String) async throws(PartnerDoorError) -> PartnerJoinAnswer {
+        joins.append((.code(code), key, label))
+        return try nextJoinAnswer()
+    }
+
+    func makeHandOffCode(key: String) async throws(PartnerDoorError) -> HandOffCode {
+        handOffs.append(key)
+        guard !handOffAnswers.isEmpty else { throw .unavailable }
+        return try handOffAnswers.removeFirst().get()
+    }
+
+    func leave(key: String) async throws(PartnerDoorError) {
+        leaves.append(key)
+        guard !leaveAnswers.isEmpty else { return }
+        try leaveAnswers.removeFirst().get()
+    }
+
+    private func nextJoinAnswer() throws(PartnerDoorError) -> PartnerJoinAnswer {
+        guard !joinAnswers.isEmpty else { throw .unavailable }
+        return try joinAnswers.removeFirst().get()
     }
 
     /// Lets every held `view` go on.

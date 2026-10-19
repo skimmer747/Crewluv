@@ -8,8 +8,7 @@
 import Foundation
 
 /// Crewlu Cloud's partner door: the calls a partner's device makes with only the publishable key
-/// and its own device key (CrewLu's `supabase/partner-api.md`). This version reads the summary and
-/// registers for pushes; joining, codes and leaving come with the screens that use them.
+/// and its own device key (CrewLu's `supabase/partner-api.md`).
 protocol PartnerDoor {
     /// partner_view: the pilot's summary, trimmed for the partner whose device holds `key`.
     /// `since` is the last answer's `updatedAt`, sent back exactly as it came, so a summary that
@@ -19,6 +18,20 @@ protocol PartnerDoor {
     /// partner_set_push: this device's push token, as lower-case hex, and the Apple service it
     /// belongs to.
     func setPush(key: String, token: String, environment: PushEnvironment) async throws(PartnerDoorError)
+
+    /// partner_join: joins the partner the pilot's invite is for, as an app device holding `key`,
+    /// named `label` in the pilot's list. The same key gets the same device again.
+    func join(invite: String, key: String, label: String) async throws(PartnerDoorError) -> PartnerJoinAnswer
+
+    /// partner_handoff_redeem: joins with a code from another of the partner's devices, as join does.
+    func redeem(code: String, key: String, label: String) async throws(PartnerDoorError) -> PartnerJoinAnswer
+
+    /// partner_handoff_create: a code another of this partner's devices can join with. It replaces
+    /// the partner's open code.
+    func makeHandOffCode(key: String) async throws(PartnerDoorError) -> HandOffCode
+
+    /// partner_leave: this device leaves its partner's devices.
+    func leave(key: String) async throws(PartnerDoorError)
 }
 
 /// Why a partner-door call gave no answer to use.
@@ -40,6 +53,12 @@ nonisolated enum PartnerDoorError: Error, Equatable {
         /// Too many wrong codes in the last minute.
         case tryLater = "try_later"
     }
+}
+
+/// partner_join's and partner_handoff_redeem's answer: the device this key is, and its partner.
+struct PartnerJoinAnswer: Equatable, Sendable {
+    let deviceID: String
+    let partnerID: String
 }
 
 /// partner_view's answer.

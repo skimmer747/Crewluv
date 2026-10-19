@@ -14,6 +14,7 @@ import Testing
 struct LivePartnerDoorTests {
 
     private static let partner = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private static let device = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
     private static let key = String(repeating: "ab", count: 32)
     private static let updatedAt = "2026-10-18T22:01:40.493+00:00"
     private static let status = #"{"pilotId": "pilot", "pilotFirstName": "Alex", "lastUpdated": 1792605600, "appVersion": "3.0"}"#
@@ -51,6 +52,47 @@ struct LivePartnerDoorTests {
         #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_set_push")
         #expect(request.value(forHTTPHeaderField: "apikey") == LivePartnerDoor.publishableKey)
         #expect(try network.parameters(request) == ["p_key": Self.key, "p_token": "0a1b2c", "p_env": "sandbox"])
+    }
+
+    @Test func test_join_postsTheInviteTheKeyAndTheLabel_asAnApp() async throws {
+        let network = StandInNetwork(body: #"{"device_id": "\#(Self.device)", "partner_id": "\#(Self.partner)"}"#)
+        let answer = try await network.door.join(invite: "0f1e2d3c", key: Self.key, label: "iPhone")
+
+        let request = try #require(network.requests.first)
+        #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_join")
+        #expect(request.value(forHTTPHeaderField: "apikey") == LivePartnerDoor.publishableKey)
+        #expect(try network.parameters(request) == ["p_invite": "0f1e2d3c", "p_device_key": Self.key, "p_kind": "app", "p_label": "iPhone"])
+        #expect(answer == PartnerJoinAnswer(deviceID: Self.device, partnerID: Self.partner))
+    }
+
+    @Test func test_redeem_postsTheCodeTheKeyAndTheLabel_asAnApp() async throws {
+        let network = StandInNetwork(body: #"{"device_id": "\#(Self.device)", "partner_id": "\#(Self.partner)"}"#)
+        let answer = try await network.door.redeem(code: "K7MQ2X", key: Self.key, label: "iPad")
+
+        let request = try #require(network.requests.first)
+        #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_handoff_redeem")
+        #expect(try network.parameters(request) == ["p_token": "K7MQ2X", "p_device_key": Self.key, "p_kind": "app", "p_label": "iPad"])
+        #expect(answer == PartnerJoinAnswer(deviceID: Self.device, partnerID: Self.partner))
+    }
+
+    @Test func test_makeHandOffCode_postsTheKey() async throws {
+        let network = StandInNetwork(body: #"{"code": "K7MQ2X", "expires_at": "2026-10-19T14:15:08.613123+00:00"}"#)
+        let code = try await network.door.makeHandOffCode(key: Self.key)
+
+        let request = try #require(network.requests.first)
+        #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_handoff_create")
+        #expect(try network.parameters(request) == ["p_key": Self.key])
+        #expect(code.code == "K7MQ2X")
+        #expect(abs(code.expiresAt.timeIntervalSince1970 - 1_792_419_308.613123) < 0.000_01)
+    }
+
+    @Test func test_leave_postsTheKey() async throws {
+        let network = StandInNetwork(body: #"{"ok": true}"#)
+        try await network.door.leave(key: Self.key)
+
+        let request = try #require(network.requests.first)
+        #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_leave")
+        #expect(try network.parameters(request) == ["p_key": Self.key])
     }
 
     // MARK: - Answers
@@ -93,6 +135,25 @@ struct LivePartnerDoorTests {
         }
     }
 
+    @Test(arguments: [
+        ("2026-10-19T14:15:08.613123+00:00", 1_792_419_308.613123),
+        ("2026-10-19T14:15:08.613+00:00", 1_792_419_308.613),
+        ("2026-10-19T14:15:08+00:00", 1_792_419_308.0),
+        ("2026-10-19T09:15:08.613123-05:00", 1_792_419_308.613123),
+    ])
+    func test_handOffCode_expiry_inEachFormCrewluCloudSends(expiresAt: String, seconds: Double) async throws {
+        let network = StandInNetwork(body: #"{"code": "K7MQ2X", "expires_at": "\#(expiresAt)"}"#)
+        let code = try await network.door.makeHandOffCode(key: Self.key)
+
+        #expect(abs(code.expiresAt.timeIntervalSince1970 - seconds) < 0.000_01)
+    }
+
+    @Test func test_handOffCode_withAnExpiryThatDoesntRead_isUnavailable() async {
+        let network = StandInNetwork(body: #"{"code": "K7MQ2X", "expires_at": "tomorrow"}"#)
+
+        await #expect(throws: PartnerDoorError.unavailable) { try await network.door.makeHandOffCode(key: Self.key) }
+    }
+
     @Test func test_setPush_ok() async throws {
         try await StandInNetwork(body: #"{"ok": true}"#).door.setPush(key: Self.key, token: "0a1b2c", environment: .production)
     }
@@ -110,6 +171,10 @@ struct LivePartnerDoorTests {
 
         await #expect(throws: expected) { try await network.door.view(key: Self.key, since: nil) }
         await #expect(throws: expected) { try await network.door.setPush(key: Self.key, token: "0a1b2c", environment: .sandbox) }
+        await #expect(throws: expected) { try await network.door.join(invite: "0f1e2d3c", key: Self.key, label: "iPhone") }
+        await #expect(throws: expected) { try await network.door.redeem(code: "K7MQ2X", key: Self.key, label: "iPhone") }
+        await #expect(throws: expected) { try await network.door.makeHandOffCode(key: Self.key) }
+        await #expect(throws: expected) { try await network.door.leave(key: Self.key) }
     }
 
     @Test(arguments: [400, 401, 404, 500, 503])
