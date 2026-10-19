@@ -9,8 +9,16 @@ import Foundation
 import Observation
 
 extension Notification.Name {
-    /// The source has a new reading, or none any more because sharing ended.
-    static let pilotReadingDidChange = Notification.Name("pilotReadingDidChange")
+    /// A read ended, or sharing ended outside one: the source's `lastUpdate` says how it went.
+    /// Posted on the main actor.
+    static let pilotStatusDidUpdate = Notification.Name("pilotStatusDidUpdate")
+}
+
+/// How a read went, for the screen, whoever asked for the read.
+nonisolated struct PilotStatusUpdate: Equatable, Sendable {
+    let outcome: RefreshOutcome
+    /// When the read began, for the screen's "Synced" line.
+    let readAt: Date
 }
 
 /// How a refresh ended.
@@ -51,6 +59,8 @@ final class PilotStatusSource {
 
     /// What was last read, or nil before the first read and after sharing ends.
     private(set) var reading: PilotReading?
+    /// How the last read went, or how sharing ended outside a read.
+    private(set) var lastUpdate: PilotStatusUpdate?
     /// This device's partner id on Crewlu Cloud, or nil while it follows its pilot through iCloud.
     private(set) var crewluCloudPartnerID: String?
 
@@ -118,9 +128,15 @@ final class PilotStatusSource {
         return await next.value
     }
 
+    /// Runs one read, and tells the screen how it went before anyone waiting on it carries on.
     private func runRead() async -> RefreshOutcome {
         queuedRead = nil
-        let read = Task { await self.read() }
+        let read = Task {
+            let readAt = Date()
+            let outcome = await self.read()
+            self.report(PilotStatusUpdate(outcome: outcome, readAt: readAt))
+            return outcome
+        }
         readUnderWay = read
         let outcome = await read.value
         if readUnderWay == read {
@@ -129,23 +145,35 @@ final class PilotStatusSource {
         return outcome
     }
 
-    /// The pilot stopped sharing with this device: forget its key and the connection, as today's
-    /// iCloud reset forgets the share (spec §7.6).
+    private func report(_ update: PilotStatusUpdate) {
+        lastUpdate = update
+        NotificationCenter.default.post(name: .pilotStatusDidUpdate, object: self)
+    }
+
+    /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
+    /// forget the connection, and tell the screen.
     func endSharing() {
+        forgetConnection()
+        report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
+    }
+
+    /// iCloud's share data was reset, by Reset Share Data or the share ending: an iCloud reading
+    /// is no longer the pilot's status. The screen clears itself on the same reset.
+    func forgetICloudReading() {
+        guard case .iCloud? = reading else { return }
+        reading = nil
+    }
+
+    /// Forgets this device's key and its Crewlu Cloud connection, as today's iCloud reset forgets
+    /// the share (spec §7.6).
+    private func forgetConnection() {
         keys.forgetDeviceKey()
         connection.partnerID = nil
         crewluCloudPartnerID = nil
         since = nil
+        reading = nil
         defaults.removeObject(forKey: Self.displayNameKey)
         defaults.removeObject(forKey: Self.snapshotKey)
-        show(nil)
-    }
-
-    /// iCloud's share data was reset, by Reset Share Data or the share ending: an iCloud reading
-    /// is no longer the pilot's status.
-    func forgetICloudReading() {
-        guard case .iCloud? = reading else { return }
-        show(nil)
     }
 
     private func read() async -> RefreshOutcome {
@@ -169,7 +197,7 @@ final class PilotStatusSource {
         do {
             return await take(try await door.view(key: key, since: since))
         } catch .refused(.sharingEnded) {
-            endSharing()
+            forgetConnection()
             return .sharingEnded
         } catch {
             since = nil
@@ -227,7 +255,7 @@ final class PilotStatusSource {
         } catch ICloudFetchError.notConnected {
             return .notConnected
         } catch ICloudFetchError.shareGone {
-            show(nil)
+            reading = nil
             iCloudShareEnded()
             return .sharingEnded
         } catch {
@@ -237,7 +265,8 @@ final class PilotStatusSource {
 
     // MARK: - A New Reading
 
-    /// Makes `newReading` the reading, tells the screen, and hands it to the alerts once.
+    /// Makes `newReading` the reading and hands it to the alerts once. The screen hears of it when
+    /// the read ends.
     private func adopt(_ newReading: PilotReading) async -> RefreshOutcome {
         let previous = reading
         if let name = newReading.displayName {
@@ -246,14 +275,9 @@ final class PilotStatusSource {
             defaults.removeObject(forKey: Self.displayNameKey)
         }
         logLegChanges(from: previous, to: newReading)
-        show(newReading)
+        reading = newReading
         await alert(newReading)
         return .newStatus
-    }
-
-    private func show(_ newReading: PilotReading?) {
-        reading = newReading
-        NotificationCenter.default.post(name: .pilotReadingDidChange, object: self)
     }
 
     /// Hands a new status to the alerts, with what they compare: the effective delay and the

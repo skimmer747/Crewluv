@@ -100,6 +100,23 @@ final class Counter {
     var count = 0
 }
 
+/// What the status source told the screen, in order.
+@MainActor
+final class Heard {
+    private(set) var outcomes: [RefreshOutcome] = []
+
+    /// Listens until the returned observer is removed.
+    func listen(to source: PilotStatusSource) -> any NSObjectProtocol {
+        NotificationCenter.default.addObserver(forName: .pilotStatusDidUpdate, object: source, queue: nil) { _ in
+            MainActor.assumeIsolated {
+                if let outcome = source.lastUpdate?.outcome {
+                    self.outcomes.append(outcome)
+                }
+            }
+        }
+    }
+}
+
 /// Summaries, door answers and iCloud readings for tests, made from a few fields.
 @MainActor
 enum Make {

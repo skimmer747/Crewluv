@@ -308,25 +308,39 @@ final class PilotStatusSourceTests {
         #expect(!source.isReadQueued)
     }
 
-    @Test func test_theScreenHearsOfNewStatusesAndOfSharingEnding() async throws {
+    @Test func test_theScreenHearsHowEveryReadWent() async throws {
         door.viewAnswers = [
             Make.answer(updatedAt: "t1", try Make.summary()),
             Make.unchanged(updatedAt: "t1"),
+            .failure(.unavailable),
             .failure(.refused(.sharingEnded)),
         ]
         let source = connectedSource()
-        let heard = Counter()
-        let observer = NotificationCenter.default.addObserver(forName: .pilotReadingDidChange, object: source, queue: nil) { _ in
-            MainActor.assumeIsolated { heard.count += 1 }
+        let heard = Heard()
+        let observer = heard.listen(to: source)
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let before = Date()
+
+        for _ in 0..<4 {
+            _ = await source.refresh()
         }
+
+        #expect(heard.outcomes == [.newStatus, .unchanged, .failed("No connection to Crewlu Cloud"), .sharingEnded])
+        let readAt = try #require(source.lastUpdate?.readAt)
+        #expect(readAt >= before && readAt <= Date())
+    }
+
+    @Test func test_theScreenHearsOfSharingEndingOutsideARead() {
+        let source = connectedSource()
+        let heard = Heard()
+        let observer = heard.listen(to: source)
         defer { NotificationCenter.default.removeObserver(observer) }
 
-        _ = await source.refresh()
-        #expect(heard.count == 1)
-        _ = await source.refresh()
-        #expect(heard.count == 1)
-        _ = await source.refresh()
-        #expect(heard.count == 2)
+        source.endSharing()
+
+        #expect(heard.outcomes == [.sharingEnded])
+        #expect(!source.isOnCrewluCloud)
+        #expect(keys.key == nil)
     }
 
     // MARK: - The Reading

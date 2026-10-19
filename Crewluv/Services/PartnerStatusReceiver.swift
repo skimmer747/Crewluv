@@ -69,16 +69,16 @@ class PartnerStatusReceiver {
             }
         }
 
-        // Show what a push or the background refresh read, too
+        // Show how every read went, whoever asked for it: this screen, a push, the background
+        // refresh or the 60-second check. The source posts on the main actor.
         NotificationCenter.default.addObserver(
-            forName: .pilotReadingDidChange,
+            forName: .pilotStatusDidUpdate,
             object: statusSource,
-            queue: .main
+            queue: nil
         ) { [weak self] _ in
-            debugLog("[StatusReceiver] The status source has a new reading")
-            guard let self else { return }
-            Task { @MainActor in
-                self.showReading()
+            MainActor.assumeIsolated {
+                guard let self, let update = self.statusSource.lastUpdate else { return }
+                self.show(update)
             }
         }
 
@@ -139,7 +139,8 @@ class PartnerStatusReceiver {
         }
     }
 
-    /// Reads the pilot's status through the status source, and shows how that went.
+    /// Reads the pilot's status through the status source. How the read went reaches `show(_:)`,
+    /// as every read's does.
     func checkForSharedData() async {
         if pilotStatus == nil {
             isLoading = true
@@ -157,7 +158,6 @@ class PartnerStatusReceiver {
         // would otherwise stay stuck on .privateDB and keep showing the local Duty data.
         syncDataSourceFromDefaults()
 
-        let syncStartTime = Date()
         debugLog("[StatusReceiver] Starting sync")
 
         // The iCloud account matters only while the status comes through iCloud.
@@ -180,15 +180,21 @@ class PartnerStatusReceiver {
             }
         }
 
-        switch await statusSource.refresh() {
+        _ = await statusSource.refresh()
+    }
+
+    /// Shows how a read went, whoever asked for it.
+    private func show(_ update: PilotStatusUpdate) {
+        guard !isInDemoMode else { return }
+        switch update.outcome {
         case .newStatus, .unchanged:
             showReading()
-            lastSyncTime = syncStartTime
+            lastSyncTime = update.readAt
             lastSyncError = nil
             debugLog("[StatusReceiver] Sync complete")
         case .noStatusYet:
             hasAcceptedShare = true
-            lastSyncTime = syncStartTime
+            lastSyncTime = update.readAt
             lastSyncError = nil
             errorMessage = "Waiting for your pilot's first update."
         case .notConnected:
@@ -197,9 +203,10 @@ class PartnerStatusReceiver {
             lastSyncError = "No share accepted"
             errorMessage = "Please accept the share invitation from your pilot."
         case .sharingEnded:
-            // The pilot revoked sharing. The source has already reset the share data, so stop
-            // showing the status and surface a copy that says so.
+            // The pilot revoked sharing. The source has already forgotten the share or the
+            // connection, so stop showing the status and surface a copy that says so.
             debugLog("[StatusReceiver] ⚠️ Sharing has ended")
+            transitionTask?.cancel()
             hasAcceptedShare = false
             pilotStatus = nil
             errorMessage = "Sharing has ended. Ask your pilot for a new pairing link."
