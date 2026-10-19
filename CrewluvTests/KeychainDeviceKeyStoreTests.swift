@@ -21,25 +21,25 @@ struct KeychainDeviceKeyStoreTests {
         store.forgetDeviceKey()
     }
 
-    @Test func test_noKey_readsNil() {
-        #expect(store.deviceKey() == nil)
+    @Test func test_noKey_readsNil() throws {
+        #expect(try store.deviceKey() == nil)
     }
 
-    @Test func test_save_thenRead() {
+    @Test func test_save_thenRead() throws {
         #expect(store.save(deviceKey: "first"))
-        #expect(store.deviceKey() == "first")
+        #expect(try store.deviceKey() == "first")
     }
 
-    @Test func test_save_replacesTheKey() {
+    @Test func test_save_replacesTheKey() throws {
         store.save(deviceKey: "first")
         #expect(store.save(deviceKey: "second"))
-        #expect(store.deviceKey() == "second")
+        #expect(try store.deviceKey() == "second")
     }
 
-    @Test func test_forget_leavesNoKey() {
+    @Test func test_forget_leavesNoKey() throws {
         store.save(deviceKey: "first")
         store.forgetDeviceKey()
-        #expect(store.deviceKey() == nil)
+        #expect(try store.deviceKey() == nil)
     }
 
     @Test func test_key_staysOnThisDevice_andCanBeReadWhileLocked() throws {

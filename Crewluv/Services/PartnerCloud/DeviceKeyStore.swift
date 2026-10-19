@@ -19,10 +19,17 @@ nonisolated enum DeviceKey {
     }
 }
 
+/// The Keychain couldn't be read just now, as before the phone's first unlock since it started.
+/// That says nothing about whether there's a key.
+nonisolated struct DeviceKeyUnreadable: Error, Equatable {
+    /// The Keychain's status code.
+    let status: OSStatus
+}
+
 /// Where this device keeps its partner-door key.
 protocol DeviceKeyStore {
     /// This device's key, or nil when it has none.
-    func deviceKey() -> String?
+    func deviceKey() throws(DeviceKeyUnreadable) -> String?
     /// Saves this device's key in place of any other. False if it couldn't be saved.
     @discardableResult func save(deviceKey: String) -> Bool
     func forgetDeviceKey()
@@ -41,15 +48,21 @@ struct KeychainDeviceKeyStore: DeviceKeyStore {
         self.service = service
     }
 
-    func deviceKey() -> String? {
+    /// Nil only when the Keychain has no key for this device. Any other failure throws.
+    func deviceKey() throws(DeviceKeyUnreadable) -> String? {
         var query = item
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data
-        else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return nil
+        }
+        if status == errSecSuccess, let data = result as? Data, let key = String(data: data, encoding: .utf8) {
+            return key
+        }
+        debugLog("[DeviceKey] The key couldn't be read: OSStatus \(status)")
+        throw DeviceKeyUnreadable(status: status)
     }
 
     @discardableResult

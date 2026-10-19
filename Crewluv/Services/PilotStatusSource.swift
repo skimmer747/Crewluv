@@ -90,6 +90,7 @@ final class PilotStatusSource {
     /// What the alerts compare against. Sharing ending forgets it, as `resetShareData()` does.
     private static let snapshotKey = "LastSeenPilotSnapshot"
     private static let unreachable = "No connection to Crewlu Cloud"
+    private static let keyUnreadable = "This device's key couldn't be read"
 
     init(
         iCloud: ICloudStatusFetching = ICloudStatusFetcher(),
@@ -218,7 +219,14 @@ final class PilotStatusSource {
     // MARK: - Crewlu Cloud
 
     private func readCrewluCloud() async -> RefreshOutcome {
-        guard let key = keys.deviceKey() else {
+        let storedKey: String?
+        do {
+            storedKey = try keys.deviceKey()
+        } catch {
+            // The connection stays: the key is most likely there, and readable after an unlock.
+            return .failed(Self.keyUnreadable)
+        }
+        guard let key = storedKey else {
             connection.partnerID = nil
             crewluCloudPartnerID = nil
             reading = nil
@@ -245,9 +253,9 @@ final class PilotStatusSource {
 
     /// A key with no Crewlu Cloud connection saved is what a reinstall leaves: iOS keeps an app's
     /// Keychain items, not its settings (spec §5.3). It's tried on every refresh until Crewlu
-    /// Cloud answers. Nil carries on with iCloud.
+    /// Cloud answers, or the Keychain can be read. Nil carries on with iCloud.
     private func adoptLeftoverKey() async -> RefreshOutcome? {
-        guard let key = keys.deviceKey() else { return nil }
+        guard let key = try? keys.deviceKey() else { return nil }
         let answer: PartnerViewAnswer
         do {
             answer = try await door.view(key: key, since: nil)

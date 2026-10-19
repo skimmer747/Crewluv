@@ -224,6 +224,19 @@ final class PilotStatusSourceTests {
         #expect(door.views.isEmpty)
     }
 
+    @Test func test_crewluCloud_unreadableKey_isFailed_andKeepsTheConnection() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        keys.readFails = true
+        #expect(await source.refresh() == .failed("This device's key couldn't be read"))
+        #expect(source.isOnCrewluCloud)
+        #expect(source.reading != nil)
+        #expect(keys.key == Make.key)
+        #expect(door.views.count == 1)
+    }
+
     @Test func test_crewluCloud_keyGone_forgetsTheReading() async throws {
         door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
         let source = connectedSource()
@@ -305,6 +318,18 @@ final class PilotStatusSourceTests {
         #expect(keys.key == nil)
         #expect(!source.isOnCrewluCloud)
         #expect(iCloud.fetches == 1)
+    }
+
+    @Test func test_leftoverKey_unreadable_isLeftForNextTime() async throws {
+        keys.key = Make.key
+        keys.readFails = true
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(door.views.isEmpty)
+        #expect(keys.key == Make.key)
+        #expect(!source.isOnCrewluCloud)
     }
 
     @Test func test_leftoverKey_unreachable_isKept_andTriedAgainNextTime() async {

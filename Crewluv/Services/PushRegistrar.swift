@@ -9,13 +9,14 @@ import Foundation
 
 /// Sends this device's push token to Crewlu Cloud, so a change in the pilot's status wakes it
 /// (partner links piece 4 spec §6.1): when iOS gives the token at launch, right after
-/// connecting, and on coming to the front when the last try couldn't reach Crewlu Cloud.
+/// connecting, and on coming to the front when the last try couldn't finish.
 final class PushRegistrar {
     static let shared = PushRegistrar()
 
     /// The token iOS gave in this launch, as lower-case hex.
     private(set) var token: String?
-    /// Whether the last registration couldn't reach Crewlu Cloud, so it's tried again.
+    /// Whether the last registration couldn't reach Crewlu Cloud or read this device's key, so
+    /// it's tried again.
     private(set) var isOwed = false
 
     private let statusSource: PilotStatusSource
@@ -53,7 +54,16 @@ final class PushRegistrar {
 
     /// Sends the token, while this device is on Crewlu Cloud. Connecting calls this too.
     func register() async {
-        guard let token, statusSource.isOnCrewluCloud, let key = keys.deviceKey() else { return }
+        guard let token, statusSource.isOnCrewluCloud else { return }
+        let storedKey: String?
+        do {
+            storedKey = try keys.deviceKey()
+        } catch {
+            isOwed = true
+            record("Couldn't read this device's key")
+            return
+        }
+        guard let key = storedKey else { return }
         let environment = environment()
         do {
             try await door.setPush(key: key, token: token, environment: environment)

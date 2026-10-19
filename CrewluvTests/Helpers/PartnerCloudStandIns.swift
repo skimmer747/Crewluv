@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Security
 import Testing
 @testable import Crewluv
 
@@ -64,9 +65,14 @@ final class StandInICloud: ICloudStatusFetching {
 @MainActor
 final class InMemoryDeviceKeyStore: DeviceKeyStore {
     var key: String?
+    /// While true, reading the key fails, as the Keychain's does before the phone's first unlock.
+    var readFails = false
 
-    func deviceKey() -> String? {
-        key
+    func deviceKey() throws(DeviceKeyUnreadable) -> String? {
+        if readFails {
+            throw DeviceKeyUnreadable(status: errSecInteractionNotAllowed)
+        }
+        return key
     }
 
     func save(deviceKey: String) -> Bool {

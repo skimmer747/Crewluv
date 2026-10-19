@@ -94,6 +94,21 @@ final class PushRegistrarTests {
         #expect(log.entries == ["Couldn't reach Crewlu Cloud", "Sent (sandbox)"])
     }
 
+    @Test func test_unreadableKey_isTriedAgainOnComingToTheFront() async {
+        let (registrar, source) = makeRegistrar()
+        keys.readFails = true
+
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+        #expect(registrar.isOwed)
+        #expect(door.pushes.isEmpty)
+        keys.readFails = false
+        await registrar.appBecameActive()
+
+        #expect(door.pushes.map(\.token) == ["0a"])
+        #expect(log.entries == ["Couldn't read this device's key", "Sent (sandbox)"])
+        #expect(source.isOnCrewluCloud)
+    }
+
     @Test func test_sent_isntSentAgainOnComingToTheFront() async {
         let (registrar, _) = makeRegistrar()
 
