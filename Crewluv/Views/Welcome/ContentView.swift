@@ -269,41 +269,6 @@ struct NoShareView: View {
     }
 }
 
-// MARK: - Instruction Row
-
-struct InstructionRow: View {
-    let number: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 32, height: 32)
-                
-                Text(number)
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            .glassEffect(.regular, in: .circle)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding()
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-    }
-}
-
 // MARK: - Share Accepting Overlay
 
 struct ShareAcceptingOverlay: View {
