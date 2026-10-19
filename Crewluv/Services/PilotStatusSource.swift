@@ -25,16 +25,20 @@ final class PilotStatusSource {
 
     var isOnCrewluCloud: Bool { crewluCloudPartnerID != nil }
 
+    /// The pilot whose sharing with this device ended, as this partner saw them, for the welcome
+    /// screen's note (spec §7.6). It stays until the next status, and is nil when no pilot was seen.
+    private(set) var sharingEndedWith: String?
+
     /// The name the pilot set for this partner, for the screen's title: the reading's, or the saved
     /// one while an iCloud read can't look it up, as the alerts use.
     var displayName: String? {
         guard let reading else { return nil }
-        return reading.isDisplayNameKnown ? reading.displayName : defaults.string(forKey: Self.displayNameKey)
+        return reading.isDisplayNameKnown ? reading.displayName : connection.savedDisplayName
     }
 
     @ObservationIgnored private let iCloud: ICloudStatusFetching
     @ObservationIgnored private let device: CrewluCloudDevice
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let connection: PartnerConnection
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
     @ObservationIgnored private let periodicCheck: RepeatingRefresh
@@ -44,10 +48,6 @@ final class PilotStatusSource {
     @ObservationIgnored private let didConnect: @MainActor () -> Void
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
 
-    /// Where the alerts' title name is kept, as before.
-    private static let displayNameKey = "ResolvedPilotDisplayName"
-    /// What the alerts compare against. Sharing ending forgets it, as `resetShareData()` does.
-    private static let snapshotKey = "LastSeenPilotSnapshot"
     private static let unreachable = "No connection to Crewlu Cloud"
     private static let keyUnreadable = "This device's key couldn't be read"
 
@@ -62,12 +62,13 @@ final class PilotStatusSource {
         didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } }
     ) {
         self.iCloud = iCloud
-        self.defaults = defaults
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
         self.periodicCheck = periodicCheck
         self.didConnect = didConnect
-        device = CrewluCloudDevice(door: door, keys: keys, connection: PartnerConnection(defaults: defaults))
+        connection = PartnerConnection(defaults: defaults)
+        device = CrewluCloudDevice(door: door, keys: keys, connection: connection)
+        sharingEndedWith = connection.sharingEndedWith
     }
 
     // MARK: - Refreshing
@@ -96,7 +97,7 @@ final class PilotStatusSource {
     /// forget the connection, and tell the screen.
     func endSharing() {
         device.forget()
-        forgetPilot()
+        noteSharingEnded()
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
     }
 
@@ -107,12 +108,13 @@ final class PilotStatusSource {
         reading = nil
     }
 
-    /// Forgets the pilot's reading and what the alerts kept of them, as today's iCloud reset does
-    /// (spec §7.6).
-    private func forgetPilot() {
+    /// Sharing with this device ended: the welcome screen's note names the pilot last seen, if any,
+    /// and the pilot is forgotten (spec §7.6).
+    private func noteSharingEnded() {
+        connection.sharingEndedWith = connection.pilotName
+        sharingEndedWith = connection.pilotName
         reading = nil
-        defaults.removeObject(forKey: Self.displayNameKey)
-        defaults.removeObject(forKey: Self.snapshotKey)
+        connection.forgetPilot()
     }
 
     // MARK: - The 60-Second Check
@@ -162,7 +164,7 @@ final class PilotStatusSource {
             reading = nil
             return .notConnected
         case .sharingEnded:
-            forgetPilot()
+            noteSharingEnded()
             return .sharingEnded
         case .unavailable:
             return .failed(Self.unreachable)
@@ -210,7 +212,7 @@ final class PilotStatusSource {
         } catch ICloudFetchError.notConnected {
             return .notConnected
         } catch ICloudFetchError.shareGone {
-            reading = nil
+            noteSharingEnded()
             iCloudShareEnded()
             return .sharingEnded
         } catch {
@@ -225,7 +227,7 @@ final class PilotStatusSource {
               !current.isDisplayNameKnown || current.displayName != fetched.displayName
         else { return }
         let newReading = PilotReading.iCloud(fetched)
-        _ = keepDisplayName(of: newReading)
+        rememberPilot(of: newReading, named: keepDisplayName(of: newReading))
         reading = newReading
     }
 
@@ -236,6 +238,7 @@ final class PilotStatusSource {
     private func adopt(_ newReading: PilotReading) async -> RefreshOutcome {
         let previous = reading
         let name = keepDisplayName(of: newReading)
+        rememberPilot(of: newReading, named: name)
         PilotReading.logLegChanges(from: previous, to: newReading)
         reading = newReading
         await notifier.evaluate(newReading, titledWith: name)
@@ -246,13 +249,19 @@ final class PilotStatusSource {
     /// When an iCloud read couldn't look the name up, the saved one stays.
     private func keepDisplayName(of reading: PilotReading) -> String? {
         guard reading.isDisplayNameKnown else {
-            return defaults.string(forKey: Self.displayNameKey)
+            return connection.savedDisplayName
         }
-        if let name = reading.displayName {
-            defaults.set(name, forKey: Self.displayNameKey)
-        } else {
-            defaults.removeObject(forKey: Self.displayNameKey)
-        }
+        connection.savedDisplayName = reading.displayName
         return reading.displayName
+    }
+
+    /// Saves the reading's pilot, by the name the alerts use or else their first name (spec §5.1). A
+    /// status means a connection, so a note that sharing ended goes.
+    private func rememberPilot(of reading: PilotReading, named name: String?) {
+        let status = reading.status(at: Date())
+        connection.pilotID = status.pilotId
+        connection.pilotName = name ?? status.pilotFirstName
+        connection.sharingEndedWith = nil
+        sharingEndedWith = nil
     }
 }

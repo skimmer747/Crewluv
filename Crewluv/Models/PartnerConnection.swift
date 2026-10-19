@@ -8,9 +8,15 @@
 import Foundation
 
 /// How this device follows its pilot, as kept in its settings: through Crewlu Cloud once it has a
-/// partner id there, and through iCloud otherwise, which decides by its own settings as before.
+/// partner id there, and through iCloud otherwise, which decides by its own settings as before. With
+/// the pilot of the last status seen (spec §5.1).
 struct PartnerConnection {
     static let partnerIDKey = "partnerCloud.partnerID"
+    static let pilotIDKey = "partnerCloud.pilotID"
+    static let pilotNameKey = "partnerCloud.pilotName"
+    static let sharingEndedWithKey = "partnerCloud.sharingEndedWith"
+    /// Where the alerts' title name is kept, as before.
+    static let displayNameKey = "ResolvedPilotDisplayName"
 
     let defaults: UserDefaults
 
@@ -18,6 +24,39 @@ struct PartnerConnection {
     var partnerID: String? {
         get { defaults.string(forKey: Self.partnerIDKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.partnerIDKey) }
+    }
+
+    /// The pilot of the last status seen, to tell whether a link is from another pilot (spec §7.2).
+    var pilotID: String? {
+        get { defaults.string(forKey: Self.pilotIDKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.pilotIDKey) }
+    }
+
+    /// That pilot's name as this partner sees them: the nickname the pilot set, or their first name.
+    var pilotName: String? {
+        get { defaults.string(forKey: Self.pilotNameKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.pilotNameKey) }
+    }
+
+    /// The pilot whose sharing with this device ended, for the welcome screen's note (spec §7.6).
+    var sharingEndedWith: String? {
+        get { defaults.string(forKey: Self.sharingEndedWithKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.sharingEndedWithKey) }
+    }
+
+    /// The name the alerts' titles use: the nickname the pilot set for this partner, if any.
+    var savedDisplayName: String? {
+        get { defaults.string(forKey: Self.displayNameKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.displayNameKey) }
+    }
+
+    /// Forgets the pilot: their id and name, and what the alerts keep of them, which is the title
+    /// name, what they compare against and when they last looked, as today's iCloud reset does.
+    func forgetPilot() {
+        let keys = [Self.pilotIDKey, Self.pilotNameKey, Self.displayNameKey, "LastSeenPilotSnapshot", "LastEvaluatedPilotStatusTimestamp"]
+        for key in keys {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     /// Whether an iCloud share was accepted, or Crewluve runs on the pilot's own iCloud.

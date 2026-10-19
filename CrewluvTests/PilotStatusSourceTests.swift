@@ -522,6 +522,79 @@ final class PilotStatusSourceTests {
         #expect(keys.key == nil)
     }
 
+    // MARK: - The Pilot Last Seen, and Sharing Ended
+
+    @Test func test_eachNewStatus_savesThePilot_asThisPartnerSeesThem() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        _ = await connectedSource().refresh()
+
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "pilot")
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == "Dad")
+    }
+
+    @Test func test_aPilotWithoutANickname_isSavedByFirstName() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        _ = await makeSource().refresh()
+
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == "Alex")
+    }
+
+    @Test func test_sharingEnded_onCrewluCloud_leavesTheNote_andForgetsThePilot() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]])),
+            .failure(.refused(.sharingEnded)),
+        ]
+        let source = connectedSource()
+        _ = await source.refresh()
+        defaults.set(Date(timeIntervalSince1970: 1), forKey: "LastEvaluatedPilotStatusTimestamp")
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == "Dad")
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == "Dad")
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == nil)
+        #expect(defaults.object(forKey: "LastEvaluatedPilotStatusTimestamp") == nil)
+    }
+
+    @Test func test_sharingEnded_toldByThePushRegistration_leavesTheNote() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        source.endSharing()
+
+        #expect(source.sharingEndedWith == "Alex")
+    }
+
+    @Test func test_sharingEnded_onICloud_leavesTheNote() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == "Dad")
+    }
+
+    @Test func test_sharingEnded_beforeAnyStatus_leavesNoNote() async {
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        let source = connectedSource()
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == nil)
+    }
+
+    @Test func test_theNote_staysAfterARelaunch_untilTheNextStatus() async throws {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+        #expect(source.sharingEndedWith == "Dad")
+
+        _ = await source.refresh()
+
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+    }
+
     // MARK: - The 60-Second Check
 
     @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {
