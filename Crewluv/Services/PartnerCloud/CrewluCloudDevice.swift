@@ -106,7 +106,6 @@ final class CrewluCloudDevice {
         if case .noSummaryYet = answer.content, connection.hasICloudShare {
             return nil
         }
-        self.generation += 1
         connection.partnerID = answer.partnerID
         partnerID = answer.partnerID
         return answer
