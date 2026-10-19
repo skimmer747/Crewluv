@@ -9,8 +9,9 @@ import Foundation
 import Observation
 
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
-/// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud once this device is connected
-/// there, and iCloud otherwise, as before. Each new status goes to the alerts once, from here.
+/// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud, through `CrewluCloudDevice`,
+/// once this device is connected there, and iCloud otherwise, as before. Each new status goes to
+/// the alerts once, from here.
 @Observable
 final class PilotStatusSource {
     static let shared = PilotStatusSource()
@@ -20,7 +21,7 @@ final class PilotStatusSource {
     /// How the last read went, or how sharing ended outside a read.
     private(set) var lastUpdate: PilotStatusUpdate?
     /// This device's partner id on Crewlu Cloud, or nil while it follows its pilot through iCloud.
-    private(set) var crewluCloudPartnerID: String?
+    var crewluCloudPartnerID: String? { device.partnerID }
 
     var isOnCrewluCloud: Bool { crewluCloudPartnerID != nil }
 
@@ -32,9 +33,7 @@ final class PilotStatusSource {
     }
 
     @ObservationIgnored private let iCloud: ICloudStatusFetching
-    @ObservationIgnored private let door: PartnerDoor
-    @ObservationIgnored private let keys: DeviceKeyStore
-    @ObservationIgnored private let connection: PartnerConnection
+    @ObservationIgnored private let device: CrewluCloudDevice
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
@@ -43,12 +42,7 @@ final class PilotStatusSource {
     @ObservationIgnored private var screensInFront: [ObjectIdentifier: () -> Bool] = [:]
     /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
     @ObservationIgnored private let didConnect: @MainActor () -> Void
-    /// The last Crewlu Cloud answer's `updatedAt`, sent back as `since` within this run of the app.
-    /// The first read after a launch sends none, since the app doesn't keep the summary.
-    @ObservationIgnored private var since: String?
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
-    /// Goes up each time the connection is forgotten, so a read begun before then brings nothing back.
-    @ObservationIgnored private var connectionGeneration = 0
 
     /// Where the alerts' title name is kept, as before.
     private static let displayNameKey = "ResolvedPilotDisplayName"
@@ -68,15 +62,12 @@ final class PilotStatusSource {
         didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } }
     ) {
         self.iCloud = iCloud
-        self.door = door
-        self.keys = keys
         self.defaults = defaults
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
         self.periodicCheck = periodicCheck
         self.didConnect = didConnect
-        connection = PartnerConnection(defaults: defaults)
-        crewluCloudPartnerID = connection.partnerID
+        device = CrewluCloudDevice(door: door, keys: keys, connection: PartnerConnection(defaults: defaults))
     }
 
     // MARK: - Refreshing
@@ -104,7 +95,8 @@ final class PilotStatusSource {
     /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
     /// forget the connection, and tell the screen.
     func endSharing() {
-        forgetConnection()
+        device.forget()
+        forgetPilot()
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
     }
 
@@ -115,14 +107,9 @@ final class PilotStatusSource {
         reading = nil
     }
 
-    /// Forgets this device's key and its Crewlu Cloud connection, as today's iCloud reset forgets
-    /// the share (spec §7.6).
-    private func forgetConnection() {
-        connectionGeneration += 1
-        keys.forgetDeviceKey()
-        connection.partnerID = nil
-        crewluCloudPartnerID = nil
-        since = nil
+    /// Forgets the pilot's reading and what the alerts kept of them, as today's iCloud reset does
+    /// (spec §7.6).
+    private func forgetPilot() {
         reading = nil
         defaults.removeObject(forKey: Self.displayNameKey)
         defaults.removeObject(forKey: Self.snapshotKey)
@@ -166,57 +153,26 @@ final class PilotStatusSource {
     // MARK: - Crewlu Cloud
 
     private func readCrewluCloud() async -> RefreshOutcome {
-        let storedKey: String?
-        do {
-            storedKey = try keys.deviceKey()
-        } catch {
-            // The connection stays: the key is most likely there, and readable after an unlock.
+        switch await device.read() {
+        case .answer(let answer):
+            return await take(answer)
+        case .keyUnreadable:
             return .failed(Self.keyUnreadable)
-        }
-        guard let key = storedKey else {
-            connection.partnerID = nil
-            crewluCloudPartnerID = nil
+        case .keyGone:
             reading = nil
-            since = nil
             return .notConnected
-        }
-        let generation = connectionGeneration
-        let answer: PartnerViewAnswer
-        do {
-            answer = try await door.view(key: key, since: since)
-        } catch .refused(.sharingEnded) {
-            forgetConnection()
+        case .sharingEnded:
+            forgetPilot()
             return .sharingEnded
-        } catch {
-            guard generation == connectionGeneration else { return .sharingEnded }
-            since = nil
+        case .unavailable:
             return .failed(Self.unreachable)
         }
-        // Sharing ended while the door answered, say through the push registration: the answer
-        // is for a connection that's gone.
-        guard generation == connectionGeneration else { return .sharingEnded }
-        return await take(answer)
     }
 
-    /// A key with no Crewlu Cloud connection saved is what a reinstall leaves: iOS keeps an app's
-    /// Keychain items, not its settings (spec §5.3). It's tried on every refresh until Crewlu
-    /// Cloud answers, or the Keychain can be read. Nil carries on with iCloud.
+    /// A key a reinstall left connects this device when Crewlu Cloud answers for it (spec §5.3).
+    /// Nil carries on with iCloud.
     private func adoptLeftoverKey() async -> RefreshOutcome? {
-        guard let key = try? keys.deviceKey() else { return nil }
-        let answer: PartnerViewAnswer
-        do {
-            answer = try await door.view(key: key, since: nil)
-        } catch .refused(.sharingEnded) {
-            keys.forgetDeviceKey()
-            return nil
-        } catch {
-            return nil
-        }
-        if case .noSummaryYet = answer.content, connection.hasICloudShare {
-            return nil
-        }
-        connection.partnerID = answer.partnerID
-        crewluCloudPartnerID = answer.partnerID
+        guard let answer = await device.adoptLeftoverKey() else { return nil }
         didConnect()
         return await take(answer)
     }
@@ -230,7 +186,7 @@ final class PilotStatusSource {
         case .noSummaryYet:
             return .noStatusYet
         case .summary(let summary):
-            since = answer.updatedAt
+            device.since = answer.updatedAt
             if case .crewluCloud(_, let partnerID, let updatedAt)? = reading, updatedAt != nil,
                updatedAt == answer.updatedAt, partnerID == answer.partnerID {
                 return .unchanged
