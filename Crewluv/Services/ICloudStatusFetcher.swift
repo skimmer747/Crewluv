@@ -11,8 +11,11 @@ import Foundation
 /// What one iCloud read gives.
 struct ICloudReading {
     let status: SharedPilotStatus
-    /// The name the pilot set for this partner, or nil when there's none.
+    /// The name the pilot set for this partner, or nil when there's none or it couldn't be looked up.
     let displayName: String?
+    /// False when this partner's iCloud user record couldn't be looked up, so whether the pilot set
+    /// them a name isn't known.
+    let isDisplayNameKnown: Bool
     /// When CloudKit last saved the record, for the debug log of leg changes.
     let recordModifiedAt: Date?
 }
@@ -66,22 +69,26 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
         }
 
         guard let status = SharedPilotStatus.from(record: record) else { throw ICloudFetchError.unreadableRecord }
+        let name = await displayName(in: status)
         return ICloudReading(
             status: status,
-            displayName: await displayName(in: status),
+            displayName: name.name,
+            isDisplayNameKnown: name.isKnown,
             recordModifiedAt: record.modificationDate
         )
     }
 
     /// The name the pilot set for this partner, looked up strictly by this partner's own iCloud
     /// user record name: falling back to another entry would show a name meant for someone else.
-    private func displayName(in status: SharedPilotStatus) async -> String? {
+    /// Not known when that record name couldn't be looked up.
+    private func displayName(in status: SharedPilotStatus) async -> (name: String?, isKnown: Bool) {
         let names = status.displayNameByPartner
-        guard !names.isEmpty else { return nil }
+        guard !names.isEmpty else { return (nil, true) }
         if userRecordName == nil {
             userRecordName = try? await container.userRecordID().recordName
         }
-        guard let name = userRecordName.flatMap({ names[$0] }), !name.isEmpty else { return nil }
-        return name
+        guard let userRecordName else { return (nil, false) }
+        guard let name = names[userRecordName], !name.isEmpty else { return (nil, true) }
+        return (name, true)
     }
 }

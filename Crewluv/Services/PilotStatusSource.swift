@@ -298,6 +298,7 @@ final class PilotStatusSource {
         do {
             let fetched = try await iCloud.fetch()
             if let reading, reading.lastUpdated == fetched.status.lastUpdated {
+                takeLookedUpName(from: fetched)
                 return .unchanged
             }
             return await adopt(.iCloud(fetched))
@@ -312,26 +313,48 @@ final class PilotStatusSource {
         }
     }
 
+    /// The same status, now with this partner's name looked up where it couldn't be before, or with
+    /// another name: shows the name, without alerting again.
+    private func takeLookedUpName(from fetched: ICloudReading) {
+        guard fetched.isDisplayNameKnown, case .iCloud(let current)? = reading,
+              !current.isDisplayNameKnown || current.displayName != fetched.displayName
+        else { return }
+        let newReading = PilotReading.iCloud(fetched)
+        _ = keepDisplayName(of: newReading)
+        reading = newReading
+    }
+
     // MARK: - A New Reading
 
     /// Makes `newReading` the reading and hands it to the alerts once. The screen hears of it when
     /// the read ends.
     private func adopt(_ newReading: PilotReading) async -> RefreshOutcome {
         let previous = reading
-        if let name = newReading.displayName {
+        let name = keepDisplayName(of: newReading)
+        logLegChanges(from: previous, to: newReading)
+        reading = newReading
+        await alert(newReading, titledWith: name)
+        return .newStatus
+    }
+
+    /// Saves the reading's name for the alerts' titles, and gives the name to title them with now.
+    /// When an iCloud read couldn't look the name up, the saved one stays.
+    private func keepDisplayName(of reading: PilotReading) -> String? {
+        guard reading.isDisplayNameKnown else {
+            return defaults.string(forKey: Self.displayNameKey)
+        }
+        if let name = reading.displayName {
             defaults.set(name, forKey: Self.displayNameKey)
         } else {
             defaults.removeObject(forKey: Self.displayNameKey)
         }
-        logLegChanges(from: previous, to: newReading)
-        reading = newReading
-        await alert(newReading)
-        return .newStatus
+        return reading.displayName
     }
 
-    /// Hands a new status to the alerts, with what they compare: the effective delay and the
-    /// resolved home arrival, worked out as the screen used to.
-    private func alert(_ reading: PilotReading) async {
+    /// Hands a new status to the alerts, titled with `name` or else the pilot's first name, with what
+    /// they compare: the effective delay and the resolved home arrival, worked out as the screen
+    /// used to.
+    private func alert(_ reading: PilotReading, titledWith name: String?) async {
         let now = Date()
         let status = reading.status(at: now)
         let homeArrival = TripStateResolver.resolveHomeArrival(
@@ -340,7 +363,7 @@ final class PilotStatusSource {
         await notifier.evaluateChanges(
             old: nil,
             new: status,
-            pilotName: reading.displayName ?? status.pilotFirstName,
+            pilotName: name ?? status.pilotFirstName,
             newEffectiveDelay: status.effectiveFlightDelayMinutes,
             resolvedHomeArrivalTime: homeArrival ?? status.homeArrivalTime
         )

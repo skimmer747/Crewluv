@@ -162,10 +162,13 @@ enum Make {
         .success(PartnerViewAnswer(partnerID: partnerA, updatedAt: nil, content: .noSummaryYet))
 
     /// An iCloud read of a record made at `lastUpdated`.
-    static func iCloud(lastUpdated: TimeInterval, displayName: String? = nil) throws -> ICloudReading {
+    static func iCloud(
+        lastUpdated: TimeInterval, displayName: String? = nil, isDisplayNameKnown: Bool = true
+    ) throws -> ICloudReading {
         ICloudReading(
             status: try summary(lastUpdated: lastUpdated).pilotStatus(partnerID: partnerA, at: .now),
             displayName: displayName,
+            isDisplayNameKnown: isDisplayNameKnown,
             recordModifiedAt: nil
         )
     }

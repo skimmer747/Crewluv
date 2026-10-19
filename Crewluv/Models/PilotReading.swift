@@ -31,6 +31,12 @@ enum PilotReading {
         }
     }
 
+    /// False when an iCloud read couldn't look up whether the pilot set this partner a name.
+    var isDisplayNameKnown: Bool {
+        guard case .iCloud(let reading) = self else { return true }
+        return reading.isDisplayNameKnown
+    }
+
     /// When the status changes by itself: when the quick status shown at `now` expires. iCloud's
     /// one quick status simply disappears then, so it never needs a wake-up.
     func change(after now: Date) -> Date? {

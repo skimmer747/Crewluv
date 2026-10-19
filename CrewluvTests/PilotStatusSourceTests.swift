@@ -88,6 +88,43 @@ final class PilotStatusSourceTests {
         #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
     }
 
+    @Test func test_iCloud_nameNotLookedUp_titlesTheAlertWithTheSavedName_andKeepsIt() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(await notifier.evaluations.last?.pilotName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+    }
+
+    @Test func test_iCloud_nameLookedUpLater_isShown_withoutAlertingAgain() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.displayName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+        #expect(await notifier.evaluations.count == 1)
+    }
+
+    @Test func test_iCloud_nameNotLookedUpLater_keepsTheNameShown() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.displayName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+    }
+
     @Test func test_iCloud_noShare_isNotConnected() async {
         iCloud.results = [.failure(ICloudFetchError.notConnected)]
         let source = makeSource()
