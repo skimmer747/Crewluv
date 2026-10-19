@@ -36,8 +36,9 @@ final class PilotStatusSource {
         return reading.isDisplayNameKnown ? reading.displayName : connection.savedDisplayName
     }
 
+    /// This device on Crewlu Cloud, which joins through it (spec §7.2).
+    @ObservationIgnored let device: CrewluCloudDevice
     @ObservationIgnored private let iCloud: ICloudStatusFetching
-    @ObservationIgnored private let device: CrewluCloudDevice
     @ObservationIgnored private let connection: PartnerConnection
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
