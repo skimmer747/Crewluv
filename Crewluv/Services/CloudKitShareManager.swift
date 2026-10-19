@@ -219,6 +219,20 @@ final class CloudKitShareManager {
         }
     }
 
+    /// Forgets the share without posting `.shareDataReset`, so the welcome screen doesn't show:
+    /// this device follows its pilot on Crewlu Cloud now (partner links piece 4 spec §7.2). The
+    /// alerts' title name and snapshot stay, and the share itself is the pilot's to end.
+    func forgetShareQuietly() {
+        UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
+        UserDefaults.standard.removeObject(forKey: "PilotDataSource")
+        shareState = .idle
+        debugLog("[ShareManager] Forgot the share, now on Crewlu Cloud")
+
+        Task.detached {
+            await CloudKitSubscriptionManager.shared.removeAllSubscriptions()
+        }
+    }
+
     /// Resets the share state to idle
     func resetShareState() {
         shareState = .idle

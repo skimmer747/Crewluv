@@ -20,6 +20,7 @@ final class PilotStatusSourceTests {
     private let notifier = RecordingNotifier()
     private let iCloudResets = Counter()
     private let connects = Counter()
+    private let iCloudForgets = Counter()
     private let clock = HandClock()
 
     init() throws {
@@ -39,7 +40,8 @@ final class PilotStatusSourceTests {
             notifier: notifier,
             iCloudShareEnded: { [iCloudResets] in iCloudResets.count += 1 },
             periodicCheck: RepeatingRefresh(sleep: clock.sleep),
-            didConnect: { [connects] in connects.count += 1 }
+            didConnect: { [connects] in connects.count += 1 },
+            forgetICloudShare: { [iCloudForgets] in iCloudForgets.count += 1 }
         )
     }
 
@@ -593,6 +595,84 @@ final class PilotStatusSourceTests {
 
         #expect(source.sharingEndedWith == nil)
         #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+    }
+
+    // MARK: - Switching to What a Join Joined
+
+    private static func joined(_ partnerID: String = Make.partnerA, key: String = "pending") -> CrewluCloudDevice.Joined {
+        CrewluCloudDevice.Joined(partnerID: partnerID, key: key, isDeviceKey: false)
+    }
+
+    @Test func test_connect_fromNothing_readsTheNewConnection() async throws {
+        keys.pending = "pending"
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(keys.key == "pending")
+        #expect(door.views.map(\.key) == ["pending"])
+        #expect(source.lastUpdate?.outcome == .newStatus)
+        #expect(connects.count == 1)
+        #expect(iCloudForgets.count == 0)
+    }
+
+    @Test func test_connect_fromICloud_forgetsTheShareQuietly() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1))]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: true))
+
+        #expect(iCloudForgets.count == 1)
+        #expect(iCloudResets.count == 0)
+        #expect(source.isOnCrewluCloud)
+    }
+
+    @Test func test_connect_toAnotherPilot_forgetsWhatTheAlertsKeptOfTheLastOne() async throws {
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        defaults.set(Date(timeIntervalSince1970: 1), forKey: "LastEvaluatedPilotStatusTimestamp")
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: false)
+
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(defaults.object(forKey: "LastEvaluatedPilotStatusTimestamp") == nil)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+    }
+
+    @Test func test_connect_toTheSamePilot_keepsWhatTheAlertsKept() async {
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: true)
+
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == Data([1]))
+    }
+
+    @Test func test_connect_takesTheNoteAway() async {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: false)
+
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+    }
+
+    @Test func test_connect_keyThatCantBeSaved_changesNothing() async {
+        keys.savesFail = true
+        let source = makeSource()
+
+        #expect(await !source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(!source.isOnCrewluCloud)
+        #expect(door.views.isEmpty)
+        #expect(connects.count == 0)
     }
 
     // MARK: - The 60-Second Check

@@ -46,6 +46,9 @@ final class PilotStatusSource {
     @ObservationIgnored private var screensInFront: [ObjectIdentifier: () -> Bool] = [:]
     /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
     @ObservationIgnored private let didConnect: @MainActor () -> Void
+    /// Forgets the iCloud share without showing the welcome screen, once this device is on Crewlu
+    /// Cloud instead (spec §7.2).
+    @ObservationIgnored private let forgetICloudShare: @MainActor () -> Void
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
 
     private static let unreachable = "No connection to Crewlu Cloud"
@@ -59,13 +62,15 @@ final class PilotStatusSource {
         notifier: StatusNotifying = StatusChangeNotifier.shared,
         iCloudShareEnded: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.resetShareData() },
         periodicCheck: RepeatingRefresh = RepeatingRefresh(),
-        didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } }
+        didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } },
+        forgetICloudShare: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.forgetShareQuietly() }
     ) {
         self.iCloud = iCloud
         self.notifier = notifier
         self.iCloudShareEnded = iCloudShareEnded
         self.periodicCheck = periodicCheck
         self.didConnect = didConnect
+        self.forgetICloudShare = forgetICloudShare
         connection = PartnerConnection(defaults: defaults)
         device = CrewluCloudDevice(door: door, keys: keys, connection: connection)
         sharingEndedWith = connection.sharingEndedWith
@@ -99,6 +104,26 @@ final class PilotStatusSource {
         device.forget()
         noteSharingEnded()
         report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
+    }
+
+    /// Switches this device to what a join joined (spec §7.2): the joined key becomes its key, an
+    /// iCloud share is forgotten without showing the welcome screen, the push token goes to Crewlu
+    /// Cloud, and the new connection is read. For another pilot, what the alerts kept of the last one
+    /// goes first. False when the key couldn't be saved, and then nothing changes.
+    func connect(_ joined: CrewluCloudDevice.Joined, keepingAlerts: Bool) async -> Bool {
+        guard await device.switchTo(joined) else { return false }
+        if !keepingAlerts {
+            connection.forgetPilot()
+        }
+        if connection.hasICloudShare {
+            forgetICloudShare()
+        }
+        connection.sharingEndedWith = nil
+        sharingEndedWith = nil
+        reading = nil
+        didConnect()
+        _ = await refresh()
+        return true
     }
 
     /// iCloud's share data was reset, by Reset Share Data or the share ending: an iCloud reading
