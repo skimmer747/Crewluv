@@ -675,6 +675,61 @@ final class PilotStatusSourceTests {
         #expect(connects.count == 0)
     }
 
+    // MARK: - Disconnect
+
+    @Test func test_disconnect_leaves_thenForgetsTheKeyTheConnectionAndThePilot() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        let source = connectedSource()
+        _ = await source.refresh()
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+
+        #expect(await source.disconnect())
+
+        #expect(door.leaves == [Make.key])
+        #expect(keys.key == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(source.reading == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.lastUpdate?.outcome == .notConnected)
+    }
+
+    @Test func test_disconnect_withoutAConnection_staysConnected() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        door.leaveAnswers = [.failure(.unavailable)]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        #expect(await !source.disconnect())
+
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.reading != nil)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_disconnect_thatAJoinOvertook_keepsTheNewConnection() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+        door.holdsLeaves = true
+        keys.pending = "pending"
+
+        let disconnecting = Task { await source.disconnect() }
+        await eventually { door.leaves.count == 1 }
+        door.holdsLeaves = false
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false)
+        #expect(await source.connect(joined, keepingAlerts: false))
+        door.release()
+
+        #expect(await disconnecting.value)
+        #expect(keys.key == "pending")
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(source.lastUpdate?.outcome != .notConnected)
+    }
+
     // MARK: - The 60-Second Check
 
     @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {

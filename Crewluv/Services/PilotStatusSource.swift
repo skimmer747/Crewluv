@@ -122,6 +122,20 @@ final class PilotStatusSource {
         return true
     }
 
+    /// Disconnect (spec §7.5): this device leaves, then forgets its key, the connection and the pilot,
+    /// with no note. False when Crewlu Cloud couldn't be reached; then the device stays connected. A
+    /// join that switched this device meanwhile keeps its new connection.
+    func disconnect() async -> Bool {
+        do {
+            guard try await device.leave() else { return true }
+        } catch {
+            return false
+        }
+        forgetPilot()
+        report(PilotStatusUpdate(outcome: .notConnected, readAt: Date()))
+        return true
+    }
+
     /// iCloud's share data was reset, by Reset Share Data or the share ending: an iCloud reading
     /// is no longer the pilot's status. The screen clears itself on the same reset.
     func forgetICloudReading() {

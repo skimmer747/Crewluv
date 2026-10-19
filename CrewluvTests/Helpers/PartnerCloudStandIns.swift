@@ -26,6 +26,8 @@ final class StandInPartnerDoor: PartnerDoor {
     var leaveAnswers: [Result<Void, PartnerDoorError>] = []
     /// While true, each `view` waits for `release()`.
     var holdsViews = false
+    /// While true, each `leave` waits for `release()`.
+    var holdsLeaves = false
     /// Runs while `setPush` waits for its answer, as if something happened meanwhile.
     var whileSettingPush: (() -> Void)?
 
@@ -71,6 +73,9 @@ final class StandInPartnerDoor: PartnerDoor {
 
     func leave(key: String) async throws(PartnerDoorError) {
         leaves.append(key)
+        if holdsLeaves {
+            await withCheckedContinuation { held.append($0) }
+        }
         guard !leaveAnswers.isEmpty else { return }
         try leaveAnswers.removeFirst().get()
     }
@@ -80,7 +85,7 @@ final class StandInPartnerDoor: PartnerDoor {
         return try joinAnswers.removeFirst().get()
     }
 
-    /// Lets every held `view` go on.
+    /// Lets every held call go on.
     func release() {
         held.forEach { $0.resume() }
         held.removeAll()

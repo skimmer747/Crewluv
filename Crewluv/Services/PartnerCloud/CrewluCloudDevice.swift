@@ -198,7 +198,20 @@ final class CrewluCloudDevice {
         }
     }
 
-    // MARK: - Forgetting
+    // MARK: - Leaving and Forgetting
+
+    /// Disconnect (spec §7.5): partner_leave with this device's key, then forgets the key and the
+    /// connection. Throws when the door couldn't be reached, and then nothing changes. False when a
+    /// join switched this device while the door answered: its new connection stays.
+    func leave() async throws(PartnerDoorError) -> Bool {
+        let generation = generation
+        if let key = try? keys.deviceKey() {
+            try await door.leave(key: key)
+        }
+        guard generation == self.generation else { return false }
+        forget()
+        return true
+    }
 
     /// Forgets this device's key and its connection.
     func forget() {
