@@ -112,10 +112,11 @@ final class PartnerJoiner {
                 newPilot: newPilot.name, currentPilot: followedPilotName ?? "your pilot", deviceModel: deviceModel
             )
             guard await ask(question) else {
+                let wasOnCrewluCloud = source.isOnCrewluCloud
                 await device.cancel(joined)
-                if joined.isDeviceKey {
+                if joined.isDeviceKey, wasOnCrewluCloud {
                     // This device's key joined anew, so its old device was gone: sharing with the
-                    // pilot it followed has ended (spec §7.6).
+                    // pilot it followed on Crewlu Cloud has ended (spec §7.6).
                     source.endSharing()
                 }
                 return .cancelled

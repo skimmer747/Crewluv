@@ -212,6 +212,24 @@ final class PartnerJoinerTests {
         #expect(source.lastUpdate?.outcome == .sharingEnded)
     }
 
+    @Test func test_anotherPilot_cancelled_onICloud_whenALeftoverKeyJoinedAnew_endsNothing() async throws {
+        onICloud()
+        keys.key = Make.key
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Self.summaryFromSam(), partnerID: Make.partnerB)]
+        let (joiner, source) = makeJoiner()
+
+        let join = Task { await joiner.join(.invite("invite")) }
+        await eventually { joiner.switchQuestion != nil }
+        joiner.answerSwitch(false)
+
+        #expect(await !join.value)
+        #expect(door.leaves == [Make.key])
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.lastUpdate == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "pilot")
+    }
+
     @Test func test_followingAPilotNotSavedYet_readsThemFirst_thenAsks() async throws {
         defaults.set("_owner", forKey: "SharedZoneOwner")
         iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad"))]
