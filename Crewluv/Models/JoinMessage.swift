@@ -7,8 +7,9 @@
 
 import Foundation
 
-/// What a partner is told when a link or code didn't connect (partner links piece 4 spec §7.3).
-/// Each is an alert with an OK button.
+/// What a partner is told when a link or code didn't connect (partner links piece 4 spec §7.3), or
+/// when an iCloud share link was opened on a device already on Crewlu Cloud (§16). Each is an alert
+/// with an OK button.
 nonisolated enum JoinMessage: Equatable, Sendable {
     /// The invite link is dead. With the name of the pilot this device still follows, if any.
     case inviteNotWorking(stillConnectedTo: String?)
@@ -17,6 +18,8 @@ nonisolated enum JoinMessage: Equatable, Sendable {
     case tooManyTries
     case couldntConnect
     case notAnInviteLink
+    /// An iCloud share link, on a device on Crewlu Cloud. With the name of the pilot it follows.
+    case alreadyConnected(to: String?)
 
     /// The message for the door's answer to joining `link`. `name` is the pilot this device still
     /// follows, as this partner sees them, if it follows one.
@@ -45,6 +48,7 @@ nonisolated enum JoinMessage: Equatable, Sendable {
         case .tooManyTries: "Too Many Tries"
         case .couldntConnect: "Couldn't Connect"
         case .notAnInviteLink: "Not an Invite Link"
+        case .alreadyConnected: "Already Connected"
         }
     }
 
@@ -64,6 +68,8 @@ nonisolated enum JoinMessage: Equatable, Sendable {
             "Couldn't connect. Check your connection and try again."
         case .notAnInviteLink:
             "That doesn't look like an invite link."
+        case .alreadyConnected(let name):
+            "You're already connected to \(name ?? "your pilot"). To follow another pilot, ask them for an invite link from CrewLu."
         }
     }
 }

@@ -317,6 +317,31 @@ final class PartnerJoinerTests {
         #expect(keys.pending == door.joins.first?.key)
     }
 
+    // MARK: - An iCloud Share Link (spec §16)
+
+    @Test func test_anICloudShareLink_onCrewluCloud_isntAccepted_andSaysWhoThisDeviceFollows() {
+        onCrewluCloud()
+        let (joiner, _) = makeJoiner()
+
+        #expect(!joiner.mayAcceptICloudShare())
+        #expect(joiner.message == .alreadyConnected(to: "Dad"))
+    }
+
+    @Test func test_anICloudShareLink_onICloud_isAccepted() {
+        onICloud()
+        let (joiner, _) = makeJoiner()
+
+        #expect(joiner.mayAcceptICloudShare())
+        #expect(joiner.message == nil)
+    }
+
+    @Test func test_anICloudShareLink_withNoConnection_isAccepted() {
+        let (joiner, _) = makeJoiner()
+
+        #expect(joiner.mayAcceptICloudShare())
+        #expect(joiner.message == nil)
+    }
+
     // MARK: - While a Join Is Under Way
 
     @Test func test_isConnecting_whileAJoinWaits_andAnotherJoinIsIgnored() async throws {

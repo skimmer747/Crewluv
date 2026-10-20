@@ -68,6 +68,15 @@ final class PartnerJoiner {
         }
     }
 
+    /// Whether to accept an iCloud share link the app was given (spec §16). Not on a device on Crewlu
+    /// Cloud, which follows its pilot there: the partner is told it's already connected, and nothing
+    /// changes.
+    func mayAcceptICloudShare() -> Bool {
+        guard source.isOnCrewluCloud else { return true }
+        message = .alreadyConnected(to: followedPilotName)
+        return false
+    }
+
     /// The partner's answer to `switchQuestion`.
     func answerSwitch(_ shouldSwitch: Bool) {
         switchQuestion = nil

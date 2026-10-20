@@ -16,8 +16,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         debugLog("[SceneDelegate] userDidAcceptCloudKitShareWith called")
         debugLog("[SceneDelegate]   share recordID: \(cloudKitShareMetadata.share.recordID)")
-        Task { @MainActor in
-            await CloudKitShareManager.shared.acceptShare(with: cloudKitShareMetadata)
-        }
+        LinkRouter.accept(cloudKitShareMetadata)
     }
 }

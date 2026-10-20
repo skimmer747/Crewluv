@@ -105,9 +105,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Path A: Direct metadata (preferred but often nil on iOS 17+)
         if let metadata = options.cloudKitShareMetadata {
             debugLog("[AppDelegate] Found CloudKit metadata — accepting share")
-            Task { @MainActor in
-                await CloudKitShareManager.shared.acceptShare(with: metadata)
-            }
+            LinkRouter.accept(metadata)
         }
         // Path B: an invite or code link, or a share URL (crewluv:// or icloud.com/share), in urlContexts
         else if let linkCtx = options.urlContexts.first(where: { OpenedLink(url: $0.url) != .neither }) {
@@ -155,9 +153,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
         debugLog("[AppDelegate] userDidAcceptCloudKitShareWith called")
-        Task { @MainActor in
-            await CloudKitShareManager.shared.acceptShare(with: cloudKitShareMetadata)
-        }
+        LinkRouter.accept(cloudKitShareMetadata)
     }
 }
 

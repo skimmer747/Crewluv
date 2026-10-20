@@ -23,6 +23,10 @@ struct JoinMessageTests {
         (.tooManyTries, "Too Many Tries", "Too many tries. Wait a minute, then try again."),
         (.couldntConnect, "Couldn't Connect", "Couldn't connect. Check your connection and try again."),
         (.notAnInviteLink, "Not an Invite Link", "That doesn't look like an invite link."),
+        (.alreadyConnected(to: "Alex"), "Already Connected",
+         "You're already connected to Alex. To follow another pilot, ask them for an invite link from CrewLu."),
+        (.alreadyConnected(to: nil), "Already Connected",
+         "You're already connected to your pilot. To follow another pilot, ask them for an invite link from CrewLu."),
     ])
     func test_titleAndText(message: JoinMessage, title: String, text: String) {
         #expect(message.title == title)
