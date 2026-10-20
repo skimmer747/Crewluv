@@ -90,7 +90,7 @@ actor StatusChangeNotifier {
         var notifications: [NotificationSpec] = []
 
         // Schedule changes
-        notifications += evaluateScheduleChanges(old: baseline, new: new, name: pilotName, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
+        notifications += Self.evaluateScheduleChanges(old: baseline, new: new, name: pilotName, resolvedHomeArrivalTime: resolvedHomeArrivalTime)
 
         // Quick status
         notifications += evaluateQuickStatus(old: baseline, new: new, name: pilotName)
@@ -116,7 +116,9 @@ actor StatusChangeNotifier {
 
     // MARK: - Schedule Changes
 
-    private func evaluateScheduleChanges(
+    /// The schedule's alerts between two statuses. It reads only what it's given, so it's static, and
+    /// a test checks that the switch to Crewlu Cloud alerts nothing (partner links piece 4 spec §14).
+    nonisolated static func evaluateScheduleChanges(
         old: SharedPilotStatus,
         new: SharedPilotStatus,
         name: String,
@@ -154,7 +156,7 @@ actor StatusChangeNotifier {
         // diff is wall-clock drift from the resolver picking a different leg.
         let effectiveNewHome = resolvedHomeArrivalTime ?? new.homeArrivalTime
         let publishedHomeChanged = old.homeArrivalTime != effectiveNewHome
-        let legsChanged = old.tripLegsJSON != new.tripLegsJSON
+        let legsChanged = Self.legsDiffer(old.tripLegsJSON, new.tripLegsJSON)
 
         if (publishedHomeChanged || legsChanged),
            let oldHome = old.homeArrivalTime, let newHome = effectiveNewHome {
@@ -205,6 +207,22 @@ actor StatusChangeNotifier {
         }
 
         return specs
+    }
+
+    // MARK: - Legs
+
+    /// Whether two statuses' legs differ, compared as legs: iCloud and Crewlu Cloud write the same
+    /// legs with their keys in another order, and iCloud's with fields this app doesn't read
+    /// (partner links piece 4 spec §14). Bytes that don't read as legs compare as bytes, as before.
+    nonisolated static func legsDiffer(_ old: Data?, _ new: Data?) -> Bool {
+        guard let old, let new, let oldLegs = legs(in: old), let newLegs = legs(in: new) else { return old != new }
+        return oldLegs != newLegs
+    }
+
+    private nonisolated static func legs(in data: Data) -> [TripLeg]? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        return try? decoder.decode([TripLeg].self, from: data)
     }
 
     // MARK: - Quick Status
@@ -310,7 +328,7 @@ actor StatusChangeNotifier {
 
     // MARK: - Notification Delivery
 
-    private struct NotificationSpec {
+    struct NotificationSpec {
         let id: String
         let title: String
         let body: String
