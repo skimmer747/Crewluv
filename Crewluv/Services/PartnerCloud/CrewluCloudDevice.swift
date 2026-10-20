@@ -83,34 +83,6 @@ final class CrewluCloudDevice {
         return .answer(answer)
     }
 
-    /// A key with no connection saved is what a reinstall leaves: iOS keeps an app's Keychain items,
-    /// not its settings (spec §5.3). Reads with it, and connects when Crewlu Cloud answers with a
-    /// summary, or with none yet on a device without an iCloud share. Nil carries on with iCloud;
-    /// it's tried on every refresh until Crewlu Cloud answers, or the Keychain can be read. An
-    /// answer that a switch overtook, say a join with the same key, forgets and connects nothing.
-    func adoptLeftoverKey() async -> PartnerViewAnswer? {
-        guard let key = try? keys.deviceKey() else { return nil }
-        let generation = generation
-        let answer: PartnerViewAnswer
-        do {
-            answer = try await door.view(key: key, since: nil)
-        } catch .refused(.sharingEnded) {
-            if generation == self.generation {
-                keys.forgetDeviceKey()
-            }
-            return nil
-        } catch {
-            return nil
-        }
-        guard generation == self.generation else { return nil }
-        if case .noSummaryYet = answer.content, connection.hasICloudShare {
-            return nil
-        }
-        connection.partnerID = answer.partnerID
-        partnerID = answer.partnerID
-        return answer
-    }
-
     // MARK: - Joining
 
     /// What a join used and got (spec §7.2 steps 1–2).

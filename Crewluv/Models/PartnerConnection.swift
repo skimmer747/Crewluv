@@ -17,6 +17,7 @@ struct PartnerConnection {
     static let sharingEndedWithKey = "partnerCloud.sharingEndedWith"
     static let leftICloudKey = "partnerCloud.leftICloud"
     static let moveToPartnerIDKey = "partnerCloud.moveToPartnerID"
+    static let leftBehindKey = "partnerCloud.sharingEndedLeftBehind"
     /// Where the alerts' title name is kept, as before.
     static let displayNameKey = "ResolvedPilotDisplayName"
 
@@ -26,6 +27,13 @@ struct PartnerConnection {
     var partnerID: String? {
         get { defaults.string(forKey: Self.partnerIDKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.partnerIDKey) }
+    }
+
+    /// Whether the note is for a device left behind: another of this partner's devices follows the
+    /// pilot on Crewlu Cloud, so a code from it works here (spec §7.7, §8.3).
+    var isLeftBehind: Bool {
+        get { defaults.bool(forKey: Self.leftBehindKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.leftBehindKey) }
     }
 
     /// A move under way (spec §8.1): the partner id that redeeming a ticket or a code gave this

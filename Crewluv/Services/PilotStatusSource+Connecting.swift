@@ -58,9 +58,16 @@ extension PilotStatusSource {
         return true
     }
 
+    /// Whether the welcome screen's note is for a device left behind: another of this partner's devices
+    /// follows the pilot on Crewlu Cloud, so a code from it works here (spec §7.7).
+    var isLeftBehind: Bool {
+        sharingEndedWith != nil && connection.isLeftBehind
+    }
+
     /// Sharing with this device ended: the welcome screen's note names the pilot last seen, if any,
     /// and the pilot is forgotten (spec §7.6).
-    func noteSharingEnded() {
+    func noteSharingEnded(leftBehind: Bool = false) {
+        connection.isLeftBehind = leftBehind
         connection.sharingEndedWith = connection.pilotName
         sharingEndedWith = connection.pilotName
         forgetPilot()

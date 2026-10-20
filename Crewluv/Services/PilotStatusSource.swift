@@ -7,6 +7,9 @@
 
 import Foundation
 import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
 /// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud through `device` once connected
@@ -50,9 +53,22 @@ final class PilotStatusSource {
     /// Forgets the iCloud share without showing the welcome screen (spec §7.2).
     @ObservationIgnored let forgetICloudShare: @MainActor () -> Void
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
+    /// Moves this device from iCloud to Crewlu Cloud by itself (spec §8).
+    @ObservationIgnored private let moveOver: MoveOver
 
     static let unreachable = "No connection to Crewlu Cloud"
     private static let keyUnreadable = "This device's key couldn't be read"
+    private static let keyUnsaved = "This device's key couldn't be saved"
+
+    /// "iPhone" or "iPad": this device's name in the pilot's list, since iOS doesn't give apps the
+    /// device's own name.
+    static var deviceLabel: String {
+        #if canImport(UIKit)
+        UIDevice.current.model
+        #else
+        "iPhone"
+        #endif
+    }
 
     init(
         iCloud: ICloudStatusFetching = ICloudStatusFetcher(),
@@ -63,7 +79,8 @@ final class PilotStatusSource {
         iCloudShareEnded: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.resetShareData() },
         periodicCheck: RepeatingRefresh = RepeatingRefresh(),
         didConnect: @escaping @MainActor () -> Void = { Task { await PushRegistrar.shared.register() } },
-        forgetICloudShare: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.forgetShareQuietly() }
+        forgetICloudShare: @escaping @MainActor () -> Void = { CloudKitShareManager.shared.forgetShareQuietly() },
+        deviceLabel: String = PilotStatusSource.deviceLabel
     ) {
         self.iCloud = iCloud
         self.notifier = notifier
@@ -73,6 +90,7 @@ final class PilotStatusSource {
         self.forgetICloudShare = forgetICloudShare
         connection = PartnerConnection(defaults: defaults)
         device = CrewluCloudDevice(door: door, keys: keys, connection: connection)
+        moveOver = MoveOver(door: door, keys: keys, connection: connection, device: device, label: deviceLabel)
         sharingEndedWith = connection.sharingEndedWith
     }
 
@@ -83,13 +101,16 @@ final class PilotStatusSource {
 
     /// Reads the status from wherever this device follows its pilot, and tells the screen how it
     /// went before anyone waiting on the read carries on. A refresh asked for during a read, say
-    /// for a push that came mid-read, gets one more read once that one ends (`ReadQueue`).
+    /// for a push that came mid-read, gets one more read once that one ends (`ReadQueue`). After
+    /// iCloud's record is read and shown, the move-over takes its turn (spec §8.1).
     func refresh() async -> RefreshOutcome {
         await reads.run { [self] in
             let readAt = Date()
-            let outcome = await read()
-            report(PilotStatusUpdate(outcome: outcome, readAt: readAt))
-            return outcome
+            let read = await read()
+            report(PilotStatusUpdate(outcome: read.outcome, readAt: readAt))
+            guard let record = read.record, let moved = await moveOverTurn(after: record) else { return read.outcome }
+            report(PilotStatusUpdate(outcome: moved, readAt: Date()))
+            return moved
         }
     }
 
@@ -125,16 +146,16 @@ final class PilotStatusSource {
 
     // MARK: - Reading
 
-    private func read() async -> RefreshOutcome {
+    /// How a read went, and iCloud's record when it brought it, for the move-over's turn.
+    private struct Read {
+        let outcome: RefreshOutcome
+        var record: ICloudReading?
+    }
+
+    private func read() async -> Read {
         if isOnCrewluCloud {
-            return await readCrewluCloud()
+            return Read(outcome: await readCrewluCloud())
         }
-        let generation = device.generation
-        if let outcome = await adoptLeftoverKey() {
-            return outcome
-        }
-        // A switch while the leftover key was read: the read that follows tells.
-        guard generation == device.generation else { return .superseded }
         return await readICloud()
     }
 
@@ -159,11 +180,31 @@ final class PilotStatusSource {
         }
     }
 
-    /// A key a reinstall left connects this device when Crewlu Cloud answers for it (spec §5.3).
-    /// Nil carries on with iCloud.
-    private func adoptLeftoverKey() async -> RefreshOutcome? {
-        guard let answer = await device.adoptLeftoverKey() else { return nil }
-        didConnect()
+    /// With no iCloud to follow, a key a reinstall left connects this device when Crewlu Cloud
+    /// answers for it, with a summary or none yet (spec §5.3). It's tried on every refresh until it
+    /// answers. A read that a switch overtook brings nothing back.
+    private func adoptLeftoverKey() async -> RefreshOutcome {
+        let generation = device.generation
+        guard case .answer(let key, let answer) = await moveOver.readUnconnectedKey() else {
+            return generation == device.generation ? .notConnected : .superseded
+        }
+        return await switchOver(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer: answer)
+    }
+
+    /// The move-over's turn, after iCloud's record was read (spec §8.1). Nil while this device stays
+    /// on iCloud.
+    private func moveOverTurn(after record: ICloudReading) async -> RefreshOutcome? {
+        guard case .switchTo(let joined, let answer) = await moveOver.afterRead(ticket: record.moveTicket) else { return nil }
+        return await switchOver(to: joined, answer: answer)
+    }
+
+    /// Switches to a key this device already holds, from within a read: a key a reinstall left, or the
+    /// move-over's (spec §5.3, §8.2). It replaces no other device, since the key is this device's own,
+    /// and what the alerts kept stays, since it's the same pilot. The read is Crewlu Cloud's answer, or
+    /// a failure when it couldn't be reached.
+    private func switchOver(to joined: CrewluCloudDevice.Joined, answer: PartnerViewAnswer?) async -> RefreshOutcome {
+        guard switchConnection(to: joined, keepingAlerts: true) != nil else { return .failed(Self.keyUnsaved) }
+        guard let answer else { return .failed(Self.unreachable) }
         return await take(answer)
     }
 
@@ -189,26 +230,40 @@ final class PilotStatusSource {
 
     /// iCloud's read. One that a switch to Crewlu Cloud overtook was the old connection's: it brings
     /// nothing back, and ends nothing.
-    private func readICloud() async -> RefreshOutcome {
+    private func readICloud() async -> Read {
         let generation = device.generation
         do {
             let fetched = try await iCloud.fetch()
-            guard generation == device.generation else { return .superseded }
+            guard generation == device.generation else { return Read(outcome: .superseded) }
             if let reading, reading.lastUpdated == fetched.status.lastUpdated {
                 takeLookedUpName(from: fetched)
-                return .unchanged
+                return Read(outcome: .unchanged, record: fetched)
             }
-            return await adopt(.iCloud(fetched))
+            return Read(outcome: await adopt(.iCloud(fetched)), record: fetched)
         } catch _ where generation != device.generation {
-            return .superseded
+            return Read(outcome: .superseded)
         } catch ICloudFetchError.notConnected {
-            return .notConnected
+            return Read(outcome: await adoptLeftoverKey())
         } catch ICloudFetchError.shareGone {
-            noteSharingEnded()
+            return Read(outcome: await iCloudShareGone())
+        } catch {
+            return Read(outcome: .failed(error.localizedDescription))
+        }
+    }
+
+    /// iCloud's share is gone (spec §7.6, §8.4): a move under way, or another of this partner's
+    /// devices, carries this device on to Crewlu Cloud. Otherwise sharing ended. A switch that
+    /// overtook it, say by a join, tells instead.
+    private func iCloudShareGone() async -> RefreshOutcome {
+        switch await moveOver.afterShareGone() {
+        case .switchTo(let joined, let answer):
+            return await switchOver(to: joined, answer: answer)
+        case .ended(let leftBehind):
+            noteSharingEnded(leftBehind: leftBehind)
             iCloudShareEnded()
             return .sharingEnded
-        } catch {
-            return .failed(error.localizedDescription)
+        case .stay:
+            return .superseded
         }
     }
 

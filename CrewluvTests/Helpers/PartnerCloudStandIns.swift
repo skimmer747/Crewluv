@@ -274,13 +274,14 @@ enum Make {
 
     /// An iCloud read of a record made at `lastUpdated`.
     static func iCloud(
-        lastUpdated: TimeInterval, displayName: String? = nil, isDisplayNameKnown: Bool = true
+        lastUpdated: TimeInterval, displayName: String? = nil, isDisplayNameKnown: Bool = true, moveTicket: String? = nil
     ) throws -> ICloudReading {
         ICloudReading(
             status: try summary(lastUpdated: lastUpdated).pilotStatus(partnerID: partnerA, at: .now),
             displayName: displayName,
             isDisplayNameKnown: isDisplayNameKnown,
-            recordModifiedAt: nil
+            recordModifiedAt: nil,
+            moveTicket: moveTicket
         )
     }
 }
