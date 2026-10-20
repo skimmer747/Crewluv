@@ -18,6 +18,9 @@ struct ICloudReading {
     let isDisplayNameKnown: Bool
     /// When CloudKit last saved the record, for the debug log of leg changes.
     let recordModifiedAt: Date?
+    /// This partner's move-over ticket in the record, once the pilot's CrewLu has moved them to
+    /// Crewlu Cloud (partner links piece 4 spec §8.1).
+    var moveTicket: String? = nil
 }
 
 /// Why an iCloud read gave no status.
@@ -74,8 +77,24 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
             status: status,
             displayName: name.name,
             isDisplayNameKnown: name.isKnown,
-            recordModifiedAt: record.modificationDate
+            recordModifiedAt: record.modificationDate,
+            moveTicket: await moveTicket(in: record)
         )
+    }
+
+    /// This partner's iCloud user record name, looked up once. It keys the pilot's names for each
+    /// partner, and the move-over's tickets.
+    private func recordName() async -> String? {
+        if userRecordName == nil {
+            userRecordName = try? await container.userRecordID().recordName
+        }
+        return userRecordName
+    }
+
+    /// This partner's move-over ticket, if the record has one for them (spec §8.1).
+    private func moveTicket(in record: CKRecord) async -> String? {
+        guard let tickets = record[MoveTicket.recordKey] as? Data else { return nil }
+        return MoveTicket.ticket(in: tickets, for: await recordName())
     }
 
     /// The name the pilot set for this partner, looked up strictly by this partner's own iCloud
@@ -84,10 +103,7 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
     private func displayName(in status: SharedPilotStatus) async -> (name: String?, isKnown: Bool) {
         let names = status.displayNameByPartner
         guard !names.isEmpty else { return (nil, true) }
-        if userRecordName == nil {
-            userRecordName = try? await container.userRecordID().recordName
-        }
-        guard let userRecordName else { return (nil, false) }
+        guard let userRecordName = await recordName() else { return (nil, false) }
         guard let name = names[userRecordName], !name.isEmpty else { return (nil, true) }
         return (name, true)
     }
