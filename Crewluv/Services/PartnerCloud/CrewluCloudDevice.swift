@@ -152,9 +152,10 @@ final class CrewluCloudDevice {
         let key: String?
     }
 
-    /// Makes this device `joined`'s device (spec §7.2's switching): its key becomes this device's
-    /// key, all at once, so no read sees half a switch. A key forgotten since the join sent it, say
-    /// by a leftover key's refusal, is saved again. Nil when the key couldn't be saved, and then
+    /// Makes this device `joined`'s device (spec §7.2's switching, §8.2): its key becomes this device's
+    /// key, all at once, so no read sees half a switch, and the hand-off copy, so this partner's other
+    /// devices can follow (§8.3). A move under way is over. A key forgotten since the join sent it,
+    /// say by a leftover key's refusal, is saved again. Nil when the key couldn't be saved, and then
     /// nothing changes.
     func switchTo(_ joined: Joined) -> Replaced? {
         let replacedKey = try? keys.deviceKey()
@@ -164,6 +165,8 @@ final class CrewluCloudDevice {
         if !joined.isDeviceKey {
             keys.forgetPendingKey()
         }
+        keys.save(handOffCopy: joined.key)
+        connection.moveToPartnerID = nil
         generation += 1
         connection.partnerID = joined.partnerID
         partnerID = joined.partnerID

@@ -10,13 +10,15 @@ import Observation
 
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
 /// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud through `device` once connected
-/// there, and iCloud otherwise, as before. Each new status goes to the alerts once, from here.
+/// there, and iCloud otherwise, as before. Each new status goes to the alerts once, from here. How the
+/// connection changes, by joining, Disconnect or sharing ending, is in PilotStatusSource+Connecting.
 @Observable
 final class PilotStatusSource {
     static let shared = PilotStatusSource()
 
-    /// What was last read, or nil before the first read and after sharing ends.
-    private(set) var reading: PilotReading?
+    /// What was last read, or nil before the first read and after sharing ends. The source and its
+    /// extensions set it.
+    var reading: PilotReading?
     /// How the last read went, or how sharing ended outside a read.
     private(set) var lastUpdate: PilotStatusUpdate?
     /// This device's partner id on Crewlu Cloud, or nil while it follows its pilot through iCloud.
@@ -26,7 +28,8 @@ final class PilotStatusSource {
 
     /// The pilot whose sharing with this device ended, as this partner saw them, for the welcome
     /// screen's note (spec §7.6). It stays until the next status, and is nil when no pilot was seen.
-    private(set) var sharingEndedWith: String?
+    /// The source and its extensions set it.
+    var sharingEndedWith: String?
 
     /// The name the pilot set for this partner, for the screen's title: the reading's, or the saved
     /// one while an iCloud read can't look it up, as the alerts use.
@@ -38,17 +41,17 @@ final class PilotStatusSource {
     /// This device on Crewlu Cloud, which joins through it (spec §7.2).
     @ObservationIgnored let device: CrewluCloudDevice
     @ObservationIgnored private let iCloud: ICloudStatusFetching
-    @ObservationIgnored private let connection: PartnerConnection
+    @ObservationIgnored let connection: PartnerConnection
     @ObservationIgnored private let notifier: StatusNotifying
     @ObservationIgnored private let iCloudShareEnded: @MainActor () -> Void
     @ObservationIgnored private let periodicCheck: PeriodicCheck
     /// Runs when this device connects to Crewlu Cloud, to send its push token (spec §6.1).
-    @ObservationIgnored private let didConnect: @MainActor () -> Void
+    @ObservationIgnored let didConnect: @MainActor () -> Void
     /// Forgets the iCloud share without showing the welcome screen (spec §7.2).
-    @ObservationIgnored private let forgetICloudShare: @MainActor () -> Void
+    @ObservationIgnored let forgetICloudShare: @MainActor () -> Void
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
 
-    private static let unreachable = "No connection to Crewlu Cloud"
+    static let unreachable = "No connection to Crewlu Cloud"
     private static let keyUnreadable = "This device's key couldn't be read"
 
     init(
@@ -90,53 +93,9 @@ final class PilotStatusSource {
         }
     }
 
-    private func report(_ update: PilotStatusUpdate) {
+    func report(_ update: PilotStatusUpdate) {
         lastUpdate = update
         NotificationCenter.default.post(name: .pilotStatusDidUpdate, object: self)
-    }
-
-    /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
-    /// forget the connection, and tell the screen. A refusal Disconnect's own leave caused ends nothing.
-    func endSharing() {
-        guard !device.isDisconnecting else { return }
-        device.forget()
-        noteSharingEnded()
-        report(PilotStatusUpdate(outcome: .sharingEnded, readAt: Date()))
-    }
-
-    /// Switches this device to what a join joined (spec §7.2): its key, an iCloud share forgotten
-    /// quietly, the push token sent and the new connection read. For another pilot, what the alerts
-    /// kept of the last goes first. All that changes before anything waits, so no read sees half a
-    /// switch; the replaced device leaves after. False when the key couldn't be saved; then nothing
-    /// changes.
-    func connect(_ joined: CrewluCloudDevice.Joined, keepingAlerts: Bool) async -> Bool {
-        guard let replaced = device.switchTo(joined) else { return false }
-        if !keepingAlerts {
-            connection.forgetPilot()
-        }
-        connection.leaveICloud(forgetShare: forgetICloudShare)
-        connection.sharingEndedWith = nil
-        sharingEndedWith = nil
-        reading = nil
-        didConnect()
-        await device.leave(replaced)
-        _ = await refresh()
-        return true
-    }
-
-    /// Disconnect (spec §7.5): this device leaves, then forgets its key, the connection, the pilot and
-    /// any iCloud share, with no note. False when Crewlu Cloud couldn't be reached; then the device
-    /// stays connected. A join that switched this device meanwhile keeps its new connection.
-    func disconnect() async -> Bool {
-        do {
-            guard try await device.disconnect() else { return true }
-        } catch {
-            return false
-        }
-        forgetPilot()
-        connection.leaveICloud(forgetShare: forgetICloudShare)
-        report(PilotStatusUpdate(outcome: .notConnected, readAt: Date()))
-        return true
     }
 
     /// iCloud's share data was reset, as the share ended: an iCloud reading is no longer the pilot's
@@ -144,19 +103,6 @@ final class PilotStatusSource {
     func forgetICloudReading() {
         guard case .iCloud? = reading else { return }
         reading = nil
-    }
-
-    /// Sharing with this device ended: the welcome screen's note names the pilot last seen, if any,
-    /// and the pilot is forgotten (spec §7.6).
-    private func noteSharingEnded() {
-        connection.sharingEndedWith = connection.pilotName
-        sharingEndedWith = connection.pilotName
-        forgetPilot()
-    }
-
-    private func forgetPilot() {
-        reading = nil
-        connection.forgetPilot()
     }
 
     // MARK: - The 60-Second Check

@@ -197,6 +197,17 @@ final class CrewluCloudDeviceTests {
         #expect(device.partnerID == Make.partnerB)
     }
 
+    @Test func test_switch_makesTheKeyTheHandOffCopy_andEndsAMoveUnderWay() {
+        let device = device()
+        keys.copy = "older"
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true))
+
+        #expect(keys.copy == Make.key)
+        #expect(defaults.string(forKey: "partnerCloud.moveToPartnerID") == nil)
+    }
+
     @Test func test_switch_keyThatCantBeSaved_changesNothing() {
         let device = connectedDevice()
         keys.pending = "pending"

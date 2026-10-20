@@ -675,6 +675,15 @@ final class PilotStatusSourceTests {
         #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
     }
 
+    @Test func test_connect_leavesTheKeyForThisPartnersOtherDevices() async {
+        keys.pending = "pending"
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(keys.copy == "pending")
+    }
+
     @Test func test_connect_keyThatCantBeSaved_changesNothing() async {
         keys.savesFail = true
         let source = makeSource()
