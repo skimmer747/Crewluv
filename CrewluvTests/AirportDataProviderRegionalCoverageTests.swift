@@ -55,4 +55,18 @@ final class AirportDataProviderRegionalCoverageTests: XCTestCase {
             XCTAssertEqual(codes, [airport.iata], "\(airport.city) should map to exactly \(airport.iata)")
         }
     }
+
+    /// Crewlu sends a layover's city string as `upcomingCities`, and the status
+    /// card's flag, code pill and greeting maps (`TripProgressView`) key on it, so
+    /// these must match Crewlu's AirportDataProvider byte for byte. With no map
+    /// entry the pill fell back to the first three letters: "HO " for Ho Chi Minh City.
+    func test_vietnamOutstations_carryCrewluCityNamesAndResolveToExactlyOneCode() {
+        for (iata, city) in [("SGN", "Ho Chi Minh City"), ("HAN", "Hanoi")] {
+            let info = provider.airportInfo(forIataCode: iata)
+            XCTAssertEqual(info?.city, city, "\(iata) city")
+            XCTAssertEqual(info?.country, "Vietnam", "\(iata) country")
+            XCTAssertEqual(provider.airportInfo(forCity: city).map(\.iata), [iata],
+                           "\(city) should map to exactly \(iata)")
+        }
+    }
 }

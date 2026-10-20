@@ -1985,6 +1985,7 @@ struct TripProgressView: View {
         "Vienna": "🇦🇹", "Stockholm": "🇸🇪", "Malmö": "🇸🇪", "Copenhagen": "🇩🇰", "Oslo": "🇳🇴",
         "Helsinki": "🇫🇮", "Reykjavik": "🇮🇸", "Istanbul": "🇹🇷",
         "Bangkok": "🇹🇭", "Manila": "🇵🇭", "Jakarta": "🇮🇩",
+        "Hanoi": "🇻🇳", "Ho Chi Minh City": "🇻🇳",
         "Nairobi": "🇰🇪", "Cairo": "🇪🇬", "Johannesburg": "🇿🇦",
         "Auckland": "🇳🇿", "Doha": "🇶🇦",
     ]
@@ -2034,6 +2035,7 @@ struct TripProgressView: View {
         "Vienna": "VIE", "Stockholm": "ARN", "Malmö": "MMX", "Copenhagen": "CPH", "Oslo": "OSL",
         "Helsinki": "HEL", "Reykjavik": "KEF", "Istanbul": "IST",
         "Bangkok": "BKK", "Manila": "MNL", "Jakarta": "CGK",
+        "Hanoi": "HAN", "Ho Chi Minh City": "SGN",
         "Nairobi": "NBO", "Cairo": "CAI", "Johannesburg": "JNB",
         "Auckland": "AKL", "Doha": "DOH",
     ]
@@ -2082,6 +2084,7 @@ struct TripProgressView: View {
         "Stockholm": "Hej", "Malmö": "Hej", "Copenhagen": "Hej", "Oslo": "Hei",
         "Helsinki": "Moi", "Reykjavik": "Hallo", "Istanbul": "Merhaba",
         "Bangkok": "Sawasdee", "Manila": "Kumusta", "Jakarta": "Halo",
+        "Hanoi": "Xin chao", "Ho Chi Minh City": "Xin chao",
         "Nairobi": "Jambo", "Cairo": "Marhaba", "Johannesburg": "Sawubona",
         "Auckland": "Kia ora", "Doha": "Marhaba",
     ]
