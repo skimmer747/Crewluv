@@ -32,6 +32,8 @@ final class StandInPartnerDoor: PartnerDoor {
     var holdsHandOffs = false
     /// Runs while `setPush` waits for its answer, as if something happened meanwhile.
     var whileSettingPush: (() -> Void)?
+    /// Runs while `join` or `redeem` waits for its answer, as if something happened meanwhile.
+    var whileJoining: (@MainActor () -> Void)?
 
     private(set) var views: [(key: String, since: String?)] = []
     private(set) var pushes: [(key: String, token: String, environment: PushEnvironment)] = []
@@ -86,6 +88,7 @@ final class StandInPartnerDoor: PartnerDoor {
     }
 
     private func nextJoinAnswer() throws(PartnerDoorError) -> PartnerJoinAnswer {
+        whileJoining?()
         guard !joinAnswers.isEmpty else { throw .unavailable }
         return try joinAnswers.removeFirst().get()
     }
