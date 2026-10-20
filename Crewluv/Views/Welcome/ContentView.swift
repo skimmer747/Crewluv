@@ -88,7 +88,7 @@ struct ContentView: View {
                         ConnectionErrorView(receiver: receiver)
                     } else {
                         WelcomeView(
-                            sharingEndedWith: receiver.sharingEndedWith,
+                            sharingEnded: receiver.sharingEndedNote,
                             onTryDemo: { receiver.enterDemoMode() },
                             onJoin: { await joiner.join($0) },
                             onPaste: { LinkRouter.paste($0) }

@@ -26,8 +26,8 @@ class PartnerStatusReceiver {
 
     /// Whether this device follows its pilot on Crewlu Cloud, for the screens' wording (spec §7.7).
     var isOnCrewluCloud: Bool { statusSource.isOnCrewluCloud }
-    /// The pilot whose sharing with this device ended, for the welcome screen's note (spec §7.6).
-    var sharingEndedWith: String? { statusSource.sharingEndedWith }
+    /// The welcome screen's note after sharing with this device ended (spec §7.6, §7.7).
+    var sharingEndedNote: SharingEndedNote? { statusSource.sharingEndedNote }
 
     // MARK: - Data Source
 

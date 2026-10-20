@@ -992,6 +992,17 @@ final class PilotStatusSourceTests {
         #expect(relaunched.isLeftBehind)
     }
 
+    @Test func test_theWelcomeScreensNote_saysWhetherThisDeviceWasLeftBehind() {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        #expect(makeSource().sharingEndedNote == SharingEndedNote(pilot: "Dad", isLeftBehind: false))
+
+        defaults.set(true, forKey: "partnerCloud.sharingEndedLeftBehind")
+        #expect(makeSource().sharingEndedNote == SharingEndedNote(pilot: "Dad", isLeftBehind: true))
+
+        defaults.removeObject(forKey: "partnerCloud.sharingEndedWith")
+        #expect(makeSource().sharingEndedNote == nil)
+    }
+
     // MARK: - Disconnect
 
     @Test func test_disconnect_leaves_thenForgetsTheKeyTheConnectionAndThePilot() async throws {

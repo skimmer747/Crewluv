@@ -64,6 +64,11 @@ extension PilotStatusSource {
         sharingEndedWith != nil && connection.isLeftBehind
     }
 
+    /// The welcome screen's note after sharing with this device ended (spec §7.6, §7.7).
+    var sharingEndedNote: SharingEndedNote? {
+        sharingEndedWith.map { SharingEndedNote(pilot: $0, isLeftBehind: isLeftBehind) }
+    }
+
     /// Sharing with this device ended: the welcome screen's note names the pilot last seen, if any,
     /// and the pilot is forgotten (spec §7.6).
     func noteSharingEnded(leftBehind: Bool = false) {

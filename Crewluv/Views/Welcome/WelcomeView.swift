@@ -9,10 +9,11 @@ import SwiftUI
 
 /// The welcome screen (partner links piece 4 spec §7.4): today's three steps reworded for links,
 /// the code from another device, Try Demo, and a small paste line for a link that opened a web page
-/// instead. After sharing ends, a note at the top says so (§7.6).
+/// instead. After sharing ends, a note at the top says so (§7.6), or, on a device left behind by a
+/// move to Crewlu Cloud, how to follow the pilot there (§7.7).
 struct WelcomeView: View {
-    /// The pilot whose sharing with this device ended, for the note at the top.
-    var sharingEndedWith: String?
+    /// The note at the top after sharing with this device ended.
+    var sharingEnded: SharingEndedNote?
     var onTryDemo: () -> Void
     /// Joins with a code. False when it didn't connect, so the boxes clear.
     var onJoin: (PartnerLink) async -> Bool
@@ -25,8 +26,8 @@ struct WelcomeView: View {
         ScrollView {
             GlassEffectContainer(spacing: 20) {
                 VStack(spacing: 32) {
-                    if let sharingEndedWith {
-                        SharingEndedNote(pilot: sharingEndedWith)
+                    if let sharingEnded {
+                        SharingEndedCapsule(note: sharingEnded)
                     }
                     header
                     steps
@@ -124,12 +125,12 @@ struct WelcomeView: View {
 // MARK: - Sharing Ended Note
 
 /// "Sharing with Alex has ended." at the top of the welcome screen, until the next connection.
-private struct SharingEndedNote: View {
-    let pilot: String
+private struct SharingEndedCapsule: View {
+    let note: SharingEndedNote
 
     var body: some View {
         Label {
-            Text("Sharing with \(pilot) has ended.")
+            Text(note.text)
         } icon: {
             Image(systemName: "info.circle")
                 .foregroundStyle(.orange)
