@@ -582,4 +582,38 @@ final class MoveOverTests {
 
         #expect(ended(await moveOver().afterShareGone()) == false)
     }
+
+    @Test func test_shareGone_aCopyCheckThatASwitchOvertook_endsNothing_andMakesNoCode() async throws {
+        followsPilot()
+        keys.copy = "copy"
+        door.viewAnswers = [try Self.summary()]
+        door.handOffAnswers = [.success(Self.code)]
+        door.holdsViews = true
+        let device = device()
+        let moveOver = moveOver(device)
+
+        let ending = Task { await moveOver.afterShareGone() }
+        await eventually { door.views.count == 1 }
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: true))
+        door.release()
+
+        #expect(stays(await ending.value))
+        #expect(door.handOffs.isEmpty)
+    }
+
+    @Test func test_shareGone_aCodeThatASwitchOvertook_endsNothing() async throws {
+        followsPilot()
+        keys.copy = "copy"
+        door.viewAnswers = [try Self.summary()]
+        door.holdsHandOffs = true
+        let device = device()
+        let moveOver = moveOver(device)
+
+        let ending = Task { await moveOver.afterShareGone() }
+        await eventually { door.handOffs.count == 1 }
+        _ = device.switchTo(CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: true))
+        door.release()
+
+        #expect(stays(await ending.value))
+    }
 }

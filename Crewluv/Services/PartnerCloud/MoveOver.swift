@@ -77,7 +77,7 @@ final class MoveOver {
 
     /// When the iCloud share is gone (spec §8.4): a move under way switches at once, unless Crewlu
     /// Cloud ended sharing with its key too. Another of this partner's devices is followed before the
-    /// welcome screen shows.
+    /// welcome screen shows. A join that switched this device meanwhile wins, and nothing ends.
     func afterShareGone() async -> Next {
         let generation = device.generation
         if let movingTo = connection.moveToPartnerID {
@@ -92,13 +92,15 @@ final class MoveOver {
                 break
             }
         }
-        switch await followOtherDevice(since: generation) {
+        let following = await followOtherDevice(since: generation)
+        guard generation == device.generation else { return .stay }
+        switch following {
         case .nothing, .couldntCheck:
             return .ended(leftBehind: false)
         case .couldntJoin:
             return .ended(leftBehind: true)
         case .joined(let joined, let answer):
-            return switching(to: joined, answer, since: generation)
+            return .switchTo(joined, answer)
         }
     }
 
@@ -153,6 +155,8 @@ final class MoveOver {
         } catch {
             return .couldntCheck
         }
+        // A device a join switched meanwhile makes no code: it would replace one this partner has open.
+        guard generation == device.generation else { return .nothing }
         let code: HandOffCode
         do {
             code = try await door.makeHandOffCode(key: copy)

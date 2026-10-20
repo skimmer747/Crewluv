@@ -949,6 +949,26 @@ final class PilotStatusSourceTests {
         #expect(iCloudResets.count == 0)
     }
 
+    @Test func test_shareGone_whileAJoinSwitchesThisDevice_asAnotherDeviceIsChecked_endsNothing() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.copy = "copy"
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        _ = source.switchConnection(to: CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: false), keepingAlerts: false)
+        door.release()
+
+        #expect(await refreshing.value == .superseded)
+        #expect(source.sharingEndedWith == nil)
+        #expect(iCloudResets.count == 0)
+    }
+
     @Test func test_shareGone_withAnotherDeviceThatCantBeFollowedNow_saysSo() async throws {
         defaults.set("_owner", forKey: "SharedZoneOwner")
         defaults.set("pilot", forKey: "partnerCloud.pilotID")
