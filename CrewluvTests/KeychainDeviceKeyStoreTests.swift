@@ -2,8 +2,8 @@
 //  KeychainDeviceKeyStoreTests.swift
 //  CrewluvTests
 //
-//  The device key and the pending key in the Keychain (partner links piece 4 spec §5.3). These
-//  run only in Xcode: the Mac harness can't reach the iOS Keychain.
+//  The device key, the pending key and the hand-off copy in the Keychain (partner links piece 4
+//  spec §5.3, §8.3). These run only in Xcode: the Mac harness can't reach the iOS Keychain.
 //
 
 import Foundation
@@ -20,6 +20,7 @@ struct KeychainDeviceKeyStoreTests {
     init() {
         store.forgetDeviceKey()
         store.forgetPendingKey()
+        store.forgetHandOffCopy()
     }
 
     @Test func test_noKey_readsNil() throws {
@@ -89,5 +90,42 @@ struct KeychainDeviceKeyStoreTests {
 
         #expect(attributes[kSecAttrAccessible as String] as? String == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
         #expect(attributes[kSecAttrSynchronizable as String] as? Bool != true)
+    }
+
+    // MARK: - The Hand-Off Copy
+
+    @Test func test_handOffCopy_isKeptApartFromTheDeviceKey() throws {
+        store.save(deviceKey: "device")
+        #expect(store.save(handOffCopy: "copy"))
+        #expect(try store.handOffCopy() == "copy")
+        #expect(try store.deviceKey() == "device")
+
+        store.forgetHandOffCopy()
+        #expect(try store.handOffCopy() == nil)
+        #expect(try store.deviceKey() == "device")
+    }
+
+    @Test func test_handOffCopy_replacesTheLastOne() throws {
+        store.save(handOffCopy: "first")
+        #expect(store.save(handOffCopy: "second"))
+        #expect(try store.handOffCopy() == "second")
+    }
+
+    @Test func test_handOffCopy_syncsThroughICloudKeychain_andCanBeReadWhileLocked() throws {
+        store.save(handOffCopy: "copy")
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.ToddAnderson.Crewluv.partnerCloud.tests",
+            kSecAttrAccount as String: "handOffCopy",
+            kSecAttrSynchronizable as String: true,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        #expect(SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess)
+        let attributes = try #require(result as? [String: Any])
+
+        #expect(attributes[kSecAttrAccessible as String] as? String == kSecAttrAccessibleAfterFirstUnlock as String)
+        #expect(attributes[kSecAttrSynchronizable as String] as? Bool == true)
     }
 }

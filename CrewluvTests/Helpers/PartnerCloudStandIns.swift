@@ -128,6 +128,8 @@ final class StandInICloud: ICloudStatusFetching {
 final class InMemoryDeviceKeyStore: DeviceKeyStore {
     var key: String?
     var pending: String?
+    /// The hand-off copy, as iCloud Keychain would carry it from another of this partner's devices.
+    var copy: String?
     /// While true, reading a key fails, as the Keychain's does before the phone's first unlock.
     var readFails = false
     /// While true, saving a key fails.
@@ -165,6 +167,23 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
 
     func forgetPendingKey() {
         pending = nil
+    }
+
+    func handOffCopy() throws(DeviceKeyUnreadable) -> String? {
+        if readFails {
+            throw DeviceKeyUnreadable(status: errSecInteractionNotAllowed)
+        }
+        return copy
+    }
+
+    func save(handOffCopy: String) -> Bool {
+        guard !savesFail else { return false }
+        copy = handOffCopy
+        return true
+    }
+
+    func forgetHandOffCopy() {
+        copy = nil
     }
 }
 
