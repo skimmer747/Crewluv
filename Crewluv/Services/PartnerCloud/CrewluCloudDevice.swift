@@ -249,9 +249,13 @@ final class CrewluCloudDevice {
         return true
     }
 
-    /// Forgets this device's key and its connection.
+    /// Forgets this device's key, with the hand-off copy when it holds the same key (spec §8.3), and
+    /// its connection.
     func forget() {
         generation += 1
+        if let key = try? keys.deviceKey(), (try? keys.handOffCopy()) == key {
+            keys.forgetHandOffCopy()
+        }
         keys.forgetDeviceKey()
         connection.partnerID = nil
         partnerID = nil

@@ -237,6 +237,27 @@ final class CrewluCloudDeviceTests {
         #expect(device.partnerID == Make.partnerA)
     }
 
+    // MARK: - Forgetting
+
+    @Test func test_forget_alsoForgetsACopyOfThisDevicesKey() {
+        let device = connectedDevice()
+        keys.copy = Make.key
+
+        device.forget()
+
+        #expect(keys.key == nil)
+        #expect(keys.copy == nil)
+    }
+
+    @Test func test_forget_keepsACopyOfAnotherDevicesKey() {
+        let device = connectedDevice()
+        keys.copy = "other"
+
+        device.forget()
+
+        #expect(keys.copy == "other")
+    }
+
     // MARK: - Reads the Connection Changed Under
 
     @Test func test_aLeftoverKeysRefusal_thatASwitchOvertook_forgetsNothing() async {

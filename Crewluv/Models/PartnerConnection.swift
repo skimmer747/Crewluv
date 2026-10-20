@@ -16,6 +16,7 @@ struct PartnerConnection {
     static let pilotNameKey = "partnerCloud.pilotName"
     static let sharingEndedWithKey = "partnerCloud.sharingEndedWith"
     static let leftICloudKey = "partnerCloud.leftICloud"
+    static let moveToPartnerIDKey = "partnerCloud.moveToPartnerID"
     /// Where the alerts' title name is kept, as before.
     static let displayNameKey = "ResolvedPilotDisplayName"
 
@@ -25,6 +26,13 @@ struct PartnerConnection {
     var partnerID: String? {
         get { defaults.string(forKey: Self.partnerIDKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.partnerIDKey) }
+    }
+
+    /// A move under way (spec §8.1): the partner id that redeeming a ticket or a code gave this
+    /// device's key, while this device still follows its pilot through iCloud.
+    var moveToPartnerID: String? {
+        get { defaults.string(forKey: Self.moveToPartnerIDKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.moveToPartnerIDKey) }
     }
 
     /// The pilot of the last status seen, to tell whether a link is from another pilot (spec §7.2).
