@@ -89,13 +89,13 @@ final class PilotStatusSource {
     /// Reads the status from wherever this device follows its pilot, and tells the screen how it
     /// went before anyone waiting on the read carries on. A refresh asked for during a read, say
     /// for a push that came mid-read, gets one more read once that one ends (`ReadQueue`). After
-    /// iCloud's record is read and shown, the move-over takes its turn (spec §8.1).
+    /// iCloud's read is shown, the move-over takes its turn (spec §8.1).
     func refresh() async -> RefreshOutcome {
         await reads.run { [self] in
             let readAt = Date()
             let read = await read()
             report(PilotStatusUpdate(outcome: read.outcome, readAt: readAt))
-            guard let record = read.record, let moved = await moveOverTurn(after: record) else { return read.outcome }
+            guard let turn = read.turn, let moved = await moveOverTurn(turn) else { return read.outcome }
             report(PilotStatusUpdate(outcome: moved, readAt: Date()))
             return moved
         }
@@ -133,10 +133,17 @@ final class PilotStatusSource {
 
     // MARK: - Reading
 
-    /// How a read went, and iCloud's record when it brought it, for the move-over's turn.
+    /// How a read went, and the move-over's turn after it, when it has one.
     private struct Read {
         let outcome: RefreshOutcome
-        var record: ICloudReading?
+        var turn: Turn?
+    }
+
+    /// The move-over's turn after an iCloud read (spec §8.1): the ticket the record brought, and the
+    /// generation when the read began, so a switch since then, say by a join, takes the turn away.
+    private struct Turn {
+        let ticket: String?
+        let generation: Int
     }
 
     private func read() async -> Read {
@@ -178,10 +185,11 @@ final class PilotStatusSource {
         return await switchOver(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer: answer)
     }
 
-    /// The move-over's turn, after iCloud's record was read (spec §8.1). Nil while this device stays
-    /// on iCloud.
-    private func moveOverTurn(after record: ICloudReading) async -> RefreshOutcome? {
-        guard case .switchTo(let joined, let answer) = await moveOver.afterRead(ticket: record.moveTicket) else { return nil }
+    /// The move-over's turn, after an iCloud read (spec §8.1). Nil while this device stays on iCloud.
+    private func moveOverTurn(_ turn: Turn) async -> RefreshOutcome? {
+        guard turn.generation == device.generation,
+              case .switchTo(let joined, let answer) = await moveOver.afterRead(ticket: turn.ticket)
+        else { return nil }
         return await switchOver(to: joined, answer: answer)
     }
 
@@ -228,9 +236,9 @@ final class PilotStatusSource {
             guard generation == device.generation else { return Read(outcome: .superseded) }
             if let reading, reading.lastUpdated == fetched.status.lastUpdated {
                 takeLookedUpName(from: fetched)
-                return Read(outcome: .unchanged, record: fetched)
+                return Read(outcome: .unchanged, turn: Turn(ticket: fetched.moveTicket, generation: generation))
             }
-            return Read(outcome: await adopt(.iCloud(fetched)), record: fetched)
+            return Read(outcome: await adopt(.iCloud(fetched)), turn: Turn(ticket: fetched.moveTicket, generation: generation))
         } catch _ where generation != device.generation {
             return Read(outcome: .superseded)
         } catch ICloudFetchError.notConnected {
@@ -238,7 +246,9 @@ final class PilotStatusSource {
         } catch ICloudFetchError.shareGone {
             return Read(outcome: await iCloudShareGone())
         } catch {
-            return Read(outcome: .failed(error.localizedDescription))
+            // A move under way needs no record, so it takes its turn even when iCloud fails.
+            let turn = connection.moveToPartnerID == nil ? nil : Turn(ticket: nil, generation: generation)
+            return Read(outcome: .failed(error.localizedDescription), turn: turn)
         }
     }
 

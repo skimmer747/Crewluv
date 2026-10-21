@@ -193,6 +193,23 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
 /// The alerts, recording what they're handed.
 actor RecordingNotifier {
     private(set) var evaluations: [(status: SharedPilotStatus, pilotName: String)] = []
+    private var holds = false
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    /// How many evaluations wait for `release()`.
+    var waiting: Int { held.count }
+
+    /// From now on, each evaluation waits for `release()`, as if the alerts were slow.
+    func hold() {
+        holds = true
+    }
+
+    /// Lets every held evaluation go on, and holds no more.
+    func release() {
+        holds = false
+        held.forEach { $0.resume() }
+        held.removeAll()
+    }
 
     func evaluateChanges(
         old: SharedPilotStatus?,
@@ -200,8 +217,11 @@ actor RecordingNotifier {
         pilotName: String,
         newEffectiveDelay: Int?,
         resolvedHomeArrivalTime: Date?
-    ) {
+    ) async {
         evaluations.append((new, pilotName))
+        if holds {
+            await withCheckedContinuation { held.append($0) }
+        }
     }
 }
 

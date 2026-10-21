@@ -877,6 +877,49 @@ final class PilotStatusSourceTests {
         #expect(source.lastUpdate?.outcome == .newStatus)
     }
 
+    @Test func test_moveOver_hasNoTurn_afterAJoinSwitchedThisDeviceDuringTheRead() async throws {
+        try onICloud(moveTicket: "ticket")
+        await notifier.hold()
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        for _ in 0..<10_000 {
+            if await notifier.waiting > 0 { break }
+            await Task.yield()
+        }
+        #expect(await notifier.waiting == 1)
+        _ = source.switchConnection(to: CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: false), keepingAlerts: false)
+        await notifier.release()
+
+        #expect(await refreshing.value == .newStatus)
+        #expect(door.views.isEmpty)
+        #expect(door.joins.isEmpty)
+    }
+
+    @Test func test_moveOver_aMoveUnderWayTakesItsTurn_evenWhenICloudFails() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        keys.key = Make.key
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+        iCloud.results = [.failure(URLError(.notConnectedToInternet))]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB)]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+    }
+
+    @Test func test_moveOver_hasNoTurn_whenICloudFails_withoutAMove() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        keys.copy = "copy"
+        iCloud.results = [.failure(URLError(.notConnectedToInternet))]
+        let source = makeSource()
+
+        _ = await source.refresh()
+
+        #expect(door.views.isEmpty)
+    }
+
     @Test func test_aKeyAReinstallLeft_forThisPilot_switchesAfterICloudsStatus() async throws {
         try onICloud()
         keys.key = Make.key
