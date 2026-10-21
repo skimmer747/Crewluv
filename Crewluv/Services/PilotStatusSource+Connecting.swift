@@ -6,8 +6,21 @@
 //
 
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 extension PilotStatusSource {
+    /// "iPhone" or "iPad": this device's name in the pilot's list, since iOS doesn't give apps the
+    /// device's own name.
+    static var deviceLabel: String {
+        #if canImport(UIKit)
+        UIDevice.current.model
+        #else
+        "iPhone"
+        #endif
+    }
+
     /// The pilot stopped sharing with this device, as Crewlu Cloud told the push registration:
     /// forget the connection, and tell the screen. A refusal Disconnect's own leave caused ends nothing.
     func endSharing() {

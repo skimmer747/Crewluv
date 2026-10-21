@@ -7,9 +7,6 @@
 
 import Foundation
 import Observation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 /// The one place that reads the pilot's status, whoever asks: the screen, a push or the background
 /// refresh (partner links piece 4 spec §5.1). It reads Crewlu Cloud through `device` once connected
@@ -59,16 +56,6 @@ final class PilotStatusSource {
     static let unreachable = "No connection to Crewlu Cloud"
     private static let keyUnreadable = "This device's key couldn't be read"
     private static let keyUnsaved = "This device's key couldn't be saved"
-
-    /// "iPhone" or "iPad": this device's name in the pilot's list, since iOS doesn't give apps the
-    /// device's own name.
-    static var deviceLabel: String {
-        #if canImport(UIKit)
-        UIDevice.current.model
-        #else
-        "iPhone"
-        #endif
-    }
 
     init(
         iCloud: ICloudStatusFetching = ICloudStatusFetcher(),
@@ -199,11 +186,15 @@ final class PilotStatusSource {
     }
 
     /// Switches to a key this device already holds, from within a read: a key a reinstall left, or the
-    /// move-over's (spec §5.3, §8.2). It replaces no other device, since the key is this device's own,
-    /// and what the alerts kept stays, since it's the same pilot. The read is Crewlu Cloud's answer, or
-    /// a failure when it couldn't be reached.
+    /// move-over's (spec §5.3, §8.2). It replaces no other device, since the key is this device's own.
+    /// What the alerts kept stays unless the read shows another pilot. The read is Crewlu Cloud's
+    /// answer, or a failure when it couldn't be reached.
     private func switchOver(to joined: CrewluCloudDevice.Joined, answer: PartnerViewAnswer?) async -> RefreshOutcome {
-        guard switchConnection(to: joined, keepingAlerts: true) != nil else { return .failed(Self.keyUnsaved) }
+        var isSamePilot = true
+        if case .summary(let summary)? = answer?.content {
+            isSamePilot = summary.pilotId == connection.pilotID
+        }
+        guard switchConnection(to: joined, keepingAlerts: isSamePilot) != nil else { return .failed(Self.keyUnsaved) }
         guard let answer else { return .failed(Self.unreachable) }
         return await take(answer)
     }

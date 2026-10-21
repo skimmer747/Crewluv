@@ -45,13 +45,13 @@ final class MoveOver {
         let generation = device.generation
         switch await readUnconnectedKey() {
         case .answer(let key, let answer):
-            let isMoving = connection.moveToPartnerID != nil
-            if case .summary(let summary) = answer.content, isMoving || summary.pilotId == connection.pilotID {
+            // A status means the switch: the key's device is this device's last connection, a move
+            // under way or one a reinstall left, whichever pilot it follows (spec §5.3). A move waits
+            // for the pilot's first status there; a key with none yet gives way to the ticket.
+            if case .summary = answer.content {
                 return switching(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer, since: generation)
             }
-            // A move waits for the pilot's first summary there. A key a reinstall left for another
-            // pilot gives way to the ticket.
-            if isMoving {
+            if connection.moveToPartnerID != nil {
                 return .stay
             }
         case .unavailable:
@@ -75,22 +75,23 @@ final class MoveOver {
         return await followingOtherDevice(since: generation)
     }
 
-    /// When the iCloud share is gone (spec §8.4): a move under way switches at once, unless Crewlu
-    /// Cloud ended sharing with its key too. Another of this partner's devices is followed before the
-    /// welcome screen shows. A join that switched this device meanwhile wins, and nothing ends.
+    /// When the iCloud share is gone (spec §8.4): this device's key carries it on as it would with no
+    /// share, once Crewlu Cloud answers for it, and a move under way switches even when Crewlu Cloud
+    /// can't be reached, unless it ended sharing with the key. Another of this partner's devices is
+    /// followed before the welcome screen shows. A join that switched this device meanwhile wins, and
+    /// nothing ends.
     func afterShareGone() async -> Next {
         let generation = device.generation
-        if let movingTo = connection.moveToPartnerID {
-            switch await readUnconnectedKey() {
-            case .answer(let key, let answer):
-                return switching(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer, since: generation)
-            case .unavailable:
-                if let key = try? keys.deviceKey() {
-                    return switching(to: .init(partnerID: movingTo, key: key, isDeviceKey: true), nil, since: generation)
-                }
-            case .noKey, .gone:
-                break
+        let movingTo = connection.moveToPartnerID
+        switch await readUnconnectedKey() {
+        case .answer(let key, let answer):
+            return switching(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer, since: generation)
+        case .unavailable:
+            if let movingTo, let key = try? keys.deviceKey() {
+                return switching(to: .init(partnerID: movingTo, key: key, isDeviceKey: true), nil, since: generation)
             }
+        case .noKey, .gone:
+            break
         }
         let following = await followOtherDevice(since: generation)
         guard generation == device.generation else { return .stay }

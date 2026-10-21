@@ -889,16 +889,18 @@ final class PilotStatusSourceTests {
         #expect(iCloudForgets.count == 1)
     }
 
-    @Test func test_aKeyAReinstallLeft_forAnotherPilot_staysOnICloud() async throws {
+    @Test func test_aKeyAReinstallLeft_forAnotherPilot_switches_andItsAlertsStartAfresh() async throws {
         try onICloud()
         keys.key = Make.key
-        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["pilotId": "sam"]))]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 2, ["pilotId": "sam"]))]
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
         let source = makeSource()
 
-        _ = await source.refresh()
+        #expect(await source.refresh() == .newStatus)
 
-        #expect(!source.isOnCrewluCloud)
-        #expect(keys.key == Make.key)
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "sam")
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
     }
 
     @Test func test_shareGone_duringAMove_switchesAtOnce_withoutTheWelcomeScreen() async throws {
@@ -913,6 +915,21 @@ final class PilotStatusSourceTests {
         #expect(await source.refresh() == .noStatusYet)
 
         #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(iCloudResets.count == 0)
+        #expect(source.sharingEndedWith == nil)
+    }
+
+    @Test func test_shareGone_withAKeyAReinstallLeft_switchesToIt_withoutTheWelcomeScreen() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.key = Make.key
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
         #expect(iCloudResets.count == 0)
         #expect(source.sharingEndedWith == nil)
     }

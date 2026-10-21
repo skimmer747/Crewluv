@@ -322,16 +322,27 @@ final class MoveOverTests {
         #expect(joined.key == Make.key)
     }
 
-    @Test func test_aKeyAReinstallLeft_forAnotherPilot_givesWayToTheTicket() async throws {
+    @Test func test_aKeyAReinstallLeft_forAnotherPilot_switchesToIt_withoutTheTicket() async throws {
         followsPilot()
         keys.key = Make.key
-        door.viewAnswers = [try Self.summary(for: Make.partnerA, pilot: "sam"), try Self.summary()]
-        door.joinAnswers = [.failure(.refused(.keyInUse)), .success(Self.joinedB)]
+        door.viewAnswers = [try Self.summary(for: Make.partnerA, pilot: "sam")]
 
         let (joined, _) = try #require(switched(await moveOver().afterRead(ticket: "ticket")))
 
-        #expect(joined.key != Make.key)
-        #expect(door.joins.map(\.key) == [Make.key, joined.key])
+        #expect(joined == CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: Make.key, isDeviceKey: true))
+        #expect(door.joins.isEmpty)
+    }
+
+    @Test func test_aKeyAReinstallLeft_beforeItsFirstSummary_redeemsTheTicketWithIt() async throws {
+        followsPilot()
+        keys.key = Make.key
+        door.viewAnswers = [Self.noSummaryForB, try Self.summary()]
+        door.joinAnswers = [.success(Self.joinedB)]
+
+        let (joined, _) = try #require(switched(await moveOver().afterRead(ticket: "ticket")))
+
+        #expect(joined.key == Make.key)
+        #expect(door.joins.map(\.key) == [Make.key])
     }
 
     @Test(arguments: [PartnerDoorError.refused(.tooManyDevices), .refused(.tryLater), .refused(.invalidInput), .unavailable])
@@ -533,12 +544,22 @@ final class MoveOverTests {
         #expect(keys.key == nil)
     }
 
-    @Test func test_shareGone_withAKeyAReinstallLeft_doesntSwitchToIt() async {
+    @Test func test_shareGone_withAKeyAReinstallLeft_switchesToIt() async throws {
+        followsPilot()
+        keys.key = Make.key
+        door.viewAnswers = [Self.noSummaryForB]
+
+        let (joined, _) = try #require(switched(await moveOver().afterShareGone()))
+
+        #expect(joined == CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true))
+    }
+
+    @Test func test_shareGone_withAKeyAReinstallLeft_thatCantBeReached_ends() async {
         followsPilot()
         keys.key = Make.key
 
         #expect(ended(await moveOver().afterShareGone()) == false)
-        #expect(door.views.isEmpty)
+        #expect(keys.key == Make.key)
     }
 
     @Test func test_shareGone_followsAnotherDevice_beforeTheWelcomeScreen() async throws {
