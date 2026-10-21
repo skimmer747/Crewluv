@@ -9,7 +9,8 @@ import Foundation
 
 /// Moves this device from iCloud to Crewlu Cloud by itself, once the pilot's CrewLu has moved this
 /// partner there (partner links piece 4 spec §8). Nothing shows while it works: a step that fails
-/// leaves the device on iCloud, and the next read tries again with the same key.
+/// leaves the device on iCloud, and the next read tries again with the same key. Its logs name no
+/// ticket, code or key (§9).
 final class MoveOver {
     private let door: PartnerDoor
     private let keys: DeviceKeyStore
@@ -52,6 +53,7 @@ final class MoveOver {
                 return switching(to: .init(partnerID: answer.partnerID, key: key, isDeviceKey: true), answer, since: generation)
             }
             if connection.moveToPartnerID != nil {
+                debugLog("[MoveOver] A move is under way: waiting for the pilot's first status")
                 return .stay
             }
         case .unavailable:
@@ -65,10 +67,13 @@ final class MoveOver {
                 joined = try await redeemForMove(ticket)
             } catch .refused(.sharingEnded) {
                 // The ticket was used, by another of this partner's devices, or it ran out.
+                debugLog("[MoveOver] The ticket was used or ran out")
                 return await followingOtherDevice(since: generation)
             } catch {
+                debugLog("[MoveOver] The ticket couldn't be redeemed now: \(error)")
                 return .stay
             }
+            debugLog("[MoveOver] Redeemed the ticket: a move is under way")
             guard let answer = await startMove(joined, since: generation) else { return .stay }
             return switching(to: joined, answer, since: generation)
         }
@@ -97,8 +102,10 @@ final class MoveOver {
         guard generation == device.generation else { return .stay }
         switch following {
         case .nothing, .couldntCheck:
+            debugLog("[MoveOver] The share is gone, and nothing on Crewlu Cloud carries this device on")
             return .ended(leftBehind: false)
         case .couldntJoin:
+            debugLog("[MoveOver] The share is gone; another of this partner's devices couldn't be followed now")
             return .ended(leftBehind: true)
         case .joined(let joined, let answer):
             return .switchTo(joined, answer)
@@ -108,7 +115,12 @@ final class MoveOver {
     /// A switch, unless the connection changed since the turn began, say by a join: then this device
     /// stays as that left it.
     private func switching(to joined: CrewluCloudDevice.Joined, _ answer: PartnerViewAnswer?, since generation: Int) -> Next {
-        generation == device.generation ? .switchTo(joined, answer) : .stay
+        guard generation == device.generation else {
+            debugLog("[MoveOver] A switch came first: nothing to do")
+            return .stay
+        }
+        debugLog("[MoveOver] Switching to Crewlu Cloud")
+        return .switchTo(joined, answer)
     }
 
     /// The move is under way once a redeem joined (spec §8.1): its read, or nil when it brought no
@@ -171,6 +183,7 @@ final class MoveOver {
               generation == device.generation
         else { return .couldntJoin }
         connection.moveToPartnerID = joined.partnerID
+        debugLog("[MoveOver] Joined with a code from another of this partner's devices: a move is under way")
         return .joined(joined, try? await door.view(key: joined.key, since: nil))
     }
 
@@ -197,6 +210,7 @@ final class MoveOver {
             answer = try await door.view(key: key, since: nil)
         } catch .refused(.sharingEnded) {
             guard generation == device.generation else { return .unavailable }
+            debugLog("[MoveOver] Crewlu Cloud ended sharing with this device's key: forgetting it")
             if (try? keys.handOffCopy()) == key {
                 keys.forgetHandOffCopy()
             }
