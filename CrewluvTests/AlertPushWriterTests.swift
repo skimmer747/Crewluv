@@ -8,6 +8,7 @@
 
 import Foundation
 import Testing
+import UserNotifications
 @testable import Crewluv
 
 @MainActor
@@ -171,5 +172,42 @@ struct AlertPushWriterTests {
         pending.expire()
 
         #expect(delivered == [nil])
+    }
+
+    @Test func test_anotherPush_startsWithoutTheLastOnesPlainLine() {
+        var delivered: [AlertPushWords?] = []
+        let pending = PendingAlertPush()
+        pending.start { _ in }
+        pending.hold(AlertPushWords(title: "Dad", body: "sent a quick status"))
+        pending.start { delivered.append($0) }
+
+        pending.expire()
+
+        #expect(delivered == [nil])
+    }
+
+    @Test func test_theAlertShown_isThePushWithItsWords_keepingItsSoundAndWhatItCarries() {
+        let push = UNMutableNotificationContent()
+        push.body = "New update"
+        push.sound = .default
+        push.userInfo = ["kind": "quick-status"]
+        push.categoryIdentifier = "status"
+
+        let shown = AlertPushWriter.content(of: push, with: AlertPushWords(title: "Dad", body: "is asking you to call"))
+
+        #expect(shown.title == "Dad")
+        #expect(shown.body == "is asking you to call")
+        #expect(shown.sound == push.sound)
+        #expect(shown.userInfo["kind"] as? String == "quick-status")
+        #expect(shown.categoryIdentifier == "status")
+        #expect(push.body == "New update", "the push itself is left as it came")
+    }
+
+    @Test func test_aSilentPush_staysSilent_andWithNoWords_thePushAsItCame() {
+        let push = UNMutableNotificationContent()
+        push.body = "New update"
+
+        #expect(AlertPushWriter.content(of: push, with: AlertPushWords(title: "Dad", body: "is sleeping")).sound == nil)
+        #expect(AlertPushWriter.content(of: push, with: nil) === push)
     }
 }

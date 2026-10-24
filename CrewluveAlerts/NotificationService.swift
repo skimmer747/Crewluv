@@ -25,13 +25,7 @@ nonisolated final class NotificationService: UNNotificationServiceExtension {
             return
         }
         pending.start { words in
-            guard let words, let content = push.mutableCopy() as? UNMutableNotificationContent else {
-                contentHandler(push)
-                return
-            }
-            content.title = words.title
-            content.body = words.body
-            contentHandler(content)
+            contentHandler(AlertPushWriter.content(of: push, with: words))
         }
         Task { @MainActor [pending] in
             let writer = AlertPushWriter(door: LivePartnerDoor(), keys: KeychainDeviceKeyStore())

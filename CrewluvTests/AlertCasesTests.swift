@@ -3,7 +3,7 @@
 //  CrewluvTests
 //
 //  The alert pushes' shared cases: this app's alerts for each change, which Crewlu Cloud's partner-push must
-//  match kind for kind (alert pushes spec §9.1, §15)
+//  match kind for kind, and the helper's words for each (alert pushes spec §9.1, §15)
 //
 
 import Foundation
@@ -77,6 +77,36 @@ struct AlertCasesTests {
             }
             let got = posted.all.map { "\($0.kind.rawValue) \($0.playsSound ? "sound" : "silent") \($0.title) | \($0.body)" }
             #expect(got == expected, "\(name)")
+        }
+    }
+
+    @Test func test_everySharedCase_givesTheHelperTheSameWords() async throws {
+        let file = try Self.file()
+        let base = try #require(file["base"] as? [String: Any])
+        let zone = try #require(file["timeZone"] as? String)
+        let timeZone = try #require(TimeZone(identifier: zone))
+
+        for item in try #require(file["cases"] as? [[String: Any]]) {
+            let name = try #require(item["name"] as? String)
+            let partner = try #require(item["partner"] as? String)
+            let after = try Self.summary(try #require(item["after"] as? [String: Any]), base: base)
+            let afterAt = try #require(item["afterAt"] as? TimeInterval)
+            let door = StandInPartnerDoor()
+            let keys = InMemoryDeviceKeyStore()
+            keys.key = Make.key
+            let writer = AlertPushWriter(door: door, keys: keys, timeZone: timeZone)
+
+            for alert in try #require(item["alerts"] as? [[String: Any]]) {
+                let kindName = try #require(alert["kind"] as? String)
+                let kind = try #require(AlertKind(rawValue: kindName))
+                let title = try #require(alert["title"] as? String)
+                let body = try #require(alert["body"] as? String)
+                door.viewAnswers = [.success(PartnerViewAnswer(partnerID: partner, updatedAt: "t", content: .summary(after)))]
+
+                let words = await writer.words(for: kind, at: Date(timeIntervalSince1970: afterAt))
+
+                #expect(words == AlertPushWords(title: title, body: body), "\(name): \(kindName)")
+            }
         }
     }
 

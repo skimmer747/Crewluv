@@ -103,6 +103,8 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - `StatusChangeNotifier` compares each new status with the last one and keeps its snapshot. It names each alert by its kind, in `AlertWording`'s words, with the same rules as Crewlu Cloud's partner-push: the shared cases in `CrewluvTests/Fixtures/PartnerSummary/alert-cases.json` hold both to them
 - On iCloud the app posts its own alerts. On Crewlu Cloud they come as alert pushes once Crewlu Cloud has accepted this device's push registration (`AlertPushes`). Until then, and for a read a hidden push asked for, the app posts its own
 - An alert push carries only its kind. The helper target, `CrewluveAlerts` (a notification service extension), reads the status with this device's key and writes the kind's words, or a plain line (`AlertPushWriter`). It builds 15 of the app's files through Target Membership, reads the key from Crewluve's own Keychain group, and only reads
+- The helper's 15 files must stay safe in an app extension and compile with only each other: a file one of them comes to need joins the helper too (tick `CrewluveAlerts` in its Target Membership)
+- The app keeps its Keychain items in its own app ID's group, the helper's one group. Don't give the app a `keychain-access-groups` entitlement unless that group stays first, or new items land where the helper can't read them
 
 #### Connecting (`App/LinkRouter.swift`, `Services/PartnerJoiner.swift`)
 - `LinkRouter` takes every link the app is given, and the welcome screen's paste box: Crewluve's own `https://crewluve.crewlu.net/join#t=…` and `#c=…` links (`PartnerLink`) go to the joiner, and iCloud share links to `CloudKitShareManager`

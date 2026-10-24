@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UserNotifications
 
 /// What an alert push says once the helper has written it: a title, empty for none, and a body.
 nonisolated struct AlertPushWords: Equatable, Sendable {
@@ -20,11 +21,20 @@ nonisolated struct AlertPushWords: Equatable, Sendable {
 struct AlertPushWriter {
     let door: PartnerDoor
     let keys: DeviceKeyStore
-    var timeZone: TimeZone = .current
+    var timeZone: TimeZone = .autoupdatingCurrent
 
     /// The kind an alert push names, or nil for one this Crewluve doesn't know, which keeps the push's own words.
     nonisolated static func kind(of userInfo: [AnyHashable: Any]) -> AlertKind? {
         (userInfo["kind"] as? String).flatMap(AlertKind.init(rawValue:))
+    }
+
+    /// The alert iOS shows for `push`: its words over the push's own, keeping its sound, or none, and all else it
+    /// carries. With no words, the push as it came.
+    nonisolated static func content(of push: UNNotificationContent, with words: AlertPushWords?) -> UNNotificationContent {
+        guard let words, let content = push.mutableCopy() as? UNMutableNotificationContent else { return push }
+        content.title = words.title
+        content.body = words.body
+        return content
     }
 
     /// The kind's plain line (spec §6.4), titled with the name the app keeps beside the key (§6.2), or with no title
@@ -80,7 +90,10 @@ nonisolated final class PendingAlertPush: @unchecked Sendable {
 
     /// Waits to deliver the alert push with `deliver`: given its words or the plain line, or nil for the push as it came.
     func start(_ deliver: @escaping (AlertPushWords?) -> Void) {
-        lock.withLock { self.deliver = OneTimeCompletion(deliver) }
+        lock.withLock {
+            self.deliver = OneTimeCompletion(deliver)
+            plainLine = nil
+        }
     }
 
     /// Keeps the kind's plain line, for when iOS's time runs out.
