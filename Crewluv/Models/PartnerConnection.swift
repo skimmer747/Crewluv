@@ -22,6 +22,9 @@ struct PartnerConnection {
     static let displayNameKey = "ResolvedPilotDisplayName"
 
     let defaults: UserDefaults
+    /// Where the alerts' title name is kept too, beside this device's key, for the alert pushes' helper (alert
+    /// pushes spec §6.2). The status source gives it.
+    var keyStore: DeviceKeyStore? = nil
 
     /// This device's partner id on Crewlu Cloud, or nil while it follows its pilot through iCloud.
     var partnerID: String? {
@@ -78,6 +81,9 @@ struct PartnerConnection {
         let status = reading.status(at: Date())
         pilotID = status.pilotId
         pilotName = name ?? status.pilotFirstName
+        if let keyStore, let title = pilotName, (try? keyStore.pilotName()) != title {
+            keyStore.save(pilotName: title)
+        }
         sharingEndedWith = nil
         return name
     }
@@ -89,6 +95,7 @@ struct PartnerConnection {
         for key in keys {
             defaults.removeObject(forKey: key)
         }
+        keyStore?.forgetPilotName()
     }
 
     /// Whether an iCloud share was accepted, or Crewluve runs on the pilot's own iCloud.

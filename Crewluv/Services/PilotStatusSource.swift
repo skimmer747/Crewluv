@@ -79,7 +79,7 @@ final class PilotStatusSource {
         self.periodicCheck = PeriodicCheck(timer: periodicCheck)
         self.didConnect = didConnect
         self.forgetICloudShare = forgetICloudShare
-        connection = PartnerConnection(defaults: defaults)
+        connection = PartnerConnection(defaults: defaults, keyStore: keys)
         device = CrewluCloudDevice(door: door, keys: keys, connection: connection)
         moveOver = MoveOver(door: door, keys: keys, connection: connection, device: device, label: deviceLabel)
         alertPushes = AlertPushes(defaults: defaults, keys: keys)

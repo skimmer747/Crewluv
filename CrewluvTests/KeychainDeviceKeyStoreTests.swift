@@ -3,7 +3,8 @@
 //  CrewluvTests
 //
 //  The device key, the pending key and the hand-off copy in the Keychain (partner links piece 4
-//  spec §5.3, §8.3). These run only in Xcode: the Mac harness can't reach the iOS Keychain.
+//  spec §5.3, §8.3), and the alerts' title name (alert pushes spec §6.2). These run only in Xcode:
+//  the Mac harness can't reach the iOS Keychain.
 //
 
 import Foundation
@@ -21,6 +22,7 @@ struct KeychainDeviceKeyStoreTests {
         store.forgetDeviceKey()
         store.forgetPendingKey()
         store.forgetHandOffCopy()
+        store.forgetPilotName()
     }
 
     @Test func test_noKey_readsNil() throws {
@@ -90,6 +92,31 @@ struct KeychainDeviceKeyStoreTests {
 
         #expect(attributes[kSecAttrAccessible as String] as? String == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
         #expect(attributes[kSecAttrSynchronizable as String] as? Bool != true)
+    }
+
+    // MARK: - The Pilot's Name
+
+    @Test func test_pilotName_isKeptApartFromTheKey_onThisDeviceOnly_andCanBeForgotten() throws {
+        store.save(deviceKey: "device")
+        #expect(store.save(pilotName: "Dad"))
+        #expect(try store.pilotName() == "Dad")
+        #expect(try store.deviceKey() == "device")
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.ToddAnderson.Crewluv.partnerCloud.tests",
+            kSecAttrAccount as String: "pilotName",
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        #expect(SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess)
+        let attributes = try #require(result as? [String: Any])
+        #expect(attributes[kSecAttrAccessible as String] as? String == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+        #expect(attributes[kSecAttrSynchronizable as String] as? Bool != true)
+
+        store.forgetPilotName()
+        #expect(try store.pilotName() == nil)
+        #expect(try store.deviceKey() == "device")
     }
 
     // MARK: - The Hand-Off Copy

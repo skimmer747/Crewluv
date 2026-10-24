@@ -133,6 +133,8 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
     var pending: String?
     /// The hand-off copy, as iCloud Keychain would carry it from another of this partner's devices.
     var copy: String?
+    /// The alerts' title name, kept for the alert pushes' helper.
+    var name: String?
     /// While true, reading a key fails, as the Keychain's does before the phone's first unlock.
     var readFails = false
     /// While true, saving a key fails.
@@ -187,6 +189,23 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
 
     func forgetHandOffCopy() {
         copy = nil
+    }
+
+    func pilotName() throws(DeviceKeyUnreadable) -> String? {
+        if readFails {
+            throw DeviceKeyUnreadable(status: errSecInteractionNotAllowed)
+        }
+        return name
+    }
+
+    func save(pilotName: String) -> Bool {
+        guard !savesFail else { return false }
+        name = pilotName
+        return true
+    }
+
+    func forgetPilotName() {
+        name = nil
     }
 }
 

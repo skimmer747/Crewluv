@@ -139,6 +139,21 @@ final class PilotStatusSourceTests {
         #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
     }
 
+    @Test func test_theAlertsTitleName_isKeptBesideTheKey_forTheHelper_untilThePilotIsForgotten() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+            .success(try Make.iCloud(lastUpdated: 2)),
+        ]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(keys.name == "Dad")
+        _ = await source.refresh()
+        #expect(keys.name == "Alex", "the pilot's first name, once there's no nickname")
+        source.forgetPilot()
+        #expect(keys.name == nil)
+    }
+
     @Test func test_iCloud_nameNotLookedUp_titlesTheAlertWithTheSavedName_andKeepsIt() async throws {
         defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
         iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false))]

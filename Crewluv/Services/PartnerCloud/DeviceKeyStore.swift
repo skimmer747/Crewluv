@@ -47,12 +47,19 @@ protocol DeviceKeyStore {
     /// Saves the hand-off copy in place of any other. False if it couldn't be saved.
     @discardableResult func save(handOffCopy: String) -> Bool
     func forgetHandOffCopy()
+
+    /// The name the alerts are titled with, kept beside the key for the alert pushes' helper, which titles its plain
+    /// lines with it (alert pushes spec §6.2). Nil when there's none.
+    func pilotName() throws(DeviceKeyUnreadable) -> String?
+    /// Saves the name in place of any other. False if it couldn't be saved.
+    @discardableResult func save(pilotName: String) -> Bool
+    func forgetPilotName()
 }
 
 /// The keys in the Keychain, each as a generic password that iOS can read in the background once the
-/// phone has been unlocked since it started, so a push at night still finds them. This device's key
-/// and the pending key are for this device only: they never sync, and never move to another device
-/// in a backup. The hand-off copy syncs through iCloud Keychain, which only Crewluve on this partner's
+/// phone has been unlocked since it started, so a push at night still finds them. This device's key,
+/// the pending key and the pilot's name are for this device only: they never sync, and never move to
+/// another device in a backup. The hand-off copy syncs through iCloud Keychain, which only Crewluve on this partner's
 /// own devices can read, encrypted end to end (spec §8.3).
 struct KeychainDeviceKeyStore: DeviceKeyStore {
     static let service = "com.ToddAnderson.Crewluv.partnerCloud"
@@ -62,6 +69,7 @@ struct KeychainDeviceKeyStore: DeviceKeyStore {
         case device = "deviceKey"
         case pending = "pendingKey"
         case handOffCopy
+        case pilotName
 
         var syncs: Bool { self == .handOffCopy }
     }
@@ -109,6 +117,19 @@ struct KeychainDeviceKeyStore: DeviceKeyStore {
 
     func forgetHandOffCopy() {
         SecItemDelete(item(.handOffCopy) as CFDictionary)
+    }
+
+    func pilotName() throws(DeviceKeyUnreadable) -> String? {
+        try key(in: .pilotName)
+    }
+
+    @discardableResult
+    func save(pilotName: String) -> Bool {
+        save(pilotName, in: .pilotName)
+    }
+
+    func forgetPilotName() {
+        SecItemDelete(item(.pilotName) as CFDictionary)
     }
 
     /// Nil when the Keychain has no key in `slot`, or holds one that isn't text, which can't be used

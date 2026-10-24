@@ -211,6 +211,7 @@ final class CloudKitShareManager {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
         UserDefaults.standard.removeObject(forKey: "PilotDataSource")
         UserDefaults.standard.removeObject(forKey: "ResolvedPilotDisplayName")
+        KeychainDeviceKeyStore().forgetPilotName()
         UserDefaults.standard.removeObject(forKey: "LastSeenPilotSnapshot")
         shareState = .idle
         debugLog("[ShareManager] Cleared stored zone owner, data source, display name, and pilot snapshot")
