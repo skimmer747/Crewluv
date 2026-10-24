@@ -37,10 +37,56 @@ final class PushRegistrarTests {
             notifier: RecordingNotifier(), iCloudShareEnded: {}
         )
         let registrar = PushRegistrar(
-            statusSource: source, door: door, keys: keys,
+            statusSource: source, door: door, keys: keys, defaults: defaults,
             environment: { .sandbox }, record: { [log] in log.entries.append($0) }
         )
         return (registrar, source)
+    }
+
+    /// Whether Crewlu Cloud sends this device alert pushes, as the registrar left it.
+    private var alertPushesAccepted: Bool {
+        AlertPushes(defaults: defaults, keys: keys).areAccepted
+    }
+
+    // MARK: - Alert Pushes (alert pushes spec §6.3)
+
+    @Test func test_aRegistrationThatGetsThrough_hasCrewluCloudSendAlertPushes() async {
+        let (registrar, _) = makeRegistrar()
+        #expect(!alertPushesAccepted)
+
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        #expect(alertPushesAccepted)
+    }
+
+    @Test(arguments: [PartnerDoorError.unavailable, .refused(.invalidInput)])
+    func test_aRegistrationThatDoesntGetThrough_leavesTheAlertsToTheApp(error: PartnerDoorError) async {
+        door.setPushAnswers = [.failure(error)]
+        let (registrar, _) = makeRegistrar()
+
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        #expect(!alertPushesAccepted)
+    }
+
+    @Test func test_aNewKey_isntAcceptedUntilItsOwnRegistrationIs() async {
+        let (registrar, _) = makeRegistrar()
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        keys.key = String(repeating: "7c", count: 32)
+        #expect(!alertPushesAccepted)
+        await registrar.register()
+        #expect(alertPushesAccepted)
+    }
+
+    @Test func test_theDefaults_neverHoldTheKey() async throws {
+        let (registrar, _) = makeRegistrar()
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        let accepted = try #require(defaults.string(forKey: AlertPushes.acceptedKey))
+        #expect(accepted == AlertPushes.fingerprint(Make.key))
+        #expect(!accepted.contains(Make.key))
+        #expect(accepted.count == 64)
     }
 
     @Test func test_token_goesAsLowerCaseHex_withTheBuildsEnvironment() async {

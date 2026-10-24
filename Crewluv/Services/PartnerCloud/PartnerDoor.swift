@@ -16,7 +16,7 @@ protocol PartnerDoor {
     func view(key: String, since: String?) async throws(PartnerDoorError) -> PartnerViewAnswer
 
     /// partner_set_push: this device's push token, as lower-case hex, and the Apple service it
-    /// belongs to.
+    /// belongs to, saying this Crewluve shows alert pushes.
     func setPush(key: String, token: String, environment: PushEnvironment) async throws(PartnerDoorError)
 
     /// partner_join: joins the partner the pilot's invite is for, as an app device holding `key`,

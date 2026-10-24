@@ -9,7 +9,9 @@ import Foundation
 
 /// Sends this device's push token to Crewlu Cloud, so a change in the pilot's status wakes it
 /// (partner links piece 4 spec §6.1): when iOS gives the token at launch, right after
-/// connecting, and on coming to the front when the last try couldn't finish.
+/// connecting, and on coming to the front when the last try couldn't finish. Each registration
+/// says this Crewluve shows alert pushes, and once Crewlu Cloud accepts it for this device's key,
+/// the alert pushes bring the alerts (alert pushes spec §6.3).
 final class PushRegistrar {
     static let shared = PushRegistrar()
 
@@ -22,6 +24,7 @@ final class PushRegistrar {
     private let statusSource: PilotStatusSource
     private let door: PartnerDoor
     private let keys: DeviceKeyStore
+    private let alertPushes: AlertPushes
     private let environment: () -> PushEnvironment
     /// Notes how each registration went, for the diagnostics.
     private let record: (String) -> Void
@@ -30,12 +33,14 @@ final class PushRegistrar {
         statusSource: PilotStatusSource = .shared,
         door: PartnerDoor = LivePartnerDoor(),
         keys: DeviceKeyStore = KeychainDeviceKeyStore(),
+        defaults: UserDefaults = .standard,
         environment: @escaping () -> PushEnvironment = { .current },
         record: @escaping (String) -> Void = { NotificationDiagnostics.shared.recordPushRegistration($0) }
     ) {
         self.statusSource = statusSource
         self.door = door
         self.keys = keys
+        alertPushes = AlertPushes(defaults: defaults, keys: keys)
         self.environment = environment
         self.record = record
     }
@@ -68,6 +73,7 @@ final class PushRegistrar {
         do {
             try await door.setPush(key: key, token: token, environment: environment)
             isOwed = false
+            alertPushes.accepted(forKey: key)
             record("Sent (\(environment.rawValue))")
         } catch .refused(.sharingEnded) {
             isOwed = false

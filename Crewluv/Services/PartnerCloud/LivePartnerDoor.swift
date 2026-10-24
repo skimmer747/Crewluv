@@ -145,11 +145,14 @@ private struct PushParameters: Encodable {
     let key: String
     let token: String
     let environment: String
+    /// Crewluve shows alert pushes from 1.3, so every registration says so (alert pushes spec §6.3).
+    let alerts = true
 
     enum CodingKeys: String, CodingKey {
         case key = "p_key"
         case token = "p_token"
         case environment = "p_env"
+        case alerts = "p_alerts"
     }
 }
 

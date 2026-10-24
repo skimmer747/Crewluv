@@ -44,14 +44,20 @@ struct LivePartnerDoorTests {
         #expect(try network.parameters(#require(network.requests.first)) == ["p_key": Self.key, "p_since": Self.updatedAt])
     }
 
-    @Test func test_setPush_postsTheTokenAndItsEnvironment() async throws {
+    @Test func test_setPush_postsTheTokenAndItsEnvironment_andThatItShowsAlertPushes() async throws {
         let network = StandInNetwork(body: #"{"ok": true}"#)
         try await network.door.setPush(key: Self.key, token: "0a1b2c", environment: .sandbox)
 
         let request = try #require(network.requests.first)
         #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_set_push")
         #expect(request.value(forHTTPHeaderField: "apikey") == LivePartnerDoor.publishableKey)
-        #expect(try network.parameters(request) == ["p_key": Self.key, "p_token": "0a1b2c", "p_env": "sandbox"])
+        let body = try #require(request.httpBody)
+        let parameters = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(parameters["p_key"] as? String == Self.key)
+        #expect(parameters["p_token"] as? String == "0a1b2c")
+        #expect(parameters["p_env"] as? String == "sandbox")
+        #expect(parameters["p_alerts"] as? Bool == true)
+        #expect(parameters.count == 4)
     }
 
     @Test func test_join_postsTheInviteTheKeyAndTheLabel_asAnApp() async throws {
