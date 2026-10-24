@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4853576B308D3E05000B679E /* CrewluveAlerts.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 48535764308D3E05000B679E /* CrewluveAlerts.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		489702EC2F48AE1C00820170 /* CrewluveIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 489702EB2F48AE1C00820170 /* CrewluveIcon.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		48535769308D3E05000B679E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 48CD21862F354C9100A7AA32 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 48535763308D3E05000B679E;
+			remoteInfo = CrewluveAlerts;
+		};
 		48CD21A02F354C9300A7AA32 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 48CD21862F354C9100A7AA32 /* Project object */;
@@ -27,7 +35,22 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		48535770308D3E05000B679E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4853576B308D3E05000B679E /* CrewluveAlerts.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		48535764308D3E05000B679E /* CrewluveAlerts.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CrewluveAlerts.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		489702EB2F48AE1C00820170 /* CrewluveIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = CrewluveIcon.icon; sourceTree = "<group>"; };
 		48CD218E2F354C9100A7AA32 /* Crewluv.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Crewluv.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		48CD219F2F354C9300A7AA32 /* CrewluvTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CrewluvTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -35,6 +58,34 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4853576F308D3E05000B679E /* Exceptions for "CrewluveAlerts" folder in "CrewluveAlerts" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 48535763308D3E05000B679E /* CrewluveAlerts */;
+		};
+		48535776308D4074000B679E /* Exceptions for "Crewluv" folder in "CrewluveAlerts" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/AlertWording.swift,
+				Models/CloudSummary.swift,
+				Models/HandOffCode.swift,
+				Models/PartnerLink.swift,
+				Models/PilotDisplayStatus.swift,
+				Models/SharedPilotStatus.swift,
+				Models/TripLeg.swift,
+				Models/TripStateResolver.swift,
+				Services/PartnerCloud/AlertPushWriter.swift,
+				Services/PartnerCloud/DeviceKeyStore.swift,
+				Services/PartnerCloud/LivePartnerDoor.swift,
+				Services/PartnerCloud/PartnerDoor.swift,
+				Utils/DebugLog.swift,
+				Utils/OneTimeCompletion.swift,
+				Utils/PushEnvironment.swift,
+			);
+			target = 48535763308D3E05000B679E /* CrewluveAlerts */;
+		};
 		48CD21B12F354C9300A7AA32 /* Exceptions for "Crewluv" folder in "Crewluv" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -45,10 +96,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		48535765308D3E05000B679E /* CrewluveAlerts */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4853576F308D3E05000B679E /* Exceptions for "CrewluveAlerts" folder in "CrewluveAlerts" target */,
+			);
+			path = CrewluveAlerts;
+			sourceTree = "<group>";
+		};
 		48CD21902F354C9100A7AA32 /* Crewluv */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				48CD21B12F354C9300A7AA32 /* Exceptions for "Crewluv" folder in "Crewluv" target */,
+				48535776308D4074000B679E /* Exceptions for "Crewluv" folder in "CrewluveAlerts" target */,
 			);
 			path = Crewluv;
 			sourceTree = "<group>";
@@ -66,6 +126,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		48535761308D3E05000B679E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		48CD218B2F354C9100A7AA32 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -96,6 +163,7 @@
 				48CD21902F354C9100A7AA32 /* Crewluv */,
 				48CD21A22F354C9300A7AA32 /* CrewluvTests */,
 				48CD21AC2F354C9300A7AA32 /* CrewluvUITests */,
+				48535765308D3E05000B679E /* CrewluveAlerts */,
 				48CD218F2F354C9100A7AA32 /* Products */,
 				489702EB2F48AE1C00820170 /* CrewluveIcon.icon */,
 			);
@@ -107,6 +175,7 @@
 				48CD218E2F354C9100A7AA32 /* Crewluv.app */,
 				48CD219F2F354C9300A7AA32 /* CrewluvTests.xctest */,
 				48CD21A92F354C9300A7AA32 /* CrewluvUITests.xctest */,
+				48535764308D3E05000B679E /* CrewluveAlerts.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -114,6 +183,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		48535763308D3E05000B679E /* CrewluveAlerts */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4853576C308D3E05000B679E /* Build configuration list for PBXNativeTarget "CrewluveAlerts" */;
+			buildPhases = (
+				48535760308D3E05000B679E /* Sources */,
+				48535761308D3E05000B679E /* Frameworks */,
+				48535762308D3E05000B679E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				48535765308D3E05000B679E /* CrewluveAlerts */,
+			);
+			name = CrewluveAlerts;
+			packageProductDependencies = (
+			);
+			productName = CrewluveAlerts;
+			productReference = 48535764308D3E05000B679E /* CrewluveAlerts.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		48CD218D2F354C9100A7AA32 /* Crewluv */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 48CD21B22F354C9300A7AA32 /* Build configuration list for PBXNativeTarget "Crewluv" */;
@@ -121,10 +212,12 @@
 				48CD218A2F354C9100A7AA32 /* Sources */,
 				48CD218B2F354C9100A7AA32 /* Frameworks */,
 				48CD218C2F354C9100A7AA32 /* Resources */,
+				48535770308D3E05000B679E /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4853576A308D3E05000B679E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				48CD21902F354C9100A7AA32 /* Crewluv */,
@@ -189,9 +282,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2710;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					48535763308D3E05000B679E = {
+						CreatedOnToolsVersion = 27.1;
+					};
 					48CD218D2F354C9100A7AA32 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -222,11 +318,19 @@
 				48CD218D2F354C9100A7AA32 /* Crewluv */,
 				48CD219E2F354C9300A7AA32 /* CrewluvTests */,
 				48CD21A82F354C9300A7AA32 /* CrewluvUITests */,
+				48535763308D3E05000B679E /* CrewluveAlerts */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		48535762308D3E05000B679E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		48CD218C2F354C9100A7AA32 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -252,6 +356,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		48535760308D3E05000B679E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		48CD218A2F354C9100A7AA32 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -276,6 +387,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4853576A308D3E05000B679E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 48535763308D3E05000B679E /* CrewluveAlerts */;
+			targetProxy = 48535769308D3E05000B679E /* PBXContainerItemProxy */;
+		};
 		48CD21A12F354C9300A7AA32 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 48CD218D2F354C9100A7AA32 /* Crewluv */;
@@ -289,6 +405,76 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		4853576D308D3E05000B679E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CrewluveAlerts/CrewluveAlerts.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				DEVELOPMENT_TEAM = UV96Z83C7B;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CrewluveAlerts/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CrewluveAlerts;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ToddAnderson.Crewluv.CrewluveAlerts;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4853576E308D3E05000B679E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CrewluveAlerts/CrewluveAlerts.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				DEVELOPMENT_TEAM = UV96Z83C7B;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CrewluveAlerts/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CrewluveAlerts;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ToddAnderson.Crewluv.CrewluveAlerts;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		48CD21B32F354C9300A7AA32 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -585,6 +771,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4853576C308D3E05000B679E /* Build configuration list for PBXNativeTarget "CrewluveAlerts" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4853576D308D3E05000B679E /* Debug */,
+				4853576E308D3E05000B679E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		48CD21892F354C9100A7AA32 /* Build configuration list for PBXProject "Crewluv" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
