@@ -20,7 +20,7 @@ actor StatusChangeNotifier {
 
     init(
         defaults: UserDefaults = .standard,
-        timeZone: TimeZone = .current,
+        timeZone: TimeZone = .autoupdatingCurrent,
         post: @escaping @Sendable (NotificationSpec) -> Void = StatusChangeNotifier.schedule
     ) {
         self.defaults = defaults
@@ -73,7 +73,7 @@ actor StatusChangeNotifier {
     // MARK: - Evaluate Changes
 
     /// Compares `new` with the snapshot, saves it as the next snapshot, and posts its alerts when `posting`. A
-    /// reading the alert pushes have already alerted is compared and saved, but posts nothing (alert pushes spec §6.3).
+    /// reading whose alerts the alert pushes bring is compared and saved, but posts nothing (alert pushes spec §6.3).
     ///
     /// - Parameter newEffectiveDelay: Pre-computed effective delay for `new`, computed
     ///   on the MainActor side since `tripLegs` requires MainActor access.
@@ -185,10 +185,9 @@ actor StatusChangeNotifier {
             specs.append(alert(removed > 1 ? .tripsCancelled : .tripCancelled))
         }
 
-        // Home arrival time shifted (>15 min), within the same trip.
-        // Only evaluate when Duty's underlying data actually changed — either the
-        // published homeArrivalTime field or the trip-leg bytes. Otherwise any
-        // diff is wall-clock drift from the resolver picking a different leg.
+        // Home arrival time shifted (>15 min), within the same trip. The first condition below filters nothing:
+        // when neither the arrival nor the legs changed, the two arrivals are the same. partner-push has no such
+        // condition, so making it a real filter would part the two.
         let publishedHomeChanged = old.homeArrivalTime != effectiveNewHome
         let legsChanged = Self.legsDiffer(old.tripLegsJSON, new.tripLegsJSON)
         let sameTrip = (oldHomeArrivalTrips ?? []).contains { (resolvedHomeArrivalTrips ?? []).contains($0) }

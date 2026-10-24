@@ -58,10 +58,12 @@ struct LegsComparisonTests {
     }
 
     @Test func test_theSwitch_alertsNoNewDeparture_forTheSameLegsInAnotherKeyOrder() throws {
-        let iCloudLegs = Self.legs(#"[{"id":"1","type":"flight","startTime":1792605600,"endTime":1792612800,"flightNumber":"5X123"}]"#)
+        let iCloudLegs = Self.legs(#"[{"id":"1","tripId":"trip","type":"flight","startTime":1792605600,"endTime":1792612800,"flightNumber":"5X123"}]"#)
+        let crewluCloudLegs = Self.legs(#"[{"endTime":1792612800,"flightNumber":"5X123","id":"1","startTime":1792605600,"tripId":"trip","type":"flight"}]"#)
         let iCloud = try Self.status(legs: iCloudLegs, departure: 1_792_605_600)
-        // Crewlu Cloud's writer picked another next departure from the same legs, as it can each time one passes.
-        let crewluCloud = try Self.status(legs: Self.crewluCloud, departure: 1_792_612_800)
+        // Crewlu Cloud's writer picked another next departure from the same legs, as it can each time one passes. Both
+        // departures are in the trip, so only the legs comparing as the same keeps it from alerting.
+        let crewluCloud = try Self.status(legs: crewluCloudLegs, departure: 1_792_612_800)
 
         #expect(StatusChangeNotifier.evaluateScheduleChanges(old: iCloud, new: crewluCloud, name: "Dad").isEmpty)
     }

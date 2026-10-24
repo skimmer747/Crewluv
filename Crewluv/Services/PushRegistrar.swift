@@ -73,7 +73,10 @@ final class PushRegistrar {
         do {
             try await door.setPush(key: key, token: token, environment: environment)
             isOwed = false
-            alertPushes.accepted(forKey: key)
+            // An answer for a key this device has since replaced, say by switching, says nothing of the new one.
+            if (try? keys.deviceKey()) == key {
+                alertPushes.accepted(forKey: key)
+            }
             record("Sent (\(environment.rawValue))")
         } catch .refused(.sharingEnded) {
             isOwed = false

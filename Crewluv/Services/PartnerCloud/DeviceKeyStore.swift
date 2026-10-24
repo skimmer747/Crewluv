@@ -27,7 +27,7 @@ nonisolated struct DeviceKeyUnreadable: Error, Equatable {
 }
 
 /// Where this device keeps its partner-door key, the key it joins with until it's connected
-/// (spec §5.3), and the hand-off copy (§8.3).
+/// (spec §5.3), the hand-off copy (§8.3), and the alerts' title name (alert pushes spec §6.2).
 protocol DeviceKeyStore {
     /// This device's key, or nil when it has none.
     func deviceKey() throws(DeviceKeyUnreadable) -> String?

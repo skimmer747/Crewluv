@@ -79,6 +79,20 @@ final class PushRegistrarTests {
         #expect(alertPushesAccepted)
     }
 
+    @Test func test_anAnswerForAKeyReplacedMeanwhile_leavesTheNewKeysAcceptanceAlone() async {
+        let (registrar, _) = makeRegistrar()
+        let newKey = String(repeating: "7c", count: 32)
+        // While the old key's registration waits, the device moves to a new key, whose own registration gets through.
+        door.whileSettingPush = { [keys, defaults] in
+            keys.key = newKey
+            AlertPushes(defaults: defaults, keys: keys).accepted(forKey: newKey)
+        }
+
+        await registrar.didReceive(deviceToken: Data([0x0A]))
+
+        #expect(alertPushesAccepted, "the old key's answer, coming last, doesn't take the new key's place")
+    }
+
     @Test func test_theDefaults_neverHoldTheKey() async throws {
         let (registrar, _) = makeRegistrar()
         await registrar.didReceive(deviceToken: Data([0x0A]))

@@ -52,6 +52,24 @@ final class StatusChangeNotifierTests {
         #expect(posted.all.map(\.body) == ["is asking you to call"])
     }
 
+    @Test func test_aSnapshotCrewluve1_2Saved_comparesItsHomeArrivalWithNoOther_once() async throws {
+        let home = { (minutesLater: Double) -> [String: Any] in
+            ["currentTripId": "T1", "homeArrivalTime": 1_792_674_300 + minutesLater * 60]
+        }
+        try await read(1, home(0))
+        // As Crewluve 1.2 saved it: without the trips its home arrival belongs to.
+        let key = "LastSeenPilotSnapshot"
+        let data = try #require(defaults.data(forKey: key))
+        var saved = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(saved.removeValue(forKey: "homeArrivalTrips") != nil)
+        defaults.set(try JSONSerialization.data(withJSONObject: saved), forKey: key)
+
+        try await read(2, home(30).merging(callMe) { $1 })
+        #expect(posted.all.map(\.kind) == [.quickStatus], "its home arrival belongs to no trip, so isn't compared")
+        try await read(3, home(60).merging(callMe) { $1 })
+        #expect(posted.all.map(\.kind) == [.quickStatus, .homeLater], "the next one is")
+    }
+
     /// A leg of `tripId` from `start` to `end`, in seconds since 1970.
     private static func leg(_ tripId: String?, _ start: TimeInterval, _ end: TimeInterval) -> TripLeg {
         TripLeg(
