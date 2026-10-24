@@ -52,6 +52,55 @@ final class PilotStatusSourceTests {
         return makeSource()
     }
 
+    // MARK: - Who Posts the Alerts (alert pushes spec §6.3)
+
+    @Test func test_onICloud_theAppPostsTheAlerts() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true])
+    }
+
+    @Test func test_onCrewluCloud_theAppPostsTheAlerts_untilAlertPushesAreAccepted() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "2", try Make.summary(lastUpdated: 2)),
+        ]
+        let source = connectedSource()
+
+        _ = await source.refresh()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: Make.key)
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true, false])
+    }
+
+    @Test func test_onCrewluCloud_aReadAHiddenPushAskedFor_postsItsAlerts_evenOnceAccepted() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "2", try Make.summary(lastUpdated: 2)),
+        ]
+        let source = connectedSource()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: Make.key)
+
+        _ = await source.refresh(startedByPush: true)
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true, false])
+    }
+
+    @Test func test_acceptedForAnotherKey_theAppStillPostsTheAlerts() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1))]
+        let source = connectedSource()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: String(repeating: "7c", count: 32))
+
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true])
+    }
+
     // MARK: - iCloud
 
     @Test func test_iCloud_newStatus_becomesTheReading_andAlertsOnce() async throws {

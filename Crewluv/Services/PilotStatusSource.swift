@@ -52,6 +52,10 @@ final class PilotStatusSource {
     @ObservationIgnored private let reads = ReadQueue<RefreshOutcome>()
     /// Moves this device from iCloud to Crewlu Cloud by itself (spec §8).
     @ObservationIgnored private let moveOver: MoveOver
+    /// Whether Crewlu Cloud sends this device alert pushes, which bring the alerts (alert pushes spec §6.3).
+    @ObservationIgnored private let alertPushes: AlertPushes
+    /// Whether a hidden push has asked for a read since the alerts were last handed a new status.
+    @ObservationIgnored private var pushAskedForRead = false
 
     static let unreachable = "No connection to Crewlu Cloud"
     private static let keyUnreadable = "This device's key couldn't be read"
@@ -78,6 +82,7 @@ final class PilotStatusSource {
         connection = PartnerConnection(defaults: defaults)
         device = CrewluCloudDevice(door: door, keys: keys, connection: connection)
         moveOver = MoveOver(door: door, keys: keys, connection: connection, device: device, label: deviceLabel)
+        alertPushes = AlertPushes(defaults: defaults, keys: keys)
         sharingEndedWith = connection.sharingEndedWith
     }
 
@@ -89,9 +94,13 @@ final class PilotStatusSource {
     /// Reads the status from wherever this device follows its pilot, and tells the screen how it
     /// went before anyone waiting on the read carries on. A refresh asked for during a read, say
     /// for a push that came mid-read, gets one more read once that one ends (`ReadQueue`). After
-    /// iCloud's read is shown, the move-over takes its turn (spec §8.1).
-    func refresh() async -> RefreshOutcome {
-        await reads.run { [self] in
+    /// iCloud's read is shown, the move-over takes its turn (spec §8.1). A hidden push's refresh is
+    /// `startedByPush`, so the alerts of the status it brings are posted (alert pushes spec §6.3).
+    func refresh(startedByPush: Bool = false) async -> RefreshOutcome {
+        if startedByPush {
+            pushAskedForRead = true
+        }
+        return await reads.run { [self] in
             let readAt = Date()
             let read = await read()
             report(PilotStatusUpdate(outcome: read.outcome, readAt: readAt))
@@ -290,7 +299,17 @@ final class PilotStatusSource {
         sharingEndedWith = nil
         PilotReading.logLegChanges(from: previous, to: newReading)
         reading = newReading
-        await notifier.evaluate(newReading, titledWith: name)
+        let posting = postsOwnAlerts(for: newReading)
+        pushAskedForRead = false
+        await notifier.evaluate(newReading, titledWith: name, posting: posting)
         return .newStatus
+    }
+
+    /// Whether this app posts a new reading's alerts itself (alert pushes spec §6.3): on iCloud, always. On Crewlu
+    /// Cloud, when a hidden push asked for the read, since Crewlu Cloud sends those only to a device it doesn't send
+    /// alert pushes, and until it has accepted this device's alert pushes. Otherwise the alert pushes bring them.
+    func postsOwnAlerts(for reading: PilotReading) -> Bool {
+        guard case .crewluCloud = reading else { return true }
+        return pushAskedForRead || !alertPushes.areAccepted
     }
 }

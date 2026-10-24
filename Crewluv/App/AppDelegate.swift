@@ -72,7 +72,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             complete(.failed)
         }
         Task {
-            let outcome = await source.refresh().backgroundFetchOutcome
+            let outcome = await source.refresh(startedByPush: true).backgroundFetchOutcome
             deadline.cancel()
             if outcome != .failed {
                 // Re-schedule BG refresh after successful push handling
