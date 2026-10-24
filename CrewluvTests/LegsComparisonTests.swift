@@ -66,11 +66,12 @@ struct LegsComparisonTests {
         #expect(StatusChangeNotifier.evaluateScheduleChanges(old: iCloud, new: crewluCloud, name: "Dad").isEmpty)
     }
 
-    @Test func test_aLegThatChanged_stillAlertsTheNewDeparture() throws {
-        let later = Self.legs(#"[{"endTime":1792616400,"flightNumber":"5X123","id":"1","startTime":1792609200,"type":"flight"}]"#)
-        let old = try Self.status(legs: Self.crewluCloud, departure: 1_792_605_600)
+    @Test func test_aLegThatChanged_stillAlertsTheNewDeparture_withinItsTrip() throws {
+        let legs = Self.legs(#"[{"endTime":1792612800,"flightNumber":"5X123","id":"1","startTime":1792605600,"tripId":"trip","type":"flight"}]"#)
+        let later = Self.legs(#"[{"endTime":1792616400,"flightNumber":"5X123","id":"1","startTime":1792609200,"tripId":"trip","type":"flight"}]"#)
+        let old = try Self.status(legs: legs, departure: 1_792_605_600)
         let new = try Self.status(legs: later, departure: 1_792_609_200)
 
-        #expect(StatusChangeNotifier.evaluateScheduleChanges(old: old, new: new, name: "Dad").map(\.id) == ["schedule-departure"])
+        #expect(StatusChangeNotifier.evaluateScheduleChanges(old: old, new: new, name: "Dad").map(\.kind) == [.departure])
     }
 }

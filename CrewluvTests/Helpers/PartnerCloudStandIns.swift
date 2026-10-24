@@ -190,9 +190,9 @@ final class InMemoryDeviceKeyStore: DeviceKeyStore {
     }
 }
 
-/// The alerts, recording what they're handed.
+/// The alerts, recording what they're handed, and whether they'd post it.
 actor RecordingNotifier {
-    private(set) var evaluations: [(status: SharedPilotStatus, pilotName: String)] = []
+    private(set) var evaluations: [(status: SharedPilotStatus, pilotName: String, posting: Bool)] = []
     private var holds = false
     private var held: [CheckedContinuation<Void, Never>] = []
 
@@ -216,9 +216,11 @@ actor RecordingNotifier {
         new: SharedPilotStatus,
         pilotName: String,
         newEffectiveDelay: Int?,
-        resolvedHomeArrivalTime: Date?
+        resolvedHomeArrivalTime: Date?,
+        resolvedHomeArrivalTrips: [String]?,
+        posting: Bool
     ) async {
-        evaluations.append((new, pilotName))
+        evaluations.append((new, pilotName, posting))
         if holds {
             await withCheckedContinuation { held.append($0) }
         }

@@ -10,3 +10,8 @@ database of `~/Dev/Duty/supabase/tests` by `trim-examples.mjs` (partner links pl
 with keys sorted. When CrewLu's examples change, make them again the same way.
 
 `CloudSummaryTests` reads them.
+
+`alert-cases.json` is a copy of CrewLu's `~/Dev/Duty/supabase/partner-status/alert-cases.json`: the alert
+pushes' shared cases (crewluve-web `docs/superpowers/specs/2026-10-23-partner-alert-pushes-design.md`, §9.1
+and §15). `AlertCasesTests` runs each through this app's alerts, which must make the same kinds, sounds and
+words as Crewlu Cloud's partner-push. When CrewLu's cases change, copy the file again.

@@ -42,6 +42,8 @@ struct TripEndInfo: Sendable {
     let arrivalTime: Date
     let arrivalLabel: String
     let arrivalCity: String?
+    /// The trips the home arrival belongs to: the trip ids among its block's legs (alert pushes spec §15.3).
+    var trips: [String] = []
 }
 
 enum TripStateResolver {
@@ -276,7 +278,8 @@ enum TripStateResolver {
         return TripEndInfo(
             arrivalTime: arrivalTime,
             arrivalLabel: "Back Home In",
-            arrivalCity: city
+            arrivalCity: city,
+            trips: Set(segment.compactMap(\.tripId)).sorted()
         )
     }
 
