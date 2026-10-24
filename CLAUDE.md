@@ -99,6 +99,11 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - `PartnerStatusReceiver` is the screen's model: it shows how every read went
 - Refreshes on coming to the front, on pull-to-refresh and the refresh button, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
+#### Alerts (`Services/StatusChangeNotifier.swift`, `CrewluveAlerts/`)
+- `StatusChangeNotifier` compares each new status with the last one and keeps its snapshot. It names each alert by its kind, in `AlertWording`'s words, with the same rules as Crewlu Cloud's partner-push: the shared cases in `CrewluvTests/Fixtures/PartnerSummary/alert-cases.json` hold both to them
+- On iCloud the app posts its own alerts. On Crewlu Cloud they come as alert pushes once Crewlu Cloud has accepted this device's push registration (`AlertPushes`). Until then, and for a read a hidden push asked for, the app posts its own
+- An alert push carries only its kind. The helper target, `CrewluveAlerts` (a notification service extension), reads the status with this device's key and writes the kind's words, or a plain line (`AlertPushWriter`). It builds 15 of the app's files through Target Membership, reads the key from Crewluve's own Keychain group, and only reads
+
 #### Connecting (`App/LinkRouter.swift`, `Services/PartnerJoiner.swift`)
 - `LinkRouter` takes every link the app is given, and the welcome screen's paste box: Crewluve's own `https://crewluve.crewlu.net/join#t=…` and `#c=…` links (`PartnerLink`) go to the joiner, and iCloud share links to `CloudKitShareManager`
 - `PartnerJoiner` joins Crewlu Cloud with an invite link or a 6-character code from another device, asking first when the link is from another pilot
@@ -136,6 +141,8 @@ Crewluv/
 │   └── PartnerCloud/                 # Crewlu Cloud's partner door, and this device on it
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
+CrewluveAlerts/               # The alert pushes' helper, a notification service extension
+└── NotificationService.swift # Writes each alert push's words with the app's AlertPushWriter
 ```
 
 ## CloudKit Configuration
@@ -154,7 +161,7 @@ Crewluv/
 
 ## Testing Strategy
 
-- Unit tests in `CrewluvTests/`
+- Unit tests in `CrewluvTests/`. The helper target has none of its own: its logic is `AlertPushWriter`, in the app's folder, which `CrewluvTests` tests
 - UI tests in `CrewluvUITests/`
 - CloudKit sharing can be tested with iOS Simulator
 - Debug logging available in DEBUG builds via `DebugLog.swift`
