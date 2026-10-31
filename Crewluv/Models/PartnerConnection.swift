@@ -18,6 +18,7 @@ struct PartnerConnection {
     static let leftICloudKey = "partnerCloud.leftICloud"
     static let moveToPartnerIDKey = "partnerCloud.moveToPartnerID"
     static let leftBehindKey = "partnerCloud.sharingEndedLeftBehind"
+    static let endedOnPilotsOwnICloudKey = "partnerCloud.sharingEndedOnPilotsOwnICloud"
     /// Where the alerts' title name is kept, as before.
     static let displayNameKey = "ResolvedPilotDisplayName"
 
@@ -37,6 +38,18 @@ struct PartnerConnection {
     var isLeftBehind: Bool {
         get { defaults.bool(forKey: Self.leftBehindKey) }
         nonmutating set { defaults.set(newValue, forKey: Self.leftBehindKey) }
+    }
+
+    /// Whether this device reads the pilot's status from the pilot's own iCloud: it's the pilot's
+    /// own Crewluve.
+    var isOnPilotsOwnICloud: Bool {
+        defaults.string(forKey: "PilotDataSource") == "privateDB"
+    }
+
+    /// Whether the note is for the pilot: sharing ended on their own iCloud.
+    var endedOnPilotsOwnICloud: Bool {
+        get { defaults.bool(forKey: Self.endedOnPilotsOwnICloudKey) }
+        nonmutating set { defaults.set(newValue, forKey: Self.endedOnPilotsOwnICloudKey) }
     }
 
     /// A move under way (spec §8.1): the partner id that redeeming a ticket or a code gave this

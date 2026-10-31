@@ -17,4 +17,16 @@ struct SharingEndedNoteTests {
         #expect(SharingEndedNote(pilot: "Alex", isLeftBehind: true).text
             == "To keep seeing Alex's status here, type the code from CrewLuve on your other device.")
     }
+
+    /// The pilot's own Crewluve, on their own iCloud, once their partners have moved to Crewlu Cloud.
+    @Test func test_onThePilotsOwnICloud_thePilotIsToldHowToSeeTheirStatusHere() {
+        #expect(SharingEndedNote(pilot: "Alex", isLeftBehind: false, isPilotsOwn: true).text
+            == "Your partners now see your status through Crewlu Cloud. To see it here too, invite yourself from CrewLu's Settings → Partner Sharing.")
+    }
+
+    /// Another of the pilot's devices follows them on Crewlu Cloud: its code is the quicker way.
+    @Test func test_onThePilotsOwnICloud_aDeviceLeftBehind_isToldHowToFollowTheOther() {
+        #expect(SharingEndedNote(pilot: "Alex", isLeftBehind: true, isPilotsOwn: true).text
+            == "To keep seeing Alex's status here, type the code from CrewLuve on your other device.")
+    }
 }

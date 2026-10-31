@@ -31,14 +31,18 @@ final class PilotStatusSourceTests {
         defaults.removePersistentDomain(forName: defaultsName)
     }
 
-    private func makeSource() -> PilotStatusSource {
+    /// `iCloudReset` does what the app's reset does besides counting, for a test that needs it.
+    private func makeSource(iCloudReset: @escaping @MainActor () -> Void = {}) -> PilotStatusSource {
         PilotStatusSource(
             iCloud: iCloud,
             door: door,
             keys: keys,
             defaults: defaults,
             notifier: notifier,
-            iCloudShareEnded: { [iCloudResets] in iCloudResets.count += 1 },
+            iCloudShareEnded: { [iCloudResets] in
+                iCloudResets.count += 1
+                iCloudReset()
+            },
             periodicCheck: RepeatingRefresh(sleep: clock.sleep),
             didConnect: { [connects] in connects.count += 1 },
             forgetICloudShare: { [iCloudForgets] in iCloudForgets.count += 1 }
@@ -237,6 +241,43 @@ final class PilotStatusSourceTests {
         #expect(await source.refresh() == .sharingEnded)
         #expect(source.reading == nil)
         #expect(iCloudResets.count == 1)
+    }
+
+    /// On the pilot's own iCloud, their record going means sharing through iCloud ended, by the
+    /// move-over or by stopping. The note is for the pilot, and this device lets iCloud go, so the
+    /// next look doesn't find the pilot's own zone and end sharing over and over.
+    @Test func test_onThePilotsOwnICloud_shareGone_leavesThePilotsNote_andLetsICloudGo() async throws {
+        defaults.set("privateDB", forKey: "PilotDataSource")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        // The app's reset forgets that this device read the pilot's own iCloud.
+        let source = makeSource(iCloudReset: { [defaults] in defaults.removeObject(forKey: "PilotDataSource") })
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedNote?.isPilotsOwn == true)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+        #expect(iCloudResets.count == 1)
+    }
+
+    @Test func test_aPartnersShareGone_isntThePilotsNote_andLeavesICloudAsItWas() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedNote?.isPilotsOwn == false)
+        #expect(!defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_thePilotsNote_isKeptForTheNextLaunch() async throws {
+        defaults.set("privateDB", forKey: "PilotDataSource")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+        _ = await source.refresh()
+        _ = await source.refresh()
+
+        #expect(makeSource().sharingEndedNote?.isPilotsOwn == true)
     }
 
     @Test func test_iCloudReset_forgetsAnICloudReading() async throws {

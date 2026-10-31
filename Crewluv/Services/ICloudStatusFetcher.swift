@@ -28,7 +28,7 @@ nonisolated enum ICloudFetchError: Error, Equatable {
     /// No share has been accepted, and this isn't the pilot's own iCloud.
     case notConnected
     /// The record or its zone is gone because the pilot stopped sharing
-    /// (`unknownItem`, `zoneNotFound`).
+    /// (`unknownItem`, `zoneNotFound`), or, on the pilot's own iCloud, no share holds it any more.
     case shareGone
     /// The record lacks the fields a status needs.
     case unreadableRecord
@@ -51,7 +51,8 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
     func fetch() async throws -> ICloudReading {
         let database: CKDatabase
         let ownerName: String
-        if UserDefaults.standard.string(forKey: "PilotDataSource") == "privateDB" {
+        let onPilotsOwnICloud = UserDefaults.standard.string(forKey: "PilotDataSource") == "privateDB"
+        if onPilotsOwnICloud {
             database = container.privateCloudDatabase
             ownerName = CKCurrentUserDefaultName
         } else {
@@ -70,6 +71,10 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
         } catch let error as CKError where error.code == .unknownItem || error.code == .zoneNotFound {
             throw ICloudFetchError.shareGone
         }
+        if Self.isLeftover(record, onPilotsOwnICloud: onPilotsOwnICloud) {
+            debugLog("[StatusFetcher] The pilot's own record has no share: sharing through iCloud ended")
+            throw ICloudFetchError.shareGone
+        }
 
         guard let status = SharedPilotStatus.from(record: record) else { throw ICloudFetchError.unreadableRecord }
         let name = await displayName(in: status)
@@ -80,6 +85,12 @@ final class ICloudStatusFetcher: ICloudStatusFetching {
             recordModifiedAt: record.modificationDate,
             moveTicket: await moveTicket(in: record)
         )
+    }
+
+    /// A record on the pilot's own iCloud that no share holds is left from sharing that ended: a
+    /// write that came after the share was deleted made it again.
+    nonisolated static func isLeftover(_ record: CKRecord, onPilotsOwnICloud: Bool) -> Bool {
+        onPilotsOwnICloud && record.share == nil
     }
 
     /// This partner's iCloud user record name, looked up once. It keys the pilot's names for each

@@ -265,11 +265,18 @@ final class PilotStatusSource {
     /// devices, carries this device on to Crewlu Cloud. Otherwise sharing ended. A switch that
     /// overtook it, say by a join, tells instead.
     private func iCloudShareGone() async -> RefreshOutcome {
+        let onPilotsOwnICloud = connection.isOnPilotsOwnICloud
         switch await moveOver.afterShareGone() {
         case .switchTo(let joined, let answer):
             return await switchOver(to: joined, answer: answer)
         case .ended(let leftBehind):
-            noteSharingEnded(leftBehind: leftBehind)
+            noteSharingEnded(leftBehind: leftBehind, onPilotsOwnICloud: onPilotsOwnICloud)
+            if onPilotsOwnICloud {
+                // The pilot's own zone stays in their iCloud: found again, it would end sharing over and
+                // over. CrewLu no longer starts iCloud shares, so it can't come back by itself; joining
+                // Crewlu Cloud, by the pilot inviting themselves, is the way back.
+                connection.hasLeftICloud = true
+            }
             iCloudShareEnded()
             return .sharingEnded
         case .stay:
