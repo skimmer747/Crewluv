@@ -3,7 +3,7 @@
 //  CrewLuve
 //
 //  Which trip the status screen's map shows (moving map spec §5.1, §12):
-//  - at home or base, the next trip;
+//  - at home or base, the next trip, unless it's a night there in the middle of a trip: that trip is under way;
 //  - on a trip, that trip's legs;
 //  - from a CrewLu too old to send legs, just the flight in the air.
 //
@@ -18,9 +18,9 @@ extension TripMap {
         let coordinate: (String) -> CLLocationCoordinate2D? = { code in
             airports.airportInfo(forIataCode: code).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
         }
-        let isNextTrip = status.displayStatus.isSettled
+        let isSettled = status.displayStatus.isSettled
         let legs: [TripLeg]
-        if isNextTrip {
+        if isSettled {
             guard let trip = UpcomingTripInfo.from(tripLegs: status.tripLegs, at: now, homeAirportCode: status.homeAirportCode) else { return nil }
             legs = status.tripLegs.filter { $0.tripId == trip.tripId }
         } else if status.hasTripLegs {
@@ -31,6 +31,10 @@ extension TripMap {
         } else {
             legs = Self.currentFlightLeg(of: status).map { [$0] } ?? []
         }
+        // A night at home or base in the middle of a trip (CrewLu's `.home` or `.base` leg between two duty periods)
+        // reads as settled, and its upcoming trip is the rest of the trip under way. Only a trip with no leg started yet
+        // is the next trip; shown as one, the trip under way would start on a date already past.
+        let isNextTrip = isSettled && legs.allSatisfy { $0.startTime > now }
         guard let map = TripMap.make(tripLegs: legs, isNextTrip: isNextTrip,
                                      homeAirportCode: status.homeAirportCode ?? status.baseAirportCode,
                                      legacyDelayMinutes: status.flightDelayMinutes, at: now, coordinate: coordinate) else { return nil }
