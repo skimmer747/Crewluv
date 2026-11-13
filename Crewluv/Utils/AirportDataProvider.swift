@@ -19,7 +19,7 @@ struct AirportData {
     let longitude: Double
 }
 
-/// Provider for airport location data used by FlightRouteMapView
+/// Provider for airport location data used by the trip map (TripMap+Status)
 class AirportDataProvider {
     static let shared = AirportDataProvider()
 

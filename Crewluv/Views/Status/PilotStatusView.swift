@@ -188,8 +188,17 @@ struct PilotStatusView: View {
                         .buttonStyle(CardButtonStyle())
                     }
 
+                    // Trip map (moving map spec §5): in flight it takes the location card's
+                    // place; on the ground it sits above it.
+                    let tripMap = TripMap(status: status, at: Date())
+                    if let tripMap {
+                        TripMapCard(tripMap: tripMap, status: status)
+                    }
+
                     // Location Card
-                    LocationCardView(status: status)
+                    if tripMap?.isInFlight != true {
+                        LocationCardView(status: status)
+                    }
 
                     // Upcoming trip card (when home with trip data)
                     if status.displayStatus.isSettled, let trip = upcomingTrip {
@@ -502,22 +511,11 @@ struct LocationCardView: View {
     
     private var inFlightView: some View {
         VStack(spacing: 0) {
-            // Flight route map visualization
-            FlightRouteMapView(status: status)
+            // Shown only when the trip map can't draw this flight (moving map spec §12)
+            RouteFallbackView(departure: status.currentFlightDeparture, arrival: status.currentFlightArrival)
 
-            // Delay / early banner
             if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
-                let isEarly = delayMinutes < 0
-                HStack(spacing: 6) {
-                    Image(systemName: isEarly ? "clock.badge.checkmark.fill" : "exclamationmark.triangle.fill")
-                        .font(.caption)
-                    Text("\(isEarly ? "EARLY DEP" : "DELAYED") \(Self.formatDelayDuration(abs(delayMinutes)))")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(isEarly ? Color.green : Color.orange)
+                FlightDelayBanner(delayMinutes: delayMinutes)
             }
 
             // Info bar (matching widget style)
