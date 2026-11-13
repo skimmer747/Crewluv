@@ -79,7 +79,9 @@ Stages 1 and 2 work for every family, iCloud included. Stage 3 adds live data fo
 
 ## 5. The card
 
-It replaces the location card's in-flight view, and the location card itself whenever the map has something to show. It's in the same place: below the countdown, above the trip cards.
+In flight it takes the location card's place. On the ground it sits just above the location card, which keeps its weather, local time, time difference, quick status and sun circle. Either way it's below the countdown and above the trip cards.
+
+This was clarified while planning Stage 1 (2026-11-13). Replacing the whole location card on the ground would have dropped the weather and sun circle that families use today.
 
 ### 5.1 Its states
 
