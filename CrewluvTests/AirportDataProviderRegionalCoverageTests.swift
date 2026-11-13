@@ -24,6 +24,7 @@ final class AirportDataProviderRegionalCoverageTests: XCTestCase {
         Expected(iata: "MOB", city: "Mobile", state: "AL", latitude: 30.0...31.0, longitude: -89.0...(-88.0)),
         Expected(iata: "VPS", city: "Destin/Fort Walton Beach", state: "FL", latitude: 30.0...31.0, longitude: -87.0...(-86.0)),
         Expected(iata: "ECP", city: "Panama City Beach", state: "FL", latitude: 30.0...31.0, longitude: -86.0...(-85.0)),
+        Expected(iata: "DOV", city: "Dover", state: "DE", latitude: 39.0...39.5, longitude: -76.0...(-75.0)),
     ]
 
     private let provider = AirportDataProvider.shared
@@ -68,5 +69,20 @@ final class AirportDataProviderRegionalCoverageTests: XCTestCase {
             XCTAssertEqual(provider.airportInfo(forCity: city).map(\.iata), [iata],
                            "\(city) should map to exactly \(iata)")
         }
+    }
+
+    /// Rzeszów-Jasionka (Poland). Same byte-for-byte contract as above: Crewlu sends
+    /// "Rzeszów" (with the accent), not OurAirports' "Jasionka".
+    func test_rzeszow_carriesCrewluCityNameAndResolvesToExactlyOneCode() {
+        let info = provider.airportInfo(forIataCode: "RZE")
+        XCTAssertEqual(info?.city, "Rzeszów", "RZE city")
+        XCTAssertEqual(info?.country, "Poland", "RZE country")
+        XCTAssertNil(info?.state, "RZE state")
+        if let info {
+            XCTAssertTrue((50.0...50.2).contains(info.latitude), "RZE latitude \(info.latitude)")
+            XCTAssertTrue((21.9...22.1).contains(info.longitude), "RZE longitude \(info.longitude)")
+        }
+        XCTAssertEqual(provider.airportInfo(forCity: "Rzeszów").map(\.iata), ["RZE"],
+                       "Rzeszów should map to exactly RZE")
     }
 }
