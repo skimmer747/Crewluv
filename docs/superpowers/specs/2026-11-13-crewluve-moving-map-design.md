@@ -71,7 +71,7 @@ A free, community-run ADS-B network. Volunteers' receivers hear each airliner's 
 
 | Stage | Crewluve app | Website | CrewLu Cloud (`Duty/supabase`) |
 |---|---|---|---|
-| 1. The map, from the schedule | §5, §6, §7.1–§7.3 (schedule plane), §10 | §5, §6, §7.1–§7.3, §11 | `mapkit-token` (§9.7) |
+| 1. The map, from the schedule | §5, §6, §7.1–§7.3 (schedule plane), §10 | §5, §6, §7.1–§7.3, §11 | nothing (§9.7) |
 | 2. The facts | §8, §10 | §8, §11 | nothing |
 | 3. Live | §7 (live plane, ghost, §7.4–§7.6), §10 | the same, §11 | `flight-live`, `live_flights`, `partner_live` (§9.1–§9.6) |
 
@@ -346,14 +346,17 @@ A new partner RPC beside `partner_view`. `partner_view` and its `unchanged` shor
 - **If adsb.lol starts needing a key:** it goes in the function's secrets. Nothing ships in an app.
 - **If adsb.lol is gone for good:** turning `flight-live` off leaves every family on the schedule, with nothing else broken.
 
-### 9.7 `mapkit-token` (Stage 1)
+### 9.7 No `mapkit-token` (decided 2026-11-13, planning Stage 1B)
 
-An edge function that mints a MapKit JS token for the website.
+The website draws its own map (§11), so it needs no MapKit JS token, and CrewLu Cloud gains no function in Stage 1.
 
-- **The token:** ES256, 30 minutes, with its `origin` locked to `https://crewluve.crewlu.net`, or to `http://localhost:5180` when that's the request's origin.
-- **The key:** the Maps private key and its key id are Supabase secrets.
-- **CORS:** it answers only those two origins.
-- **One-time setup by Todd:** create a Maps ID and MapKit JS key in the Apple Developer account. MapKit JS's free daily allowance is 250,000 map views.
+MapKit JS would have needed the site's Content-Security-Policy loosened:
+- Apple's script, running in the page that holds the device key;
+- Apple's servers added for connections and images;
+- inline styles allowed;
+- blob workers allowed.
+
+The site's policy is deliberately tight. It allows its own scripts only, and connections to just the four partner door addresses and Open-Meteo.
 
 ## 10. The app
 
@@ -380,17 +383,20 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 ## 11. The website
 
-- **MapKit JS** is loaded from Apple's CDN with an `authorizationCallback` that calls `mapkit-token`.
-  - Routes are great circles split into 101 points, drawn with `PolylineOverlay`.
-  - Night is `PolygonOverlay`.
-  - The planes and the heart pin are DOM annotations rotated with CSS.
+- **The site draws the map itself in SVG,** as its in-flight map already does, with no map service and no third-party code. The Content-Security-Policy is unchanged (§9.7). The drawing:
+  - a simple world: land outlines from a small bundled Natural Earth file (public domain, 1:110m) on an ocean colour, in Web Mercator clipped at ±85°, like the app's map;
+  - routes as great circles split into 101 points;
+  - night as `NightShade`'s seven layers ported to TypeScript, filled the same way;
+  - the planes, the heart pin and the airport dots as SVG marks;
+  - the camera as `MapFit` ported: the leg or the trip, the short way across the date line.
+- **Not Apple's satellite look,** and the full-screen map doesn't pan or zoom in Stage 1. It fits the leg or the trip, as the card does, and follows the replay from leg to leg.
 - **`src/map/`:** the card, and the full-screen page at `#map`. Back and Escape close it.
 - **`src/facts/`:** the TypeScript facts engine and `flightProgress.ts`, matching §7 and §8.
 - **`src/partner/live.ts`:** `partner_live` polling while the page is visible and a window is open.
 - **`public/data/`:** `geography.json` and `comparisons.json`, from the same scripts.
 - **Engine:** `src/engine/` uses the landing estimate for one landing time (§7.6).
 - **Removed:** `FlightMap.tsx`, `flightMapGeometry.ts` and `flightSky.ts`.
-- **New demo scenes:** `trip-map-layover`, `trip-map-next-trip`, `live-ahead`, `live-ocean-gap`, `live-on-ground-late` and `schedule-only`. They use recorded live data.
+- **Demo scenes:** Stage 1 uses the existing ones, which already show every state: `flying`, `layover`, `home`, `delayed` and `driving-home`. Stage 3 adds `live-ahead`, `live-ocean-gap`, `live-on-ground-late` and `schedule-only`, with recorded live data.
 
 ## 12. What can go wrong
 
@@ -407,8 +413,8 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 - **What's stored and served:** only public ADS-B data, for flights already in the pilot's summary.
 - **What partners see:** only their own pilot's flights, through their device key. A key that's been let go gets `sharing_ended`.
-- **What adsb.lol and Apple see:** only callsigns. No partner or pilot detail is sent to adsb.lol, and none to Apple beyond MapKit's own map requests.
-- **The MapKit JS token is public by design.** It's locked to the site's origin and short-lived. The private key never leaves CrewLu Cloud.
+- **What adsb.lol and Apple see:** only callsigns. No partner or pilot detail is sent to adsb.lol. In the app, Apple sees only MapKit's own map requests.
+- **The website loads no third-party code for the map** (§9.7). Its Content-Security-Policy is unchanged, so the device key in its local storage is no more exposed than before.
 - **Logs** show callsigns and leg keys, never device keys.
 
 ## 14. Accessibility
@@ -474,6 +480,6 @@ After Stage 3, follow one real flight from gate to gate, preferably transatlanti
 
 ## 17. The plans
 
-1. **Stage 1, the map, from the schedule:** the app's `Views/TripMap/` and `TripRoute` and the ported maths, the website's `src/map/`, and `mapkit-token`.
+1. **Stage 1, the map, from the schedule:** the app's `Views/TripMap/` and `TripRoute` and the ported maths (plan 1A), and the website's self-drawn `src/map/` (plan 1B).
 2. **Stage 2, the facts:** the data files and scripts, the facts engines in Swift and TypeScript, the shared cases, the chip, the sheet's rows and the recap.
 3. **Stage 3, live:** `flight-live`, `live_flights` and `partner_live` in `Duty/supabase`, then `LiveFlightSource` and the website's `live.ts`, the ghost and live planes, and one landing time.
