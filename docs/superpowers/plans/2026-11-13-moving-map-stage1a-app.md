@@ -801,7 +801,7 @@ nonisolated enum PlaneHeading {
 
     /// The two places on a leg to aim between when the plane is `fraction` of the way along it. Near the end of
     /// the leg there is no room ahead, so the aim is along the last stretch.
-    static func aimFractions(at fraction: Double, lookAhead: Double = lookAhead) -> (from: Double, to: Double) {
+    static func aimFractions(at fraction: Double, lookAhead: Double = PlaneHeading.lookAhead) -> (from: Double, to: Double) {
         let here = min(max(fraction, 0), 1)
         if here + lookAhead <= 1 { return (here, here + lookAhead) }
         return (max(1 - lookAhead, 0), 1)
@@ -888,7 +888,7 @@ final class MapFitTests: XCTestCase {
     }
 
     func test_rect_anchorageToTokyo_framesThePacificNotTheWorld() throws {
-        let rect = try XCTUnwrap(MapFit.rect(enclosing: [anc, nrt], padding: 0))
+        let rect = try XCTUnwrap(MapFit.rect(enclosing: [anc, nrt], padding: 0.1))
         XCTAssertTrue(rect.spans180thMeridian)
         XCTAssertLessThan(rect.size.width, world / 4)
         XCTAssertTrue(rect.contains(MKMapPoint(nrt)))
@@ -3529,3 +3529,30 @@ struct TripMapScreen: View {
 - [ ] **Step 5: Release note.** After the user-visible commits land, draft the "Crewluve revisions" entry per the release-notes memory, for the version Todd names. Suggested words:
 
   > The map is new. It shows the whole trip: every city, where they are tonight, and the next trip while they're home. In the air it follows the plane over a real map, with day and night drawn as they really are. Tap it to open it full screen, change the map's look, and replay the trip.
+
+---
+
+## Changes made during execution (2026-11-13)
+
+Review findings applied to the code after it was written from this plan. The code, not the blocks above, is the reference for these:
+
+- **Task 5:** `aimFractions`'s default reads `PlaneHeading.lookAhead`, so it doesn't look like it names its own parameter.
+- **Task 6:** the Anchorage–Tokyo test pads by 10%, so both airports sit strictly inside the rectangle and not on its edge.
+- **Tasks 8–11:**
+  - Nested enums (`TripMap.Mode`, `MapLeg.Kind`, `RouteSegment.Style`, `TripReplayClock.Speed`) are marked `nonisolated`, like `TripLeg.LegType`, so the tests can use their conformances.
+  - The trip's span starts at its earliest leg, which an early departure can move.
+  - VoiceOver reads the next trip's city names, not codes.
+  - The bar leaves out "0 cities" and empty items.
+  - `dateRange` gives "Nov 13–Nov 20" for six days or more.
+  - `isPlaying`'s doc says to check `hasFinished(at:)`.
+  - New tests: `test_span_withAnEarlyLegLaterInTheList_startsAtTheEarliestLeg`, `test_cardSummary_nextTrip_readsCityNames`, `test_dateRange_aWeekOrMore_givesDates` and `test_statsItems_onTripWithNoFlights_leavesOutTheCityCount`.
+- **Tasks 12–14 (from the views' review):**
+  - The full-screen map: only the map ignores the safe area (a `ZStack` with the top bar), and the top bar is a `GlassEffectContainer` with circular, large glass buttons.
+  - The card's label has `.contentShape(.rect)`, so taps reach it through the non-hit-testing map. The camera reframes when the trip's legs change, not only its mode.
+  - Tap targets are 44 pt: play, and the flight number.
+  - At accessibility text sizes, the speed picker is a menu and the bars stack (`ViewThatFits`).
+  - The standard map uses the light palette only in light mode (`TripMapStyle.palette(for:)`).
+  - The slider's range is never empty.
+  - VoiceOver: the panel's headline is a header, and the stacked chips and the timeline's time text are hidden as duplicates.
+  - Previews pass the airport lookup as a closure.
+- **From the final review:** when the legs don't cover now but the summary says the pilot is in flight (stale legs, or a flight running late past them), `TripMap+Status` falls back to the `currentFlight*` leg, as the old map did, instead of showing only "SDF → CGN". The final review's "stale mode" point is already covered: `PartnerStatusReceiver` re-resolves and republishes the status at each leg boundary.

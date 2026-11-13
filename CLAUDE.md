@@ -118,6 +118,12 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - CloudKit-optimized struct (not SwiftData)
 - Includes flight info, location, timers, and trip progress
 
+#### Trip Map (`Services/TripMap/`, `Views/TripMap/`)
+- The status screen's map (moving map spec `docs/superpowers/specs/2026-11-13-crewluve-moving-map-design.md`): the whole trip on the ground with a heart where the pilot is, the next trip from home, and the plane in the air. In flight it takes the location card's place; on the ground it sits above it
+- Built on SwiftUI's `Map` (`MapPolyline`, `MapPolygon`, `Annotation`); north stays up, so `PlaneHeading` aims the plane from coordinates alone
+- The logic is `nonisolated` and tested: `TripMap` (which legs, the mode, where the pilot is), `TripMapDrawing` (what to draw at an instant), `FlightProgress` (the schedule's plane, with taxi allowances), `TripReplayClock`, `TripMapWording`. The maths in `Utils/` (`NightShade`, `PlaneHeading`, `MapFit`, `GreatCircle`) came from CrewLu's moving map with its tests
+- `CrewluvTests/Fixtures/TripMap/progress-cases.json` holds the schedule's plane to the same answers as the website: change both copies together
+
 ### App Flow
 1. **Onboarding**: User taps the pilot's invite link, or types a code from another of their devices, and `PartnerJoiner` connects to Crewlu Cloud. A pilot on an older CrewLu sends a CloudKit share link instead
 2. **Share Processing**: `CloudKitShareManager` handles a CloudKit share's acceptance
@@ -133,6 +139,7 @@ Crewluv/
 │   └── LinkRouter.swift     # Where each opened or pasted link goes
 ├── Views/                    # SwiftUI views by feature
 │   ├── Welcome/             # Onboarding screens
+│   ├── TripMap/             # The trip map card and full-screen map
 │   └── Status/              # Status display
 ├── Models/                   # Data models
 │   └── SharedPilotStatus.swift
@@ -141,6 +148,7 @@ Crewluv/
 │   ├── PilotStatusSource.swift       # Reads the status, from Crewlu Cloud or iCloud
 │   ├── PartnerStatusReceiver.swift   # The status screen's model
 │   ├── PartnerJoiner.swift           # Joining with an invite link or a code
+│   ├── TripMap/                      # The trip map's model, drawing, clock and words
 │   └── PartnerCloud/                 # Crewlu Cloud's partner door, and this device on it
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
