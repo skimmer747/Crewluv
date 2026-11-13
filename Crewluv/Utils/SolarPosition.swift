@@ -2,8 +2,8 @@
 //  SolarPosition.swift
 //  CrewLuve
 //
-//  Decides whether the sun is up at a place and time, for the flight route
-//  map's day/night sky and the sun or moon icon at each airport.
+//  Where the sun is: whether it's up at a place, its height there, and the
+//  point it's straight above, for the trip map's night shading.
 //
 
 import Foundation
@@ -29,8 +29,10 @@ nonisolated enum SolarPosition {
         altitude(latitude: latitude, longitude: longitude, at: date) > sunriseAltitude
     }
 
-    /// The altitude of the sun's center above the horizon, in degrees.
-    private static func altitude(latitude: Double, longitude: Double, at date: Date) -> Double {
+    /// The point on the earth with the sun straight overhead at `date`: its
+    /// latitude (the sun's declination) in radians, and its longitude in
+    /// degrees, positive east, within -180...180.
+    static func subsolarPoint(at date: Date) -> (declination: Double, longitude: Double) {
         let days = date.timeIntervalSince(j2000) / 86_400
         let meanLongitude = 280.460 + 0.9856474 * days
         let meanAnomaly = radians(357.528 + 0.9856003 * days)
@@ -46,12 +48,17 @@ nonisolated enum SolarPosition {
 
         // The sun crosses Greenwich near 12:00 UTC and moves west 15° an hour.
         let utcHours = date.timeIntervalSince1970.truncatingRemainder(dividingBy: 86_400) / 3_600
-        let subsolarLongitude = -15 * (utcHours - 12) - equationOfTimeMinutes / 4
-        let hourAngle = radians(longitude - subsolarLongitude)
+        let longitude = (-15 * (utcHours - 12) - equationOfTimeMinutes / 4).remainder(dividingBy: 360)
+        return (declination, longitude)
+    }
 
+    /// The altitude of the sun's center above the horizon, in degrees: negative below it.
+    static func altitude(latitude: Double, longitude: Double, at date: Date) -> Double {
+        let sun = subsolarPoint(at: date)
+        let hourAngle = radians(longitude - sun.longitude)
         let latitudeRadians = radians(latitude)
-        let sineOfAltitude = sin(latitudeRadians) * sin(declination)
-            + cos(latitudeRadians) * cos(declination) * cos(hourAngle)
+        let sineOfAltitude = sin(latitudeRadians) * sin(sun.declination)
+            + cos(latitudeRadians) * cos(sun.declination) * cos(hourAngle)
         return degrees(asin(sineOfAltitude))
     }
 

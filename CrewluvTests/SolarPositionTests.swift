@@ -83,4 +83,43 @@ final class SolarPositionTests: XCTestCase {
             sunset: easternTime(2026, 3, 15, 19, 50)
         )
     }
+
+    // MARK: - The subsolar point (moving map spec §7.1, the night shading)
+
+    private func utcDate(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+    }
+
+    func test_subsolarPoint_atTheJuneSolstice_isOverTheTropicOfCancer() {
+        let sun = SolarPosition.subsolarPoint(at: utcDate(2026, 6, 21, 8, 24))
+        XCTAssertEqual(sun.declination * 180 / .pi, 23.44, accuracy: 0.05)
+    }
+
+    func test_subsolarPoint_atTheMarchEquinox_isOverTheEquator() {
+        let sun = SolarPosition.subsolarPoint(at: utcDate(2026, 3, 20, 14, 46))
+        XCTAssertEqual(sun.declination * 180 / .pi, 0, accuracy: 0.05)
+    }
+
+    /// In mid-October the sun runs about 14 minutes ahead of the clock, so at noon UTC it has already passed Greenwich.
+    func test_subsolarPoint_atNoonUTCInMidOctober_isAFewDegreesWestOfGreenwich() {
+        let sun = SolarPosition.subsolarPoint(at: utcDate(2026, 10, 15, 12, 0))
+        XCTAssertEqual(sun.longitude, -3.55, accuracy: 0.2)
+    }
+
+    func test_subsolarPoint_longitude_staysWithinTheMap() {
+        let start = utcDate(2026, 1, 1, 0, 0)
+        for hours in stride(from: 0, to: 24 * 365, by: 7) {
+            let longitude = SolarPosition.subsolarPoint(at: start.addingTimeInterval(Double(hours) * 3600)).longitude
+            XCTAssertLessThanOrEqual(abs(longitude), 180)
+        }
+    }
+
+    func test_altitude_underTheSubsolarPoint_isStraightUp() {
+        let date = utcDate(2026, 11, 13, 17, 0)
+        let sun = SolarPosition.subsolarPoint(at: date)
+        let altitude = SolarPosition.altitude(latitude: sun.declination * 180 / .pi, longitude: sun.longitude, at: date)
+        XCTAssertEqual(altitude, 90, accuracy: 0.01)
+    }
 }
