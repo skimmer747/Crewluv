@@ -200,6 +200,8 @@ The ghost follows what Crewluve already promises: the scheduled times shifted by
 
 ## 8. The facts
 
+Stage 2's design (`2026-11-13-crewluve-moving-map-stage2-facts-design.md`) refines this section, §5.2, §6, §10 and §11. Where they differ, it wins.
+
 The app and the website each have one pure facts engine, held to the same answers by shared cases (§15.1). Everything comes from the route, the clock, the sun, the moon, the bundled files (§8.7) and, where it exists, the live fix.
 
 ### 8.1 What's below the plane
