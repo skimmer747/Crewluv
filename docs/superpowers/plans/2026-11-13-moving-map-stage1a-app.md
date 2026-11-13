@@ -3537,7 +3537,7 @@ struct TripMapScreen: View {
 Review findings applied to the code after it was written from this plan. The code, not the blocks above, is the reference for these:
 
 - **Task 5:** `aimFractions`'s default reads `PlaneHeading.lookAhead`, so it doesn't look like it names its own parameter.
-- **Task 6:** the Anchorage–Tokyo test pads by 10%, so both airports sit strictly inside the rectangle and not on its edge.
+- **Task 6:** the Anchorage–Tokyo test pads by 10%, so both airports sit strictly inside the rectangle and not on its edge. On a rectangle across the date line, `MKMapRect.contains` wraps the part past the line round to the map's left edge, so the test asks it for Anchorage where it is. A range check on `minX...maxX` asks for Anchorage a world to the east.
 - **Tasks 8–11:**
   - Nested enums (`TripMap.Mode`, `MapLeg.Kind`, `RouteSegment.Style`, `TripReplayClock.Speed`) are marked `nonisolated`, like `TripLeg.LegType`, so the tests can use their conformances.
   - The trip's span starts at its earliest leg, which an early departure can move.

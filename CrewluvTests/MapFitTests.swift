@@ -33,8 +33,10 @@ final class MapFitTests: XCTestCase {
         XCTAssertTrue(rect.spans180thMeridian)
         XCTAssertLessThan(rect.size.width, world / 4)
         XCTAssertTrue(rect.contains(MKMapPoint(nrt)))
-        let anchorageOnTheNextWorld = MKMapPoint(x: MKMapPoint(anc).x + world, y: MKMapPoint(anc).y)
-        XCTAssertTrue(rect.contains(anchorageOnTheNextWorld))
+        // MapKit wraps the part past the date line round to the map's left edge, so it finds Anchorage where it is,
+        // not a world to the east.
+        XCTAssertTrue(rect.contains(MKMapPoint(anc)))
+        XCTAssertTrue((rect.minX...rect.maxX).contains(MKMapPoint(anc).x + world), "laid out in one piece, Anchorage east of Tokyo")
     }
 
     func test_rect_onePlace_isTheMinimumSize() throws {
