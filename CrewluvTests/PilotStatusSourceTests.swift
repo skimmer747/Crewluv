@@ -1,0 +1,1399 @@
+//
+//  PilotStatusSourceTests.swift
+//  CrewluvTests
+//
+//  The one place that reads the pilot's status, from iCloud or Crewlu Cloud
+//  (partner links piece 4 spec §5.1–§5.3).
+//
+
+import Foundation
+import Testing
+@testable import Crewluv
+
+@MainActor
+final class PilotStatusSourceTests {
+    private let defaultsName = "PilotStatusSourceTests.\(UUID().uuidString)"
+    private let defaults: UserDefaults
+    private let door = StandInPartnerDoor()
+    private let iCloud = StandInICloud()
+    private let keys = InMemoryDeviceKeyStore()
+    private let notifier = RecordingNotifier()
+    private let iCloudResets = Counter()
+    private let connects = Counter()
+    private let iCloudForgets = Counter()
+    private let clock = HandClock()
+
+    init() throws {
+        defaults = try #require(UserDefaults(suiteName: defaultsName))
+    }
+
+    deinit {
+        defaults.removePersistentDomain(forName: defaultsName)
+    }
+
+    /// `iCloudReset` does what the app's reset does besides counting, for a test that needs it.
+    private func makeSource(iCloudReset: @escaping @MainActor () -> Void = {}) -> PilotStatusSource {
+        PilotStatusSource(
+            iCloud: iCloud,
+            door: door,
+            keys: keys,
+            defaults: defaults,
+            notifier: notifier,
+            iCloudShareEnded: { [iCloudResets] in
+                iCloudResets.count += 1
+                iCloudReset()
+            },
+            periodicCheck: RepeatingRefresh(sleep: clock.sleep),
+            didConnect: { [connects] in connects.count += 1 },
+            forgetICloudShare: { [iCloudForgets] in iCloudForgets.count += 1 }
+        )
+    }
+
+    /// A device on Crewlu Cloud as partner A.
+    private func connectedSource() -> PilotStatusSource {
+        defaults.set(Make.partnerA, forKey: "partnerCloud.partnerID")
+        keys.key = Make.key
+        return makeSource()
+    }
+
+    // MARK: - Who Posts the Alerts (alert pushes spec §6.3)
+
+    @Test func test_onICloud_theAppPostsTheAlerts() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true])
+    }
+
+    @Test func test_onCrewluCloud_theAppPostsTheAlerts_untilAlertPushesAreAccepted() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "2", try Make.summary(lastUpdated: 2)),
+        ]
+        let source = connectedSource()
+
+        _ = await source.refresh()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: Make.key)
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true, false])
+    }
+
+    @Test func test_onCrewluCloud_aReadAHiddenPushAskedFor_postsItsAlerts_evenOnceAccepted() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "2", try Make.summary(lastUpdated: 2)),
+        ]
+        let source = connectedSource()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: Make.key)
+
+        _ = await source.refresh(startedByPush: true)
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true, false])
+    }
+
+    @Test func test_acceptedForAnotherKey_theAppStillPostsTheAlerts() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "1", try Make.summary(lastUpdated: 1))]
+        let source = connectedSource()
+        AlertPushes(defaults: defaults, keys: keys).accepted(forKey: String(repeating: "7c", count: 32))
+
+        _ = await source.refresh()
+
+        #expect(await notifier.evaluations.map(\.posting) == [true])
+    }
+
+    // MARK: - iCloud
+
+    @Test func test_iCloud_newStatus_becomesTheReading_andAlertsOnce() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(source.reading?.lastUpdated == Date(timeIntervalSince1970: 1))
+        #expect(await source.refresh() == .unchanged)
+        #expect(await notifier.evaluations.count == 1)
+        #expect(await notifier.evaluations.first?.pilotName == "Alex")
+        #expect(!source.isOnCrewluCloud)
+    }
+
+    @Test func test_iCloud_changedStatus_alertsAgain() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .success(try Make.iCloud(lastUpdated: 2))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(await source.refresh() == .newStatus)
+        #expect(await notifier.evaluations.count == 2)
+    }
+
+    @Test func test_displayName_titlesTheAlerts_andIsSavedForThem() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+            .success(try Make.iCloud(lastUpdated: 2)),
+        ]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(await notifier.evaluations.last?.pilotName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+        _ = await source.refresh()
+        #expect(await notifier.evaluations.last?.pilotName == "Alex")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+    }
+
+    @Test func test_theAlertsTitleName_isKeptBesideTheKey_forTheHelper_untilThePilotIsForgotten() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+            .success(try Make.iCloud(lastUpdated: 2)),
+        ]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(keys.name == "Dad")
+        _ = await source.refresh()
+        #expect(keys.name == "Alex", "the pilot's first name, once there's no nickname")
+        source.forgetPilot()
+        #expect(keys.name == nil)
+    }
+
+    @Test func test_iCloud_nameNotLookedUp_titlesTheAlertWithTheSavedName_andKeepsIt() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(await notifier.evaluations.last?.pilotName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+    }
+
+    @Test func test_iCloud_nameLookedUpLater_isShown_withoutAlertingAgain() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.displayName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+        #expect(await notifier.evaluations.count == 1)
+    }
+
+    @Test func test_iCloud_nameLookedUpLater_asNone_forgetsTheSavedName() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 1)),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.isDisplayNameKnown == true)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+    }
+
+    @Test func test_iCloud_nameNotLookedUpLater_keepsTheNameShown() async throws {
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")),
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+        ]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .unchanged)
+        #expect(source.reading?.displayName == "Dad")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+    }
+
+    @Test func test_displayName_forTheScreen_isTheSavedOne_whileICloudCantLookItUp() async throws {
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        iCloud.results = [
+            .success(try Make.iCloud(lastUpdated: 1, isDisplayNameKnown: false)),
+            .success(try Make.iCloud(lastUpdated: 2, displayName: "Pops")),
+        ]
+        let source = makeSource()
+        #expect(source.displayName == nil)
+
+        _ = await source.refresh()
+        #expect(source.displayName == "Dad")
+        _ = await source.refresh()
+        #expect(source.displayName == "Pops")
+    }
+
+    @Test func test_iCloud_noShare_isNotConnected() async {
+        iCloud.results = [.failure(ICloudFetchError.notConnected)]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .notConnected)
+        #expect(source.reading == nil)
+        #expect(await notifier.evaluations.isEmpty)
+    }
+
+    @Test func test_iCloud_shareGone_endsSharing() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.reading == nil)
+        #expect(iCloudResets.count == 1)
+    }
+
+    /// On the pilot's own iCloud, their record going means sharing through iCloud ended, by the
+    /// move-over or by stopping. The note is for the pilot, and this device lets iCloud go, so the
+    /// next look doesn't find the pilot's own zone and end sharing over and over.
+    @Test func test_onThePilotsOwnICloud_shareGone_leavesThePilotsNote_andLetsICloudGo() async throws {
+        defaults.set("privateDB", forKey: "PilotDataSource")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        // The app's reset forgets that this device read the pilot's own iCloud.
+        let source = makeSource(iCloudReset: { [defaults] in defaults.removeObject(forKey: "PilotDataSource") })
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedNote?.isPilotsOwn == true)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+        #expect(iCloudResets.count == 1)
+    }
+
+    @Test func test_aPartnersShareGone_isntThePilotsNote_andLeavesICloudAsItWas() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedNote?.isPilotsOwn == false)
+        #expect(!defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_thePilotsNote_isKeptForTheNextLaunch() async throws {
+        defaults.set("privateDB", forKey: "PilotDataSource")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1)), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+        _ = await source.refresh()
+        _ = await source.refresh()
+
+        #expect(makeSource().sharingEndedNote?.isPilotsOwn == true)
+    }
+
+    @Test func test_iCloudReset_forgetsAnICloudReading() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        source.forgetICloudReading()
+        #expect(source.reading == nil)
+    }
+
+    @Test func test_iCloudReset_leavesACrewluCloudReading() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        source.forgetICloudReading()
+        #expect(source.reading != nil)
+    }
+
+    @Test func test_iCloud_otherFailure_isFailed_withItsMessage() async {
+        iCloud.results = [.failure(URLError(.notConnectedToInternet))]
+
+        #expect(await makeSource().refresh() == .failed(URLError(.notConnectedToInternet).localizedDescription))
+    }
+
+    // MARK: - Crewlu Cloud
+
+    @Test func test_crewluCloud_summary_becomesTheReading_andItsTimeGoesBackAsSince() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        let source = connectedSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(await source.refresh() == .unchanged)
+        #expect(door.views.map(\.key) == [Make.key, Make.key])
+        #expect(door.views.map(\.since) == [nil, "t1"])
+        #expect(await notifier.evaluations.count == 1)
+        #expect(source.isOnCrewluCloud)
+        #expect(iCloud.fetches == 0)
+        #expect(connects.count == 0)
+    }
+
+    @Test func test_crewluCloud_alertsWithThisPartnersNameAndQuickStatus() async throws {
+        let summary = try Make.summary([
+            "displayNameByPartner": [Make.partnerA: "Dad"],
+            "quickStatusByPartner": [Make.partnerA: ["status": "Call Me", "icon": "phone.fill"]],
+        ])
+        door.viewAnswers = [Make.answer(updatedAt: "t1", summary)]
+
+        _ = await connectedSource().refresh()
+        let evaluation = try #require(await notifier.evaluations.first)
+        #expect(evaluation.pilotName == "Dad")
+        #expect(evaluation.status.quickStatus == "Call Me")
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == "Dad")
+    }
+
+    @Test func test_crewluCloud_beforeTheFirstSummary_hasNoStatusYet() async {
+        door.viewAnswers = [Make.noSummaryYet]
+        let source = connectedSource()
+
+        #expect(await source.refresh() == .noStatusYet)
+        #expect(source.reading == nil)
+        #expect(source.isOnCrewluCloud)
+        #expect(await notifier.evaluations.isEmpty)
+    }
+
+    @Test func test_crewluCloud_sharingEnded_forgetsTheKeyAndTheConnection() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]])),
+            .failure(.refused(.sharingEnded)),
+        ]
+        let source = connectedSource()
+        _ = await source.refresh()
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(keys.key == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(defaults.string(forKey: "partnerCloud.partnerID") == nil)
+        #expect(source.reading == nil)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(iCloudResets.count == 0)
+    }
+
+    @Test func test_crewluCloud_unreachable_isFailed_andTheNextReadAsksForEverything() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary()),
+            .failure(.unavailable),
+            Make.answer(updatedAt: "t1", try Make.summary()),
+        ]
+        let source = connectedSource()
+
+        _ = await source.refresh()
+        #expect(await source.refresh() == .failed("No connection to Crewlu Cloud"))
+        #expect(await source.refresh() == .unchanged)
+        #expect(door.views.map(\.since) == [nil, "t1", nil])
+        #expect(keys.key == Make.key)
+        #expect(await notifier.evaluations.count == 1)
+    }
+
+    @Test func test_crewluCloud_otherRefusal_isFailed_andKeepsTheKey() async {
+        door.viewAnswers = [.failure(.refused(.invalidInput))]
+        let source = connectedSource()
+
+        #expect(await source.refresh() == .failed("No connection to Crewlu Cloud"))
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+    }
+
+    @Test func test_crewluCloud_withoutAKey_isNotConnected() async {
+        defaults.set(Make.partnerA, forKey: "partnerCloud.partnerID")
+        let source = makeSource()
+
+        #expect(await source.refresh() == .notConnected)
+        #expect(!source.isOnCrewluCloud)
+        #expect(door.views.isEmpty)
+    }
+
+    @Test func test_crewluCloud_unreadableKey_isFailed_andKeepsTheConnection() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        keys.readFails = true
+        #expect(await source.refresh() == .failed("This device's key couldn't be read"))
+        #expect(source.isOnCrewluCloud)
+        #expect(source.reading != nil)
+        #expect(keys.key == Make.key)
+        #expect(door.views.count == 1)
+    }
+
+    @Test func test_crewluCloud_keyGone_forgetsTheReading() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        keys.key = nil
+        #expect(await source.refresh() == .notConnected)
+        #expect(source.reading == nil)
+        #expect(!source.isOnCrewluCloud)
+    }
+
+    @Test func test_crewluCloud_summaryAnsweredAfterSharingEnded_bringsNothingBack() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        source.endSharing()
+        door.release()
+
+        #expect(await read.value == .superseded)
+        #expect(source.reading == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+        #expect(await notifier.evaluations.isEmpty)
+    }
+
+    @Test func test_crewluCloud_failureAfterSharingEnded_bringsNothingBack() async {
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        source.endSharing()
+        door.release()
+
+        #expect(await read.value == .superseded)
+    }
+
+    @Test func test_crewluCloud_sameTimeForAnotherPartner_isANewStatus() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary()),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .newStatus)
+        guard case .crewluCloud(_, let partnerID, _)? = source.reading else {
+            Issue.record("no Crewlu Cloud reading")
+            return
+        }
+        #expect(partnerID == Make.partnerB)
+    }
+
+    // MARK: - A Key Left by a Reinstall
+
+    @Test func test_leftoverKey_withASummary_connects() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(defaults.string(forKey: "partnerCloud.partnerID") == Make.partnerA)
+        #expect(door.views.map(\.since) == [nil])
+        #expect(iCloud.fetches == 1)
+        #expect(connects.count == 1)
+        #expect(keys.copy == Make.key)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_leftoverKey_sharingEnded_isForgotten_andICloudIsRead() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(keys.key == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(iCloud.fetches == 1)
+    }
+
+    @Test func test_leftoverKey_unreadable_isLeftForNextTime() async throws {
+        keys.key = Make.key
+        keys.readFails = true
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(door.views.isEmpty)
+        #expect(keys.key == Make.key)
+        #expect(!source.isOnCrewluCloud)
+    }
+
+    @Test func test_leftoverKey_unreachable_isKept_andTriedAgainNextTime() async {
+        keys.key = Make.key
+        let source = makeSource()
+
+        #expect(await source.refresh() == .notConnected)
+        #expect(keys.key == Make.key)
+        #expect(iCloud.fetches == 1)
+        _ = await source.refresh()
+        #expect(door.views.count == 2)
+    }
+
+    @Test(arguments: [("SharedZoneOwner", "_owner"), ("PilotDataSource", "privateDB")])
+    func test_leftoverKey_beforeTheFirstSummary_withICloud_staysOnICloud(setting: String, value: String) async throws {
+        keys.key = Make.key
+        defaults.set(value, forKey: setting)
+        door.viewAnswers = [Make.noSummaryYet]
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+        #expect(!source.isOnCrewluCloud)
+        #expect(iCloud.fetches == 1)
+        #expect(connects.count == 0)
+    }
+
+    @Test func test_leftoverKey_beforeTheFirstSummary_withoutICloud_connects() async {
+        keys.key = Make.key
+        door.viewAnswers = [Make.noSummaryYet]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .noStatusYet)
+        #expect(source.isOnCrewluCloud)
+        #expect(iCloud.fetches == 1)
+        #expect(connects.count == 1)
+    }
+
+    // MARK: - Refreshes and the Screen
+
+    @Test func test_refreshesAskedForDuringARead_shareOneMoreReadAfterIt() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "t2", try Make.summary(lastUpdated: 2)),
+        ]
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let first = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        let second = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        let third = Task { await source.refresh() }
+        for _ in 0..<10 {
+            await Task.yield()
+        }
+        door.release()
+        await eventually { door.views.count == 2 }
+        door.holdsViews = false
+        door.release()
+
+        #expect(await [first.value, second.value, third.value] == [.newStatus, .newStatus, .newStatus])
+        #expect(door.views.map(\.since) == [nil, "t1"])
+        #expect(source.reading?.lastUpdated == Date(timeIntervalSince1970: 2))
+        #expect(!source.isReadQueued)
+    }
+
+    @Test func test_aRefreshDuringTheQueuedRead_waitsForItToEnd() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1)),
+            Make.answer(updatedAt: "t2", try Make.summary(lastUpdated: 2)),
+            Make.answer(updatedAt: "t3", try Make.summary(lastUpdated: 3)),
+        ]
+        door.holdsViews = true
+        let source = connectedSource()
+
+        let first = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        let second = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        door.release()
+        await eventually { door.views.count == 2 && !source.isReadQueued }
+        let third = Task { await source.refresh() }
+        await eventually { source.isReadQueued }
+        door.holdsViews = false
+        door.release()
+
+        #expect(await [first.value, second.value, third.value] == [.newStatus, .newStatus, .newStatus])
+        #expect(door.views.map(\.since) == [nil, "t1", "t2"])
+    }
+
+    @Test func test_theScreenHearsHowEveryReadWent() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary()),
+            Make.unchanged(updatedAt: "t1"),
+            .failure(.unavailable),
+            .failure(.refused(.sharingEnded)),
+        ]
+        let source = connectedSource()
+        let heard = Heard()
+        let observer = heard.listen(to: source)
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let before = Date()
+
+        for _ in 0..<4 {
+            _ = await source.refresh()
+        }
+
+        #expect(heard.outcomes == [.newStatus, .unchanged, .failed("No connection to Crewlu Cloud"), .sharingEnded])
+        let readAt = try #require(source.lastUpdate?.readAt)
+        #expect(readAt >= before && readAt <= Date())
+    }
+
+    @Test func test_theScreenHearsOfSharingEndingOutsideARead() {
+        let source = connectedSource()
+        let heard = Heard()
+        let observer = heard.listen(to: source)
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        source.endSharing()
+
+        #expect(heard.outcomes == [.sharingEnded])
+        #expect(!source.isOnCrewluCloud)
+        #expect(keys.key == nil)
+    }
+
+    // MARK: - The Pilot Last Seen, and Sharing Ended
+
+    @Test func test_eachNewStatus_savesThePilot_asThisPartnerSeesThem() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        _ = await connectedSource().refresh()
+
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "pilot")
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == "Dad")
+    }
+
+    @Test func test_aPilotWithoutANickname_isSavedByFirstName() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        _ = await makeSource().refresh()
+
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == "Alex")
+    }
+
+    @Test func test_sharingEnded_onCrewluCloud_leavesTheNote_andForgetsThePilot() async throws {
+        door.viewAnswers = [
+            Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]])),
+            .failure(.refused(.sharingEnded)),
+        ]
+        let source = connectedSource()
+        _ = await source.refresh()
+        defaults.set(Date(timeIntervalSince1970: 1), forKey: "LastEvaluatedPilotStatusTimestamp")
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == "Dad")
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == "Dad")
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotName") == nil)
+        #expect(defaults.object(forKey: "LastEvaluatedPilotStatusTimestamp") == nil)
+    }
+
+    @Test func test_sharingEnded_toldByThePushRegistration_leavesTheNote() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        source.endSharing()
+
+        #expect(source.sharingEndedWith == "Alex")
+    }
+
+    @Test func test_sharingEnded_onICloud_leavesTheNote() async throws {
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad")), .failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == "Dad")
+        #expect(!source.isLeftBehind)
+    }
+
+    @Test func test_sharingEnded_beforeAnyStatus_leavesNoNote() async {
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        let source = connectedSource()
+
+        #expect(await source.refresh() == .sharingEnded)
+        #expect(source.sharingEndedWith == nil)
+    }
+
+    @Test func test_theNote_staysAfterARelaunch_untilTheNextStatus() async throws {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+        #expect(source.sharingEndedWith == "Dad")
+
+        _ = await source.refresh()
+
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+    }
+
+    // MARK: - Switching to What a Join Joined
+
+    private static func joined(_ partnerID: String = Make.partnerA, key: String = "pending") -> CrewluCloudDevice.Joined {
+        CrewluCloudDevice.Joined(partnerID: partnerID, key: key, isDeviceKey: false)
+    }
+
+    @Test func test_connect_fromNothing_readsTheNewConnection() async throws {
+        keys.pending = "pending"
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(keys.key == "pending")
+        #expect(door.views.map(\.key) == ["pending"])
+        #expect(source.lastUpdate?.outcome == .newStatus)
+        #expect(connects.count == 1)
+        #expect(iCloudForgets.count == 0)
+    }
+
+    @Test func test_connect_fromICloud_forgetsTheShareQuietly() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1))]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: true))
+
+        #expect(iCloudForgets.count == 1)
+        #expect(iCloudResets.count == 0)
+        #expect(source.isOnCrewluCloud)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_connect_fromNothing_alsoKeepsTheLaunchFromFindingAnICloudShare() async {
+        keys.pending = "pending"
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(iCloudForgets.count == 0)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_connect_toAnotherPilot_forgetsWhatTheAlertsKeptOfTheLastOne() async throws {
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        defaults.set(Date(timeIntervalSince1970: 1), forKey: "LastEvaluatedPilotStatusTimestamp")
+        defaults.set("Dad", forKey: "ResolvedPilotDisplayName")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: false)
+
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(defaults.object(forKey: "LastEvaluatedPilotStatusTimestamp") == nil)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+    }
+
+    @Test func test_connect_toTheSamePilot_keepsWhatTheAlertsKept() async {
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: true)
+
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == Data([1]))
+    }
+
+    @Test func test_connect_takesTheNoteAway() async {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        let source = makeSource()
+
+        _ = await source.connect(Self.joined(), keepingAlerts: false)
+
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+    }
+
+    @Test func test_connect_leavesTheKeyForThisPartnersOtherDevices() async {
+        keys.pending = "pending"
+        let source = makeSource()
+
+        #expect(await source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(keys.copy == "pending")
+    }
+
+    @Test func test_connect_keyThatCantBeSaved_changesNothing() async {
+        keys.savesFail = true
+        let source = makeSource()
+
+        #expect(await !source.connect(Self.joined(), keepingAlerts: false))
+
+        #expect(!source.isOnCrewluCloud)
+        #expect(door.views.isEmpty)
+        #expect(connects.count == 0)
+    }
+
+    @Test func test_connect_changesEverything_beforeTheReplacedDeviceLeaves() async {
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = connectedSource()
+        keys.pending = "pending"
+        door.holdsLeaves = true
+
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { door.leaves.count == 1 }
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(keys.key == "pending")
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(connects.count == 1)
+        door.release()
+        #expect(await connecting.value)
+        #expect(door.leaves == [Make.key])
+    }
+
+    @Test func test_connect_whileALeftoverKeyIsRead_keepsTheKey_andReadsTheNewConnection() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [
+            .failure(.refused(.sharingEnded)),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        door.holdsViews = false
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true)
+        let connecting = Task { await source.connect(joined, keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        door.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_connect_afterALeftoverKeysRefusal_savesTheKeyAgain() async throws {
+        keys.key = Make.key
+        door.viewAnswers = [
+            .failure(.refused(.sharingEnded)),
+            Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB),
+        ]
+        let source = makeSource()
+        #expect(await source.refresh() == .notConnected)
+
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: Make.key, isDeviceKey: true)
+        #expect(await source.connect(joined, keepingAlerts: false))
+
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_iCloud_aReadThatASwitchOvertook_bringsNothingBack() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        iCloud.holdsFetches = true
+        keys.pending = "pending"
+        let sam = try Make.summary(["pilotId": "sam", "pilotFirstName": "Sam"])
+        door.viewAnswers = [Make.answer(updatedAt: "t1", sam, partnerID: Make.partnerB)]
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { iCloud.fetches == 1 }
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        iCloud.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(await notifier.evaluations.map(\.status.pilotId) == ["sam"])
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "sam")
+    }
+
+    @Test func test_iCloud_shareGoneThatASwitchOvertook_endsNothing() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        iCloud.holdsFetches = true
+        keys.pending = "pending"
+        let source = makeSource()
+
+        let read = Task { await source.refresh() }
+        await eventually { iCloud.fetches == 1 }
+        let connecting = Task { await source.connect(Self.joined(Make.partnerB), keepingAlerts: false) }
+        await eventually { source.isOnCrewluCloud }
+        iCloud.release()
+
+        #expect(await read.value == .superseded)
+        #expect(await connecting.value)
+        #expect(iCloudResets.count == 0)
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.isOnCrewluCloud)
+    }
+
+    // MARK: - The Move-Over
+
+    /// This device follows the pilot through iCloud, whose last record had `moveTicket` for it.
+    private func onICloud(moveTicket: String? = nil) throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad", moveTicket: moveTicket))]
+    }
+
+    private static let joinedB = PartnerJoinAnswer(deviceID: "device-b", partnerID: Make.partnerB)
+
+    @Test func test_moveOver_switchesOnceCrewluCloudHasAStatus_keepingWhatTheAlertsKept() async throws {
+        try onICloud(moveTicket: "ticket")
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1), partnerID: Make.partnerB)]
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        let key = try #require(keys.key)
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(door.joins.map(\.link) == [.code("ticket")])
+        #expect(iCloudForgets.count == 1)
+        #expect(iCloudResets.count == 0)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+        #expect(keys.copy == key)
+        #expect(connects.count == 1)
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == Data([1]))
+        #expect(defaults.string(forKey: "partnerCloud.moveToPartnerID") == nil)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_moveOver_showsICloudsStatusFirst() async throws {
+        try onICloud(moveTicket: "ticket")
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1), partnerID: Make.partnerB)]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+
+        #expect(source.lastUpdate?.outcome == .newStatus)
+        #expect(!source.isOnCrewluCloud)
+        door.release()
+        #expect(await refreshing.value == .newStatus)
+        #expect(source.isOnCrewluCloud)
+    }
+
+    @Test func test_moveOver_thatCantRedeemNow_staysOnICloud() async throws {
+        try onICloud(moveTicket: "ticket")
+        door.joinAnswers = [.failure(.refused(.tryLater))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(!source.isOnCrewluCloud)
+        #expect(source.reading != nil)
+        #expect(iCloudForgets.count == 0)
+    }
+
+    @Test func test_moveOver_afterAnUnchangedICloudRead_switches_andSaysSo() async throws {
+        try onICloud()
+        iCloud.results.append(.success(try Make.iCloud(lastUpdated: 1, displayName: "Dad", moveTicket: "ticket")))
+        door.joinAnswers = [.success(Self.joinedB)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1), partnerID: Make.partnerB)]
+        let source = makeSource()
+        _ = await source.refresh()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_moveOver_hasNoTurn_afterAJoinSwitchedThisDeviceDuringTheRead() async throws {
+        try onICloud(moveTicket: "ticket")
+        await notifier.hold()
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        for _ in 0..<10_000 {
+            if await notifier.waiting > 0 { break }
+            await Task.yield()
+        }
+        #expect(await notifier.waiting == 1)
+        _ = source.switchConnection(to: CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: false), keepingAlerts: false)
+        await notifier.release()
+
+        #expect(await refreshing.value == .newStatus)
+        #expect(door.views.isEmpty)
+        #expect(door.joins.isEmpty)
+    }
+
+    @Test func test_moveOver_aMoveUnderWayTakesItsTurn_evenWhenICloudFails() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        keys.key = Make.key
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+        iCloud.results = [.failure(URLError(.notConnectedToInternet))]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(), partnerID: Make.partnerB)]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+    }
+
+    @Test func test_moveOver_hasNoTurn_whenICloudFails_withoutAMove() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        keys.copy = "copy"
+        iCloud.results = [.failure(URLError(.notConnectedToInternet))]
+        let source = makeSource()
+
+        _ = await source.refresh()
+
+        #expect(door.views.isEmpty)
+    }
+
+    @Test func test_aKeyAReinstallLeft_forThisPilot_switchesAfterICloudsStatus() async throws {
+        try onICloud()
+        keys.key = Make.key
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 1))]
+        let source = makeSource()
+
+        _ = await source.refresh()
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(iCloudForgets.count == 1)
+    }
+
+    @Test func test_aKeyAReinstallLeft_forAnotherPilot_switches_andItsAlertsStartAfresh() async throws {
+        try onICloud()
+        keys.key = Make.key
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(lastUpdated: 2, ["pilotId": "sam"]))]
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == "sam")
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+    }
+
+    @Test func test_shareGone_duringAMove_switchesAtOnce_withoutTheWelcomeScreen() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.key = Make.key
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [.success(PartnerViewAnswer(partnerID: Make.partnerB, updatedAt: nil, content: .noSummaryYet))]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .noStatusYet)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(iCloudResets.count == 0)
+        #expect(source.sharingEndedWith == nil)
+    }
+
+    @Test func test_shareGone_withAKeyAReinstallLeft_switchesToIt_withoutTheWelcomeScreen() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.key = Make.key
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .newStatus)
+
+        #expect(source.crewluCloudPartnerID == Make.partnerA)
+        #expect(iCloudResets.count == 0)
+        #expect(source.sharingEndedWith == nil)
+    }
+
+    @Test func test_shareGone_duringAMove_switchesEvenWhenCrewluCloudCantBeReached() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        keys.key = Make.key
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .failed("No connection to Crewlu Cloud"))
+
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(iCloudResets.count == 0)
+    }
+
+    @Test func test_shareGone_whileAJoinSwitchesThisDevice_endsNothing() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.key = Make.key
+        defaults.set(Make.partnerB, forKey: "partnerCloud.moveToPartnerID")
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        _ = source.switchConnection(to: CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: false), keepingAlerts: false)
+        door.release()
+
+        #expect(await refreshing.value == .superseded)
+        #expect(source.sharingEndedWith == nil)
+        #expect(iCloudResets.count == 0)
+    }
+
+    @Test func test_shareGone_whileAJoinSwitchesThisDevice_asAnotherDeviceIsChecked_endsNothing() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.copy = "copy"
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        door.holdsViews = true
+        let source = makeSource()
+
+        let refreshing = Task { await source.refresh() }
+        await eventually { door.views.count == 1 }
+        _ = source.switchConnection(to: CrewluCloudDevice.Joined(partnerID: Make.partnerA, key: "joined", isDeviceKey: false), keepingAlerts: false)
+        door.release()
+
+        #expect(await refreshing.value == .superseded)
+        #expect(source.sharingEndedWith == nil)
+        #expect(iCloudResets.count == 0)
+    }
+
+    @Test func test_shareGone_withAnotherDeviceThatCantBeFollowedNow_saysSo() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.copy = "copy"
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = makeSource()
+
+        #expect(await source.refresh() == .sharingEnded)
+
+        #expect(source.sharingEndedWith == "Dad")
+        #expect(source.isLeftBehind)
+        #expect(iCloudResets.count == 1)
+    }
+
+    @Test func test_theLeftBehindNote_goesWithTheNextStatus() async throws {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        defaults.set(true, forKey: "partnerCloud.sharingEndedLeftBehind")
+        iCloud.results = [.success(try Make.iCloud(lastUpdated: 1))]
+        let source = makeSource()
+        #expect(source.isLeftBehind)
+
+        _ = await source.refresh()
+
+        #expect(!source.isLeftBehind)
+    }
+
+    @Test func test_theLeftBehindNote_staysAfterARelaunch() async throws {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        defaults.set("pilot", forKey: "partnerCloud.pilotID")
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        keys.copy = "copy"
+        iCloud.results = [.failure(ICloudFetchError.shareGone)]
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        _ = await makeSource().refresh()
+
+        let relaunched = makeSource()
+
+        #expect(relaunched.sharingEndedWith == "Dad")
+        #expect(relaunched.isLeftBehind)
+    }
+
+    @Test func test_theWelcomeScreensNote_saysWhetherThisDeviceWasLeftBehind() {
+        defaults.set("Dad", forKey: "partnerCloud.sharingEndedWith")
+        #expect(makeSource().sharingEndedNote == SharingEndedNote(pilot: "Dad", isLeftBehind: false))
+
+        defaults.set(true, forKey: "partnerCloud.sharingEndedLeftBehind")
+        #expect(makeSource().sharingEndedNote == SharingEndedNote(pilot: "Dad", isLeftBehind: true))
+
+        defaults.removeObject(forKey: "partnerCloud.sharingEndedWith")
+        #expect(makeSource().sharingEndedNote == nil)
+    }
+
+    // MARK: - Disconnect
+
+    @Test func test_disconnect_leaves_thenForgetsTheKeyTheConnectionAndThePilot() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary(["displayNameByPartner": [Make.partnerA: "Dad"]]))]
+        let source = connectedSource()
+        _ = await source.refresh()
+        defaults.set(Data([1]), forKey: "LastSeenPilotSnapshot")
+
+        #expect(await source.disconnect())
+
+        #expect(door.leaves == [Make.key])
+        #expect(keys.key == nil)
+        #expect(!source.isOnCrewluCloud)
+        #expect(source.reading == nil)
+        #expect(defaults.string(forKey: "partnerCloud.pilotID") == nil)
+        #expect(defaults.string(forKey: "ResolvedPilotDisplayName") == nil)
+        #expect(defaults.data(forKey: "LastSeenPilotSnapshot") == nil)
+        #expect(source.sharingEndedWith == nil)
+        #expect(source.lastUpdate?.outcome == .notConnected)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_disconnect_letsAnICloudShareGo_soTheLaunchDoesntFindItAgain() async {
+        defaults.set("_owner", forKey: "SharedZoneOwner")
+        let source = connectedSource()
+
+        #expect(await source.disconnect())
+
+        #expect(iCloudForgets.count == 1)
+        #expect(iCloudResets.count == 0)
+        #expect(defaults.bool(forKey: "partnerCloud.leftICloud"))
+    }
+
+    @Test func test_disconnect_withoutAConnection_staysConnected() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        door.leaveAnswers = [.failure(.unavailable)]
+        let source = connectedSource()
+        _ = await source.refresh()
+
+        #expect(await !source.disconnect())
+
+        #expect(!defaults.bool(forKey: "partnerCloud.leftICloud"))
+        #expect(keys.key == Make.key)
+        #expect(source.isOnCrewluCloud)
+        #expect(source.reading != nil)
+        #expect(source.lastUpdate?.outcome == .newStatus)
+    }
+
+    @Test func test_disconnect_thatAJoinOvertook_keepsTheNewConnection() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let source = connectedSource()
+        _ = await source.refresh()
+        door.holdsLeaves = true
+        keys.pending = "pending"
+
+        let disconnecting = Task { await source.disconnect() }
+        await eventually { door.leaves.count == 1 }
+        door.holdsLeaves = false
+        let joined = CrewluCloudDevice.Joined(partnerID: Make.partnerB, key: "pending", isDeviceKey: false)
+        #expect(await source.connect(joined, keepingAlerts: false))
+        door.release()
+
+        #expect(await disconnecting.value)
+        #expect(keys.key == "pending")
+        #expect(source.crewluCloudPartnerID == Make.partnerB)
+        #expect(source.lastUpdate?.outcome != .notConnected)
+    }
+
+    @Test func test_disconnect_aRefusalItsOwnLeaveCaused_leavesNoNote() async {
+        defaults.set("Dad", forKey: "partnerCloud.pilotName")
+        let source = connectedSource()
+        door.viewAnswers = [.failure(.refused(.sharingEnded))]
+        door.holdsLeaves = true
+
+        let disconnecting = Task { await source.disconnect() }
+        await eventually { door.leaves.count == 1 }
+        let read = await source.refresh()
+        door.release()
+
+        #expect(read == .superseded)
+        #expect(await disconnecting.value)
+        #expect(source.sharingEndedWith == nil)
+        #expect(defaults.string(forKey: "partnerCloud.sharingEndedWith") == nil)
+        #expect(source.lastUpdate?.outcome == .notConnected)
+        #expect(keys.key == nil)
+    }
+
+    // MARK: - The 60-Second Check
+
+    @Test func test_periodicCheck_readsAtEachTick_whileOnCrewluCloud() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        let screen = StandInScreen()
+        let source = connectedSource()
+
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        #expect(door.views.isEmpty)
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck(for: screen)
+        await eventually { clock.waitingCount == 0 }
+
+        #expect(door.views.map(\.since) == [nil, "t1"])
+        #expect(clock.sleeps.allSatisfy { $0 == .seconds(60) })
+    }
+
+    @Test func test_periodicCheck_stopsReading_onceSharingEnds() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let screen = StandInScreen()
+        let source = connectedSource()
+
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        source.endSharing()
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck(for: screen)
+
+        #expect(door.views.count == 1)
+        #expect(iCloud.fetches == 0)
+    }
+
+    @Test func test_periodicCheck_startsReading_onceTheDeviceConnects() async throws {
+        let screen = StandInScreen()
+        let source = makeSource()
+
+        source.startPeriodicCheck(for: screen, pausedWhile: { screen.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.isEmpty)
+        #expect(iCloud.fetches == 0)
+
+        keys.key = Make.key
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary()), Make.unchanged(updatedAt: "t1")]
+        #expect(await source.refresh() == .newStatus)
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck(for: screen)
+
+        #expect(door.views.map(\.since) == [nil, "t1"])
+    }
+
+    @Test func test_periodicCheck_readsNothing_whileEveryScreenInFrontShowsTheDemo() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let demo = StandInScreen(isInDemo: true)
+        let status = StandInScreen()
+        let source = connectedSource()
+
+        source.startPeriodicCheck(for: demo, pausedWhile: { demo.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.isEmpty)
+        source.startPeriodicCheck(for: status, pausedWhile: { status.isInDemo })
+        clock.tick()
+        await eventually { clock.sleeps.count == 3 }
+        source.stopPeriodicCheck(for: demo)
+        source.stopPeriodicCheck(for: status)
+
+        #expect(door.views.count == 1)
+    }
+
+    @Test func test_periodicCheck_runsWhileAnyScreenIsInFront() async throws {
+        door.viewAnswers = [Make.answer(updatedAt: "t1", try Make.summary())]
+        let first = StandInScreen()
+        let second = StandInScreen()
+        let source = connectedSource()
+
+        source.startPeriodicCheck(for: first, pausedWhile: { first.isInDemo })
+        source.startPeriodicCheck(for: second, pausedWhile: { second.isInDemo })
+        await eventually { clock.sleeps.count == 1 }
+        source.stopPeriodicCheck(for: second)
+        clock.tick()
+        await eventually { clock.sleeps.count == 2 }
+        #expect(door.views.count == 1)
+        source.stopPeriodicCheck(for: first)
+
+        await eventually { clock.waitingCount == 0 }
+        #expect(clock.sleeps.count == 2)
+    }
+
+    // MARK: - The Reading
+
+    @Test func test_reading_fromCrewluCloud_changesWhenItsQuickStatusExpires() throws {
+        let expiry = Date(timeIntervalSince1970: 1_792_609_200)
+        let summary = try Make.summary([
+            "quickStatusByPartner": [Make.partnerA: ["status": "Call Me", "icon": "phone.fill", "expiry": expiry.timeIntervalSince1970]],
+        ])
+        let reading = PilotReading.crewluCloud(summary, partnerID: Make.partnerA, updatedAt: "t1")
+
+        #expect(reading.change(after: expiry.addingTimeInterval(-60)) == expiry)
+        #expect(reading.status(at: expiry.addingTimeInterval(-60)).quickStatus == "Call Me")
+        #expect(reading.status(at: expiry).quickStatus == nil)
+        #expect(reading.change(after: expiry) == nil)
+    }
+
+    @Test func test_reading_fromICloud_neverChangesByItself() throws {
+        let reading = PilotReading.iCloud(try Make.iCloud(lastUpdated: 1, displayName: "Dad"))
+
+        #expect(reading.change(after: Date(timeIntervalSince1970: 0)) == nil)
+        #expect(reading.displayName == "Dad")
+        #expect(reading.lastUpdated == Date(timeIntervalSince1970: 1))
+    }
+}

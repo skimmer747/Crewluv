@@ -7,8 +7,9 @@
 
 import Foundation
 
-struct TripLeg: Codable, Sendable {
-    enum LegType: String, Codable, Sendable {
+/// Nonisolated, so the alerts compare legs off the main actor (partner links piece 4 spec §14).
+nonisolated struct TripLeg: Codable, Sendable, Equatable {
+    nonisolated enum LegType: String, Codable, Sendable {
         case flight, turn, layover, home, base
         case drive                       // ground commute (base <-> home)
         case reserve, hotStandby, event  // future

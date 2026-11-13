@@ -1,0 +1,1125 @@
+{
+  "about": "The alert pushes' shared cases (crewluve-web docs/superpowers/specs/2026-10-23-partner-alert-pushes-design.md, §9.1). Each case is one change a partner sees: the summary before, read at beforeAt, and after, read at afterAt, each the base with the case's fields over it, or no summary before (null). alerts is what Crewluve 1.3's StatusChangeNotifier makes of it, in its order: each alert's kind (§5.3), whether it plays a sound, and the words Crewluve writes for it, with times in timeZone. partner-push's rules and Crewluve's are both checked against every case. Times are seconds since 1970.",
+  "timeZone": "America/New_York",
+  "base": {
+    "schemaVersion": 1,
+    "pilotId": "6F1C2D3E-4B5A-4C6D-8E7F-90A1B2C3D4E5",
+    "pilotFirstName": "Alex",
+    "homeAirportCode": "ATL",
+    "displayStatus": "Layover",
+    "currentTripId": "Z55120",
+    "tripTotalDays": 2,
+    "homeArrivalTime": null,
+    "nextDepartureTime": null,
+    "tripLegs": null,
+    "quickStatus": null,
+    "quickStatusIcon": null,
+    "quickStatusExpiry": null,
+    "quickStatusTargets": [],
+    "quickStatusByPartner": null,
+    "displayNameByPartner": null,
+    "flightDelayMinutes": null,
+    "localTimeAtPilot": "11:00 AM",
+    "lastUpdated": 1792605600,
+    "appVersion": "3.0"
+  },
+  "cases": [
+    {
+      "name": "Call Me, sent to this partner",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": true, "title": "Alex", "body": "is asking you to call" }]
+    },
+    {
+      "name": "Free to Talk, titled with the name the pilot set for this partner",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayNameByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": "Dad" } },
+      "after": {
+        "lastUpdated": 1792605660,
+        "displayNameByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": "Dad" },
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Free to Talk", "icon": "phone.badge.checkmark", "expiry": null } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": true, "title": "Dad", "body": "is free to talk" }]
+    },
+    {
+      "name": "Out for Dinner, with a name set only for another partner",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayNameByPartner": { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": "Pops" } },
+      "after": {
+        "lastUpdated": 1792605660,
+        "displayNameByPartner": { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": "Pops" },
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Out for Dinner", "icon": "fork.knife", "expiry": 1792620000 } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": true, "title": "Alex", "body": "went out for dinner" }]
+    },
+    {
+      "name": "Sleeping, sent to everyone, has no sound",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "isSleeping": true,
+        "quickStatus": "Sleeping",
+        "quickStatusIcon": "moon.zzz.fill",
+        "quickStatusExpiry": null,
+        "quickStatusTargets": null
+      },
+      "alerts": [{ "kind": "quick-status", "sound": false, "title": "Alex", "body": "is sleeping" }]
+    },
+    {
+      "name": "Sleeping, sent to this partner alone, has no sound",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Sleeping", "icon": "moon.zzz.fill", "expiry": 1792634400 } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": false, "title": "Alex", "body": "is sleeping" }]
+    },
+    {
+      "name": "Another quick status shows as itself",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Flight Delayed", "icon": "clock.badge.exclamationmark", "expiry": null } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": true, "title": "Alex", "body": "Flight Delayed" }]
+    },
+    {
+      "name": "A quick status for another partner alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "alerts": []
+    },
+    {
+      "name": "The same quick status, sent again, alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792620000 } }
+      },
+      "alerts": []
+    },
+    {
+      "name": "A cleared quick status alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "after": { "lastUpdated": 1792605660 },
+      "alerts": []
+    },
+    {
+      "name": "This partner's own quick status expires between the readings, and the one for everyone shows",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "quickStatus": "Free to Talk",
+        "quickStatusIcon": "phone.badge.checkmark",
+        "quickStatusExpiry": null,
+        "quickStatusTargets": null,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792605640 } }
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatus": "Free to Talk",
+        "quickStatusIcon": "phone.badge.checkmark",
+        "quickStatusExpiry": null,
+        "quickStatusTargets": null,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792605640 } }
+      },
+      "alerts": [{ "kind": "quick-status", "sound": true, "title": "Alex", "body": "is free to talk" }]
+    },
+    {
+      "name": "Home",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayStatus": "Commuting Home", "currentTripId": null, "tripTotalDays": null },
+      "after": { "lastUpdated": 1792605660, "displayStatus": "Home", "currentTripId": null, "tripTotalDays": null },
+      "alerts": [{ "kind": "home", "sound": true, "title": "Alex", "body": "is home!" }]
+    },
+    {
+      "name": "Took off",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayStatus": "Turn" },
+      "after": { "lastUpdated": 1792605660, "displayStatus": "In Flight" },
+      "alerts": [{ "kind": "took-off", "sound": true, "title": "Alex", "body": "just took off" }]
+    },
+    {
+      "name": "Any other change of status alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayStatus": "Layover" },
+      "after": { "lastUpdated": 1792605660, "displayStatus": "Turn" },
+      "alerts": []
+    },
+    {
+      "name": "A status that's missing reads as Home, so Home after it alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "displayStatus": null, "currentTripId": null, "tripTotalDays": null },
+      "after": { "lastUpdated": 1792605660, "displayStatus": "Home", "currentTripId": null, "tripTotalDays": null },
+      "alerts": []
+    },
+    {
+      "name": "Delayed",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": { "lastUpdated": 1792605660, "flightDelayMinutes": 45 },
+      "alerts": [{ "kind": "delayed", "sound": true, "title": "Alex's Flight", "body": "Delayed 45 minutes" }]
+    },
+    {
+      "name": "Departing early",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": { "lastUpdated": 1792605660, "flightDelayMinutes": -10 },
+      "alerts": [{ "kind": "early", "sound": true, "title": "Alex's Flight", "body": "Departing 10 minutes early" }]
+    },
+    {
+      "name": "Delay cleared",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "flightDelayMinutes": 45 },
+      "after": { "lastUpdated": 1792605660 },
+      "alerts": [{ "kind": "delay-cleared", "sound": true, "title": "Alex's Flight", "body": "Delay cleared" }]
+    },
+    {
+      "name": "Early departure cleared",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "flightDelayMinutes": -10 },
+      "after": { "lastUpdated": 1792605660, "flightDelayMinutes": 0 },
+      "alerts": [{ "kind": "early-cleared", "sound": true, "title": "Alex's Flight", "body": "Early departure cleared" }]
+    },
+    {
+      "name": "A delay on a flight that hasn't landed counts, titled with the name the pilot set",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "displayNameByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": "Dad" },
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "displayNameByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": "Dad" },
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": 30 },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "delayed", "sound": true, "title": "Dad's Flight", "body": "Delayed 30 minutes" }]
+    },
+    {
+      "name": "A delay on a flight that has landed alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2962", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2962", "delayMinutes": 30 },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip added to the schedule",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "new-trip", "sound": true, "title": "Alex", "body": "Has a new trip" }]
+    },
+    {
+      "name": "Several trips added at once make one alert",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null },
+          { "id": "Z55140-leg-1", "tripId": "Z55140", "type": "flight", "startTime": 1793300000, "endTime": 1793315000, "departureAirport": "SDF", "arrivalAirport": "ANC", "flightNumber": "UPS2200", "delayMinutes": null },
+          { "id": "Z55140-leg-2", "tripId": "Z55140", "type": "flight", "startTime": 1793350000, "endTime": 1793365000, "departureAirport": "ANC", "arrivalAirport": "SDF", "flightNumber": "UPS2201", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "new-trips", "sound": true, "title": "Alex", "body": "Has new trips" }]
+    },
+    {
+      "name": "A trip still to come, taken off the schedule",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "trip-cancelled", "sound": true, "title": "Alex", "body": "Trip was cancelled" }]
+    },
+    {
+      "name": "Several trips taken off at once make one alert",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null },
+          { "id": "Z55140-leg-1", "tripId": "Z55140", "type": "flight", "startTime": 1793300000, "endTime": 1793315000, "departureAirport": "SDF", "arrivalAirport": "ANC", "flightNumber": "UPS2200", "delayMinutes": null },
+          { "id": "Z55140-leg-2", "tripId": "Z55140", "type": "flight", "startTime": 1793350000, "endTime": 1793365000, "departureAirport": "ANC", "arrivalAirport": "SDF", "flightNumber": "UPS2201", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "trips-cancelled", "sound": true, "title": "Alex", "body": "Trips were cancelled" }]
+    },
+    {
+      "name": "The trip under way, taken off the schedule",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ],
+        "currentTripId": null,
+        "tripTotalDays": null
+      },
+      "alerts": [{ "kind": "trip-cancelled", "sound": true, "title": "Alex", "body": "Trip was cancelled" }]
+    },
+    {
+      "name": "A trip ending alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792672000,
+      "afterAt": 1792675000,
+      "before": {
+        "lastUpdated": 1792671900,
+        "displayStatus": "Commuting Home",
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792674900,
+        "displayStatus": "Commuting Home",
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip ending with another scheduled says only that the pilot is home",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792672000,
+      "afterAt": 1792675000,
+      "before": {
+        "lastUpdated": 1792671900,
+        "displayStatus": "Commuting Home",
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792674900,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "home", "sound": true, "title": "Alex", "body": "is home!" }]
+    },
+    {
+      "name": "A trip starting says nothing new, even with the last trip's length still set",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792924000,
+      "afterAt": 1792925500,
+      "before": {
+        "lastUpdated": 1792923900,
+        "currentTripId": null,
+        "tripTotalDays": 3,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792925400,
+        "displayStatus": "Commuting",
+        "currentTripId": "Z55130",
+        "tripTotalDays": 2,
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A split trip merged on import is neither added nor taken off",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130A-leg-1", "tripId": "Z55130A", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130B-leg-1", "tripId": "Z55130B", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip traded for another on the same days is neither added nor taken off",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55131-leg-1", "tripId": "Z55131", "type": "flight", "startTime": 1792936000, "endTime": 1792946000, "departureAirport": "SDF", "arrivalAirport": "MCO", "flightNumber": "UPS2110", "delayMinutes": null },
+          { "id": "Z55131-leg-2", "tripId": "Z55131", "type": "flight", "startTime": 1792989000, "endTime": 1792999000, "departureAirport": "MCO", "arrivalAirport": "SDF", "flightNumber": "UPS2111", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "Flights moved 10 minutes are neither added nor taken off",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935600, "endTime": 1792945600, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990600, "endTime": 1793000600, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A summary with no legs takes no trip off the schedule",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": { "lastUpdated": 1792605660, "tripLegs": null },
+      "alerts": []
+    },
+    {
+      "name": "A summary with only commutes, no trips, takes no trip off the schedule",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "tripLegs": [
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "Trips back after a summary with only commutes are not new",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "tripLegs": [
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "Trips after a summary with no legs are not new",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip over by the change, gone from the summary, alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55000-leg-1", "tripId": "Z55000", "type": "flight", "startTime": 1792590000, "endTime": 1792605630, "departureAirport": "SDF", "arrivalAirport": "BOS", "flightNumber": "UPS2000", "delayMinutes": null },
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip over by the change, added to the log, alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55001-leg-1", "tripId": "Z55001", "type": "flight", "startTime": 1792590000, "endTime": 1792605630, "departureAirport": "SDF", "arrivalAirport": "DEN", "flightNumber": "UPS2001", "delayMinutes": null },
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip taken off before it ended, by the summary's own time, is cancelled",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55000-leg-1", "tripId": "Z55000", "type": "flight", "startTime": 1792590000, "endTime": 1792605670, "departureAirport": "SDF", "arrivalAirport": "BOS", "flightNumber": "UPS2000", "delayMinutes": null },
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "trip-cancelled", "sound": true, "title": "Alex", "body": "Trip was cancelled" }]
+    },
+    {
+      "name": "The trip under way, cut short, is not cancelled",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A departure no trip holds is never compared",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792700000,
+        "tripLegs": [
+          { "id": "jumpseat-5", "tripId": null, "type": "flight", "startTime": 1792700000, "endTime": 1792703600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL5555", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792710000,
+        "tripLegs": [
+          { "id": "jumpseat-5", "tripId": null, "type": "flight", "startTime": 1792710000, "endTime": 1792713600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL5555", "delayMinutes": null }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A trip added before the next departure says only that it's new",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792700000,
+      "afterAt": 1792700060,
+      "before": {
+        "lastUpdated": 1792699900,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792700000,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792760000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "Z55125-leg-1", "tripId": "Z55125", "type": "flight", "startTime": 1792760000, "endTime": 1792766000, "departureAirport": "SDF", "arrivalAirport": "PHL", "flightNumber": "UPS2050", "delayMinutes": null },
+          { "id": "Z55125-leg-2", "tripId": "Z55125", "type": "flight", "startTime": 1792790000, "endTime": 1792796000, "departureAirport": "PHL", "arrivalAirport": "SDF", "flightNumber": "UPS2051", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "new-trip", "sound": true, "title": "Alex", "body": "Has a new trip" }]
+    },
+    {
+      "name": "The next trip taken off says only that it was cancelled",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792700000,
+      "afterAt": 1792700060,
+      "before": {
+        "lastUpdated": 1792699900,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792760000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "Z55125-leg-1", "tripId": "Z55125", "type": "flight", "startTime": 1792760000, "endTime": 1792766000, "departureAirport": "SDF", "arrivalAirport": "PHL", "flightNumber": "UPS2050", "delayMinutes": null },
+          { "id": "Z55125-leg-2", "tripId": "Z55125", "type": "flight", "startTime": 1792790000, "endTime": 1792796000, "departureAirport": "PHL", "arrivalAirport": "SDF", "flightNumber": "UPS2051", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792700000,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "displayStatus": "Home",
+        "nextDepartureTime": 1792935000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null },
+          { "id": "jumpseat-2", "tripId": null, "type": "flight", "startTime": 1792925000, "endTime": 1792928600, "departureAirport": "ATL", "arrivalAirport": "SDF", "flightNumber": "DL2345", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792935000, "endTime": 1792945000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792990000, "endTime": 1793000000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null },
+          { "id": "jumpseat-3", "tripId": null, "type": "flight", "startTime": 1793003000, "endTime": 1793006600, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL3456", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "trip-cancelled", "sound": true, "title": "Alex", "body": "Trip was cancelled" }]
+    },
+    {
+      "name": "Getting home later, from the legs",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792676700, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "home-later", "sound": true, "title": "Alex", "body": "Getting home later — now 9:45 AM" }]
+    },
+    {
+      "name": "Getting home earlier, from the summary's home arrival",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "homeArrivalTime": 1792674300 },
+      "after": { "lastUpdated": 1792605660, "homeArrivalTime": 1792672500 },
+      "alerts": [{ "kind": "home-earlier", "sound": true, "title": "Alex", "body": "Getting home earlier — now 8:35 AM" }]
+    },
+    {
+      "name": "A home arrival 10 minutes later alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "homeArrivalTime": 1792674300 },
+      "after": { "lastUpdated": 1792605660, "homeArrivalTime": 1792674900 },
+      "alerts": []
+    },
+    {
+      "name": "The summary's home arrival, moving as the trip under way ends, says nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "homeArrivalTime": 1792674300 },
+      "after": {
+        "lastUpdated": 1792605660,
+        "currentTripId": null,
+        "tripTotalDays": null,
+        "homeArrivalTime": 1792677900
+      },
+      "alerts": []
+    },
+    {
+      "name": "The departure moved, and so did the legs",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792639200,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792639200, "endTime": 1792653600, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "departure", "sound": true, "title": "Alex", "body": "Departure changed — now 11:20 PM" }]
+    },
+    {
+      "name": "A departure that moved while the legs didn't alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792639200,
+        "tripLegs": [
+          { "flightNumber": "UPS2963", "delayMinutes": null, "arrivalAirport": "SDF", "departureAirport": "ONT", "endTime": 1792652400, "startTime": 1792638000, "type": "flight", "tripId": "Z55120", "id": "Z55120-leg-4" }
+        ]
+      },
+      "alerts": []
+    },
+    {
+      "name": "A departure where one trip ends and the next begins is compared within the next",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-3", "tripId": "Z55120", "type": "flight", "startTime": 1792623600, "endTime": 1792638000, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2962", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792638000, "endTime": 1792648000, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792660000, "endTime": 1792670000, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792639800,
+        "tripLegs": [
+          { "id": "Z55120-leg-2", "tripId": "Z55120", "type": "flight", "startTime": 1792548600, "endTime": 1792563600, "departureAirport": "RFD", "arrivalAirport": "ONT", "flightNumber": "UPS2961", "delayMinutes": null },
+          { "id": "Z55120-leg-3", "tripId": "Z55120", "type": "flight", "startTime": 1792623600, "endTime": 1792638000, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2962", "delayMinutes": null },
+          { "id": "Z55130-leg-1", "tripId": "Z55130", "type": "flight", "startTime": 1792639800, "endTime": 1792649800, "departureAirport": "SDF", "arrivalAirport": "MIA", "flightNumber": "UPS2100", "delayMinutes": null },
+          { "id": "Z55130-leg-2", "tripId": "Z55130", "type": "flight", "startTime": 1792661800, "endTime": 1792671800, "departureAirport": "MIA", "arrivalAirport": "SDF", "flightNumber": "UPS2101", "delayMinutes": null }
+        ]
+      },
+      "alerts": [{ "kind": "departure", "sound": true, "title": "Alex", "body": "Departure changed — now 11:30 PM" }]
+    },
+    {
+      "name": "The trip extended",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "tripTotalDays": 3 },
+      "after": { "lastUpdated": 1792605660, "tripTotalDays": 4 },
+      "alerts": [{ "kind": "trip-extended", "sound": true, "title": "Alex", "body": "Trip extended to 4 days" }]
+    },
+    {
+      "name": "The trip shortened",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "tripTotalDays": 4 },
+      "after": { "lastUpdated": 1792605660, "tripTotalDays": 3 },
+      "alerts": [{ "kind": "trip-shortened", "sound": true, "title": "Alex", "body": "Trip shortened to 3 days" }]
+    },
+    {
+      "name": "One trip ending and another starting, of another length, says nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "tripTotalDays": 3 },
+      "after": { "lastUpdated": 1792605660, "currentTripId": "Z55130", "tripTotalDays": 4 },
+      "alerts": []
+    },
+    {
+      "name": "Between trips, the last trip's length changing says nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": { "currentTripId": null, "tripTotalDays": 3 },
+      "after": { "lastUpdated": 1792605660, "currentTripId": null, "tripTotalDays": 4 },
+      "alerts": []
+    },
+    {
+      "name": "One change, two alerts: the departure moved and the flight is delayed",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {
+        "nextDepartureTime": 1792638000,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": null },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "after": {
+        "lastUpdated": 1792605660,
+        "nextDepartureTime": 1792640700,
+        "tripLegs": [
+          { "id": "Z55120-leg-4", "tripId": "Z55120", "type": "flight", "startTime": 1792638000, "endTime": 1792652400, "departureAirport": "ONT", "arrivalAirport": "SDF", "flightNumber": "UPS2963", "delayMinutes": 45 },
+          { "id": "jumpseat-1", "tripId": null, "type": "flight", "startTime": 1792670700, "endTime": 1792674300, "departureAirport": "SDF", "arrivalAirport": "ATL", "flightNumber": "DL1234", "delayMinutes": null }
+        ]
+      },
+      "alerts": [
+        { "kind": "departure", "sound": true, "title": "Alex", "body": "Departure changed — now 11:45 PM" },
+        { "kind": "delayed", "sound": true, "title": "Alex's Flight", "body": "Delayed 45 minutes" }
+      ]
+    },
+    {
+      "name": "A write that changes only the time it was made alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": { "lastUpdated": 1792605660, "localTimeAtPilot": "11:01 AM" },
+      "alerts": []
+    },
+    {
+      "name": "A summary no newer than the last alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": 1792605615,
+      "afterAt": 1792605675,
+      "before": {},
+      "after": {
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "alerts": []
+    },
+    {
+      "name": "The first summary a partner sees alerts nothing",
+      "partner": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "beforeAt": null,
+      "afterAt": 1792605675,
+      "before": null,
+      "after": {
+        "lastUpdated": 1792605660,
+        "quickStatusByPartner": { "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa": { "status": "Call Me", "icon": "phone.fill", "expiry": 1792612800 } }
+      },
+      "alerts": []
+    }
+  ]
+}

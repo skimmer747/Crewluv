@@ -11,22 +11,28 @@ import SwiftUI
 struct ContentView: View {
     @State private var statusReceiver: PartnerStatusReceiver?
     @State private var showShareError = false
-    @State private var showPasteShareAlert = false
+    @State private var showsHandOff = false
+    @State private var disconnectQuestion: DisconnectQuestion?
     @Environment(CloudKitShareManager.self) private var shareManager
     @Environment(\.scenePhase) private var scenePhase
+    private let joiner = PartnerJoiner.shared
 
     var body: some View {
         ZStack {
             mainContent
 
             if shareManager.isAcceptingShare {
-                ShareAcceptingOverlay()
+                ProgressOverlay(title: "Accepting Share Invitation...")
+            }
+            if joiner.isConnecting, joiner.switchQuestion == nil {
+                ProgressOverlay(title: "Connecting...")
             }
         }
         .onAppear {
             if statusReceiver == nil {
                 statusReceiver = PartnerStatusReceiver(shareManager: shareManager)
             }
+            statusReceiver?.startPeriodicCheck()
         }
         .alert("Share Error", isPresented: $showShareError) {
             Button("OK") { shareManager.resetShareState() }
@@ -38,6 +44,13 @@ struct ContentView: View {
         .onChange(of: shareManager.shareState) { _, newValue in
             if case .error = newValue {
                 showShareError = true
+            }
+        }
+        .modifier(JoinAlerts(joiner: joiner))
+        .onChange(of: joiner.isConnecting) { _, isConnecting in
+            // A link tapped in the demo leaves the demo first (partner links piece 4 spec §7.2).
+            if isConnecting, statusReceiver?.isInDemoMode == true {
+                statusReceiver?.exitDemoMode()
             }
         }
     }
@@ -59,15 +72,27 @@ struct ContentView: View {
                                 lastSyncError: receiver.lastSyncError,
                                 isSyncing: receiver.isSyncing,
                                 isInDemoMode: receiver.isInDemoMode,
+                                isOnCrewluCloud: receiver.isOnCrewluCloud,
                                 onExitDemo: { receiver.exitDemoMode() },
-                                onPasteShareLink: { showPasteShareAlert = true },
+                                connectionMenu: connectionMenu(for: receiver),
                                 onRefresh: { Task { await receiver.refresh() } }
                             )
+                        }
+                    } else if receiver.isWaitingForFirstUpdate {
+                        // Scrollable, so pull-to-refresh keeps looking (partner links piece 4 spec §7.7).
+                        ScrollView {
+                            LoadingView(text: "Waiting for your pilot's first update...")
+                                .containerRelativeFrame([.horizontal, .vertical])
                         }
                     } else if receiver.hasAcceptedShare {
                         ConnectionErrorView(receiver: receiver)
                     } else {
-                        NoShareView(onTryDemo: { receiver.enterDemoMode() })
+                        WelcomeView(
+                            sharingEnded: receiver.sharingEndedNote,
+                            onTryDemo: { receiver.enterDemoMode() },
+                            onJoin: { await joiner.join($0) },
+                            onPaste: { LinkRouter.paste($0) }
+                        )
                     }
                 }
                 .navigationBarTitleDisplayMode(.inline)
@@ -88,10 +113,17 @@ struct ContentView: View {
                     if !receiver.isSyncing {
                         Task { await receiver.refresh() }
                     }
+                    receiver.startPeriodicCheck()
                     Task { await BackgroundRefreshManager.shared.scheduleNextRefresh() }
+                    Task { await PushRegistrar.shared.appBecameActive() }
+                } else {
+                    receiver.stopPeriodicCheck()
                 }
             }
-            .pasteShareLinkAlert(isPresented: $showPasteShareAlert)
+            .sheet(isPresented: $showsHandOff) {
+                HandOffSheet()
+            }
+            .modifier(DisconnectAlerts(question: $disconnectQuestion, onDisconnect: { await receiver.disconnect() }))
         } else {
             LoadingView()
         }
@@ -107,8 +139,9 @@ struct ContentView: View {
                     isSyncing: receiver.isSyncing,
                     isCompanionLayout: true,
                     isInDemoMode: receiver.isInDemoMode,
+                    isOnCrewluCloud: receiver.isOnCrewluCloud,
                     onExitDemo: { receiver.exitDemoMode() },
-                    onPasteShareLink: { showPasteShareAlert = true },
+                    connectionMenu: connectionMenu(for: receiver),
                     onRefresh: { Task { await receiver.refresh() } }
                 )
                 .frame(width: geometry.size.width * 0.4)
@@ -120,209 +153,18 @@ struct ContentView: View {
             }
         }
     }
-}
 
-// MARK: - Connection Error View
-
-struct ConnectionErrorView: View {
-    var receiver: PartnerStatusReceiver
-
-    /// Peek at the receiver's error message to distinguish "share was revoked" from
-    /// "iCloud unreachable." Keeps the view single-purpose without a separate component.
-    private var isShareEnded: Bool {
-        (receiver.errorMessage ?? "").lowercased().contains("sharing has ended")
-    }
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "icloud.slash")
-                .font(.system(size: 60))
-                .foregroundStyle(.orange.gradient)
-
-            VStack(spacing: 8) {
-                Text(isShareEnded ? "Sharing Ended" : "Unable to Reach iCloud")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text(receiver.errorMessage ?? "Check your connection and try again.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+    /// The ••• menu, on Crewlu Cloud outside the demo (partner links piece 4 spec §7.5).
+    private func connectionMenu(for receiver: PartnerStatusReceiver) -> ConnectionMenu? {
+        guard receiver.isOnCrewluCloud, !receiver.isInDemoMode else { return nil }
+        return ConnectionMenu(
+            onUseOnAnotherDevice: { showsHandOff = true },
+            onDisconnect: {
+                disconnectQuestion = DisconnectQuestion(
+                    pilot: receiver.pilotStatus?.pilotFirstName ?? "your pilot", deviceModel: UIDevice.current.model
+                )
             }
-
-            Button(action: {
-                Task { await receiver.refresh() }
-            }) {
-                Label("Try Again", systemImage: "arrow.clockwise")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.glassProminent)
-            .disabled(receiver.isSyncing)
-            .padding(.horizontal, 48)
-        }
-        .padding()
-    }
-}
-
-// MARK: - Loading View
-
-struct LoadingView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-            Text("Loading pilot status...")
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
-// MARK: - No Share View
-
-struct NoShareView: View {
-    @State private var showPasteAlert = false
-    var onTryDemo: (() -> Void)? = nil
-
-    var body: some View {
-        ScrollView {
-            GlassEffectContainer(spacing: 20) {
-                VStack(spacing: 32) {
-                    Image(systemName: "heart.circle")
-                        .font(.system(size: 80))
-                        .foregroundStyle(.red.gradient)
-
-                    VStack(spacing: 12) {
-                        Text("Welcome to CrewLuve")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-
-                        Text("Stay connected with your pilot")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
-
-                    VStack(spacing: 16) {
-                        InstructionRow(
-                            number: "1",
-                            title: "Pilot Setup",
-                            description: "Your pilot needs the Crewlu app to create a status share"
-                        )
-
-                        InstructionRow(
-                            number: "2",
-                            title: "Share Invitation",
-                            description: "Ask them to go to Settings → Partner Sharing → Invite Partner. iMessage is best."
-                        )
-
-                        InstructionRow(
-                            number: "3",
-                            title: "Accept & Connect",
-                            description: "Accept the invitation and you'll see their status here"
-                        )
-                    }
-                    .padding(.horizontal, 32)
-
-                    VStack(spacing: 16) {
-                        Button(action: {
-                            showPasteAlert = true
-                        }) {
-                            Label("Paste Share Link", systemImage: "link")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .padding(.horizontal, 32)
-
-                        Button(action: {
-                            onTryDemo?()
-                        }) {
-                            Label("Try Demo", systemImage: "play.circle")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.glass)
-                        .padding(.horizontal, 32)
-
-                        Divider()
-
-                        Button(action: {
-                            CloudKitShareManager.shared.resetShareData()
-                        }) {
-                            Label("Reset Share Data", systemImage: "trash")
-                                .font(.subheadline)
-                        }
-                        .buttonStyle(.glass)
-                        .tint(.red)
-                    }
-                    .padding(.horizontal, 32)
-                }
-                .padding()
-            }
-        }
-        .pasteShareLinkAlert(isPresented: $showPasteAlert)
-    }
-}
-
-// MARK: - Instruction Row
-
-struct InstructionRow: View {
-    let number: String
-    let title: String
-    let description: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(.blue)
-                    .frame(width: 32, height: 32)
-                
-                Text(number)
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            .glassEffect(.regular, in: .circle)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding()
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-    }
-}
-
-// MARK: - Share Accepting Overlay
-
-struct ShareAcceptingOverlay: View {
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-
-            VStack(spacing: 20) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
-
-                Text("Accepting Share Invitation...")
-                    .font(.headline)
-                    .foregroundColor(.white)
-
-                Text("This may take a moment")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-            }
-            .padding(40)
-            .glassEffect(.regular, in: .rect(cornerRadius: 20))
-        }
+        )
     }
 }
 
@@ -406,48 +248,6 @@ struct SyncDebugView: View {
 
         // Generic fallback for any other errors
         return "Sync failed"
-    }
-}
-
-// MARK: - Paste Share Link Modifier
-
-struct PasteShareLinkModifier: ViewModifier {
-    @Binding var isPresented: Bool
-    @State private var pastedURL = ""
-
-    func body(content: Content) -> some View {
-        content
-            .alert("Paste Share Link", isPresented: $isPresented) {
-                TextField("Share URL", text: $pastedURL)
-                Button("Cancel", role: .cancel) { }
-                Button("Accept") { acceptShareFromURL() }
-            } message: {
-                Text("Paste the CloudKit share link from your pilot")
-            }
-    }
-
-    private func acceptShareFromURL() {
-        guard let url = URL(string: pastedURL) else {
-            debugLog("[CrewLuve] Invalid URL: \(pastedURL)")
-            return
-        }
-
-        debugLog("[CrewLuve] Manual share URL: \(url)")
-
-        Task {
-            do {
-                try await CloudKitShareManager.shared.acceptShare(from: url)
-                pastedURL = ""
-            } catch {
-                debugLog("[CrewLuve] ❌ Error accepting manual share: \(error)")
-            }
-        }
-    }
-}
-
-extension View {
-    func pasteShareLinkAlert(isPresented: Binding<Bool>) -> some View {
-        modifier(PasteShareLinkModifier(isPresented: isPresented))
     }
 }
 

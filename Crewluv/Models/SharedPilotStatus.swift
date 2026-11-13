@@ -101,8 +101,13 @@ struct SharedPilotStatus: Codable, Sendable {
     /// The signed offset in minutes from either the record-level field or the first
     /// per-leg value found on an upcoming flight, whichever is set.
     var effectiveFlightDelayMinutes: Int? {
+        effectiveFlightDelayMinutes(at: Date())
+    }
+
+    /// The same, at `now`: a leg's offset counts until its delayed landing.
+    func effectiveFlightDelayMinutes(at now: Date) -> Int? {
         if let delay = flightDelayMinutes, delay != 0 { return delay }
-        return currentlyRelevantDelayedLeg()?.delayMinutes
+        return currentlyRelevantDelayedLeg(at: now)?.delayMinutes
     }
 
     /// True when the flight has a nonzero offset (either delayed or early).

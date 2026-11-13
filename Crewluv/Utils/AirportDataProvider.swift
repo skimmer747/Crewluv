@@ -19,7 +19,7 @@ struct AirportData {
     let longitude: Double
 }
 
-/// Provider for airport location data used by FlightRouteMapView
+/// Provider for airport location data used by the trip map (TripMap+Status)
 class AirportDataProvider {
     static let shared = AirportDataProvider()
 
@@ -67,16 +67,20 @@ class AirportDataProvider {
             ("SJU", "San Juan", nil, "Puerto Rico", 18.4394, -66.0018),
 
             // Major US
+            ("AEX", "Alexandria", "LA", "USA", 31.3274, -92.5498),
             ("ALB", "Albany", "NY", "USA", 42.7483, -73.8017),
             ("ATL", "Atlanta", "GA", "USA", 33.6407, -84.4277),
+            ("ATW", "Appleton", "WI", "USA", 44.2581, -88.5191),
             ("AUS", "Austin", "TX", "USA", 30.1945, -97.6699),
             ("BDL", "Hartford", "CT", "USA", 41.9389, -72.6832),
             ("BFI", "Seattle", "WA", "USA", 47.5303, -122.3019),
             ("BHM", "Birmingham", "AL", "USA", 33.5639, -86.7522),
             ("BIL", "Billings", "MT", "USA", 45.8077, -108.5428),
+            ("BLI", "Bellingham", "WA", "USA", 48.7928, -122.5375),
             ("BNA", "Nashville", "TN", "USA", 36.1263, -86.6775),
             ("BOI", "Boise", "ID", "USA", 43.5644, -116.2228),
             ("BOS", "Boston", "MA", "USA", 42.3656, -71.0096),
+            ("BTR", "Baton Rouge", "LA", "USA", 30.5332, -91.1496),
             ("BUF", "Buffalo", "NY", "USA", 42.9405, -78.7322),
             ("BWI", "Baltimore", "MD", "USA", 39.1774, -76.6684),
             ("CLE", "Cleveland", "OH", "USA", 41.4117, -81.8500),
@@ -104,8 +108,10 @@ class AirportDataProvider {
             ("LAN", "Lansing", "MI", "USA", 42.7787, -84.5874),
             ("LAS", "Las Vegas", "NV", "USA", 36.0840, -115.1537),
             ("LAX", "Los Angeles", "CA", "USA", 33.9416, -118.4085),
+            ("LCH", "Lake Charles", "LA", "USA", 30.1261, -93.2234),
             ("LGB", "Long Beach", "CA", "USA", 33.8177, -118.1516),
             ("LCK", "Columbus", "OH", "USA", 39.8138, -82.9278),
+            ("LFT", "Lafayette", "LA", "USA", 30.2053, -91.9876),
             ("LRD", "Laredo", "TX", "USA", 27.5438, -99.4616),
             ("MCI", "Kansas City", "MO", "USA", 39.2976, -94.7139),
             ("MCO", "Orlando", "FL", "USA", 28.4312, -81.3081),
@@ -114,6 +120,7 @@ class AirportDataProvider {
             ("MFE", "McAllen", "TX", "USA", 26.1758, -98.2386),
             ("MHR", "Sacramento", "CA", "USA", 38.5539, -121.2973),
             ("MKE", "Milwaukee", "WI", "USA", 42.9472, -87.8966),
+            ("MOB", "Mobile", "AL", "USA", 30.6912, -88.2428),
             ("MSP", "Minneapolis", "MN", "USA", 44.8848, -93.2223),
             ("MSY", "New Orleans", "LA", "USA", 29.9934, -90.2580),
             ("OAK", "Oakland", "CA", "USA", 37.7214, -122.2208),
@@ -122,6 +129,7 @@ class AirportDataProvider {
             ("ORD", "Chicago", "IL", "USA", 41.9742, -87.9073),
             ("ORF", "Norfolk", "VA", "USA", 36.8946, -76.2012),
             ("PBI", "West Palm Beach", "FL", "USA", 26.6832, -80.0956),
+            ("DJT", "West Palm Beach", "FL", "USA", 26.6832, -80.0956),  // Renamed from PBI; IATA code effective 2026-08-18
             ("PDX", "Portland", "OR", "USA", 45.5887, -122.5968),
             ("PHX", "Phoenix", "AZ", "USA", 33.4352, -112.0101),
             ("PIT", "Pittsburgh", "PA", "USA", 40.4915, -80.2329),
@@ -134,6 +142,9 @@ class AirportDataProvider {
             ("STL", "St. Louis", "MO", "USA", 38.7487, -90.3700),
             ("SYR", "Syracuse", "NY", "USA", 43.1112, -76.1063),
             ("PNS", "Pensacola", "FL", "USA", 30.4734, -87.1866),
+            ("VPS", "Destin/Fort Walton Beach", "FL", "USA", 30.4813, -86.5158),
+            ("ECP", "Panama City Beach", "FL", "USA", 30.3571, -85.7954),
+            ("DOV", "Dover", "DE", "USA", 39.1295, -75.4660),
             ("TPA", "Tampa", "FL", "USA", 27.9756, -82.5333),
             ("TUL", "Tulsa", "OK", "USA", 36.1984, -95.8881),
             ("TYS", "Knoxville", "TN", "USA", 35.8107, -83.9940),
@@ -362,7 +373,9 @@ class AirportDataProvider {
             ("OSL", "Oslo", nil, "Norway", 60.1939, 11.1004),
             ("HEL", "Helsinki", nil, "Finland", 60.3172, 24.9633),
             ("DUB", "Dublin", nil, "Ireland", 53.4213, -6.2701),
+            ("SNN", "Shannon", nil, "Ireland", 52.7019, -8.9248),
             ("WAW", "Warsaw", nil, "Poland", 52.1657, 20.9671),
+            ("RZE", "Rzeszów", nil, "Poland", 50.1098, 22.0242),
             ("PRG", "Prague", nil, "Czech Republic", 50.1008, 14.2600),
             ("BUD", "Budapest", nil, "Hungary", 47.4369, 19.2556),
             ("IST", "Istanbul", nil, "Turkey", 41.2753, 28.7519),

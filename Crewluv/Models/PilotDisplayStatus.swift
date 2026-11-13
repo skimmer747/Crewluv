@@ -101,7 +101,13 @@ nonisolated enum PilotDisplayStatus: Equatable, Hashable, Sendable {
 /// Single-value String container. Existing JSON / UserDefaults storage shapes
 /// for any wrapping `Codable` type (e.g. `SharedPilotStatus`, `PilotSnapshot`)
 /// remain byte-identical to the previous `displayStatus: String` form.
-extension PilotDisplayStatus: Codable {
+///
+/// `nonisolated` is required because the project builds with
+/// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`: without it, the conformance in
+/// this extension would be inferred `@MainActor`-isolated (extensions take the
+/// module default, not the `nonisolated` enum's isolation), and `Codable` use
+/// from a nonisolated context (e.g. `JSONEncoder`) would fail to compile.
+nonisolated extension PilotDisplayStatus: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let raw = try container.decode(String.self)

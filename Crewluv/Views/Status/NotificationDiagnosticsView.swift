@@ -20,6 +20,7 @@ struct NotificationDiagnosticsView: View {
             List {
                 apnsSection
                 pushSection
+                crewluCloudSection
                 backgroundRefreshSection
                 localNotificationSection
                 subscriptionSection
@@ -60,6 +61,19 @@ struct NotificationDiagnosticsView: View {
             } else {
                 row("Last Received", value: "Never")
             }
+        }
+    }
+
+    private var crewluCloudSection: some View {
+        Section("Crewlu Cloud Pushes") {
+            row("On Crewlu Cloud", value: PilotStatusSource.shared.isOnCrewluCloud ? "Yes" : "No")
+            row("Environment", value: PushEnvironment.current.rawValue)
+            if let registeredAt = snapshot?.crewluCloudPushRegisteredAt {
+                row("Last Registration", value: registeredAt.formatted(date: .abbreviated, time: .standard))
+            } else {
+                row("Last Registration", value: "Never")
+            }
+            row("Result", value: snapshot?.crewluCloudPushResult ?? "None")
         }
     }
 

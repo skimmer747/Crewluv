@@ -31,8 +31,11 @@ struct PilotStatusView: View {
     var isSyncing: Bool = false
     var isCompanionLayout: Bool = false
     var isInDemoMode: Bool = false
+    /// On Crewlu Cloud, the sync line doesn't mention iCloud (partner links piece 4 spec §7.7).
+    var isOnCrewluCloud: Bool = false
     var onExitDemo: (() -> Void)? = nil
-    var onPasteShareLink: (() -> Void)? = nil
+    /// The ••• menu, on Crewlu Cloud outside the demo (spec §7.5).
+    var connectionMenu: ConnectionMenu? = nil
     var onRefresh: (() -> Void)? = nil
 
     @State private var showSchedule = false
@@ -50,11 +53,29 @@ struct PilotStatusView: View {
         )
     }
 
-    /// Days home since last trip ended
+    /// Days home since the pilot actually reached home. For a commuter the trip ends
+    /// at base and the drive home follows hours or a day later, so counting from
+    /// `lastTripEndDate` (the base arrival) overstates the days home — prefer the most
+    /// recent real arrival at the home airport when the legs record one.
     private var daysAtHome: Int? {
-        guard let lastEnd = status.lastTripEndDate else { return nil }
-        let days = Calendar.current.dateComponents([.day], from: lastEnd, to: Date()).day ?? 0
+        guard let reference = [status.lastTripEndDate, homeReturnDate].compactMap({ $0 }).max() else { return nil }
+        let days = Calendar.current.dateComponents([.day], from: reference, to: Date()).day ?? 0
         return days > 0 ? days : nil
+    }
+
+    /// The most recent past arrival at the home airport, used to start the "been home"
+    /// counter at the real homecoming for commuters. Only actual arrivals home — a
+    /// flight or a drive — count; an event AT home mid-stay is not an arrival and would
+    /// push the reference forward, undercounting the days.
+    private var homeReturnDate: Date? {
+        guard let home = status.homeAirportCode, !home.isEmpty else { return nil }
+        let now = Date()
+        return status.tripLegs
+            .filter { ($0.type == .flight || $0.type == .drive)
+                      && $0.endTime <= now
+                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame }
+            .map(\.endTime)
+            .max()
     }
 
     private static func formatHomeArrival(_ date: Date, homeTimezone: String?) -> String {
@@ -167,8 +188,17 @@ struct PilotStatusView: View {
                         .buttonStyle(CardButtonStyle())
                     }
 
+                    // Trip map (moving map spec §5): in flight it takes the location card's
+                    // place; on the ground it sits above it.
+                    let tripMap = TripMap(status: status, at: Date())
+                    if let tripMap {
+                        TripMapCard(tripMap: tripMap, status: status)
+                    }
+
                     // Location Card
-                    LocationCardView(status: status)
+                    if tripMap?.isInFlight != true {
+                        LocationCardView(status: status)
+                    }
 
                     // Upcoming trip card (when home with trip data)
                     if status.displayStatus.isSettled, let trip = upcomingTrip {
@@ -195,12 +225,8 @@ struct PilotStatusView: View {
 
                     // Sync explanation with action buttons
                     HStack {
-                        if let onPasteShareLink {
-                            Button(action: onPasteShareLink) {
-                                Image(systemName: "link.badge.plus")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.glass)
+                        if let connectionMenu {
+                            connectionMenu
                         }
 
                         Spacer()
@@ -209,7 +235,8 @@ struct PilotStatusView: View {
                             pilotName: status.pilotFirstName,
                             pilotUpdatedAt: status.lastUpdated,
                             lastSyncTime: lastSyncTime,
-                            lastSyncError: lastSyncError
+                            lastSyncError: lastSyncError,
+                            isOnCrewluCloud: isOnCrewluCloud
                         )
                         #if DEBUG
                         .onLongPressGesture { showDiagnostics = true }
@@ -484,22 +511,11 @@ struct LocationCardView: View {
     
     private var inFlightView: some View {
         VStack(spacing: 0) {
-            // Flight route map visualization
-            FlightRouteMapView(status: status)
+            // Shown only when the trip map can't draw this flight (moving map spec §12)
+            RouteFallbackView(departure: status.currentFlightDeparture, arrival: status.currentFlightArrival)
 
-            // Delay / early banner
             if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
-                let isEarly = delayMinutes < 0
-                HStack(spacing: 6) {
-                    Image(systemName: isEarly ? "clock.badge.checkmark.fill" : "exclamationmark.triangle.fill")
-                        .font(.caption)
-                    Text("\(isEarly ? "EARLY DEP" : "DELAYED") \(Self.formatDelayDuration(abs(delayMinutes)))")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-                .background(isEarly ? Color.green : Color.orange)
+                FlightDelayBanner(delayMinutes: delayMinutes)
             }
 
             // Info bar (matching widget style)
@@ -1934,14 +1950,16 @@ struct TripProgressView: View {
         "Phoenix": "🌵", "San Francisco": "🌁", "Seattle": "☕", "Denver": "🏔️",
         "Atlanta": "🍑", "Miami": "🌴", "Dallas": "🤠", "Dallas/Fort Worth": "🤠",
         "Boston": "🦞", "Minneapolis": "❄️", "Detroit": "🏭", "Orlando": "🏰",
-        "Las Vegas": "🎰", "Honolulu": "🌺", "Anchorage": "🐻", "Portland": "🌲",
+        "Las Vegas": "🎰", "Honolulu": "🌺", "Anchorage": "🐻", "Portland": "🌲", "Bellingham": "⛴️",
         "San Diego": "🏖️", "Charlotte": "🏁", "Newark": "🗽", "Fort Lauderdale": "⛵",
         "Salt Lake City": "🏔️", "Nashville": "🎸", "Austin": "🎵",
         "San Juan": "🏝️", "Washington DC": "🏛️", "Philadelphia": "🔔",
         "Louisville": "🥃", "Sacramento": "⛏️", "Memphis": "🎵",
-        "New Orleans": "🎺", "Kansas City": "🍖", "St. Louis": "🌉",
+        "New Orleans": "🎺", "Lafayette": "🪗", "Kansas City": "🍖", "St. Louis": "🌉",
+        "Baton Rouge": "🏛️", "Alexandria": "🌲", "Lake Charles": "🦐", "Mobile": "⚓",
+        "Destin/Fort Walton Beach": "🎣", "Panama City Beach": "🏖️", "Dover": "⭐",
         "Pittsburgh": "🔩", "Cleveland": "🎸", "Cincinnati": "🌶️",
-        "Indianapolis": "🏎️", "Milwaukee": "🍺", "Tampa": "🏴‍☠️",
+        "Indianapolis": "🏎️", "Milwaukee": "🍺", "Appleton": "🎩", "Tampa": "🏴‍☠️",
         "San Antonio": "🤠", "Buffalo": "🦬", "Savannah": "🌳",
         "Charleston": "🌾", "Lexington": "🐴", "Raleigh": "🌳",
         "Jacksonville": "🐆", "Baltimore": "🦀", "Boise": "💎",
@@ -1961,10 +1979,11 @@ struct TripProgressView: View {
         "São Paulo": "🇧🇷", "Rio de Janeiro": "🇧🇷", "Bogota": "🇨🇴",
         "Lima": "🇵🇪", "Buenos Aires": "🇦🇷", "Santiago": "🇨🇱",
         "Rome": "🇮🇹", "Milan": "🇮🇹", "Madrid": "🇪🇸", "Barcelona": "🇪🇸",
-        "Lisbon": "🇵🇹", "Dublin": "🇮🇪", "Zurich": "🇨🇭", "Brussels": "🇧🇪",
-        "Vienna": "🇦🇹", "Stockholm": "🇸🇪", "Malmö": "🇸🇪", "Copenhagen": "🇩🇰", "Oslo": "🇳🇴",
+        "Lisbon": "🇵🇹", "Dublin": "🇮🇪", "Shannon": "🇮🇪", "Zurich": "🇨🇭", "Brussels": "🇧🇪",
+        "Vienna": "🇦🇹", "Stockholm": "🇸🇪", "Malmö": "🇸🇪", "Rzeszów": "🇵🇱", "Copenhagen": "🇩🇰", "Oslo": "🇳🇴",
         "Helsinki": "🇫🇮", "Reykjavik": "🇮🇸", "Istanbul": "🇹🇷",
         "Bangkok": "🇹🇭", "Manila": "🇵🇭", "Jakarta": "🇮🇩",
+        "Hanoi": "🇻🇳", "Ho Chi Minh City": "🇻🇳",
         "Nairobi": "🇰🇪", "Cairo": "🇪🇬", "Johannesburg": "🇿🇦",
         "Auckland": "🇳🇿", "Doha": "🇶🇦",
     ]
@@ -1982,14 +2001,16 @@ struct TripProgressView: View {
         "Phoenix": "PHX", "San Francisco": "SFO", "Seattle": "SEA", "Denver": "DEN",
         "Atlanta": "ATL", "Miami": "MIA", "Dallas": "DFW", "Dallas/Fort Worth": "DFW",
         "Boston": "BOS", "Minneapolis": "MSP", "Detroit": "DTW", "Orlando": "MCO",
-        "Las Vegas": "LAS", "Honolulu": "HNL", "Anchorage": "ANC", "Portland": "PDX",
+        "Las Vegas": "LAS", "Honolulu": "HNL", "Anchorage": "ANC", "Portland": "PDX", "Bellingham": "BLI",
         "San Diego": "SAN", "Charlotte": "CLT", "Newark": "EWR", "Fort Lauderdale": "FLL",
         "Salt Lake City": "SLC", "Nashville": "BNA", "Austin": "AUS",
         "San Juan": "SJU", "Washington DC": "DCA", "Philadelphia": "PHL",
         "Louisville": "SDF", "Sacramento": "SMF", "Memphis": "MEM",
-        "New Orleans": "MSY", "Kansas City": "MCI", "St. Louis": "STL",
+        "New Orleans": "MSY", "Lafayette": "LFT", "Kansas City": "MCI", "St. Louis": "STL",
+        "Baton Rouge": "BTR", "Alexandria": "AEX", "Lake Charles": "LCH", "Mobile": "MOB",
+        "Destin/Fort Walton Beach": "VPS", "Panama City Beach": "ECP", "Dover": "DOV",
         "Pittsburgh": "PIT", "Cleveland": "CLE", "Cincinnati": "CVG",
-        "Indianapolis": "IND", "Milwaukee": "MKE", "Tampa": "TPA",
+        "Indianapolis": "IND", "Milwaukee": "MKE", "Appleton": "ATW", "Tampa": "TPA",
         "San Antonio": "SAT", "Buffalo": "BUF", "Savannah": "SAV",
         "Charleston": "CHS", "Lexington": "LEX", "Raleigh": "RDU",
         "Jacksonville": "JAX", "Baltimore": "BWI", "Boise": "BOI",
@@ -2008,10 +2029,11 @@ struct TripProgressView: View {
         "São Paulo": "GRU", "Rio de Janeiro": "GIG", "Bogota": "BOG",
         "Lima": "LIM", "Buenos Aires": "EZE", "Santiago": "SCL",
         "Rome": "FCO", "Milan": "MXP", "Madrid": "MAD", "Barcelona": "BCN",
-        "Lisbon": "LIS", "Dublin": "DUB", "Zurich": "ZRH", "Brussels": "BRU",
-        "Vienna": "VIE", "Stockholm": "ARN", "Malmö": "MMX", "Copenhagen": "CPH", "Oslo": "OSL",
+        "Lisbon": "LIS", "Dublin": "DUB", "Shannon": "SNN", "Zurich": "ZRH", "Brussels": "BRU",
+        "Vienna": "VIE", "Stockholm": "ARN", "Malmö": "MMX", "Rzeszów": "RZE", "Copenhagen": "CPH", "Oslo": "OSL",
         "Helsinki": "HEL", "Reykjavik": "KEF", "Istanbul": "IST",
         "Bangkok": "BKK", "Manila": "MNL", "Jakarta": "CGK",
+        "Hanoi": "HAN", "Ho Chi Minh City": "SGN",
         "Nairobi": "NBO", "Cairo": "CAI", "Johannesburg": "JNB",
         "Auckland": "AKL", "Doha": "DOH",
     ]
@@ -2024,14 +2046,16 @@ struct TripProgressView: View {
         "Miami": "Vice", "Dallas": "Howdy", "Dallas/Fort Worth": "Howdy",
         "Boston": "Chowdah", "Minneapolis": "Uff Da", "Detroit": "Motown",
         "Orlando": "Magic", "Las Vegas": "Jackpot", "Honolulu": "Aloha",
-        "Anchorage": "Frontier", "Portland": "Roses", "San Diego": "Sunshine",
+        "Anchorage": "Frontier", "Portland": "Roses", "Bellingham": "Mt. Baker", "San Diego": "Sunshine",
         "Charlotte": "NASCAR", "Newark": "Brick City", "Fort Lauderdale": "Yachts",
         "Salt Lake City": "Powder", "Nashville": "Twang", "Austin": "Keep Weird",
         "San Juan": "Boricua", "Washington DC": "Monumental", "Philadelphia": "Liberty",
         "Louisville": "Bourbon", "Sacramento": "Gold Rush", "Memphis": "Blues",
-        "New Orleans": "Jazz", "Kansas City": "BBQ", "St. Louis": "Gateway",
+        "New Orleans": "Jazz", "Lafayette": "Cajun", "Kansas City": "BBQ", "St. Louis": "Gateway",
+        "Baton Rouge": "Red Stick", "Alexandria": "Cenla", "Lake Charles": "Boudin", "Mobile": "Mardi Gras",
+        "Destin/Fort Walton Beach": "Emerald Coast", "Panama City Beach": "Miracle Strip", "Dover": "First State",
         "Pittsburgh": "Steel", "Cleveland": "Rock", "Cincinnati": "Chili",
-        "Indianapolis": "Speedway", "Milwaukee": "Brew City", "Tampa": "Pirate",
+        "Indianapolis": "Speedway", "Milwaukee": "Brew City", "Appleton": "Houdini", "Tampa": "Pirate",
         "San Antonio": "Alamo", "Buffalo": "Wings", "Savannah": "Charm",
         "Charleston": "Lowcountry", "Lexington": "Horses", "Raleigh": "Oak City",
         "Jacksonville": "Jax", "Baltimore": "Crabcake", "Boise": "Gem State",
@@ -2053,11 +2077,12 @@ struct TripProgressView: View {
         "São Paulo": "Olá", "Rio de Janeiro": "Olá", "Bogota": "Hola",
         "Lima": "Hola", "Buenos Aires": "Hola", "Santiago": "Hola",
         "Rome": "Ciao", "Milan": "Ciao", "Madrid": "Hola",
-        "Barcelona": "Hola", "Lisbon": "Olá", "Dublin": "Dia duit",
+        "Barcelona": "Hola", "Lisbon": "Olá", "Dublin": "Dia duit", "Shannon": "Dia duit",
         "Zurich": "Gruezi", "Brussels": "Bonjour", "Vienna": "Servus",
-        "Stockholm": "Hej", "Malmö": "Hej", "Copenhagen": "Hej", "Oslo": "Hei",
+        "Stockholm": "Hej", "Malmö": "Hej", "Rzeszów": "Dzień dobry", "Copenhagen": "Hej", "Oslo": "Hei",
         "Helsinki": "Moi", "Reykjavik": "Hallo", "Istanbul": "Merhaba",
         "Bangkok": "Sawasdee", "Manila": "Kumusta", "Jakarta": "Halo",
+        "Hanoi": "Xin chao", "Ho Chi Minh City": "Xin chao",
         "Nairobi": "Jambo", "Cairo": "Marhaba", "Johannesburg": "Sawubona",
         "Auckland": "Kia ora", "Doha": "Marhaba",
     ]

@@ -92,38 +92,68 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - Container ID: `iCloud.com.toddanderson.duty`
 - Zone: `PartnerBeaconZone`
 
-#### Status Management (`Services/PartnerStatusReceiver.swift`)
-- Fetches pilot status from shared CloudKit zone
-- Auto-refresh every 2 minutes
-- Handles CloudKit sync timing with retry logic
+#### Status Management (`Services/PilotStatusSource.swift`)
+- The one place that reads the pilot's status, whoever asks: the screen, a push or the background refresh
+- Reads Crewlu Cloud's partner door once this device is connected there (`Services/PartnerCloud/`), and the shared CloudKit zone otherwise
+- Hands each new status to the alerts (`StatusChangeNotifier`) once
+- `PartnerStatusReceiver` is the screen's model: it shows how every read went
+- Refreshes on coming to the front, on pull-to-refresh and the refresh button, on silent pushes, in the background refresh, and every 60 seconds while in front on Crewlu Cloud
+
+#### Alerts (`Services/StatusChangeNotifier.swift`, `CrewluveAlerts/`)
+- `StatusChangeNotifier` compares each new status with the last one and keeps its snapshot. It names each alert by its kind, in `AlertWording`'s words, with the same rules as Crewlu Cloud's partner-push: the shared cases in `CrewluvTests/Fixtures/PartnerSummary/alert-cases.json` hold both to them
+- On iCloud the app posts its own alerts. On Crewlu Cloud they come as alert pushes once Crewlu Cloud has accepted this device's push registration (`AlertPushes`). Until then, and for a read a hidden push asked for, the app posts its own
+- An alert push carries only its kind. The helper target, `CrewluveAlerts` (a notification service extension), reads the status with this device's key and writes the kind's words, or a plain line (`AlertPushWriter`). It builds 15 of the app's files through Target Membership, reads the key from Crewluve's own Keychain group, and only reads
+- The helper's 15 files must stay safe in an app extension and compile with only each other: a file one of them comes to need joins the helper too (tick `CrewluveAlerts` in its Target Membership)
+- The app keeps its Keychain items in its own app ID's group, the helper's one group. Don't give the app a `keychain-access-groups` entitlement unless that group stays first, or new items land where the helper can't read them
+- The helper names that group `$(TeamIdentifierPrefix)com.ToddAnderson.Crewluv` (`CrewluveAlerts/CrewluveAlerts.entitlements`): Crewluve's app ID prefix is the team id. With `$(AppIdentifierPrefix)` it missed the app's items, since Xcode signs the helper with the team's wildcard app ID whenever its entitlements allow, and that one has another prefix. Edit the file, not Xcode's Keychain Sharing list, which writes `$(AppIdentifierPrefix)`
+
+#### Connecting (`App/LinkRouter.swift`, `Services/PartnerJoiner.swift`)
+- `LinkRouter` takes every link the app is given, and the welcome screen's paste box: Crewluve's own `https://crewluve.crewlu.net/join#t=…` and `#c=…` links (`PartnerLink`) go to the joiner, and iCloud share links to `CloudKitShareManager`
+- `PartnerJoiner` joins Crewlu Cloud with an invite link or a 6-character code from another device, asking first when the link is from another pilot
+- `CrewluCloudDevice` (`Services/PartnerCloud/`) is this device on Crewlu Cloud: its key, joining with a pending key, switching, Disconnect and hand-off codes. Each switch and each forget moves its generation on, so an answer for a key the device has let go of changes nothing
+- Logs show Crewluve's links only by host and path: what follows the `#` is a secret
 
 #### Data Model (`Models/SharedPilotStatus.swift`)
 - Privacy-conscious: excludes crew names, hotel details, pay info
 - CloudKit-optimized struct (not SwiftData)
 - Includes flight info, location, timers, and trip progress
 
+#### Trip Map (`Services/TripMap/`, `Views/TripMap/`)
+- The status screen's map (moving map spec `docs/superpowers/specs/2026-11-13-crewluve-moving-map-design.md`): the whole trip on the ground with a heart where the pilot is, the next trip from home, and the plane in the air. In flight it takes the location card's place; on the ground it sits above it
+- Built on SwiftUI's `Map` (`MapPolyline`, `MapPolygon`, `Annotation`); north stays up, so `PlaneHeading` aims the plane from coordinates alone
+- The logic is `nonisolated` and tested: `TripMap` (which legs, the mode, where the pilot is), `TripMapDrawing` (what to draw at an instant), `FlightProgress` (the schedule's plane, with taxi allowances), `TripReplayClock`, `TripMapWording`. The maths in `Utils/` (`NightShade`, `PlaneHeading`, `MapFit`, `GreatCircle`) came from CrewLu's moving map with its tests
+- `CrewluvTests/Fixtures/TripMap/progress-cases.json` holds the schedule's plane to the same answers as the website: change both copies together
+
 ### App Flow
-1. **Onboarding**: User accepts CloudKit share link from pilot
-2. **Share Processing**: `CloudKitShareManager` handles share acceptance
-3. **Status Sync**: `PartnerStatusReceiver` fetches and displays pilot status
-4. **Auto-refresh**: Status updates every 2 minutes
+1. **Onboarding**: User taps the pilot's invite link, or types a code from another of their devices, and `PartnerJoiner` connects to Crewlu Cloud. A pilot on an older CrewLu sends a CloudKit share link instead
+2. **Share Processing**: `CloudKitShareManager` handles a CloudKit share's acceptance
+3. **Status Sync**: `PilotStatusSource` reads the pilot's status, and `PartnerStatusReceiver` displays it
+4. **Refresh**: On coming to the front, pull-to-refresh and the refresh button, silent pushes, the background refresh, and every 60 seconds while in front on Crewlu Cloud
 
 ## File Structure
 
 ```
 Crewluv/
 ├── App/                      # App lifecycle and URL handling
-│   └── CrewluvApp.swift     # Main entry point with CloudKit share URLs
+│   ├── CrewluvApp.swift     # Main entry point
+│   └── LinkRouter.swift     # Where each opened or pasted link goes
 ├── Views/                    # SwiftUI views by feature
 │   ├── Welcome/             # Onboarding screens
+│   ├── TripMap/             # The trip map card and full-screen map
 │   └── Status/              # Status display
 ├── Models/                   # Data models
 │   └── SharedPilotStatus.swift
 ├── Services/                 # Business logic
 │   ├── CloudKitShareManager.swift    # CloudKit share operations
-│   └── PartnerStatusReceiver.swift   # Status fetching
+│   ├── PilotStatusSource.swift       # Reads the status, from Crewlu Cloud or iCloud
+│   ├── PartnerStatusReceiver.swift   # The status screen's model
+│   ├── PartnerJoiner.swift           # Joining with an invite link or a code
+│   ├── TripMap/                      # The trip map's model, drawing, clock and words
+│   └── PartnerCloud/                 # Crewlu Cloud's partner door, and this device on it
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
+CrewluveAlerts/               # The alert pushes' helper, a notification service extension
+└── NotificationService.swift # Writes each alert push's words with the app's AlertPushWriter
 ```
 
 ## CloudKit Configuration
@@ -142,7 +172,7 @@ Crewluv/
 
 ## Testing Strategy
 
-- Unit tests in `CrewluvTests/`
+- Unit tests in `CrewluvTests/`. The helper target has none of its own: its logic is `AlertPushWriter`, in the app's folder, which `CrewluvTests` tests
 - UI tests in `CrewluvUITests/`
 - CloudKit sharing can be tested with iOS Simulator
 - Debug logging available in DEBUG builds via `DebugLog.swift`

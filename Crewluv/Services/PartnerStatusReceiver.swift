@@ -2,7 +2,7 @@
 //  PartnerStatusReceiver.swift
 //  CrewLuve
 //
-//  Receives shared pilot status from CloudKit
+//  The status screen's model: the pilot's status as PilotStatusSource reads it
 //
 
 import Foundation
@@ -20,6 +20,14 @@ class PartnerStatusReceiver {
     var lastSyncTime: Date? = nil
     var lastSyncError: String? = nil
     private(set) var isInDemoMode = false
+    /// Connected to Crewlu Cloud with no status yet: the loading screen waits for the pilot's first
+    /// update (partner links piece 4 spec §7.7).
+    private(set) var isWaitingForFirstUpdate = false
+
+    /// Whether this device follows its pilot on Crewlu Cloud, for the screens' wording (spec §7.7).
+    var isOnCrewluCloud: Bool { statusSource.isOnCrewluCloud }
+    /// The welcome screen's note after sharing with this device ended (spec §7.6, §7.7).
+    var sharingEndedNote: SharingEndedNote? { statusSource.sharingEndedNote }
 
     // MARK: - Data Source
 
@@ -31,15 +39,14 @@ class PartnerStatusReceiver {
     var dataSource: DataSource? = nil
 
     private let container = CKContainer(identifier: "iCloud.com.toddanderson.duty")
-    private var sharedDatabase: CKDatabase { container.sharedCloudDatabase }
     private var privateDatabase: CKDatabase { container.privateCloudDatabase }
     private let dataSourceKey = "PilotDataSource"
-    private var rawPilotStatus: SharedPilotStatus?
+    private let statusSource: PilotStatusSource
     private var transitionTask: Task<Void, Never>?
-    private var cachedUserRecordName: String?
-    private var resolvedDisplayName: String?
 
     init(shareManager: CloudKitShareManager) {
+        statusSource = .shared
+
         // Restore persisted data source
         if let raw = UserDefaults.standard.string(forKey: dataSourceKey),
            let source = DataSource(rawValue: raw) {
@@ -65,17 +72,33 @@ class PartnerStatusReceiver {
         ) { [weak self] _ in
             debugLog("[StatusReceiver] Received share acceptance notification, refreshing...")
             Task { @MainActor in
+                // A new connection: the loading screen shows until its first read.
+                self?.hasCheckedOnce = false
                 await self?.refresh()
             }
         }
 
-        // Listen for CloudKit silent pushes
+        // Show how every read went, whoever asked for it: this screen, a push, the background
+        // refresh or the 60-second check. The source posts on the main actor.
         NotificationCenter.default.addObserver(
-            forName: .cloudKitPushReceived,
+            forName: .pilotStatusDidUpdate,
+            object: statusSource,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let update = self.statusSource.lastUpdate else { return }
+                self.show(update)
+            }
+        }
+
+        // Retry when iCloud reports an account change — Apple's signal that an account
+        // that was temporarily unavailable (CKError 36) is ready for CloudKit again.
+        NotificationCenter.default.addObserver(
+            forName: .CKAccountChanged,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            debugLog("[StatusReceiver] Received CloudKit push, refreshing...")
+            debugLog("[StatusReceiver] iCloud account changed, refreshing...")
             Task { @MainActor in
                 await self?.refresh()
             }
@@ -90,10 +113,10 @@ class PartnerStatusReceiver {
             debugLog("[StatusReceiver] Share data reset, clearing state")
             guard let self else { return }
             Task { @MainActor in
+                self.statusSource.forgetICloudReading()
                 self.dataSource = nil
                 self.hasAcceptedShare = false
                 self.pilotStatus = nil
-                self.rawPilotStatus = nil
                 self.errorMessage = nil
                 self.lastSyncError = nil
             }
@@ -111,8 +134,10 @@ class PartnerStatusReceiver {
             await checkForSharedData()
 
             // If no data found, scan shared database for accepted shares
-            // Handles: cold launch from share link, shares accepted outside the app
-            if !hasAcceptedShare {
+            // Handles: cold launch from share link, shares accepted outside the app. Not once this
+            // device let iCloud go, for Crewlu Cloud or by Disconnect (partner links piece 4 spec §7.5).
+            let hasLeftICloud = PartnerConnection(defaults: .standard).hasLeftICloud
+            if !hasAcceptedShare && !hasLeftICloud {
                 await shareManager.checkForAcceptedShares()
             }
 
@@ -125,15 +150,21 @@ class PartnerStatusReceiver {
         }
     }
 
-    /// Check if user has accepted a share and can access pilot status
+    /// Whether a check has ended. Later checks keep the screen that shows, so the welcome screen
+    /// keeps what's typed in it and the waiting screen stays (partner links piece 4 spec §7.4, §7.7).
+    private var hasCheckedOnce = false
+
+    /// Reads the pilot's status through the status source. How the read went reaches `show(_:)`,
+    /// as every read's does.
     func checkForSharedData() async {
-        if pilotStatus == nil {
+        if pilotStatus == nil, !hasCheckedOnce {
             isLoading = true
         }
         isSyncing = true
         defer {
             isLoading = false
             isSyncing = false
+            hasCheckedOnce = true
         }
 
         // Sync in-memory dataSource with whatever UserDefaults says before fetching.
@@ -143,150 +174,109 @@ class PartnerStatusReceiver {
         // would otherwise stay stuck on .privateDB and keep showing the local Duty data.
         syncDataSourceFromDefaults()
 
-        let syncStartTime = Date()
         debugLog("[StatusReceiver] Starting sync")
 
-        do {
-            // Use the account status to check if we have iCloud access
-            let accountStatus = try await container.accountStatus()
-            guard accountStatus == .available else {
-                debugLog("[StatusReceiver] iCloud account not available: \(accountStatus.rawValue)")
-                errorMessage = "Please sign in to iCloud to access shared pilot status."
-                lastSyncError = "iCloud unavailable"
-                hasAcceptedShare = false
-                return
-            }
-
-            // Determine which database and owner to use
-            let database: CKDatabase
-            let ownerName: String
-
-            if dataSource == .privateDB {
-                database = privateDatabase
-                ownerName = CKCurrentUserDefaultName
-                debugLog("[StatusReceiver] Using private database (same-account mode)")
-            } else {
-                // Get the stored zone owner name from when the share was accepted
-                guard let storedOwner = UserDefaults.standard.string(forKey: "SharedZoneOwner") else {
-                    debugLog("[StatusReceiver] No stored zone owner - share not yet accepted")
-                    hasAcceptedShare = false
-                    lastSyncError = "No share accepted"
-                    errorMessage = "Please accept the share invitation from your pilot."
+        // The iCloud account matters only while the status comes through iCloud.
+        if !statusSource.isOnCrewluCloud {
+            do {
+                let accountStatus = try await container.accountStatus()
+                if let issue = CloudAccountIssue(accountStatus: accountStatus) {
+                    debugLog("[StatusReceiver] iCloud account not available: \(accountStatus.rawValue)")
+                    errorMessage = issue.message
+                    lastSyncError = "iCloud unavailable"
+                    // An account that isn't ready says nothing about the share. Keep a recorded
+                    // connection so the partner sees how to fix iCloud rather than onboarding;
+                    // the CKAccountChanged observer retries once the account is available.
+                    hasAcceptedShare = hasRecordedConnection
                     return
                 }
-                database = sharedDatabase
-                ownerName = storedOwner
-                debugLog("[StatusReceiver] Using shared database with zone owner: \(ownerName)")
-            }
-
-            // Construct the zone ID with the owner name
-            let zoneID = CKRecordZone.ID(zoneName: "PartnerBeaconZone", ownerName: ownerName)
-
-            // Fetch the SharedPilotStatus record by its well-known ID
-            // We use a fixed record name "pilot-status" so we can fetch without querying
-            let statusRecordID = CKRecord.ID(recordName: "pilot-status", zoneID: zoneID)
-
-            let statusRecord = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
-                database.fetch(withRecordID: statusRecordID) { record, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else if let record = record {
-                        continuation.resume(returning: record)
-                    } else {
-                        continuation.resume(throwing: NSError(domain: "CrewLuve", code: -1, userInfo: [NSLocalizedDescriptionKey: "No status record found"]))
-                    }
-                }
-            }
-
-            guard let newStatus = SharedPilotStatus.from(record: statusRecord) else {
-                throw NSError(domain: "CrewLuve", code: -2, userInfo: [NSLocalizedDescriptionKey: "Failed to parse status record"])
-            }
-
-            debugLog("[StatusReceiver] Raw delay: \(newStatus.flightDelayMinutes.map(String.init) ?? "nil"), effective: \(newStatus.effectiveFlightDelayMinutes.map(String.init) ?? "nil")")
-
-            // Resolve per-partner display name (stored separately — model stays immutable).
-            // Reset so removals are reflected.
-            resolvedDisplayName = nil
-            let nameMap = newStatus.displayNameByPartner
-            if !nameMap.isEmpty {
-                if cachedUserRecordName == nil {
-                    cachedUserRecordName = try? await container.userRecordID().recordName
-                }
-                // Look up strictly by this user's own recordID. Previously we fell back to
-                // `nameMap.min(...)` in .privateDB mode, but that picked an arbitrary entry
-                // (typically intended for some OTHER partner) and applied it as the pilot's
-                // own display name — so e.g. setting Mom's Display Name to "Magic man"
-                // would make the pilot's own Crewluve label themselves "Magic man." Falling
-                // through to pilotFirstName when there is no entry for this user is the
-                // correct behavior.
-                let name = cachedUserRecordName.flatMap { nameMap[$0] }
-                if let name, !name.isEmpty {
-                    resolvedDisplayName = name
-                    UserDefaults.standard.set(name, forKey: "ResolvedPilotDisplayName")
-                    debugLog("[StatusReceiver] Resolved display name: \(name)")
-                } else {
-                    UserDefaults.standard.removeObject(forKey: "ResolvedPilotDisplayName")
-                }
-            }
-
-            // Check if data actually changed
-            let isInitialLoad = pilotStatus == nil
-            let changed = pilotStatus.map { $0.lastUpdated != newStatus.lastUpdated } ?? true
-            debugLog("[StatusReceiver] Data changed: \(changed ? "YES" : "NO"), initial: \(isInitialLoad)")
-
-            if changed {
-                let effectiveDelay = newStatus.effectiveFlightDelayMinutes
-                let pilotName = UserDefaults.standard.string(forKey: "ResolvedPilotDisplayName")
-                    ?? newStatus.pilotFirstName
-                let previousStatus = pilotStatus
-                let resolvedHome = TripStateResolver.resolveHomeArrival(
-                    legs: newStatus.tripLegs, homeAirportCode: newStatus.homeAirportCode, at: Date()
-                )?.arrivalTime
-                Task.detached {
-                    await StatusChangeNotifier.shared.evaluateChanges(
-                        old: previousStatus, new: newStatus, pilotName: pilotName,
-                        newEffectiveDelay: effectiveDelay,
-                        resolvedHomeArrivalTime: resolvedHome ?? newStatus.homeArrivalTime
-                    )
-                }
-            }
-
-            logTripLegDiff(old: rawPilotStatus, new: newStatus, recordModDate: statusRecord.modificationDate)
-            rawPilotStatus = newStatus
-            resolveAndSchedule()
-            hasAcceptedShare = true
-            lastSyncTime = syncStartTime
-            lastSyncError = nil
-
-            debugLog("[StatusReceiver] Sync complete")
-        } catch let ckError as CKError
-                where (ckError.code == .unknownItem || ckError.code == .zoneNotFound)
-                && (UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil
-                    || dataSource == .privateDB) {
-            // The pilot revoked sharing — either the pilot-status record was deleted
-            // (`unknownItem`) or the entire shared zone is gone (`zoneNotFound`, which
-            // is what shows up on the receiver after CloudKit tears down access). Both
-            // are permanent; reset local share state so we stop hammering a zone that
-            // no longer exists and surface a copy that says so.
-            debugLog("[StatusReceiver] ⚠️ Fetch returned \(ckError.code) — treating as share revoked")
-            CloudKitShareManager.shared.resetShareData()
-            hasAcceptedShare = false
-            pilotStatus = nil
-            rawPilotStatus = nil
-            errorMessage = "Sharing has ended. Ask your pilot for a new pairing link."
-            lastSyncError = "share ended"
-        } catch {
-            debugLog("[StatusReceiver] ❌ Error fetching status: \(error)")
-            lastSyncError = error.localizedDescription
-            // Keep hasAcceptedShare true if we have a known data source
-            if dataSource == .privateDB || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil {
-                hasAcceptedShare = true
-                errorMessage = "Unable to load pilot status. Please try again."
-            } else {
-                hasAcceptedShare = false
-                errorMessage = "Please accept the share invitation from your pilot."
+            } catch {
+                showFailure(error.localizedDescription)
+                return
             }
         }
+
+        _ = await statusSource.refresh()
+    }
+
+    /// Shows how a read went, whoever asked for it.
+    private func show(_ update: PilotStatusUpdate) {
+        guard !isInDemoMode else { return }
+        if update.outcome != .superseded {
+            isWaitingForFirstUpdate = update.outcome == .noStatusYet
+        }
+        switch update.outcome {
+        case .newStatus, .unchanged:
+            showReading()
+            lastSyncTime = update.readAt
+            lastSyncError = nil
+            debugLog("[StatusReceiver] Sync complete")
+        case .noStatusYet:
+            transitionTask?.cancel()
+            pilotStatus = nil
+            hasAcceptedShare = true
+            lastSyncTime = update.readAt
+            lastSyncError = nil
+            errorMessage = nil
+        case .notConnected:
+            // Nothing to show: no share, and no Crewlu Cloud connection, or its key is gone.
+            debugLog("[StatusReceiver] No stored zone owner - share not yet accepted")
+            transitionTask?.cancel()
+            pilotStatus = nil
+            hasAcceptedShare = false
+            lastSyncError = "No share accepted"
+            errorMessage = "Please accept the share invitation from your pilot."
+        case .sharingEnded:
+            // The pilot revoked sharing. The source has already forgotten the share or the
+            // connection, so stop showing the status and surface a copy that says so.
+            debugLog("[StatusReceiver] ⚠️ Sharing has ended")
+            transitionTask?.cancel()
+            hasAcceptedShare = false
+            pilotStatus = nil
+            errorMessage = "Sharing has ended. Ask your pilot for a new pairing link."
+            lastSyncError = "share ended"
+        case .failed(let message):
+            showFailure(message)
+        case .superseded:
+            // The read that follows tells.
+            break
+        }
+    }
+
+    /// Shows the source's reading, resolved for now. With none, there's nothing to show.
+    private func showReading() {
+        guard !isInDemoMode else { return }
+        guard statusSource.reading != nil else {
+            transitionTask?.cancel()
+            pilotStatus = nil
+            hasAcceptedShare = false
+            return
+        }
+        resolveAndSchedule()
+        hasAcceptedShare = true
+    }
+
+    private func showFailure(_ message: String) {
+        debugLog("[StatusReceiver] ❌ Error fetching status: \(message)")
+        lastSyncError = message
+        // A status the source no longer holds isn't the pilot's, say after switching pilots.
+        if statusSource.reading == nil {
+            transitionTask?.cancel()
+            pilotStatus = nil
+        }
+        // Keep hasAcceptedShare true if we have a known data source
+        if hasRecordedConnection {
+            hasAcceptedShare = true
+            errorMessage = "Unable to load pilot status. Please try again."
+        } else {
+            hasAcceptedShare = false
+            errorMessage = "Please accept the share invitation from your pilot."
+        }
+    }
+
+    /// Disconnect (spec §7.5). False when Crewlu Cloud couldn't be reached.
+    func disconnect() async -> Bool {
+        await statusSource.disconnect()
     }
 
     // MARK: - Demo Mode
@@ -315,7 +305,7 @@ class PartnerStatusReceiver {
         await checkForSharedData()
 
         // If shared path found nothing and we're not already in private mode, try private DB
-        if !hasAcceptedShare && dataSource != .privateDB {
+        if !hasAcceptedShare && dataSource != .privateDB && !statusSource.isOnCrewluCloud {
             await checkPrivateDatabase()
         }
     }
@@ -332,8 +322,18 @@ class PartnerStatusReceiver {
         dataSource = source
     }
 
+    /// Whether this device has connected to pilot data — Crewlu Cloud, a stored share owner or
+    /// the same-account private zone. Transient failures must not undo that.
+    private var hasRecordedConnection: Bool {
+        statusSource.isOnCrewluCloud
+            || dataSource == .privateDB
+            || UserDefaults.standard.string(forKey: "SharedZoneOwner") != nil
+    }
+
     /// Check the private database for PartnerBeaconZone (same-account scenario)
     private func checkPrivateDatabase() async {
+        // Not once this device let iCloud go (partner links piece 4 spec §7.5).
+        guard !PartnerConnection(defaults: .standard).hasLeftICloud else { return }
         debugLog("[StatusReceiver] Checking private database for PartnerBeaconZone...")
 
         do {
@@ -367,23 +367,25 @@ class PartnerStatusReceiver {
     /// Trusts Duty's pre-computed fields; only overrides displayStatus and location
     /// when the resolver finds an active leg for real-time transitions.
     private func resolveAndSchedule() {
-        guard let raw = rawPilotStatus else {
+        let now = Date()
+        guard let reading = statusSource.reading else {
             pilotStatus = nil
             return
         }
 
-        let displayName = resolvedDisplayName ?? raw.pilotFirstName
+        let raw = reading.status(at: now)
+        let displayName = statusSource.displayName ?? raw.pilotFirstName
 
         guard raw.hasTripLegs else {
             debugLog("[Resolve] No trip legs, using raw status")
-            pilotStatus = raw
+            pilotStatus = raw.named(displayName)
+            scheduleResolve(transition: nil, reading: reading, now: now)
             return
         }
 
         let legs = raw.tripLegs
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
 
-        let now = Date()
         let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, baseAirportCode: raw.baseAirportCode, at: now)
 
         // If resolver found an active leg, use its real-time data for status/location/flight.
@@ -391,8 +393,8 @@ class PartnerStatusReceiver {
         let displayStatus = resolved?.displayStatus ?? raw.displayStatus
         let isInFlight = resolved?.isInFlight ?? raw.isInFlight
 
-        // Find when the pilot arrives home by scanning ALL legs for the first
-        // future flight to the home airport (handles multi-trip absences).
+        // Find when the pilot's current trip brings him home: the last homebound
+        // leg — flight or drive — of the trip block he is in (see resolveHomeArrival).
         let homeArrival = TripStateResolver.resolveHomeArrival(
             legs: legs, homeAirportCode: raw.homeAirportCode, at: now
         )
@@ -423,7 +425,10 @@ class PartnerStatusReceiver {
                 : nil
             effectiveHomeArrivalLabel = tripEnd?.arrivalLabel ?? raw.homeArrivalLabel
             effectiveHomeArrivalCity = tripEnd?.arrivalCity ?? raw.homeArrivalCity
-            effectiveHomeArrivalTime = tripEnd?.arrivalTime ?? raw.homeArrivalTime
+            // Drop a past arrival (e.g. a commuter already sitting at base with no
+            // homebound leg logged): a past instant would render a frozen "Now!" card.
+            // The view then falls back to the schedule link instead of lying.
+            effectiveHomeArrivalTime = (tripEnd?.arrivalTime ?? raw.homeArrivalTime).flatMap { $0 > now ? $0 : nil }
         }
 
         if let homeArrival {
@@ -517,15 +522,20 @@ class PartnerStatusReceiver {
         let transitionInfo = resolved?.timeUntilNextTransition.map { String(format: "%.0f", $0) } ?? "nil"
         debugLog("[StatusReceiver] Resolved status: \(displayStatus.rawDisplayString), next transition in \(transitionInfo)s")
 
-        // Schedule re-resolve at next leg boundary for real-time updates
+        scheduleResolve(transition: resolved?.timeUntilNextTransition, reading: reading, now: now)
+    }
+
+    /// Schedules a re-resolve at the next leg boundary, or when the quick status shown now
+    /// expires and another may take its place, whichever comes first.
+    private func scheduleResolve(transition: TimeInterval?, reading: PilotReading, now: Date) {
         transitionTask?.cancel()
-        if let delay = resolved?.timeUntilNextTransition, delay > 0 {
-            transitionTask = Task { [weak self] in
-                try? await Task.sleep(for: .seconds(delay + 0.5))
-                guard !Task.isCancelled else { return }
-                guard let self else { return }
-                self.resolveAndSchedule()
-            }
+        let quickStatusChange = reading.change(after: now).map { $0.timeIntervalSince(now) }
+        guard let delay = [transition, quickStatusChange].compactMap({ $0 }).filter({ $0 > 0 }).min() else { return }
+        transitionTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay + 0.5))
+            guard !Task.isCancelled else { return }
+            guard let self else { return }
+            self.resolveAndSchedule()
         }
     }
 
@@ -549,44 +559,16 @@ class PartnerStatusReceiver {
         return nextLeg?.tripId ?? completedLeg?.tripId
     }
 
-    // MARK: - Diagnostic Logging
+    // MARK: - The 60-Second Check
 
-    /// Compare trip leg IDs between cached and incoming data to detect disappearing legs
-    private func logTripLegDiff(old: SharedPilotStatus?, new: SharedPilotStatus, recordModDate: Date?) {
-        let oldLegs = old?.tripLegs ?? []
-        let newLegs = new.tripLegs
-
-        let oldIds = Set(oldLegs.map(\.id))
-        let newIds = Set(newLegs.map(\.id))
-
-        guard oldIds != newIds else { return }
-
-        let removed = oldLegs.filter { !newIds.contains($0.id) }
-        let added = newLegs.filter { !oldIds.contains($0.id) }
-
-        debugLog("[TripLegDiff] === LEG CHANGE DETECTED ===")
-        debugLog("[TripLegDiff] Count: \(oldLegs.count) → \(newLegs.count)")
-        debugLog("[TripLegDiff] Record mod date: \(recordModDate?.formatted(date: .abbreviated, time: .standard) ?? "unknown")")
-
-        for leg in removed {
-            debugLog("[TripLegDiff] REMOVED: \(legDescription(leg))")
-        }
-        for leg in added {
-            debugLog("[TripLegDiff] ADDED: \(legDescription(leg))")
-        }
+    /// This screen is in front: the status source's 60-second check runs (partner links piece 4
+    /// spec §5.5). It reads only while on Crewlu Cloud, and not for a screen showing the demo.
+    func startPeriodicCheck() {
+        statusSource.startPeriodicCheck(for: self, pausedWhile: { [weak self] in self?.isInDemoMode ?? true })
     }
 
-    private func legDescription(_ leg: TripLeg) -> String {
-        let type = "[\(leg.type.rawValue)]"
-        let route: String
-        if leg.type == .flight {
-            route = "\(leg.departureAirport ?? "?")→\(leg.arrivalAirport ?? "?")"
-        } else {
-            route = leg.airportCode ?? "?"
-        }
-        let trip = leg.tripId.map { "trip:\($0)" } ?? "standalone"
-        let start = leg.startTime.formatted(date: .abbreviated, time: .shortened)
-        let end = leg.endTime.formatted(date: .abbreviated, time: .shortened)
-        return "\(type) \(route) (\(trip)) \(start)–\(end)"
+    /// This screen left the front. The check stops once no screen is in front.
+    func stopPeriodicCheck() {
+        statusSource.stopPeriodicCheck(for: self)
     }
 }

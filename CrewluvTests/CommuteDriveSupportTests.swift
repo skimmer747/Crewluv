@@ -21,6 +21,22 @@ final class CommuteDriveSupportTests: XCTestCase {
         )
     }
 
+    private func flightLeg(
+        from: String, to: String, start: Date, end: Date,
+        tripId: String? = "t1", delayMinutes: Int? = nil, id: String? = nil
+    ) -> TripLeg {
+        TripLeg(
+            id: id ?? "flight-\(from)-\(to)", tripId: tripId, type: .flight,
+            startTime: start, endTime: end,
+            airportCode: nil, city: nil,
+            timezoneIdentifier: nil, arrivalTimezoneIdentifier: nil,
+            flightNumber: nil, departureAirport: from, arrivalAirport: to,
+            departureCity: nil, arrivalCity: nil,
+            tripDayNumber: nil, tripTotalDays: nil, delayMinutes: delayMinutes,
+            airlineCode: nil, label: nil
+        )
+    }
+
     // MARK: - LegType decoding
 
     func test_legType_decodesDriveRawValue_asDrive() throws {
@@ -144,5 +160,80 @@ final class CommuteDriveSupportTests: XCTestCase {
                              start: now.addingTimeInterval(3600 * 10), end: now.addingTimeInterval(3600 * 12))
         let leg = TripStateResolver.nextDriveToWork(legs: [later, soon], baseAirportCode: "SDF", at: now)
         XCTAssertEqual(leg?.startTime, soon.startTime)
+    }
+
+    func test_nextDriveToWork_driveAfterNextFlight_returnsNil() {
+        let now = Date()
+        // The upcoming trip departs base in 2 days with no commute scheduled;
+        // the only drive-to-base belongs to a later trip. It must not be
+        // surfaced as "leaving for work" for the upcoming trip.
+        let flight = flightLeg(from: "SDF", to: "HNL",
+                               start: now.addingTimeInterval(3600 * 48), end: now.addingTimeInterval(3600 * 58))
+        let laterTripDrive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                                      start: now.addingTimeInterval(3600 * 24 * 16),
+                                      end: now.addingTimeInterval(3600 * (24 * 16 + 2)))
+        XCTAssertNil(TripStateResolver.nextDriveToWork(legs: [flight, laterTripDrive], baseAirportCode: "SDF", at: now))
+    }
+
+    func test_nextDriveToWork_driveBeforeNextFlight_isReturned() {
+        let now = Date()
+        let drive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                             start: now.addingTimeInterval(3600 * 44), end: now.addingTimeInterval(3600 * 46))
+        let flight = flightLeg(from: "SDF", to: "HNL",
+                               start: now.addingTimeInterval(3600 * 48), end: now.addingTimeInterval(3600 * 58))
+        let leg = TripStateResolver.nextDriveToWork(legs: [flight, drive], baseAirportCode: "SDF", at: now)
+        XCTAssertEqual(leg?.id, drive.id)
+    }
+
+    /// A commute flight whose scheduled start is past but is delayed into the future must
+    /// still gate out a later trip's drive; comparing scheduled starts would drop the
+    /// delayed flight and resurface the far-away drive (the trip-jump countdown bug).
+    func test_nextDriveToWork_delayedHomeFlightInWindow_stillGatesLaterDrive() {
+        let now = Date()
+        let delayedCommuteFlight = flightLeg(
+            from: "MCO", to: "SDF",
+            start: now.addingTimeInterval(-600), end: now.addingTimeInterval(3600),
+            delayMinutes: 120) // effective start ~110 min in the future
+        let laterTripDrive = driveLeg(from: "MCO", to: "SDF", arrivalCity: "Louisville",
+                                      start: now.addingTimeInterval(3600 * 24 * 16),
+                                      end: now.addingTimeInterval(3600 * (24 * 16 + 2)))
+        XCTAssertNil(TripStateResolver.nextDriveToWork(
+            legs: [delayedCommuteFlight, laterTripDrive], baseAirportCode: "SDF", at: now))
+    }
+
+    // MARK: - resolveHomeArrival (Back Home In)
+
+    /// A later trip's drive home, beyond a >24h at-home gap, must not hijack the
+    /// current trip's "Back Home In" when the current trip has no homebound leg.
+    func test_resolveHomeArrival_laterTripDriveHome_doesNotHijack() {
+        let now = Date()
+        // Current trip: an active flight ending at base (no arrival home in this block).
+        let activeFlight = flightLeg(from: "ATL", to: "SDF",
+                                     start: now.addingTimeInterval(-3600), end: now.addingTimeInterval(1800))
+        // Separate later trip (>24h gap): a drive home to MCO.
+        let laterDriveHome = driveLeg(from: "SDF", to: "MCO", arrivalCity: "Orlando",
+                                      start: now.addingTimeInterval(3600 * 24 * 18),
+                                      end: now.addingTimeInterval(3600 * (24 * 18 + 2)))
+        let info = TripStateResolver.resolveHomeArrival(
+            legs: [activeFlight, laterDriveHome], homeAirportCode: "MCO", at: now)
+        XCTAssertNil(info)
+    }
+
+    /// Within one trip block, a mid-trip turn that touches home must not be reported as
+    /// the homecoming — the last arrival home is the true return.
+    func test_resolveHomeArrival_turnThroughHome_picksFinalArrival() {
+        let now = Date()
+        let turnToHome = flightLeg(from: "ATL", to: "MCO",
+                                   start: now.addingTimeInterval(3600), end: now.addingTimeInterval(3600 * 2),
+                                   id: "turn-in")
+        let backOut = flightLeg(from: "MCO", to: "ATL",
+                                start: now.addingTimeInterval(3600 * 3), end: now.addingTimeInterval(3600 * 4),
+                                id: "turn-out")
+        let finalHome = flightLeg(from: "ATL", to: "MCO",
+                                  start: now.addingTimeInterval(3600 * 7), end: now.addingTimeInterval(3600 * 8),
+                                  id: "final-home")
+        let info = TripStateResolver.resolveHomeArrival(
+            legs: [turnToHome, backOut, finalHome], homeAirportCode: "MCO", at: now)
+        XCTAssertEqual(info?.arrivalTime, finalHome.endTime)
     }
 }

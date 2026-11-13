@@ -1,0 +1,21 @@
+{
+  "about": "Where the schedule's plane is (Crewluve moving map spec §7.3). The app's FlightProgressTests and the website's tests both run every case. Change both copies together.",
+  "constants": {
+    "taxiOutMinutes": 15,
+    "taxiInMinutes": 7,
+    "shortestCruiseMinutes": 10
+  },
+  "scheduleCases": [
+    { "name": "before pushback", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-13T17:50:00Z", "fraction": 0 },
+    { "name": "taxiing out", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-13T18:10:00Z", "fraction": 0 },
+    { "name": "wheels up", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-13T18:15:00Z", "fraction": 0 },
+    { "name": "halfway through the airborne window", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-13T22:04:00Z", "fraction": 0.5 },
+    { "name": "taxiing in", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-14T01:55:00Z", "fraction": 1 },
+    { "name": "at the gate", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-14T02:00:00Z", "fraction": 1 },
+    { "name": "an hour after", "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z", "at": "2026-11-14T03:00:00Z", "fraction": 1 },
+    { "name": "a 30-minute hop is flown gate to gate", "departure": "2026-11-13T12:00:00Z", "arrival": "2026-11-13T12:30:00Z", "at": "2026-11-13T12:15:00Z", "fraction": 0.5 },
+    { "name": "a 32-minute hop is just long enough for the allowances", "departure": "2026-11-13T12:00:00Z", "arrival": "2026-11-13T12:32:00Z", "at": "2026-11-13T12:20:00Z", "fraction": 0.5 },
+    { "name": "no block time, before", "departure": "2026-11-13T12:00:00Z", "arrival": "2026-11-13T12:00:00Z", "at": "2026-11-13T11:59:00Z", "fraction": 0 },
+    { "name": "no block time, at", "departure": "2026-11-13T12:00:00Z", "arrival": "2026-11-13T12:00:00Z", "at": "2026-11-13T12:00:00Z", "fraction": 1 }
+  ]
+}

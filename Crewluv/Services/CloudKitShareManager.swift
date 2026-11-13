@@ -11,7 +11,7 @@ import Foundation
 
 /// Extracts a CKShare URL from either a `crewluv://accept-share?url=…` wrapper
 /// or a direct `icloud.com/share` URL.
-enum ShareURLResolver {
+nonisolated enum ShareURLResolver {
     /// Returns the inner CKShare URL if wrapped in `crewluv://accept-share`, otherwise returns the URL as-is.
     static func resolve(_ url: URL) -> URL {
         if url.scheme == "crewluv",
@@ -61,6 +61,8 @@ final class CloudKitShareManager {
     func acceptShare(from url: URL) async throws {
         let resolvedURL = ShareURLResolver.resolve(url)
         shareState = .accepting
+        // The partner asked for this share, so iCloud is theirs again (partner links piece 4 spec §7.5).
+        PartnerConnection(defaults: .standard).hasLeftICloud = false
         debugLog("[ShareManager] Starting share acceptance from URL: \(resolvedURL)")
 
         do {
@@ -91,7 +93,7 @@ final class CloudKitShareManager {
                 shareState = .accepted
                 return
             }
-            let message = userFriendlyError(error)
+            let message = Self.userFriendlyError(error)
             shareState = .error(message)
             let nsError = error as NSError
             debugLog("[ShareManager] ❌ Share acceptance failed — code: \(nsError.code), domain: \(nsError.domain), userInfo: \(nsError.userInfo)")
@@ -103,6 +105,7 @@ final class CloudKitShareManager {
     /// - Parameter metadata: The CKShare.Metadata delivered by iOS after the user accepted a share
     func acceptShare(with metadata: CKShare.Metadata) async {
         shareState = .accepting
+        PartnerConnection(defaults: .standard).hasLeftICloud = false
         debugLog("[ShareManager] Starting share acceptance from metadata")
 
         do {
@@ -114,7 +117,7 @@ final class CloudKitShareManager {
                 debugLog("[ShareManager] Fallback scan confirmed PartnerBeaconZone — treating as accepted")
                 shareState = .accepted
             } else {
-                shareState = .error(userFriendlyError(error))
+                shareState = .error(Self.userFriendlyError(error))
             }
         }
     }
@@ -208,11 +211,26 @@ final class CloudKitShareManager {
         UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
         UserDefaults.standard.removeObject(forKey: "PilotDataSource")
         UserDefaults.standard.removeObject(forKey: "ResolvedPilotDisplayName")
+        KeychainDeviceKeyStore().forgetPilotName()
         UserDefaults.standard.removeObject(forKey: "LastSeenPilotSnapshot")
         shareState = .idle
         debugLog("[ShareManager] Cleared stored zone owner, data source, display name, and pilot snapshot")
 
         NotificationCenter.default.post(name: .shareDataReset, object: nil)
+
+        Task.detached {
+            await CloudKitSubscriptionManager.shared.removeAllSubscriptions()
+        }
+    }
+
+    /// Forgets the share without posting `.shareDataReset`, so the welcome screen doesn't show:
+    /// this device follows its pilot on Crewlu Cloud now (partner links piece 4 spec §7.2). The
+    /// alerts' title name and snapshot stay, and the share itself is the pilot's to end.
+    func forgetShareQuietly() {
+        UserDefaults.standard.removeObject(forKey: zoneOwnerKey)
+        UserDefaults.standard.removeObject(forKey: "PilotDataSource")
+        shareState = .idle
+        debugLog("[ShareManager] Forgot the share, now on Crewlu Cloud")
 
         Task.detached {
             await CloudKitSubscriptionManager.shared.removeAllSubscriptions()
@@ -225,7 +243,7 @@ final class CloudKitShareManager {
     }
 
     /// Converts CloudKit errors to user-friendly messages
-    private func userFriendlyError(_ error: Error) -> String {
+    nonisolated static func userFriendlyError(_ error: Error) -> String {
         let nsError = error as NSError
 
         if nsError.domain == CKErrorDomain {
@@ -234,6 +252,8 @@ final class CloudKitShareManager {
                 return "No internet connection. Please check your network and try again."
             case .notAuthenticated:
                 return "Please sign in to iCloud in Settings."
+            case .accountTemporarilyUnavailable:
+                return CloudAccountIssue.needsAttention.message
             case .permissionFailure:
                 return "You don't have permission to access this share."
             case .serverRejectedRequest:

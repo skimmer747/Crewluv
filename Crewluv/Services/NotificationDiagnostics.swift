@@ -32,6 +32,8 @@ actor NotificationDiagnostics {
         let lastBackgroundRefreshAt: Date?
         let localNotificationCount: Int
         let lastLocalNotificationAt: Date?
+        let crewluCloudPushRegisteredAt: Date?
+        let crewluCloudPushResult: String?
     }
 
     // MARK: - UserDefaults Keys
@@ -73,6 +75,16 @@ actor NotificationDiagnostics {
         }
     }
 
+    /// Records how the last push registration with Crewlu Cloud went.
+    nonisolated func recordPushRegistration(_ result: String) {
+        Task { await _recordPushRegistration(result) }
+    }
+
+    private func _recordPushRegistration(_ result: String) {
+        defaults.set(Date(), forKey: prefix + "crewluCloudPushRegisteredAt")
+        defaults.set(result, forKey: prefix + "crewluCloudPushResult")
+    }
+
     // MARK: - Snapshot
 
     func snapshot() -> Snapshot {
@@ -84,7 +96,9 @@ actor NotificationDiagnostics {
             backgroundRefreshCount: defaults.integer(forKey: prefix + "bgRefreshCount"),
             lastBackgroundRefreshAt: defaults.object(forKey: prefix + "lastBgRefreshAt") as? Date,
             localNotificationCount: defaults.integer(forKey: prefix + "localNotifCount"),
-            lastLocalNotificationAt: defaults.object(forKey: prefix + "lastLocalNotifAt") as? Date
+            lastLocalNotificationAt: defaults.object(forKey: prefix + "lastLocalNotifAt") as? Date,
+            crewluCloudPushRegisteredAt: defaults.object(forKey: prefix + "crewluCloudPushRegisteredAt") as? Date,
+            crewluCloudPushResult: defaults.string(forKey: prefix + "crewluCloudPushResult")
         )
     }
 }

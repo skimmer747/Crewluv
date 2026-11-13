@@ -47,7 +47,9 @@ struct UpcomingTripCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+        // Plain glass: the ••• menu opens over this card, and interactive glass under a menu item
+        // takes the item's tap (iOS 27.2: Use on Another Device needed many taps).
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
     }
 
     // MARK: - Type Badge

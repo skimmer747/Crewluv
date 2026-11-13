@@ -17,6 +17,7 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:icloud-sharing.apple.com</string>
+		<string>applinks:crewluve.crewlu.net</string>
 	</array>
 </dict>
 </plist>
