@@ -2,22 +2,47 @@
 //  TripMapMarkers.swift
 //  CrewLuve
 //
-//  The trip map's small fixed-size markers (moving map spec §5.1, §7.1). VoiceOver reads the card's sentence
-//  instead of these.
+//  The trip map's small fixed-size markers (moving map spec §5.1, §7.1). MapKit shows them through
+//  `TripMapAnnotationView`. VoiceOver reads the card's sentence instead of these, and on the full-screen map each
+//  airport's code.
 //
 
 import SwiftUI
 
 enum TripMapMarkers {
 
-    /// A white dot under each airport's code.
+    /// A white dot on each airport.
     struct Airport: View {
+        static let dotDiameter: CGFloat = 7
+
         var body: some View {
             Circle()
                 .fill(.white)
-                .frame(width: 7, height: 7)
+                .frame(width: Self.dotDiameter, height: Self.dotDiameter)
                 .overlay(Circle().stroke(.black.opacity(0.4), lineWidth: 0.5))
                 .accessibilityHidden(true)
+        }
+    }
+
+    /// An airport's dot with its code under it. SwiftUI's map used to write the code itself, as each annotation's
+    /// title.
+    struct AirportLabel: View {
+        let code: String
+        let palette: TripMapPalette
+
+        var body: some View {
+            VStack(spacing: 2) {
+                Airport()
+                Text(code)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(palette.label)
+                    .shadow(color: palette.labelHalo, radius: 1)
+                    .shadow(color: palette.labelHalo, radius: 1)
+            }
+            .fixedSize()
+            // Grows with the text size, up to where a code would start to cover the route.
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+            .accessibilityHidden(true)
         }
     }
 

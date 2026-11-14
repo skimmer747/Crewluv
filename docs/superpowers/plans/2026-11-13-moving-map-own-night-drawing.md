@@ -3775,6 +3775,17 @@ The files were copied from the plan's code by script. The review (sonnet) found 
   - `TripMapClearance` adds only the part of a clearance beyond the safe area, because UIKit adds layout margins on top of the safe area (`insetsLayoutMarginsFromSafeArea`, as CrewLu relies on).
   - Each dashed line ends in a gap at its far end, so a dash or dot doesn't touch the destination. That's a visual choice to check.
 
+### Batch B (Tasks 8–10)
+
+The files were copied from the plan's code by script. The review (sonnet) found nothing critical. Changes since:
+- **`TripMapContainerView` reports a safe-area change from its next layout,** like a size change, and `TripMapCameraController` reads the safe area from the container. As the device turned, the map's own copy could lag a layout behind, leaving the logo and the framing a step late.
+- **Markers can't be selected** (`isEnabled = false`, and the hosted view takes no touches). A tap on a car would have lifted it above the plane.
+- **`TripMapShapesController` looks only at `TripMapAnnotation` views** when it finds MapKit's annotation container.
+- **`TripMapShapesView` imports `QuartzCore`** for its layers.
+- **Left as they are:**
+  - The one-finger double-tap-and-drag zoom is caught only by the pan recognizer. If that pan doesn't begin, the zoom goes unreported and the recenter button doesn't show. Check it in Task 15.
+  - The camera controller's gesture recognizers aren't removed on teardown. That's harmless, since they go with the map view and hold the controller only through their targets.
+
 ### Short legs in a replay, from the website (2026-11-13)
 
 Todd asked, through the website's session, for the app's replay to match the website's. While a leg moves, 1x plays at the slower of a day in 48 s and the leg's length over 3 s. Between legs it plays at a day in 48 s. The speed multiplies both, and where legs overlap the slowest wins. Sources: Crewluve Website `docs/superpowers/specs/2026-11-13-replay-short-legs-design.md`, `src/map/replayClock.ts`, and `tests/map/replayClock.test.ts`.
