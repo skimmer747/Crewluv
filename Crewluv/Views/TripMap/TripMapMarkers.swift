@@ -47,7 +47,7 @@ enum TripMapMarkers {
     }
 
     /// Where the pilot is on the ground, and what they're doing there (activity markers design §2.1): a white symbol on
-    /// the activity's color, with a white ring, in the heart's size and style.
+    /// the activity's color, with a white ring.
     struct Pilot: View {
         let kind: TripActivity.Kind
 

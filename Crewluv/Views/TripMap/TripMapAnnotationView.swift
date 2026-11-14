@@ -85,7 +85,7 @@ final class TripMapAnnotationView: MKAnnotationView {
     // MARK: - Placing each marker
 
     /// Where the view's centre sits from its coordinate. The airport's dot sits on the airport with its code below;
-    /// the pilot's marker stands on its place, as the heart did.
+    /// the pilot's marker stands on its place, its bottom edge on the coordinate.
     private static func centerOffset(of marker: TripMapMarker, size: CGSize) -> CGPoint {
         switch marker {
         case .airport: CGPoint(x: 0, y: size.height / 2 - TripMapMarkers.Airport.dotDiameter / 2)

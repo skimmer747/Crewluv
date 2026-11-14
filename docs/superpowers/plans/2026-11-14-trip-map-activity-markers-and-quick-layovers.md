@@ -3604,3 +3604,9 @@ The blocks were copied from this plan by script, and every replacement matched o
   - `TripTimeline` is rebuilt in `body`, so again on each camera or sheet change. It isn't rebuilt per frame.
   - White symbols and lengths on orange, teal and green are low contrast, about 2:1 on orange. These are the design's colors. The words under the bar and VoiceOver carry the kind. Check on device.
   - The previews' own storage isn't read by the screen's `init`, so a preview's first frame may use the default pace.
+
+### Batch C (Tasks 10–12)
+
+- **The docs.** Every amendment matched once: the spec's header, §5.1, §6, §10 (three), §14 (two) and §15.1, and `CLAUDE.md`'s three bullets. §7.1 and §11 still name the heart, as planned, and so do the Stage 2 spec's recap lines.
+- **The review.** Batch B's review had already covered the marker, the bar, accessibility, Dark Mode, isolation and the Canvas's cost. It wasn't asked about the clock on screen, so that was checked by hand: one factory in `TripMapScreen` makes every clock, always with the waits and the switch, and the sheet, the panel and the control all bind to the screen's one `@State` clock. Two comments that still described the heart's size and placement were reworded.
+- **The tests.** Todd's ⌘U after Batch B passed, with every count Task 12 expects. The only change since then is to comments.
