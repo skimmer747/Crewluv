@@ -27,9 +27,10 @@ struct TripMapCard: View {
     }
 
     var body: some View {
+        // Read outside the timeline, so the card updates as soon as the stories arrive, not at the next tick.
+        let facts = storyStore.facts(for: tripMap, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         // The plane moves about a pixel in ten seconds at this size, as today's map refreshed.
         TimelineView(.periodic(from: .now, by: 10)) { context in
-            let facts = storyStore.facts(for: tripMap, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
             let cardChips = chips(from: facts, at: context.date)
             VStack(spacing: 0) {
                 mapButton(facts: facts, chips: cardChips, at: context.date)
@@ -43,7 +44,7 @@ struct TripMapCard: View {
             }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
-        .task(id: storyKey) {
+        .task(id: LegStoryStore.preparationKey(for: tripMap)) {
             await storyStore.prepare(tripMap)
         }
         .onChange(of: tripMap.mode) {
@@ -55,11 +56,6 @@ struct TripMapCard: View {
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
-    }
-
-    /// The flights, their routes and their times: a new route or delay builds again.
-    private var storyKey: [String] {
-        tripMap.legs.map(LegStoryStore.timesKey(for:))
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight.

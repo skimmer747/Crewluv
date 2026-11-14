@@ -63,4 +63,14 @@ final class LegStoryStoreTests: XCTestCase {
         XCTAssertEqual(LegStoryStore.routeKey(for: map.legs[0], home: map.home), "SDF-CGN")
         XCTAssertEqual(LegStoryStore.routeKey(for: map.legs[1], home: map.home), "CGN-DXB|SDF")
     }
+
+    func test_preparationKey_changesWithADelayOrAnotherHome() throws {
+        let map = try europe()
+        let noHome = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: false, homeAirportCode: nil,
+                                                legacyDelayMinutes: nil, at: TripMapTestLegs.tripStart,
+                                                coordinate: TripMapTestLegs.coordinate))
+        XCTAssertEqual(LegStoryStore.preparationKey(for: map), LegStoryStore.preparationKey(for: try europe()))
+        XCTAssertNotEqual(LegStoryStore.preparationKey(for: map), LegStoryStore.preparationKey(for: try europe(firstDelayMinutes: 90)))
+        XCTAssertNotEqual(LegStoryStore.preparationKey(for: map), LegStoryStore.preparationKey(for: noHome))
+    }
 }

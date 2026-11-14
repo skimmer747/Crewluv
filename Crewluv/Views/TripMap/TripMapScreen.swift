@@ -61,8 +61,13 @@ struct TripMapScreen: View {
             FactsSheet(facts: facts, clock: $clock, stop: $sheetStop, screenHeight: screenFrame.height, height: $sheetHeight)
         }
         // Both start again when a flight's route or times change, so a new delay fetches the new landing hour.
-        .task(id: flightTimes) { await storyStore.prepare(tripMap) }
-        .task(id: flightTimes) { await weather.keepRefreshing(for: tripMap) }
+        .task(id: LegStoryStore.preparationKey(for: tripMap)) { await storyStore.prepare(tripMap) }
+        .task(id: LegStoryStore.preparationKey(for: tripMap)) { await weather.keepRefreshing(for: tripMap) }
+        .task(id: isClosing) {
+            // Should the sheet never report going, as when Close comes while it's still sliding up, the map closes anyway.
+            guard isClosing, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+            dismiss()
+        }
         .onChange(of: usesSidePanel) { _, isSidePanel in
             if !isSidePanel { sheetStop = .small }
         }
@@ -77,11 +82,6 @@ struct TripMapScreen: View {
         tripMap.mode == .recap
             ? TripReplayClock(span: tripMap.span, pausedAt: tripMap.span.start)
             : TripReplayClock(span: tripMap.span)
-    }
-
-    /// The flights, their routes and their delay-shifted times.
-    private var flightTimes: [String] {
-        tripMap.legs.map(LegStoryStore.timesKey(for:))
     }
 
     private var facts: TripFacts {

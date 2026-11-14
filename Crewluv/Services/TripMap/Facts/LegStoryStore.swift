@@ -81,6 +81,12 @@ final class LegStoryStore {
         return "\(route)|\(home.code)"
     }
 
+    /// What `prepare` builds from: each leg's route and delay-shifted times, and home. The views start `prepare` again
+    /// with `.task(id:)` whenever it changes.
+    nonisolated static func preparationKey(for tripMap: TripMap) -> [String] {
+        tripMap.legs.map(timesKey(for:)) + [tripMap.home?.code ?? ""]
+    }
+
     /// The flight, its route and its delay-shifted times: a new delay moves the sun events.
     nonisolated static func timesKey(for leg: MapLeg) -> String {
         "\(leg.id)|\(leg.origin.code)-\(leg.destination.code)|\(leg.start.timeIntervalSince1970)|\(leg.end.timeIntervalSince1970)"
