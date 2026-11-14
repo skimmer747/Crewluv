@@ -59,6 +59,8 @@ final class WeatherService {
 
     private var cache: [String: (snapshot: WeatherSnapshot, fetchedAt: Date)] = [:]
     private static let cacheDuration: TimeInterval = 15 * 60 // 15 minutes
+    private var landingCache: [String: (forecast: LandingForecast, fetchedAt: Date)] = [:]
+    private static let landingCacheDuration: TimeInterval = 30 * 60 // 30 minutes
 
     private init() {}
 
@@ -96,6 +98,34 @@ final class WeatherService {
             return snapshot
         } catch {
             debugLog("WeatherService: failed for \(iata): \(error)")
+            return nil
+        }
+    }
+
+    /// The forecast for the hour holding `landing` at an airport (moving map Stage 2 spec §7.1): one hour of WeatherKit's
+    /// hourly forecast, cached by airport and hour for 30 minutes. Nil, logged, when WeatherKit can't give one.
+    func landingForecast(forAirport iata: String, latitude: Double, longitude: Double, at landing: Date) async -> LandingForecast? {
+        let hour = Date(timeIntervalSince1970: (landing.timeIntervalSince1970 / 3600).rounded(.down) * 3600)
+        let key = "\(iata)@\(Int(hour.timeIntervalSince1970))"
+        if let cached = landingCache[key], Date().timeIntervalSince(cached.fetchedAt) < Self.landingCacheDuration {
+            return cached.forecast
+        }
+        do {
+            let location = CLLocation(latitude: latitude, longitude: longitude)
+            let hours = try await WeatherKit.WeatherService.shared.weather(
+                for: location, including: .hourly(startDate: hour, endDate: hour.addingTimeInterval(3600)))
+            guard let forecastHour = hours.first(where: { $0.date <= landing && landing < $0.date.addingTimeInterval(3600) }) else { return nil }
+            let forecast = LandingForecast(
+                temperature: forecastHour.temperature.formatted(
+                    .measurement(width: .abbreviated, usage: .weather, numberFormatStyle: .number.precision(.fractionLength(0)))),
+                condition: forecastHour.condition.description.lowercased()
+            )
+            landingCache[key] = (forecast, Date())
+            return forecast
+        } catch is CancellationError {
+            return nil // the map closed
+        } catch {
+            debugLog("WeatherService: no landing forecast for \(iata): \(error)")
             return nil
         }
     }
