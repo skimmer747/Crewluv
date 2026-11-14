@@ -5201,3 +5201,28 @@ The review found no critical or important issues. Four minor ones were fixed:
 `TripTotals.timeZonesCrossed`' doc now says that across the date line it counts the change in offset (Tokyo to Anchorage counts 18).
 
 Tasks 8–10 were copied from the plan's code by a script, after auto mode couldn't check the subagent call that a plugin hook changes.
+
+### Batch C (Tasks 11–15), from its review
+
+Tasks 11–15 were copied from the plan's code by script. Changes since then:
+- **`TripMapFixtures.swift` gains `@testable import Crewluv`,** for `FactsCases.testGeography`.
+- **`TripMapRecapTests` is `@MainActor`.** `TripMap(status:at:)` lives in a plain extension, which the app target isolates to the main actor.
+- **The recap needs `.home`, not just settled.** At base, a commuter still has the way home ahead, and the card would have said "Home from…" with the heart at home. Spec §8.1 now says so. New test: `test_initStatus_atBaseNotYetHome_isNoRecap`.
+- **No recap while another trip is under way:** `recapLegs` returns nil when any trip has started and not ended, such as a night at home mid-trip. New test: `test_initStatus_aLaterTripUnderWay_isNoRecapOfTheLastOne`.
+- **`TripMap+Status` reads `status.tripLegs` once.** It decodes JSON each time.
+- **`dayCount` is never under 1.**
+- **`FactRow.sentence` reads " · " as ", "** for VoiceOver, so `FactRow.swift` now imports Foundation.
+- **`cockpitEvent` counts down only under 59 minutes,** so it never says "in 60 min".
+- **A forecast of one sunset reads "a sunset from the cockpit",** not "about 1 sunset…". `TripFactsRowsTests`' home-row expectation changed to match.
+- **The fixture's "seas" crossing stays at 20:01:42Z.** The review thought it should be 20:02:21Z, but that route covers 10° in 180 minutes, 18 minutes a degree. The snap's 0.0724° is then 78 seconds, where the 20° equator route's is 39.
+
+### Batch D (Tasks 16–17), from its review
+
+- **`LegStoryStore.prepare` shares one load of the data files** between calls that overlap (`filesTask`), and builds a route the trip flies twice only once.
+- **`LandingWeather.swift` imports CoreLocation.** The project checks member imports, and it reads the destination's latitude and longitude.
+- **`LandingWeather.refresh` stops between flights once cancelled.**
+  - `keepRefreshing` is meant to be started with `.task(id:)` on the flights' times, so a new delay restarts it.
+  - Task 19's `TripMapScreen` does that: `.task(id: tripMap.legs.map(LegStoryStore.timesKey(for:)))`.
+- **`WeatherService.landingForecast`:**
+  - It takes the hour that holds the landing, not just the first hour WeatherKit returns.
+  - A cancelled request isn't logged as a failure.

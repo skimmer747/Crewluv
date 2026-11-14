@@ -333,10 +333,11 @@ Weather shows for a flight only when its landing is between the real now and 48 
 
 ### 8.1 When
 
-In `TripMap+Status`, when the pilot is settled at home or base:
+In `TripMap+Status`, when the pilot is home. Not at base: a commuter there still has the way home ahead (decided reviewing Stage 2A).
 
 - **The recap's trip** is the one (by `tripId`) whose last leg ended in the past 24 hours, and none of whose legs is still to come.
 - **The next trip wins instead** when its first departure is within 12 hours.
+- **No recap while another trip is under way,** such as a night at home in the middle of the next one.
 - **Legs with no `tripId`,** like a standalone jumpseat, aren't a trip.
 - **"Home from 4 days away"** uses the largest `tripTotalDays` among the legs, else the calendar days the trip spans.
 
