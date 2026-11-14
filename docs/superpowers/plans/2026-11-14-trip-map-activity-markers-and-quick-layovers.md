@@ -292,7 +292,7 @@ These come from Todd's standing instructions. They override the skill's defaults
 
 **Files:** none.
 
-- [ ] **Step 1: Check the branch and the tree.**
+- [x] **Step 1: Check the branch and the tree.**
 
 ```bash
 git -C /Users/toddanderson/Dev/Crewluv branch --show-current && git -C /Users/toddanderson/Dev/Crewluv log -1 --format=%h && git -C /Users/toddanderson/Dev/Crewluv status --short
@@ -303,7 +303,7 @@ Expected: `feature/trip-map-facts`, then `6a2ecaf` or a later commit.
 - A later commit is fine if Step 2's checks pass: another session shares this checkout.
 - If `git status --short` lists any file this plan changes, other than this plan itself, someone is working on it. Ask Todd before going on. Leave every file that isn't this plan's alone, `.superpowers/` included.
 
-- [ ] **Step 2: Check the files this plan rewrites are the versions it was written against.**
+- [x] **Step 2: Check the files this plan rewrites are the versions it was written against.**
 
 ```bash
 cd /Users/toddanderson/Dev/Crewluv && grep -c "case heart" Crewluv/Views/TripMap/TripMapMarker.swift && grep -c "periodic(from: .now, by: clock.isPlaying ? 1.0 / 30 : 1)" Crewluv/Views/TripMap/TripMapScreen.swift Crewluv/Views/TripMap/FactsSheet.swift && grep -c "replayLegs(of: tripMap)" Crewluv/Views/TripMap/TripMapScreen.swift && grep -cF 'TripTimelineControl(clock: $clock, time: time, now: now)' Crewluv/Views/TripMap/FactsPanel.swift Crewluv/Views/TripMap/FactsHeader.swift
@@ -312,7 +312,7 @@ cd /Users/toddanderson/Dev/Crewluv && grep -c "case heart" Crewluv/Views/TripMap
 Expected: `1`; `TripMapScreen.swift:1` and `FactsSheet.swift:1`; `2`; `FactsPanel.swift:1` and `FactsHeader.swift:1`.
 - Anything else means the files have moved on. STOP: the whole-file versions below would undo someone's work.
 
-- [ ] **Step 3: Check the case files aren't there yet.**
+- [x] **Step 3: Check the case files aren't there yet.**
 
 ```bash
 ls /Users/toddanderson/Dev/Crewluv/CrewluvTests/Fixtures/TripMap/
@@ -331,7 +331,7 @@ The website starts from these, so they come first and are committed on their own
 - Create: `CrewluvTests/Fixtures/TripMap/activity-cases.json`
 - Modify: `CrewluvTests/Helpers/TripMapFixtures.swift`
 
-- [ ] **Step 1: Write the replay cases.** Create `CrewluvTests/Fixtures/TripMap/replay-cases.json`:
+- [x] **Step 1: Write the replay cases.** Create `CrewluvTests/Fixtures/TripMap/replay-cases.json`:
 
 ```json
 {
@@ -479,7 +479,7 @@ The website starts from these, so they come first and are committed on their own
 }
 ```
 
-- [ ] **Step 2: Write the activity cases.** Create `CrewluvTests/Fixtures/TripMap/activity-cases.json`:
+- [x] **Step 2: Write the activity cases.** Create `CrewluvTests/Fixtures/TripMap/activity-cases.json`:
 
 ```json
 {
@@ -664,7 +664,7 @@ The website starts from these, so they come first and are committed on their own
 }
 ```
 
-- [ ] **Step 3: Check both are valid JSON.**
+- [x] **Step 3: Check both are valid JSON.**
 
 ```bash
 cd /Users/toddanderson/Dev/Crewluv && python3 -c 'import json, sys; [json.load(open(p)) for p in sys.argv[1:]]; print("valid")' CrewluvTests/Fixtures/TripMap/replay-cases.json CrewluvTests/Fixtures/TripMap/activity-cases.json
@@ -672,7 +672,7 @@ cd /Users/toddanderson/Dev/Crewluv && python3 -c 'import json, sys; [json.load(o
 
 Expected: `valid`.
 
-- [ ] **Step 4: Read them in the tests.** In `CrewluvTests/Helpers/TripMapFixtures.swift`, replace:
+- [x] **Step 4: Read them in the tests.** In `CrewluvTests/Helpers/TripMapFixtures.swift`, replace:
 
 ```swift
     static func factsCases() throws -> FactsCases {
@@ -811,9 +811,9 @@ with:
 
 `ReplayCases.Stretch.clockStretch` names `TripReplayClock.Stretch`, which exists today, so this builds before Task 5.
 
-- [ ] **Step 5: Nothing runs them yet.** Tasks 4, 5 and 6 do.
+- [x] **Step 5: Nothing runs them yet.** Tasks 4, 5 and 6 do.
 
-- [ ] **Step 6: Ask to commit.** Suggested message: `test(crewluv): the shared replay and activity cases for the trip map, ahead of the app and the website`. Stage only the two JSON files and `TripMapFixtures.swift`. Then tell Todd the website's session can copy both files into its `tests/fixtures/trip-map/` now.
+- [x] **Step 6: Ask to commit.** Suggested message: `test(crewluv): the shared replay and activity cases for the trip map, ahead of the app and the website`. Stage only the two JSON files and `TripMapFixtures.swift`. Then tell Todd the website's session can copy both files into its `tests/fixtures/trip-map/` now.
 
 ---
 
@@ -826,7 +826,7 @@ with:
 - Test: `CrewluvTests/TripActivityTests.swift`
 - Test: `CrewluvTests/TripMapWordingTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/TripActivityTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/TripActivityTests.swift`:
 
 ```swift
 //
@@ -920,9 +920,9 @@ with:
     }
 ```
 
-- [ ] **Step 2: Run them, expecting a build failure** (`TripActivity` doesn't exist). Todd runs `TripActivityTests`.
+- [x] **Step 2: Run them, expecting a build failure** (`TripActivity` doesn't exist). Todd runs `TripActivityTests`.
 
-- [ ] **Step 3: Write `TripActivity`.** Create `Crewluv/Services/TripMap/TripActivity.swift`:
+- [x] **Step 3: Write `TripActivity`.** Create `Crewluv/Services/TripMap/TripActivity.swift`:
 
 ```swift
 //
@@ -970,7 +970,7 @@ nonisolated struct TripActivity {
 }
 ```
 
-- [ ] **Step 4: Write the kinds' symbols and colors.** Create `Crewluv/Views/TripMap/TripActivity+Style.swift`:
+- [x] **Step 4: Write the kinds' symbols and colors.** Create `Crewluv/Views/TripMap/TripActivity+Style.swift`:
 
 ```swift
 //
@@ -1012,7 +1012,7 @@ nonisolated extension TripActivity.Kind {
 }
 ```
 
-- [ ] **Step 5: Write the timeline's line.** In `Crewluv/Services/TripMap/TripMapWording.swift`, replace:
+- [x] **Step 5: Write the timeline's line.** In `Crewluv/Services/TripMap/TripMapWording.swift`, replace:
 
 ```swift
     /// "Fri 9:14 PM", under the timeline and as the slider's VoiceOver value.
@@ -1047,9 +1047,9 @@ with:
     }
 ```
 
-- [ ] **Step 6: Run the tests, expecting them to pass.** Todd runs `TripActivityTests` and `TripMapWordingTests`. Expected: `TripActivityTests` 5 tests, 0 failures; `TripMapWordingTests` 24 tests (it had 20), 0 failures.
+- [x] **Step 6: Run the tests, expecting them to pass.** Todd runs `TripActivityTests` and `TripMapWordingTests`. Expected: `TripActivityTests` 5 tests, 0 failures; `TripMapWordingTests` 24 tests (it had 20), 0 failures.
 
-- [ ] **Step 7: Ask to commit.** Suggested message: `feat(crewluv): TripActivity, what the pilot is doing, with each kind's symbol, color and words under the timeline`.
+- [x] **Step 7: Ask to commit.** Suggested message: `feat(crewluv): TripActivity, what the pilot is doing, with each kind's symbol, color and words under the timeline`.
 
 ---
 
@@ -1065,7 +1065,7 @@ with:
 - Create: `CrewluvTests/Helpers/TripMap+HandMade.swift`
 - Test: `CrewluvTests/TripMapActivityTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/TripMapActivityTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/TripMapActivityTests.swift`:
 
 ```swift
 //
@@ -1232,9 +1232,9 @@ final class TripMapActivityTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Run them, expecting a build failure** (`groundStops`, `waits` and `activity(at:)` don't exist). Todd runs `TripMapActivityTests`.
+- [x] **Step 2: Run them, expecting a build failure** (`groundStops`, `waits` and `activity(at:)` don't exist). Todd runs `TripMapActivityTests`.
 
-- [ ] **Step 3: Keep the hand-made maps.** Create `CrewluvTests/Helpers/TripMap+HandMade.swift`:
+- [x] **Step 3: Keep the hand-made maps.** Create `CrewluvTests/Helpers/TripMap+HandMade.swift`:
 
 ```swift
 //
@@ -1255,7 +1255,7 @@ extension TripMap {
 }
 ```
 
-- [ ] **Step 4: Write the ground stop and the wait.** Create `Crewluv/Services/TripMap/GroundStop.swift`:
+- [x] **Step 4: Write the ground stop and the wait.** Create `Crewluv/Services/TripMap/GroundStop.swift`:
 
 ```swift
 //
@@ -1316,7 +1316,7 @@ nonisolated struct TripWait: Equatable {
 }
 ```
 
-- [ ] **Step 5: Keep the ground stops.** In `Crewluv/Services/TripMap/TripMap.swift`, make four replacements.
+- [x] **Step 5: Keep the ground stops.** In `Crewluv/Services/TripMap/TripMap.swift`, make four replacements.
 
 Replace:
 
@@ -1377,7 +1377,7 @@ with:
         return TripMap(mode: mode, legs: legs, groundStops: groundStops, home: home,
 ```
 
-- [ ] **Step 6: Write the activity.** Create `Crewluv/Services/TripMap/TripMap+Activity.swift`:
+- [x] **Step 6: Write the activity.** Create `Crewluv/Services/TripMap/TripMap+Activity.swift`:
 
 ```swift
 //
@@ -1450,9 +1450,9 @@ nonisolated extension TripMap {
 }
 ```
 
-- [ ] **Step 7: Run the tests, expecting them to pass.** Todd runs `TripMapActivityTests`, then `TripMapTests`, `TripFactsTests`, `TripFactsRowsTests` and `FactsCasesTests`. Expected: `TripMapActivityTests` 13 tests, 0 failures. The other four pass as before, with the same counts: the hand-made maps use Step 3's initializer.
+- [x] **Step 7: Run the tests, expecting them to pass.** Todd runs `TripMapActivityTests`, then `TripMapTests`, `TripFactsTests`, `TripFactsRowsTests` and `FactsCasesTests`. Expected: `TripMapActivityTests` 13 tests, 0 failures. The other four pass as before, with the same counts: the hand-made maps use Step 3's initializer.
 
-- [ ] **Step 8: Ask to commit.** Suggested message: `feat(crewluv): the trip map keeps CrewLu's ground legs and says what the pilot is doing at any moment`.
+- [x] **Step 8: Ask to commit.** Suggested message: `feat(crewluv): the trip map keeps CrewLu's ground legs and says what the pilot is doing at any moment`.
 
 ---
 
@@ -1464,7 +1464,7 @@ The whole file is rewritten. Against today's version, the changes are: `Stretch.
 - Rewrite: `Crewluv/Services/TripMap/TripReplayClock.swift`
 - Test: `CrewluvTests/TripReplayClockPaceTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/TripReplayClockPaceTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/TripReplayClockPaceTests.swift`:
 
 ```swift
 //
@@ -1635,9 +1635,9 @@ final class TripReplayClockPaceTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Run them, expecting a build failure** (`waits:`, `isQuickLayovers:` and the positions don't exist). Todd runs `TripReplayClockPaceTests`.
+- [x] **Step 2: Run them, expecting a build failure** (`waits:`, `isQuickLayovers:` and the positions don't exist). Todd runs `TripReplayClockPaceTests`.
 
-- [ ] **Step 3: Rewrite the clock.** Replace the whole of `Crewluv/Services/TripMap/TripReplayClock.swift` with:
+- [x] **Step 3: Rewrite the clock.** Replace the whole of `Crewluv/Services/TripMap/TripReplayClock.swift` with:
 
 ```swift
 //
@@ -1839,9 +1839,9 @@ nonisolated extension TripReplayClock {
 }
 ```
 
-- [ ] **Step 4: Run the tests, expecting them to pass.** Todd runs `TripReplayClockPaceTests` and `TripReplayClockTests`. Expected: `TripReplayClockPaceTests` 14 tests, 0 failures; `TripReplayClockTests` 16 tests, 0 failures, unchanged.
+- [x] **Step 4: Run the tests, expecting them to pass.** Todd runs `TripReplayClockPaceTests` and `TripReplayClockTests`. Expected: `TripReplayClockPaceTests` 14 tests, 0 failures; `TripReplayClockTests` 16 tests, 0 failures, unchanged.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): the replay clock hurries through waits with Quick layovers and places any moment in replay time`.
+- [x] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): the replay clock hurries through waits with Quick layovers and places any moment in replay time`.
 
 ---
 
@@ -1853,7 +1853,7 @@ nonisolated extension TripReplayClock {
 - Test: `CrewluvTests/TripTimelineTests.swift`
 - Test: `CrewluvTests/TripTimelineTrackTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/TripTimelineTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/TripTimelineTests.swift`:
 
 ```swift
 //
@@ -2004,9 +2004,9 @@ final class TripTimelineTrackTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Run them, expecting a build failure.** Todd runs `TripTimelineTests` and `TripTimelineTrackTests`.
+- [x] **Step 2: Run them, expecting a build failure.** Todd runs `TripTimelineTests` and `TripTimelineTrackTests`.
 
-- [ ] **Step 3: Write `TripTimeline`.** Create `Crewluv/Services/TripMap/TripTimeline.swift`:
+- [x] **Step 3: Write `TripTimeline`.** Create `Crewluv/Services/TripMap/TripTimeline.swift`:
 
 ```swift
 //
@@ -2080,7 +2080,7 @@ nonisolated struct TripTimeline {
 }
 ```
 
-- [ ] **Step 4: Write the track.** Create `Crewluv/Views/TripMap/TripTimelineTrack.swift`:
+- [x] **Step 4: Write the track.** Create `Crewluv/Views/TripMap/TripTimelineTrack.swift`:
 
 ```swift
 //
@@ -2120,9 +2120,9 @@ nonisolated struct TripTimelineTrack {
 }
 ```
 
-- [ ] **Step 5: Run the tests, expecting them to pass.** Todd runs `TripTimelineTests` and `TripTimelineTrackTests`. Expected: 7 tests and 4 tests, 0 failures.
+- [x] **Step 5: Run the tests, expecting them to pass.** Todd runs `TripTimelineTests` and `TripTimelineTrackTests`. Expected: 7 tests and 4 tests, 0 failures.
 
-- [ ] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): the timeline's blocks in replay time, colored by what the pilot is doing, with each wait's length`.
+- [x] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): the timeline's blocks in replay time, colored by what the pilot is doing, with each wait's length`.
 
 **Batch A review:** dispatch `superpowers:code-reviewer` (sonnet) on Tasks 2–6. Give it the design (`docs/superpowers/specs/2026-11-14-trip-map-activity-markers-and-quick-layovers-design.md`), this plan's Design section, the two JSON files and the new and changed files. Ask it to check:
 - `TripMap+Activity` follows design §2.2 exactly: the overlap, the tie to the earlier, the 8 hours, before the first departure and from the last arrival.
@@ -2152,7 +2152,7 @@ Handle what it finds as Task 11 says. Then Todd runs everything (⌘U, as in the
 - Test: `CrewluvTests/TripMapDrawingTests.swift`
 - Test: `CrewluvTests/TripMapStatusTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Replace the whole of `CrewluvTests/TripMapMarkerTests.swift` with:
+- [x] **Step 1: Write the failing tests.** Replace the whole of `CrewluvTests/TripMapMarkerTests.swift` with:
 
 ```swift
 //
@@ -2297,9 +2297,9 @@ with:
         #expect(map.pilotLocation(at: hours(36))?.code == "SDF", "the pilot is at home, where the last leg landed")
 ```
 
-- [ ] **Step 2: Run them, expecting a build failure** (`.pilot` and `drawing.pilot` don't exist). Todd runs `TripMapMarkerTests`.
+- [x] **Step 2: Run them, expecting a build failure** (`.pilot` and `drawing.pilot` don't exist). Todd runs `TripMapMarkerTests`.
 
-- [ ] **Step 3: The drawing carries the activity.** In `Crewluv/Services/TripMap/TripMapDrawing.swift`, replace:
+- [x] **Step 3: The drawing carries the activity.** In `Crewluv/Services/TripMap/TripMapDrawing.swift`, replace:
 
 ```swift
     let plane: PlaneMark?
@@ -2328,7 +2328,7 @@ with:
         self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
 ```
 
-- [ ] **Step 4: The marker.** Replace the whole of `Crewluv/Views/TripMap/TripMapMarker.swift` with:
+- [x] **Step 4: The marker.** Replace the whole of `Crewluv/Views/TripMap/TripMapMarker.swift` with:
 
 ```swift
 //
@@ -2391,7 +2391,7 @@ nonisolated enum TripMapMarker: Equatable {
 }
 ```
 
-- [ ] **Step 5: The marker's look.** In `Crewluv/Views/TripMap/TripMapMarkers.swift`, replace:
+- [x] **Step 5: The marker's look.** In `Crewluv/Views/TripMap/TripMapMarkers.swift`, replace:
 
 ```swift
     /// Where the pilot is.
@@ -2458,7 +2458,7 @@ struct TripMapMarkerView: View {
 }
 ```
 
-- [ ] **Step 6: Place it as the heart was.** In `Crewluv/Views/TripMap/TripMapAnnotationView.swift`, replace:
+- [x] **Step 6: Place it as the heart was.** In `Crewluv/Views/TripMap/TripMapAnnotationView.swift`, replace:
 
 ```swift
     /// Where the view's centre sits from its coordinate. The airport's dot sits on the airport with its code below;
@@ -2529,7 +2529,7 @@ with:
 //  the map opens it full screen.
 ```
 
-- [ ] **Step 7: Check nothing still names what went.**
+- [x] **Step 7: Check nothing still names what went.**
 
 ```bash
 cd /Users/toddanderson/Dev/Crewluv && grep -rnE "case heart|\.heart[^a-zA-Z.]|Heart\(\)|drawing\.pin|let pin" Crewluv/Views/TripMap Crewluv/Services/TripMap CrewluvTests
@@ -2537,9 +2537,9 @@ cd /Users/toddanderson/Dev/Crewluv && grep -rnE "case heart|\.heart[^a-zA-Z.]|He
 
 Expected: no lines. Any line is a leftover: fix it.
 
-- [ ] **Step 8: Todd builds and runs the tests.** Todd presses ⌘B, then runs `TripMapMarkerTests` and `TripMapDrawingTests`. Expected: the build succeeds; `TripMapMarkerTests` 6 tests (it had 4) and `TripMapDrawingTests` 6 tests (it had 5), 0 failures.
+- [x] **Step 8: Todd builds and runs the tests.** Todd presses ⌘B, then runs `TripMapMarkerTests` and `TripMapDrawingTests`. Expected: the build succeeds; `TripMapMarkerTests` 6 tests (it had 4) and `TripMapDrawingTests` 6 tests (it had 5), 0 failures.
 
-- [ ] **Step 9: Ask to commit.** Suggested message: `feat(crewluv): the trip map's heart becomes a marker for what the pilot is doing: a layover, a turn, base or home`.
+- [x] **Step 9: Ask to commit.** Suggested message: `feat(crewluv): the trip map's heart becomes a marker for what the pilot is doing: a layover, a turn, base or home`.
 
 ---
 
@@ -2551,7 +2551,7 @@ Two new views. Nothing uses them until Task 9, and Todd builds at its end.
 - Create: `Crewluv/Views/TripMap/TripTimelineBlocks.swift`
 - Create: `Crewluv/Views/TripMap/TripTimelineBar.swift`
 
-- [ ] **Step 1: Write the blocks.** Create `Crewluv/Views/TripMap/TripTimelineBlocks.swift`:
+- [x] **Step 1: Write the blocks.** Create `Crewluv/Views/TripMap/TripTimelineBlocks.swift`:
 
 ```swift
 //
@@ -2622,7 +2622,7 @@ struct TripTimelineBlocks: View {
 }
 ```
 
-- [ ] **Step 2: Write the bar.** Create `Crewluv/Views/TripMap/TripTimelineBar.swift`:
+- [x] **Step 2: Write the bar.** Create `Crewluv/Views/TripMap/TripTimelineBar.swift`:
 
 ```swift
 //
@@ -2682,7 +2682,7 @@ struct TripTimelineBar: View {
 }
 ```
 
-- [ ] **Step 3: Nothing to run yet.** Todd builds at the end of Task 9.
+- [x] **Step 3: Nothing to run yet.** Todd builds at the end of Task 9.
 
 ---
 
@@ -2698,7 +2698,7 @@ These build together: `FactsHeader` and `TripTimelineControl` take new inputs, s
 - Rewrite: `Crewluv/Views/TripMap/TripMapScreen.swift`
 - Rewrite: `Crewluv/Views/TripMap/TripMapPreviews.swift`
 
-- [ ] **Step 1: The control.** Replace the whole of `Crewluv/Views/TripMap/TripTimelineControl.swift` with the following. Against today's version: the bar replaces the `Slider`, the line under it replaces the time, and the switch joins the speeds. The play button, Live and the speeds are unchanged.
+- [x] **Step 1: The control.** Replace the whole of `Crewluv/Views/TripMap/TripTimelineControl.swift` with the following. Against today's version: the bar replaces the `Slider`, the line under it replaces the time, and the switch joins the speeds. The play button, Live and the speeds are unchanged.
 
 ```swift
 //
@@ -2813,7 +2813,7 @@ struct TripTimelineControl: View {
 }
 ```
 
-- [ ] **Step 2: The sheet's header.** Replace the whole of `Crewluv/Views/TripMap/FactsHeader.swift` with:
+- [x] **Step 2: The sheet's header.** Replace the whole of `Crewluv/Views/TripMap/FactsHeader.swift` with:
 
 ```swift
 //
@@ -2850,7 +2850,7 @@ struct FactsHeader: View {
 }
 ```
 
-- [ ] **Step 3: The sheet.** In `Crewluv/Views/TripMap/FactsSheet.swift`, replace:
+- [x] **Step 3: The sheet.** In `Crewluv/Views/TripMap/FactsSheet.swift`, replace:
 
 ```swift
     let facts: TripFacts
@@ -2894,7 +2894,7 @@ with:
                                 isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
 ```
 
-- [ ] **Step 4: The panel.** Replace the whole of `Crewluv/Views/TripMap/FactsPanel.swift` with the following. Against today's version: `timeline` and `isQuickLayovers` are new, and the control's view is renamed `timelineControl`, since `timeline` is now the blocks.
+- [x] **Step 4: The panel.** Replace the whole of `Crewluv/Views/TripMap/FactsPanel.swift` with the following. Against today's version: `timeline` and `isQuickLayovers` are new, and the control's view is renamed `timelineControl`, since `timeline` is now the blocks.
 
 ```swift
 //
@@ -2986,7 +2986,7 @@ struct FactsPanel: View {
 }
 ```
 
-- [ ] **Step 5: The screen.** Replace the whole of `Crewluv/Views/TripMap/TripMapScreen.swift` with the following. Against `6a2ecaf`'s version, checked in Task 1, the only changes are:
+- [x] **Step 5: The screen.** Replace the whole of `Crewluv/Views/TripMap/TripMapScreen.swift` with the following. Against `6a2ecaf`'s version, checked in Task 1, the only changes are:
 - `quickLayoversKey` and `@AppStorage` `isQuickLayovers`;
 - the clock is made with the map's waits and Quick layovers (`clock(for:isQuickLayovers:)`), and switches pace in `onChange(of: isQuickLayovers, initial: true)`;
 - `body` makes the timeline's blocks once per update, and passes them and the switch to the sheet and the panel;
@@ -3195,7 +3195,7 @@ struct TripMapScreen: View {
 }
 ```
 
-- [ ] **Step 6: The previews.** Replace the whole of `Crewluv/Views/TripMap/TripMapPreviews.swift` with the following. The Europe trip gains CrewLu's two layovers, so the "Layover" preview shows the bed; "Turn" and "At base" are new; the two full-screen previews set Quick layovers on and off.
+- [x] **Step 6: The previews.** Replace the whole of `Crewluv/Views/TripMap/TripMapPreviews.swift` with the following. The Europe trip gains CrewLu's two layovers, so the "Layover" preview shows the bed; "Turn" and "At base" are new; the two full-screen previews set Quick layovers on and off.
 
 ```swift
 //
@@ -3355,7 +3355,7 @@ private enum TripMapPreviewData {
 #endif
 ```
 
-- [ ] **Step 7: Check nothing still calls the old shapes.**
+- [x] **Step 7: Check nothing still calls the old shapes.**
 
 ```bash
 cd /Users/toddanderson/Dev/Crewluv && grep -rnF -e 'TripTimelineControl(clock: $clock, time:' -e 'FactsHeader(headline: facts.sheetHeadline(at: time), clock:' -e 'periodic(from: .now, by: clock.isPlaying' Crewluv
@@ -3363,15 +3363,15 @@ cd /Users/toddanderson/Dev/Crewluv && grep -rnF -e 'TripTimelineControl(clock: $
 
 Expected: no lines.
 
-- [ ] **Step 8: Todd builds and looks at the previews.** Todd presses ⌘B. Expected: the build succeeds, with no warnings in this plan's files. Then, in Xcode, open `TripMapPreviews.swift` and look at the canvas. Expected:
+- [x] **Step 8: Todd builds and looks at the previews.** Todd presses ⌘B. Expected: the build succeeds, with no warnings in this plan's files. Then, in Xcode, open `TripMapPreviews.swift` and look at the canvas. Expected:
   - "Layover": an indigo bed on Cologne. "Turn": an orange hourglass on Cologne. "At base": a teal briefcase on Louisville, and the car parked halfway from Lexington. "Next trip" and "Recap": a green house on Louisville.
   - No heart anywhere.
   - "Full screen, in flight, Quick layovers on": under the map or in the panel, a bar of blue flights with two small indigo layover blocks labelled "24h" and "20h" where they fit, the thumb a little way along the first flight, "Fri 3:14 PM · Flying to Cologne" style words under it, and the switch on.
   - "Full screen, recap, Quick layovers off": the two layover blocks take about a third and just over a quarter of the bar (48 s and 40 s of 144 s), and the switch is off. Press play in the canvas: the replay crawls through Cologne. Turn the switch on: the map stays on the same moment and hurries on.
 
-- [ ] **Step 9: Todd runs everything** (⌘U, as in the ground rules). Expected: no failures. Since Batch A's run: `TripMapMarkerTests` 6 (it had 4) and `TripMapDrawingTests` 6 (it had 5).
+- [x] **Step 9: Todd runs everything** (⌘U, as in the ground rules). Expected: no failures. Since Batch A's run: `TripMapMarkerTests` 6 (it had 4) and `TripMapDrawingTests` 6 (it had 5).
 
-- [ ] **Step 10: Ask to commit Tasks 8 and 9 together.** Suggested message: `feat(crewluv): the trip map's timeline is colored by what the pilot is doing, measured in replay time, with Quick layovers and 60 updates a second during a replay`.
+- [x] **Step 10: Ask to commit Tasks 8 and 9 together.** Suggested message: `feat(crewluv): the trip map's timeline is colored by what the pilot is doing, measured in replay time, with Quick layovers and 60 updates a second during a replay`.
 
 ---
 
@@ -3381,10 +3381,10 @@ Expected: no lines.
 - Modify: `docs/superpowers/specs/2026-11-13-crewluve-moving-map-design.md`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Amend the moving map spec.** Apply each amendment in the Design section's "Spec amendments": the header, §5.1, §6, §10 (three), §14 (two) and §15.1. Each "Replace" block's text is in the spec as quoted. If one isn't found exactly, STOP: the spec has moved on since this plan.
+- [x] **Step 1: Amend the moving map spec.** Apply each amendment in the Design section's "Spec amendments": the header, §5.1, §6, §10 (three), §14 (two) and §15.1. Each "Replace" block's text is in the spec as quoted. If one isn't found exactly, STOP: the spec has moved on since this plan.
 - §7.1 and §11 still name the heart; the design's §10 doesn't list them, so leave them ("Seen, not fixed").
 
-- [ ] **Step 2: Update `CLAUDE.md`'s Trip Map section.** Replace:
+- [x] **Step 2: Update `CLAUDE.md`'s Trip Map section.** Replace:
 
 ```markdown
 - The status screen's map (moving map spec `docs/superpowers/specs/2026-11-13-crewluve-moving-map-design.md`): the whole trip on the ground with a heart where the pilot is, the next trip from home, and the plane in the air. In flight it takes the location card's place; on the ground it sits above it
@@ -3423,7 +3423,7 @@ with:
 
 Change only these three bullets.
 
-- [ ] **Step 3: Ask to commit.** Suggested message: `docs(crewluv): the moving map spec and CLAUDE.md for the activity markers, the colored timeline and Quick layovers`. Stage only these two files. If `git diff` shows edits in either that aren't this task's, ask Todd how he wants them committed first.
+- [x] **Step 3: Ask to commit.** Suggested message: `docs(crewluv): the moving map spec and CLAUDE.md for the activity markers, the colored timeline and Quick layovers`. Stage only these two files. If `git diff` shows edits in either that aren't this task's, ask Todd how he wants them committed first.
 
 ---
 
@@ -3431,7 +3431,7 @@ Change only these three bullets.
 
 **Files:** none change, unless a finding is real.
 
-- [ ] **Step 1: Ask for a review.** Dispatch `superpowers:code-reviewer` with `model: "sonnet"`.
+- [x] **Step 1: Ask for a review.** Dispatch `superpowers:code-reviewer` with `model: "sonnet"`.
 - Give it:
   - the design;
   - this plan's Design section;
@@ -3446,13 +3446,13 @@ Change only these three bullets.
   - **Isolation and imports:** pure types and their extensions are `nonisolated`; each file imports the modules its members come from.
   - **Leftovers:** nothing names `heart` or `pin`.
 
-- [ ] **Step 2: Handle what it finds.** Check each finding against the code before acting on it. Keep a list for Todd of what was fixed and what was left, and why. A fix to a pure type means Todd runs its tests again.
+- [x] **Step 2: Handle what it finds.** Check each finding against the code before acting on it. Keep a list for Todd of what was fixed and what was left, and why. A fix to a pure type means Todd runs its tests again.
 
 ---
 
 ### Task 12: Todd runs the tests
 
-- [ ] **Step 1: The steps for Todd.**
+- [x] **Step 1: The steps for Todd.**
   1. In Xcode, choose an iPhone simulator beside **Crewluv** at the top of the window.
   2. Press **⌘U** and wait for the run to finish.
   3. Paste me the end of the test output.
@@ -3470,7 +3470,7 @@ Expected: no failures.
 
 The simulator can't show whether motion is smooth, and Todd saw the snapping night on his iPad. So the iPad comes first, then an iPhone. Run from Xcode, then press **⌘.** and open Crewluve from its icon: Xcode's debugger makes motion look worse than it is. Open the trip map from the status screen's card, during a trip or a recap; the demo status works too.
 
-- [ ] **Step 1: On the iPad.**
+- [x] **Step 1: On the iPad.**
   1. **The marker.** On the card and the full-screen map, the pilot's marker shows what they're doing: an indigo bed on a layover, an orange hourglass at a turn, a teal briefcase at base, a green house at home. No heart anywhere.
   2. **A replay at 1x, Quick layovers on.** Play. When a flight lands, the plane gives way to the bed. The layover passes in about 3 s, and the night sweeps across the map smoothly, without snapping. The bed gives way to the plane at the next departure.
   3. **At 10x.** Each part takes a tenth as long. The night still sweeps rather than jumps.
@@ -3483,7 +3483,7 @@ The simulator can't show whether motion is smooth, and Todd saw the snapping nig
   10. **VoiceOver.** On the bar it reads "Trip time", then the moment and what the pilot is doing, such as "Saturday 1:40 PM, layover in Denver", and that it's adjustable. Swiping up and down moves it. On the switch it reads "Quick layovers, switch button, on". On the map it doesn't read the pilot's marker.
   11. **Remembered.** Turn Quick layovers off, close the map, and open it again: it's still off. Turn it back on.
   12. **After a replay ends.** The play button shows, and play starts the trip over.
-- [ ] **Step 2: On an iPhone.**
+- [x] **Step 2: On an iPhone.**
   13. **The sheet.** At its small stop it shows the headline, the bar, the line under it, and the switch with the speeds. The map is framed above it. Dragging on the bar moves the thumb, not the sheet.
   14. **A replay at 1x and 10x, Quick layovers on and off.** Smooth, as on the iPad. Pull the sheet to the middle stop during a replay: the rows keep up, and the map and the thumb stay smooth.
   15. **Landscape.** The panel shows, as on the iPad.
@@ -3499,11 +3499,11 @@ To send a screenshot, press the side or top button and volume up together.
 
 Once every check passes, close out:
 
-- [ ] **Step 3: Tell Todd, and wait for the yes.** Say what's ready, what the review fixed or left, and what the device check showed. Ask whether to commit anything not yet committed. Don't push without his word.
+- [x] **Step 3: Tell Todd, and wait for the yes.** Say what's ready, what the review fixed or left, and what the device check showed. Ask whether to commit anything not yet committed. Don't push without his word.
 
-- [ ] **Step 4: Mark the spec.** In the moving map spec's 2026-11-14 amendment paragraph (Task 10), add one sentence with the device check's result and the day it was done, such as "Checked on Todd's iPad and iPhone, 15 Nov 2026: the night sweeps smoothly through a quick layover at 1x and 10x." Tick this plan's steps. Both go in a commit, on Todd's yes.
+- [x] **Step 4: Mark the spec.** In the moving map spec's 2026-11-14 amendment paragraph (Task 10), add one sentence with the device check's result and the day it was done, such as "Checked on Todd's iPad and iPhone, 15 Nov 2026: the night sweeps smoothly through a quick layover at 1x and 10x." Tick this plan's steps. Both go in a commit, on Todd's yes.
 
-- [ ] **Step 5: The revision note.** Draft the "Crewluve revisions" entry in the "1.0.X Build YY" format, as the release-notes memory describes. Confirm the version and build with Todd. Print it for him to paste rather than writing to the note by script. Suggested text:
+- [x] **Step 5: The revision note.** Draft the "Crewluve revisions" entry in the "1.0.X Build YY" format, as the release-notes memory describes. Confirm the version and build with Todd. Print it for him to paste rather than writing to the note by script. Suggested text:
 
 ```
 The trip map now shows what your pilot is doing: a bed on a layover, an hourglass at a turn, a briefcase at base and a house at home. Replays hurry through long layovers with the new Quick layovers switch, as the night sweeps by, and the timeline is colored by flights, drives and time on the ground.
