@@ -138,6 +138,30 @@ final class TripMapWordingTests: XCTestCase {
         XCTAssertEqual(plain(TripMapWording.timelineTime(now, calendar: calendar, locale: locale)), "Fri 3:14 PM")
     }
 
+    // MARK: - The line under the timeline (activity markers design §4.2, §4.3)
+
+    func test_timelineLine_isTheTimeAndWhatThePilotIsDoing() {
+        let activity = TripActivity(kind: .layover, place: cologne)
+        XCTAssertEqual(plain(TripMapWording.timelineLine(now, activity: activity, calendar: calendar, locale: locale)),
+                       "Fri 3:14 PM · Layover in Cologne")
+    }
+
+    func test_timelineLine_noActivity_isTheTime() {
+        XCTAssertEqual(plain(TripMapWording.timelineLine(now, activity: nil, calendar: calendar, locale: locale)), "Fri 3:14 PM")
+    }
+
+    func test_timelineSpokenValue_readsTheWholeDayAndTheActivity() {
+        let activity = TripActivity(kind: .layover, place: cologne)
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(now, activity: activity, calendar: calendar, locale: locale)),
+                       "Friday 3:14 PM, layover in Cologne")
+    }
+
+    func test_timelineSpokenValue_atHome_readsHome() {
+        let activity = TripActivity(kind: .home, place: louisville)
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(now, activity: activity, calendar: calendar, locale: locale)),
+                       "Friday 3:14 PM, home")
+    }
+
     func test_cardSummary_nextTrip_readsCityNames() throws {
         let start = TripMapTestLegs.tripStart
         let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), isNextTrip: true, at: start.addingTimeInterval(-86_400)))

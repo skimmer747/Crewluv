@@ -167,9 +167,26 @@ nonisolated enum TripMapWording {
         return tripMap.pilotLocation(at: date).map { placeChip(for: $0, at: date, locale: locale) } ?? ""
     }
 
-    /// "Fri 9:14 PM", under the timeline and as the slider's VoiceOver value.
+    /// "Fri 9:14 PM", the time under the timeline.
     static func timelineTime(_ date: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         date.formatted(style(calendar: calendar, locale: locale).weekday(.abbreviated).hour().minute())
+    }
+
+    /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
+    static func timelineLine(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
+                             locale: Locale = .current) -> String {
+        let time = timelineTime(date, calendar: calendar, locale: locale)
+        guard let activity else { return time }
+        return "\(time) · \(activity.words)"
+    }
+
+    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3).
+    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
+                                    locale: Locale = .current) -> String {
+        let time = date.formatted(style(calendar: calendar, locale: locale).weekday(.wide).hour().minute())
+        guard let activity else { return time }
+        let words = activity.words
+        return "\(time), \(words.prefix(1).lowercased() + words.dropFirst())"
     }
 
     // MARK: - VoiceOver
