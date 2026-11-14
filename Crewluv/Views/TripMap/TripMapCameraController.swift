@@ -24,10 +24,10 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     /// the status bar keeps its camera and its logo where they are.
     private var respectsSafeArea = false
     private var appliedMargins: NSDirectionalEdgeInsets?
-    /// The request last framed, and the size and padding it was framed for.
+    /// The request last framed, and the size and layout margins it was framed for.
     private var framedNumber: Int?
     private var framedSize: CGSize = .zero
-    private var framedPadding: UIEdgeInsets = .zero
+    private var framedMargins: UIEdgeInsets = .zero
 
     init(mapView: MKMapView) {
         self.mapView = mapView
@@ -81,20 +81,24 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         mapView.directionalLayoutMargins = margins
     }
 
-    /// Frames the camera's rectangle when it's a new request, or when the map's size, safe area or clearance has
-    /// changed and the family hasn't moved the map. The first framing, as the map opens, is never animated.
+    /// Frames the camera's rectangle when it's a new request, or when the map's size or layout margins have changed
+    /// and the family hasn't moved the map. The first framing, as the map opens, is never animated.
+    ///
+    /// MapKit fits the rectangle inside the map's layout margins, which hold the safe area and the sheet or panel
+    /// (`applyMargins()`), so it's given no padding of its own. Padding as well counted the panel twice: on Todd's iPad
+    /// the trip sat small, far to the right of it.
     private func frameIfNeeded(_ camera: TripMapCamera) {
         guard let mapView, mapView.bounds.width > 0, mapView.bounds.height > 0 else { return }
-        let padding = clearance.framingPadding(safeArea: safeArea, isRightToLeft: isRightToLeft)
+        let margins = mapView.layoutMargins
         let isNewRequest = camera.framingNumber != framedNumber
-        let hasLayoutChanged = mapView.bounds.size != framedSize || padding != framedPadding
+        let hasLayoutChanged = mapView.bounds.size != framedSize || margins != framedMargins
         guard isNewRequest || (hasLayoutChanged && !camera.isPositionedByUser) else { return }
         let isAnimated = isNewRequest && framedNumber != nil && camera.isAnimated
         framedNumber = camera.framingNumber
         framedSize = mapView.bounds.size
-        framedPadding = padding
+        framedMargins = margins
         guard let rect = camera.rect else { return }
-        mapView.setVisibleMapRect(rect, edgePadding: padding, animated: isAnimated)
+        mapView.setVisibleMapRect(rect, edgePadding: .zero, animated: isAnimated)
         if !isAnimated { onFramedWithoutAnimation?() }
     }
 

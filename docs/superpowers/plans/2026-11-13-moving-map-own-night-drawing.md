@@ -3811,6 +3811,13 @@ The whole-file blocks were copied from the plan by script. Step 7's two replacem
     - VoiceOver's three-finger scroll isn't seen as the family moving the map (see "Seen, not fixed").
     - The controllers have no unit tests. `frameIfNeeded`'s decision could be pulled out into a pure function and tested.
 
+### Task 15: the device check (2026-11-14)
+
+- **Recenter, and every framing on the ground, put the trip small and far to the right of the iPad's panel.** The space left of the trip was about twice the panel. MapKit fits `setVisibleMapRect` inside the map's layout margins, and those already held the panel's clearance (`applyMargins()`). `framingPadding` gave it again as edge padding.
+  - The camera now frames with no edge padding, and refits when the map's layout margins change.
+  - `TripMapClearance.framingPadding` and its two tests went. The clearance tests now check the panel's margins left to right and right to left.
+  - The preview's full-screen iPhone map had the same fault: the leg sat high above the sheet, with the sheet counted twice.
+
 ### Short legs in a replay, from the website (2026-11-13)
 
 Todd asked, through the website's session, for the app's replay to match the website's. While a leg moves, 1x plays at the slower of a day in 48 s and the leg's length over 3 s. Between legs it plays at a day in 48 s. The speed multiplies both, and where legs overlap the slowest wins. Sources: Crewluve Website `docs/superpowers/specs/2026-11-13-replay-short-legs-design.md`, `src/map/replayClock.ts`, and `tests/map/replayClock.test.ts`.
