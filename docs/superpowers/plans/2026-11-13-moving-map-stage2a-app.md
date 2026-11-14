@@ -1148,7 +1148,7 @@ final class LegStoryTests: XCTestCase {
         XCTAssertEqual(stretches.map(\.place.name), ["Alpha", "Bravo", "the Test Sea"], "the 21-mile Wedge is dropped")
         XCTAssertEqual(stretches[0].start, 0)
         XCTAssertEqual(stretches[1].start, 0.25, accuracy: 0.001)
-        XCTAssertEqual(stretches[2].start, 0.6, accuracy: 0.001)
+        XCTAssertEqual(stretches[2].start, 0.6036, accuracy: 0.001, "the coast snap moves the sea 5 mi offshore: 12.0724° E")
     }
 
     func test_stretches_aGapWithNoPlace_changesNothing() {
@@ -1418,7 +1418,7 @@ final class MilestoneTests: XCTestCase {
         XCTAssertEqual(found.count, 4)
         assert(found[0], .crossedInto("Bravo"), at: "2026-03-20T11:00:00Z")
         assert(found[1], .halfway, at: "2026-03-20T11:45:00Z")
-        assert(found[2], .outOver("the Test Sea"), at: "2026-03-20T12:03:00Z")
+        assert(found[2], .outOver("the Test Sea"), at: "2026-03-20T12:03:39Z") // 5 mi offshore, by the coast snap
         assert(found[3], .closestToHome(miles: 35), at: "2026-03-20T12:21:00Z")
     }
 
@@ -1445,7 +1445,7 @@ final class MilestoneTests: XCTestCase {
         let leg = FactsTestData.equatorFlight(from: 50, to: 60, departure: FactsTestData.equinox.addingTimeInterval(8 * 3600))
         let found = milestones(leg, geography)
         XCTAssertEqual(found.map(\.kind), [.halfway, .crossedInto("Foxtrot")])
-        assert(found[1], .crossedInto("Foxtrot"), at: "2026-03-20T20:03:00Z")
+        assert(found[1], .crossedInto("Foxtrot"), at: "2026-03-20T20:01:42Z") // 5 mi before the coast, by the coast snap
     }
 
     func test_milestones_aGapWhereOnlyTheCountryIsKnown_isNotAMilestone() {
@@ -3538,7 +3538,7 @@ Times match to within a minute.
   "about": "The trip map's facts (moving map Stage 2 spec §12.1). The app runs every case in FactsCasesTests; the website keeps a copy in tests/fixtures/trip-map/. Change both copies together. Times match to within 60 seconds; words are en_US in America/New_York.",
   "constants": {
     "cockpitHorizonDegrees": -3.8627, "milestoneMinutes": 5, "sunHeadlineMinutes": 30, "sampleMiles": 10,
-    "holdMiles": 25, "homeRadiusMiles": 100, "cityRadiusMiles": 40, "weatherHours": 48
+    "holdMiles": 25, "homeRadiusMiles": 100, "cityRadiusMiles": 40, "coastSnapMiles": 5, "weatherHours": 48
   },
   "comparisons": [
     {"miles": 10, "phrase": null},
@@ -3561,7 +3561,12 @@ Times match to within a minute.
     {"lat": 58.0, "lon": -54.0, "place": "the Labrador Sea", "kind": "water", "country": null},
     {"lat": 40.0, "lon": -40.0, "place": "the Atlantic", "kind": "water", "country": null},
     {"lat": 30.0, "lon": -150.0, "place": "the Pacific", "kind": "water", "country": null},
-    {"lat": 45.5, "lon": -4.5, "place": "the Bay of Biscay", "kind": "water", "country": null}
+    {"lat": 45.5, "lon": -4.5, "place": "the Bay of Biscay", "kind": "water", "country": null},
+    {"lat": 40.71, "lon": -74.01, "place": "New York", "kind": "state", "country": "the United States"},
+    {"lat": 40.75, "lon": -73.85, "place": "New York", "kind": "state", "country": "the United States"},
+    {"lat": 25.76, "lon": -80.19, "place": "Florida", "kind": "state", "country": "the United States"},
+    {"lat": 32.30, "lon": -64.78, "place": "Bermuda", "kind": "country", "country": "Bermuda"},
+    {"lat": 35.90, "lon": 14.45, "place": "Malta", "kind": "country", "country": "Malta"}
   ],
   "cities": [
     {"lat": 45.55, "lon": -73.70, "city": "Montréal"},
@@ -3588,7 +3593,7 @@ Times match to within a minute.
      "milestones": [
        {"kind": "crossedInto", "name": "Bravo", "time": "2026-03-20T11:00:00Z"},
        {"kind": "halfway", "time": "2026-03-20T11:45:00Z"},
-       {"kind": "outOver", "name": "the Test Sea", "time": "2026-03-20T12:03:00Z"},
+       {"kind": "outOver", "name": "the Test Sea", "time": "2026-03-20T12:03:39Z"},
        {"kind": "closestToHome", "miles": 35, "time": "2026-03-20T12:21:00Z"}
      ]},
     {"name": "states", "from": [0, 30], "to": [0, 40], "departure": "2026-03-20T14:00:00Z", "arrival": "2026-03-20T17:22:00Z", "home": null,
@@ -3600,7 +3605,7 @@ Times match to within a minute.
     {"name": "seas", "from": [0, 50], "to": [0, 60], "departure": "2026-03-20T18:00:00Z", "arrival": "2026-03-20T21:22:00Z", "home": null,
      "milestones": [
        {"kind": "halfway", "time": "2026-03-20T19:45:00Z"},
-       {"kind": "crossedInto", "name": "Foxtrot", "time": "2026-03-20T20:03:00Z"}
+       {"kind": "crossedInto", "name": "Foxtrot", "time": "2026-03-20T20:01:42Z"}
      ]},
     {"name": "nowhere", "from": [10, 0], "to": [10, 20], "departure": "2026-03-20T10:00:00Z", "arrival": "2026-03-20T13:22:00Z", "home": null,
      "milestones": [
@@ -3677,6 +3682,7 @@ Times match to within a minute.
             let holdMiles: Double
             let homeRadiusMiles: Double
             let cityRadiusMiles: Double
+            let coastSnapMiles: Double
             let weatherHours: Double
         }
 
@@ -3867,6 +3873,7 @@ final class FactsCasesTests: XCTestCase {
         XCTAssertEqual(LegStory.holdDistance, constants.holdMiles * mile)
         XCTAssertEqual(LegStory.homeRadius, constants.homeRadiusMiles * mile)
         XCTAssertEqual(Geography.cityRadius, constants.cityRadiusMiles * mile)
+        XCTAssertEqual(Geography.coastSnap, constants.coastSnapMiles * mile)
         XCTAssertEqual(TripFacts.weatherHorizon, constants.weatherHours * 3600)
     }
 
@@ -5148,3 +5155,49 @@ private enum TripMapPreviewData {
 - [ ] **Step 4: Ask to commit.** Suggested message: `docs(crewluv): the trip map's facts in CLAUDE.md, and the Stage 2A plan's record of changes`.
 
 - [ ] **Step 5: Hand over.** The website's Stage 2B plan starts once Stage 1B is merged. It copies `geography.json`, `comparisons.json` and `facts-cases.json`, and ports `Services/TripMap/Facts/` to `src/facts/`.
+
+---
+
+## Changes made during execution
+
+The code, not the blocks above, is the reference for these.
+
+### Batch A (Tasks 2–6), from its review
+
+**`scripts/build-geography.mjs` and the place names:**
+- **English water names:** waters take Natural Earth's `name_en` where it has one ("the Gulf of California", not "Golfo de California").
+- **Oceans:** the ocean names are looked up whatever their case. Natural Earth writes "SOUTHERN OCEAN" and "INDIAN OCEAN" in capitals.
+- **Waters kept:** only oceans, seas, bays, gulfs, straits, channels and sounds. Rivers and reefs are left out.
+- **Two names fixed:** "Tikahtnu Inlet" reads "Cook Inlet", and the US region is "the District of Columbia".
+- **The size check** counts bytes (`Buffer.byteLength`), stops after 40 rounds with a clear error, and says where to get the sources when they're missing.
+- **It never drops a place.** At 500 KB, simplification had wiped out 38 small countries and territories (Malta, Bermuda, the Maldives, Monaco…). An area whose rings all simplify away now keeps its largest ring, unsimplified and rounded to 3 decimals.
+
+**`ComparisonPicker`:** it rounds as a `Double` and checks 1…10 before converting to `Int`, so an infinite or enormous distance can't trap.
+
+**`Geography`:**
+- The private ring test is now `ring(_:containsLatitude:longitude:)`.
+- **The coast snap**, approved by Todd and added to spec §4.1. A point over water or over nothing takes the nearest state, province or country within 5 mi (`Geography.coastSnap`), by distance to the rings' edges on a flat map around the point.
+  - Without it, central New York read "the Atlantic" and Queens had no place.
+  - A 1 MB file didn't fix this: Natural Earth's 1:50m coast is the limit, not the simplification.
+  - New tests: `test_place_justOffTheCoast_snapsToTheLand`, `test_place_nearLandOverNothing_snapsToTheLand` and `test_appGeography_coastalCitiesAndSmallCountries`.
+- **What the snap changes in later tasks' expectations:** land-to-sea crossings in the test geography move 5 mi offshore.
+  - Task 7: the Test Sea's stretch starts at 0.6036, not 0.6.
+  - Task 8 and `facts-cases.json` (Task 15):
+    - "Out over the Test Sea" is at 12:03:39, not 12:03:00.
+    - "Crossed into Foxtrot" is at 20:01:42, not 20:03:00.
+  - `facts-cases.json` gains the constant `coastSnapMiles: 5`, which `test_constants_matchTheApp` checks.
+- **`facts-cases.json` (Task 15) gains five places the snap and the never-drop rule fix:** Manhattan and Queens (New York), Miami (Florida), Bermuda and Malta.
+  - The regenerated file has 242 countries (205 before) and is 478 KB.
+  - Monaco still reads France: France's simplified ring covers it. No story shows a place that small anyway: the hold rule needs 25 mi.
+
+### Batch B (Tasks 7–10), from its review
+
+The review found no critical or important issues. Four minor ones were fixed:
+- **`Milestone.milestones` keeps the state or province the plane is in across a stretch where only the country is known.** Flying back into that same state isn't announced again. New test: `test_milestones_backIntoTheSameStateAfterAGap_isNotACrossing`.
+- **`SkyFacts.nextGroundSunEvent`** carries each sample's height into the next step, so it doesn't work it out twice.
+- **`SkyFacts.groundHorizon` is `SolarPosition.sunriseAltitude`,** which is now internal, not a second −0.833.
+- **`MilestoneTests`' helper is `assertMilestone`,** so it no longer shadows `Swift.assert`.
+
+`TripTotals.timeZonesCrossed`' doc now says that across the date line it counts the change in offset (Tokyo to Anchorage counts 18).
+
+Tasks 8–10 were copied from the plan's code by a script, after auto mode couldn't check the subagent call that a plugin hook changes.
