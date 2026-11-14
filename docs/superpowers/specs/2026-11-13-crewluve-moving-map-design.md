@@ -2,7 +2,7 @@
 
 Status: approved in brainstorming on 2026-11-13, from mockups of where the map lives, the card in each trip state, the full-screen map, the ghost and live planes, and the live-data relay. It covers the Crewluve app, the Crewluve website, and one new piece of CrewLu Cloud. It's built in three stages (§4), each with its own implementation plan.
 
-**Amended 2026-11-13, our own night drawing:** §6, §7.1, §10, §12, §14 and §15.2. On Todd's iPad the SwiftUI map's night flashed all through a replay: MapKit can't move an overlay, only replace it, and each replacement blinks. The map is now an `MKMapView` with the night and the route lines drawn by the app, as CrewLu's moving map draws them. Plan: `docs/superpowers/plans/2026-11-13-moving-map-own-night-drawing.md`.
+**Amended 2026-11-13, our own night drawing:** §6, §7.1, §10, §12, §14 and §15.2. On Todd's iPad the SwiftUI map's night flashed all through a replay: MapKit can't move an overlay, only replace it, and each replacement blinks. The map is now an `MKMapView` with the night and the route lines drawn by the app, as CrewLu's moving map draws them. Plan: `docs/superpowers/plans/2026-11-13-moving-map-own-night-drawing.md`. Checked on Todd's iPad, 14 Nov 2026: no flash at 1x or 10x.
 
 ## 1. Goal
 

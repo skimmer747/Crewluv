@@ -3817,6 +3817,9 @@ The whole-file blocks were copied from the plan by script. Step 7's two replacem
   - The camera now frames with no edge padding, and refits when the map's layout margins change.
   - `TripMapClearance.framingPadding` and its two tests went. The clearance tests now check the panel's margins left to right and right to left.
   - The preview's full-screen iPhone map had the same fault: the leg sat high above the sheet, with the sheet counted twice.
+- **The result:** on Todd's iPad on 14 Nov 2026, the night glided with no flash at 1x or 10x, and recenter framed the trip beside the panel after the fix above. The iPhone was checked on the card and the full-screen map, though not in a replay.
+- **No memory entry.** `CLAUDE.md` now records both lessons: overlays can't move, and the camera frames inside the layout margins.
+- **Todd's next notes became a new design:** `docs/superpowers/specs/2026-11-14-trip-map-activity-markers-and-quick-layovers-design.md`.
 
 ### Short legs in a replay, from the website (2026-11-13)
 
