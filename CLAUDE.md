@@ -123,6 +123,9 @@ Use Xcode for all development tasks. The project follows iOS development convent
 - Built on SwiftUI's `Map` (`MapPolyline`, `MapPolygon`, `Annotation`); north stays up, so `PlaneHeading` aims the plane from coordinates alone
 - The logic is `nonisolated` and tested: `TripMap` (which legs, the mode, where the pilot is), `TripMapDrawing` (what to draw at an instant), `FlightProgress` (the schedule's plane, with taxi allowances), `TripReplayClock`, `TripMapWording`. The maths in `Utils/` (`NightShade`, `PlaneHeading`, `MapFit`, `GreatCircle`) came from CrewLu's moving map with its tests
 - `CrewluvTests/Fixtures/TripMap/progress-cases.json` holds the schedule's plane to the same answers as the website: change both copies together
+- The facts (Stage 2 spec `docs/superpowers/specs/2026-11-13-crewluve-moving-map-stage2-facts-design.md`) are in `Services/TripMap/Facts/`. `LegStory` works out each flight's places and closest point to home once, as fractions along its route; `TripFacts` answers the headline, the rows and the recap at any moment from the stories, so replay needs nothing extra. `LegStoryStore`, owned by the status screen, builds the stories off the main actor
+- The facts show in `FactsSheet` (iPhone, SwiftUI's sheet with three stops, the small one measured to fit) or `FactsPanel` (iPad and landscape), on the card's chip in flight, and as the recap card for a day after a trip ends, once the pilot is home. Weather on landing (`LandingWeather`, WeatherKit) is fetched only while the full-screen map is open, with Apple's attribution under the rows
+- `Crewluv/Resources/TripMap/geography.json` is made from Natural Earth by `node scripts/build-geography.mjs`, whose downloaded sources go in the ignored `scripts/natural-earth/`. `comparisons.json` is written by hand. `CrewluvTests/Fixtures/TripMap/facts-cases.json` holds the facts to the website's answers: change both copies together
 
 ### App Flow
 1. **Onboarding**: User taps the pilot's invite link, or types a code from another of their devices, and `PartnerJoiner` connects to Crewlu Cloud. A pilot on an older CrewLu sends a CloudKit share link instead
@@ -149,7 +152,9 @@ Crewluv/
 │   ├── PartnerStatusReceiver.swift   # The status screen's model
 │   ├── PartnerJoiner.swift           # Joining with an invite link or a code
 │   ├── TripMap/                      # The trip map's model, drawing, clock and words
+│   │   └── Facts/                    # The facts: geography, stories, sky, totals, words
 │   └── PartnerCloud/                 # Crewlu Cloud's partner door, and this device on it
+├── Resources/TripMap/        # geography.json and comparisons.json
 └── Utils/                    # Utilities
     └── DebugLog.swift       # DEBUG-only logging
 CrewluveAlerts/               # The alert pushes' helper, a notification service extension

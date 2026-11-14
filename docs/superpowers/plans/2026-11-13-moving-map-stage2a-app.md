@@ -5245,3 +5245,18 @@ Tasks 18–20 were copied from the plan's code by script. Changes since then:
 - **`TripMapChip` shrinks to 85% before cutting a long headline off.**
 
 Not taken: refreshing the rows less often than the timeline during a replay. The costliest part is one scan of the 505 cities per call, well under a millisecond a frame, small next to MapKit's drawing.
+
+### Final review (Task 21), across Stage 2A
+
+The review found nothing critical. It walked the recap end to end, from `TripMap+Status` to the card, the paused full screen and "Home from N days away", and checked the CLAUDE.md lines against the code. Changes:
+- **Close always closes on iPhone.** If the sheet never reports going, for instance when Close is tapped while it's still sliding up, a `.task(id: isClosing)` closes the map after a second.
+- **`LegStoryStore.preparationKey(for:)`** is each leg's `timesKey` plus home. The card and the full-screen map start `prepare` with it, so a new home rebuilds the closest-point facts. It replaces the two copies of the `timesKey` list (batch E's `flightTimes` and the card's `storyKey`). New test: `test_preparationKey_changesWithADelayOrAnotherHome`.
+- **The card reads its facts outside its 10-second timeline,** so the chip and the recap tiles appear as soon as the stories are built.
+
+Not taken:
+- **Keeping a replay's place across a new schedule.** A delay mid-replay is rare, and starting over is acceptable.
+- **Dropping a forecast whose landing hour moved when the refetch fails.** That takes a delay and a WeatherKit failure together, and dropping on every failure would hide good forecasts.
+- **Pruning the store's caches:** a few entries a day, for the life of the status screen.
+- **Refreshing the rows at 2 Hz during a replay:** see batch E.
+- **`TripMapWording.cardSummary`'s recap case:** the switch needs it, and it's a correct fallback.
+
