@@ -3584,4 +3584,11 @@ The trip map now shows what your pilot is doing: a bed on a layover, an hourglas
 
 The code, not the blocks above, is the reference for these.
 
-(None yet.)
+### Batch A (Tasks 2–6)
+
+The blocks were copied from this plan by script, and every replacement matched once. The review (sonnet) found nothing critical or important.
+- **The shared cases check out.** An independent model of the rules reproduced all 8 replay cases (42 checks), the 11 wait labels, and all 10 activity trips (37 moments).
+- **Left as they are:**
+  - `Piece` is `private` in an extension and used by `private` stored properties. The clock did the same before this plan and built.
+  - `waits` is worked out again on each read, as often as 60 times a second in a replay. That's trivial for a trip's handful of legs.
+  - `replay-cases.json` has no overlapping legs. The app and the website already test overlap separately, with the same numbers.
