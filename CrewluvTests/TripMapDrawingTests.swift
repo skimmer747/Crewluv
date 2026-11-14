@@ -59,17 +59,4 @@ final class TripMapDrawingTests: XCTestCase {
         let middle = try XCTUnwrap(map.legs.first).position(atFraction: 0.5)
         XCTAssertEqual(car.coordinate.longitude, middle.longitude, accuracy: 1e-9, "parked halfway when not driving")
     }
-
-    func test_nightDate_holdsBackToTheStep() {
-        let date = Date(timeIntervalSince1970: 1_000_059)
-        XCTAssertEqual(TripMapDrawing.nightDate(for: date, step: 60), Date(timeIntervalSince1970: 1_000_020))
-        XCTAssertEqual(TripMapDrawing.nightDate(for: date, step: 0), date)
-    }
-
-    func test_nightBands_haveUniqueIDs_andEveryShape() {
-        let date = Date(timeIntervalSince1970: 1_794_571_200)
-        let bands = NightBand.bands(at: date)
-        XCTAssertEqual(bands.count, NightShade.layers(at: date).map(\.count).reduce(0, +))
-        XCTAssertEqual(Set(bands.map(\.id)).count, bands.count)
-    }
 }

@@ -84,11 +84,4 @@ nonisolated struct TripMapDrawing {
         self.plane = plane
         self.pin = tripMap.pilotLocation(at: date)
     }
-
-    /// `date` held back to a whole number of `step` seconds, so the night is redrawn only once it has moved enough
-    /// to see (moving map spec §10): every minute live, about ten times a second in replay.
-    static func nightDate(for date: Date, step: TimeInterval) -> Date {
-        guard step > 0 else { return date }
-        return Date(timeIntervalSince1970: (date.timeIntervalSince1970 / step).rounded(.down) * step)
-    }
 }

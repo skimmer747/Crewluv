@@ -3758,6 +3758,13 @@ The trip map's night now glides smoothly when you replay a trip, with no flashin
 
 - **The card's bottom chip covers Apple's logo.** The chip sits at the bottom leading corner with 10 points of padding, where MapKit puts the logo. It was so with SwiftUI's map too. Apple's MapKit terms want the logo visible. A follow-up could give the card's map a bottom layout margin above the chip, or move the chip.
 - **Right-to-left screens.** `TripMapScreen` measures the panel with `.global` frames, which run left to right. The new `TripMapClearance` handles right-to-left correctly, but its input from the screen may not. Crewluve is English-only today.
+- **MapKit won't zoom out far enough for a very wide trip.** Measured on Todd's phone (2026-11-14), with a next trip of Louisville, Anchorage, the Philippines and Taiwan that spans about 220°:
+  - We asked to fit 0.61 of the world's width. The card (350 × 220) showed 0.34, and the full-screen map (466 × 678) showed 0.30.
+  - The preview's full-screen Louisville to Cologne leg was also cut off at both ends.
+  - MapKit's `cameraZoomRange` is unset by default (−1). Setting a 50,000 km maximum didn't help: the full-screen map then showed 0.27. So the limit is MapKit's own, for this flat map.
+  - SwiftUI's map is the same `MKMapView` underneath, so this is very likely as before.
+  - A follow-up could frame what fits, such as the leg in motion or the first leg from home, when the whole trip can't be shown.
+- **VoiceOver's map scroll doesn't count as the family moving the map.** The observers see touches and a trackpad. VoiceOver's three-finger scroll moves `MKMapView` directly, so the recenter button doesn't show, and the next sheet drag or rotation refits the camera. A flag around our own framing, read in `mapView(_:regionWillChangeAnimated:)`, could catch it.
 - **The panel's clearance doesn't change when the panel folds.** It's measured "open or folded", as Stage 2A chose, so the trip stays framed beside the full-width panel.
 
 ---
@@ -3785,6 +3792,24 @@ The files were copied from the plan's code by script. The review (sonnet) found 
 - **Left as they are:**
   - The one-finger double-tap-and-drag zoom is caught only by the pan recognizer. If that pan doesn't begin, the zoom goes unreported and the recenter button doesn't show. Check it in Task 15.
   - The camera controller's gesture recognizers aren't removed on teardown. That's harmless, since they go with the map view and hold the controller only through their targets.
+
+### Batch C (Task 11)
+
+The whole-file blocks were copied from the plan by script. Step 7's two replacements each matched once.
+- **Step 8's search still finds `TripMapShapesController`'s own `nightDate`.** That private property is the moment the night was last drawn for, not the removed `TripMapDrawing.nightDate(for:step:)`, so it stays.
+- **Each marker is hosted in a `UIHostingController` with `safeAreaRegions = []`, not a `UIHostingConfiguration`.**
+  - The full-screen map's preview showed the plane and CGN about a status bar's height (~60 pt) below their places, while the lines sat right on the map.
+  - A marker view inherits the map's safe area, and SwiftUI moved the hosted marker down by it. `.ignoresSafeArea()` on `TripMapMarkerView` didn't stop it, so that modifier went.
+  - CrewLu's markers are plain UIKit views, so CrewLu never hit this. The cards were unaffected because their map has no safe area.
+  - Swapping the root view keeps the SwiftUI state, as the configuration did.
+- **Task 13's review (sonnet) found nothing critical.** Every draw path, the camera rules, the gestures, the isolation and the imports checked out.
+  - **Fixed:** when the text size changes, the marker's hosted view now takes the new traits (`updateTraitsIfNeeded()`) before it's measured. Before, an airport code could be measured at its old size, which put its dot off the airport.
+  - **Left:**
+    - The plane's first turn may not ease the short way round if `PlaneMarker`'s `onChange(initial:)` doesn't fire without a parent view controller. The plane still points the right way. Watch for it in Task 15.
+    - Every route's `TripMapLine` is rebuilt on each update. That's about 0.2 ms at 30 fps; a cache by segment would remove it.
+    - A rotation frames once with the old clearance, then again with the new one. Both are unanimated. Watch for a jump in Task 15.
+    - VoiceOver's three-finger scroll isn't seen as the family moving the map (see "Seen, not fixed").
+    - The controllers have no unit tests. `frameIfNeeded`'s decision could be pulled out into a pure function and tested.
 
 ### Short legs in a replay, from the website (2026-11-13)
 

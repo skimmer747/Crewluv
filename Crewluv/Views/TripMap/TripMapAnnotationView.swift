@@ -3,7 +3,7 @@
 //  CrewLuve
 //
 //  The view MapKit shows for a `TripMapAnnotation` (moving map spec §5.1, §7.2): the marker's SwiftUI view,
-//  `TripMapMarkerView`, hosted through a `UIHostingConfiguration`, so the markers are the views SwiftUI's map drew.
+//  `TripMapMarkerView`, in a `UIHostingController` with no safe area, so the markers are the views SwiftUI's map drew.
 //  MapKit keeps these views above the app's own drawing of the night, so they stay bright.
 //
 
@@ -14,8 +14,8 @@ import UIKit
 final class TripMapAnnotationView: MKAnnotationView {
     static let reuseIdentifier = "TripMapAnnotationView"
 
-    /// The marker's SwiftUI view: made on first use, and given each new marker after that.
-    private var hostedView: (any UIView & UIContentView)?
+    /// Hosts the marker's SwiftUI view: made on first use, and given each new marker after that.
+    private var host: UIHostingController<TripMapMarkerView>?
     /// The `TripMapMarker.sizeKey` the view was last measured for.
     private var measuredSizeKey: String?
 
@@ -28,7 +28,9 @@ final class TripMapAnnotationView: MKAnnotationView {
         // Every marker always shows: MapKit never hides one for crowding another.
         displayPriority = .required
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: TripMapAnnotationView, _: UITraitCollection) in
-            // An airport's code grows and shrinks with the text size.
+            // An airport's code grows and shrinks with the text size. The hosted marker takes the new size before it's
+            // measured, or it would be measured at the old one.
+            view.host?.view.updateTraitsIfNeeded()
             view.measuredSizeKey = nil
             view.refresh()
         }
@@ -48,34 +50,36 @@ final class TripMapAnnotationView: MKAnnotationView {
     /// it after changing a marker in place, such as the plane's angle.
     func refresh() {
         guard let marker = (annotation as? TripMapAnnotation)?.marker else { return }
-        let hosted = hostedView(showing: marker)
+        let host = host(showing: marker)
         zPriority = Self.zPriority(of: marker)
         accessibilityLabel = Self.accessibilityLabel(of: marker)
         isAccessibilityElement = accessibilityLabel != nil
         guard marker.sizeKey != measuredSizeKey else { return }
         measuredSizeKey = marker.sizeKey
-        let size = hosted.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
-        hosted.frame = CGRect(origin: .zero, size: size)
+        // Every marker's view has a fixed size, which any proposal this large returns.
+        let size = host.sizeThatFits(in: UIView.layoutFittingExpandedSize)
+        host.view.frame = CGRect(origin: .zero, size: size)
         bounds.size = size
         centerOffset = Self.centerOffset(of: marker, size: size)
     }
 
-    /// The hosted view, showing `marker`. Its configuration is replaced rather than the view, which keeps the SwiftUI
-    /// view's state, such as where the plane is in its turn.
-    private func hostedView(showing marker: TripMapMarker) -> any UIView & UIContentView {
-        let configuration = UIHostingConfiguration { TripMapMarkerView(marker: marker) }
-            .margins(.all, 0)
-            .minSize(width: 0, height: 0)
-        if let hostedView {
-            hostedView.configuration = configuration
-            return hostedView
+    /// The hosting controller, showing `marker`. Its root view is replaced rather than the controller, which keeps the
+    /// SwiftUI view's state, such as where the plane is in its turn.
+    private func host(showing marker: TripMapMarker) -> UIHostingController<TripMapMarkerView> {
+        let markerView = TripMapMarkerView(marker: marker)
+        if let host {
+            host.rootView = markerView
+            return host
         }
-        let hosted = configuration.makeContentView()
-        hosted.backgroundColor = .clear
-        hosted.isUserInteractionEnabled = false
-        addSubview(hosted)
-        hostedView = hosted
-        return hosted
+        let host = UIHostingController(rootView: markerView)
+        // A marker has no safe area. MapKit's marker views carry the map's, and on the full-screen map, which runs
+        // under the status bar, SwiftUI moved each marker down by the status bar's height.
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        host.view.isUserInteractionEnabled = false
+        addSubview(host.view)
+        self.host = host
+        return host
     }
 
     // MARK: - Placing each marker

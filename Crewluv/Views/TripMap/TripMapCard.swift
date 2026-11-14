@@ -7,7 +7,6 @@
 //  the next trip, or for a day after a trip, its recap. Tapping the map opens it full screen.
 //
 
-import MapKit
 import SwiftUI
 
 struct TripMapCard: View {
@@ -16,14 +15,14 @@ struct TripMapCard: View {
     let storyStore: LegStoryStore
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var position: MapCameraPosition
+    @State private var camera: TripMapCamera
     @State private var isShowingFullScreen = false
 
     init(tripMap: TripMap, status: SharedPilotStatus, storyStore: LegStoryStore) {
         self.tripMap = tripMap
         self.status = status
         self.storyStore = storyStore
-        _position = State(initialValue: tripMap.camera(focusingOn: tripMap.currentLeg))
+        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg)))
     }
 
     var body: some View {
@@ -47,15 +46,16 @@ struct TripMapCard: View {
         .task(id: LegStoryStore.preparationKey(for: tripMap)) {
             await storyStore.prepare(tripMap)
         }
-        .onChange(of: tripMap.mode) {
-            position = tripMap.camera(focusingOn: tripMap.currentLeg)
-        }
-        .onChange(of: tripMap.legs.map(\.id)) {
-            position = tripMap.camera(focusingOn: tripMap.currentLeg)
-        }
+        .onChange(of: tripMap.mode) { refit() }
+        .onChange(of: tripMap.legs.map(\.id)) { refit() }
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
+    }
+
+    /// Frames the leg in the air, or the whole trip, afresh when the trip's state or legs change.
+    private func refit() {
+        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg), animated: false)
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight.
@@ -69,7 +69,7 @@ struct TripMapCard: View {
         Button {
             isShowingFullScreen = true
         } label: {
-            TripMapView(tripMap: tripMap, date: date, style: .hybrid, position: $position)
+            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera)
                 .allowsHitTesting(false)
                 .frame(height: 220)
                 .overlay(alignment: .topLeading) { overlayChip(chips.top) }

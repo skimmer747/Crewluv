@@ -7,7 +7,6 @@
 //  edge. A recap opens paused at its trip's start. Weather on landing is fetched while the screen is open.
 //
 
-import MapKit
 import SwiftUI
 
 struct TripMapScreen: View {
@@ -22,7 +21,7 @@ struct TripMapScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clock: TripReplayClock
     @State private var style: TripMapStyle = .hybrid
-    @State private var position: MapCameraPosition
+    @State private var camera: TripMapCamera
     @State private var weather = LandingWeather()
     @State private var sheetStop: FactsSheet.Stop = .small
     /// How far up the screen the sheet reaches.
@@ -43,13 +42,14 @@ struct TripMapScreen: View {
         self.dayNumber = dayNumber
         self.totalDays = totalDays
         _clock = State(initialValue: Self.clock(for: tripMap))
-        _position = State(initialValue: tripMap.camera(focusingOn: tripMap.currentLeg))
+        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg)))
     }
 
     var body: some View {
         // Once per update, not per frame: the facts change as their stories and forecasts arrive.
         let facts = self.facts
-        // Every second live; about 30 times a second while a replay runs.
+        // Every second live; about 30 times a second while a replay runs. The map draws its night and lines for each
+        // tick's time.
         TimelineView(.periodic(from: .now, by: clock.isPlaying ? 1.0 / 30 : 1)) { context in
             let time = clock.time(at: context.date)
             screen(time: time, now: context.date, facts: facts)
@@ -97,11 +97,10 @@ struct TripMapScreen: View {
     @ViewBuilder
     private func screen(time: Date, now: Date, facts: TripFacts) -> some View {
         let base = ZStack(alignment: .top) {
-            TripMapView(tripMap: tripMap, date: time, style: style, nightStep: nightStep,
-                        position: $position, isInteractive: true)
-                // The camera frames the trip in what the sheet or the panel leaves clear.
-                .safeAreaPadding(.bottom, mapBottomClearance)
-                .safeAreaPadding(.leading, mapLeadingClearance)
+            // The camera frames the trip in what the sheet or the panel leaves clear.
+            TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
+                        clearance: TripMapClearance(leading: mapLeadingClearance, bottom: mapBottomClearance),
+                        isFullScreen: true)
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
             topBar(time: time)
@@ -124,7 +123,7 @@ struct TripMapScreen: View {
         TripMapTopBar(
             pill: TripMapWording.topPill(for: tripMap, at: time, dayNumber: dayNumber, totalDays: totalDays),
             style: style,
-            isShowingRecenter: position.positionedByUser,
+            isShowingRecenter: camera.isPositionedByUser,
             onClose: close,
             onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, force: true) },
             onNextStyle: { style = style.next }
@@ -164,21 +163,10 @@ struct TripMapScreen: View {
         if isClosing { dismiss() }
     }
 
-    /// Night moves about a degree every four minutes. Live it's redrawn each minute; in replay about ten times a
-    /// second of real time, whatever the speed (moving map spec §10).
-    private var nightStep: TimeInterval {
-        clock.isPlaying ? TripReplayClock.baseRate / 10 * Double(clock.speed.rawValue) : 60
-    }
-
     /// Frames the leg in motion, or the whole trip. Leaves a camera the family moved alone, unless they asked.
     private func refit(legID: String?, force: Bool = false) {
-        guard force || !position.positionedByUser else { return }
+        guard force || !camera.isPositionedByUser else { return }
         let leg = legID.flatMap { id in tripMap.legs.first { $0.id == id } }
-        let camera = tripMap.camera(focusingOn: leg)
-        if reduceMotion {
-            position = camera
-        } else {
-            withAnimation(.smooth) { position = camera }
-        }
+        camera.frame(tripMap.framingRect(focusingOn: leg), animated: !reduceMotion)
     }
 }
