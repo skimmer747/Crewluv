@@ -2,6 +2,8 @@
 
 Status: approved in brainstorming on 2026-11-13, from mockups of where the map lives, the card in each trip state, the full-screen map, the ghost and live planes, and the live-data relay. It covers the Crewluve app, the Crewluve website, and one new piece of CrewLu Cloud. It's built in three stages (§4), each with its own implementation plan.
 
+**Amended 2026-11-13, our own night drawing:** §6, §7.1, §10, §12, §14 and §15.2. On Todd's iPad the SwiftUI map's night flashed all through a replay: MapKit can't move an overlay, only replace it, and each replacement blinks. The map is now an `MKMapView` with the night and the route lines drawn by the app, as CrewLu's moving map draws them. Plan: `docs/superpowers/plans/2026-11-13-moving-map-own-night-drawing.md`.
+
 ## 1. Goal
 
 Give the pilot's family a moving map that's fun to look at, in the app and on the website. It's built from CrewLu's rebuilt moving map:
@@ -122,9 +124,10 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
 
 - **Opens on the leg in progress,** or on the whole trip when they're on the ground.
 - **The map fills the screen.**
+  - It pans and zooms. It doesn't turn or tilt (§10).
   - Top left: close.
   - Top right: a style button that cycles hybrid, standard and imagery, as in CrewLu. Hybrid is the default.
-  - A recenter button appears once the map is panned away from the plane.
+  - A recenter button appears once the family pans, pinches or double-taps the map. It frames the leg in motion, or the whole trip, again.
   - A pill at the top: "UPS 207 · 12 min ahead" with live data, and "UPS 207 · In flight" without it.
 - **The facts sheet.** It's a bottom sheet with two stops.
   - Small: the headline fact, the landing line ("Lands Cologne 9:30 pm · 3:30 pm your time") and the timeline.
@@ -147,6 +150,7 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
 - **The actual path** (live trail, §9.4) is solid white.
 - **Legs flown earlier in the trip** are solid grey along their planned route.
 - **Drives** are a dotted line with a small car, and never get live data.
+- **Drawn by the app,** over Apple's map and under the planes, the heart, the cars and the airports, as the night is (§10). Dashes and dots are laid from each line's far end, so they stay put on the map while the plane eats into the line still to fly, and while the map pans.
 
 ### 7.2 The planes
 
@@ -365,14 +369,21 @@ The site's policy is deliberately tight. It allows its own scripts only, and con
 
 iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines each.
 
-- **The map is SwiftUI's `Map`,** not a port of CrewLu's `MKMapView`. It covers everything with public API:
-  - `.mapStyle(.hybrid(elevation: .flat))`, `.standard` and `.imagery`;
-  - `MapPolyline` for routes, trails and drives;
-  - `MapPolygon` for the night bands;
-  - `Annotation` for the planes and the heart pin;
-  - `MapCameraPosition` for fitting.
-- **Ported from CrewLu, with their tests:** `NightShade`, `PlaneHeading`, the subsolar point in `SolarPosition`, and the date-line fit from `FlatMapFit`. Night refreshes about 10 times a second during replay, and once a minute otherwise.
-- **`Views/TripMap/`:** `TripMapCard`, `TripMapScreen`, `TripMapView` (the `Map` and its content), `FactsSheet`, `TripTimeline`, `HeadlineFactChip`, `TripRecapView`, and their small subviews.
+- **The map is an `MKMapView`,** wrapped for SwiftUI by `TripMapView`, and drawn the way CrewLu's moving map is. This was amended on 2026-11-13: SwiftUI's map can only replace an overlay, and on Todd's iPad each replacement blinked. Apple's map, its logo and Legal link, and the markers stay MapKit's. The night and the route lines are the app's own.
+  - **Styles:** `MKHybridMapConfiguration`, `MKStandardMapConfiguration` and `MKImageryMapConfiguration`, all with `elevationStyle: .flat`.
+  - **The app's drawing:** the night's seven layers and every route, trail and drive line are `CAShapeLayer`s in one view of the app's, `TripMapShapesView`.
+    - It sits just under the view MapKit keeps its annotation views in, so the planes, the heart, the cars and the airports stay bright at night.
+    - Every update gives the same shapes new outlines. Nothing is taken off the map or put on it.
+  - **Markers:** the planes, the heart, the cars and the airports are MapKit annotations whose views host the app's SwiftUI markers. Each is hosted with no safe area, since SwiftUI otherwise moved a marker down by the status bar's height on the full-screen map.
+  - **Camera:** `TripMapCamera`. The map frames each new request once, with `MapFit`'s rectangle. A pan, pinch or double tap makes the camera the family's until they recenter.
+  - **Where things are on screen:** `MapProjection`, ported from CrewLu's `FlatMapFit`, works this out from three places the map is asked about.
+    - Each shape is drawn once for each copy of the world on screen across the date line.
+    - Every shape is cut off just outside the view.
+    - The map pans and zooms but never turns or tilts. The arithmetic is right only for a map seen from straight above, north up.
+  - **Fallback:** if a later iOS keeps its annotation views differently and that view can't be found, the night and the lines are drawn over the map's own content, and so over the markers. That's logged.
+- **Ported from CrewLu, with their tests:** `NightShade`, `PlaneHeading`, the subsolar point in `SolarPosition`, the date-line fit (`MapFit`), and the screen projection and clipping (`MapProjection`, from `FlatMapFit`).
+- **When the night is drawn:** for the map's exact time on every update. That's about 30 times a second during replay, every second on the full-screen map otherwise, and every 10 seconds on the card.
+- **`Views/TripMap/`:** `TripMapCard`, `TripMapScreen`, `TripMapView` (the `MKMapView`, run by `TripMapCoordinator`, with `TripMapShapesView` and the markers' annotations), `FactsSheet`, `TripTimeline`, `HeadlineFactChip`, `TripRecapView`, and their small subviews.
 - **`Services/TripMap/`:**
   - `TripRoute`: legs to drawable routes, using `AirportDataProvider`.
   - `FlightProgress`: the ghost, live and estimated positions, ahead or behind, and the landing estimate (§7).
@@ -405,7 +416,11 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 - **Unknown airport:** a leg with an airport missing from the platform's list isn't drawn. If that's the leg in the air, the card shows today's fallback ("SDF → CGN"). The app has about 306 airports and the website 9,056, so the app hits this more often (§16).
 - **No legs** (CrewLu versions that don't send them): the map draws only the current leg, from `currentFlight*`. On the ground with no legs, there's no map.
-- **The date line, and polar or long legs:** these are handled by the ported date-line fit and geodesic lines. Web Mercator stops at ±85°, so near-polar paths are drawn clamped.
+- **The date line, and polar or long legs:**
+  - the camera's rectangle takes the short way round (`MapFit`);
+  - the night and the routes are drawn once for each copy of the world on screen, each route laid out in one piece across the line (`MapProjection`);
+  - flights are drawn along their great circle in stretches of at most a degree (`TripMapLine`).
+  - Web Mercator stops at ±85°, so near-polar paths are drawn clamped.
 - **Diversion:** the live plane stays while it's within 250 nm of the route. Beyond that, fixes are dropped and it goes estimated. It never shows a wrong position.
 - **The same flight number on back-to-back legs:** the window and the match check pick the right leg.
 - **A wrong phone clock:** fix ages use `partner_live`'s `now`.
@@ -426,6 +441,7 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 - **Each facts row** is a sentence.
 - **The timeline slider** reads its time as its value.
 - **The buttons** have labels: close, map style, recenter, Live, play.
+- **The map's markers:** on the full-screen map VoiceOver reads each airport's code, as it did before. The planes, the heart and the cars are described by the card's sentence and the facts rows. The night and the lines aren't read. On the card the map is hidden, and the card is its one sentence.
 - **Dynamic Type:** the chips and rows scale. At the largest sizes the headline chip moves below the map.
 - **Dark Mode:** the card's frame and the sheet adapt. Hybrid and imagery look the same in both, and standard follows the system.
 - **Reduce Motion:** planes don't slide (§7.2). Replay still works, without animated camera moves.
@@ -446,7 +462,8 @@ The website keeps a copy in `tests/fixtures/trip-map/`. Both suites run every ca
 
 XCTest, run in Xcode by Todd. It covers:
 
-- the ported maths, with CrewLu's tests: `NightShade`, `PlaneHeading`, subsolar point, date-line fit;
+- the ported maths, with CrewLu's tests: `NightShade`, `PlaneHeading`, subsolar point, date-line fit, and `MapProjection` (CrewLu's `FlatMapFit`);
+- the drawing's pure parts: `TripMapLine`, `TripMapCamera`, `TripMapClearance` and `TripMapMarker`'s placements;
 - `FlightProgress` and the facts engine, through the shared cases;
 - `TripRoute`: legs, drives, unknown airports;
 - `LiveFlightSource`: when it polls, `sharing_ended`, a stale fix;

@@ -263,7 +263,7 @@ While a drive is under way, the rows are the trip so far only.
   - `interactiveDismissDisabled()` keeps the sheet from being swiped away;
   - the drag indicator is visible;
   - iOS 26's glass sheet background is used unchanged.
-- **The sheet reports its height** (`onGeometryChange`). The map takes it as bottom safe-area padding, so the camera frames the plane above the sheet.
+- **The sheet reports its height** (`onGeometryChange`). The map takes it as its bottom clearance (`TripMapClearance`, amended 2026-11-13 with the map's own night drawing): the camera frames the plane above the sheet, and Apple's logo and Legal link sit above it, in the map's layout margins.
 - **Close** dismisses the full-screen map with the sheet up. Todd checks this on the simulator.
 
 ### 6.2 The side panel, `FactsPanel`
@@ -272,7 +272,7 @@ While a drive is under way, the rows are the trip so far only.
 - **Shape:** full height at the leading edge, about 380 pt wide, on glass.
 - **Contents:** `FactsHeader` at the top, the rows in a `ScrollView`, and the timeline pinned at the bottom.
 - **The chevron** collapses it to the headline and timeline. Its label is "Hide facts" or "Show facts".
-- **The map** takes the panel's width as leading safe-area padding.
+- **The map** takes the panel's width, padding included, as its leading clearance (`TripMapClearance`): the camera frames the trip beside the panel, and Apple's logo and Legal link sit beside it.
 
 ### 6.3 Shared parts
 
