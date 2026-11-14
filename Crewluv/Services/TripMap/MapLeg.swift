@@ -40,6 +40,16 @@ nonisolated struct MapLeg: Identifiable {
         }
     }
 
+    /// When the schedule has the pilot `fraction` of the way along: in the air for a flight, steadily for a drive.
+    func time(atFraction fraction: Double) -> Date? {
+        switch kind {
+        case .flight:
+            return FlightProgress.scheduledTime(atFraction: fraction, departure: start, arrival: end)
+        case .drive:
+            return start.addingTimeInterval(min(max(fraction, 0), 1) * end.timeIntervalSince(start))
+        }
+    }
+
     func position(at date: Date) -> CLLocationCoordinate2D {
         position(atFraction: progress(at: date))
     }
