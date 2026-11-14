@@ -175,4 +175,117 @@ enum TripMapFixtures {
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(FactsCases.self, from: data)
     }
+
+    // MARK: - The replay's pace (activity markers design §3.2, §4.1, §5)
+
+    struct ReplayCases: Decodable {
+        struct Constants: Decodable {
+            let baseRate: Double
+            let legMinimumSeconds: Double
+            let waitMinimumSeconds: Double
+            let quickWaitRate: Double
+        }
+
+        struct Stretch: Decodable {
+            let start: Date
+            let end: Date
+
+            var clockStretch: TripReplayClock.Stretch { TripReplayClock.Stretch(start: start, end: end) }
+        }
+
+        struct Check: Decodable {
+            /// Real seconds after pressing play, at the case's speed.
+            let seconds: Double
+            let at: Date
+        }
+
+        struct Case: Decodable {
+            let name: String
+            let note: String
+            let span: Stretch
+            let legs: [Stretch]
+            let waits: [Stretch]
+            let quickLayovers: Bool
+            let speed: Int
+            /// The whole replay at 1x, in seconds.
+            let replayLength: Double
+            let checks: [Check]
+        }
+
+        struct WaitLabel: Decodable {
+            let hours: Double
+            let label: String?
+            let note: String
+        }
+
+        let constants: Constants
+        let cases: [Case]
+        let waitLabels: [WaitLabel]
+    }
+
+    static func replayCases() throws -> ReplayCases {
+        let data = try Data(contentsOf: folder.appending(path: "replay-cases.json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(ReplayCases.self, from: data)
+    }
+
+    // MARK: - What the pilot is doing (activity markers design §2.2, §4.2, §5)
+
+    struct ActivityCases: Decodable {
+        struct Constants: Decodable {
+            let shortestLayoverHours: Double
+        }
+
+        struct Airport: Decodable {
+            let lat: Double
+            let lon: Double
+            let city: String?
+        }
+
+        enum Mode: String, Decodable {
+            case trip, nextTrip, recap
+        }
+
+        struct Leg: Decodable {
+            let id: String
+            let type: TripLeg.LegType
+            /// A flight's or a drive's airports.
+            let from: String?
+            let to: String?
+            /// A ground leg's airport.
+            let airport: String?
+            let start: Date
+            let end: Date
+            let delayMinutes: Int?
+        }
+
+        struct Moment: Decodable {
+            let at: Date
+            /// `TripActivity.Kind`'s raw value.
+            let kind: String
+            let words: String
+            let note: String
+        }
+
+        struct Trip: Decodable {
+            let name: String
+            let note: String
+            let home: String
+            let mode: Mode
+            let legs: [Leg]
+            let moments: [Moment]
+        }
+
+        let constants: Constants
+        let airports: [String: Airport]
+        let trips: [Trip]
+    }
+
+    static func activityCases() throws -> ActivityCases {
+        let data = try Data(contentsOf: folder.appending(path: "activity-cases.json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(ActivityCases.self, from: data)
+    }
 }

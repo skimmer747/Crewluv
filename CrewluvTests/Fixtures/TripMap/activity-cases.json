@@ -1,0 +1,180 @@
+{
+  "about": "What the pilot is doing at a moment of the trip map (Crewluve activity markers design §2.2, §4.2): the marker's kind (flying and driving show the plane and the car; layover, turn, base and home are the ground markers) and the words under the timeline. Legs are as CrewLu sends them: flights and drives, which delayMinutes moves, and ground legs (layover, turn, base, home) at their scheduled times, which nothing moves. A wait is any stretch from one moving leg's end to the next one's start; the ground leg overlapping it most names it, the earlier on a tie, and with none it's a layover from 8 h and a turn under. Before the first departure: home for a nextTrip, else home or base by whether the first origin is the home airport. After the last arrival: home for a recap, else home or base by whether the last destination is. A place is its city, else its code. mode is trip, nextTrip or recap. Times are UTC. The app's TripMapActivityTests and the website's tests run every case. Change both copies together.",
+  "constants": { "shortestLayoverHours": 8 },
+  "airports": {
+    "SDF": { "lat": 38.1746, "lon": -85.7382, "city": "Louisville" },
+    "LEX": { "lat": 38.0365, "lon": -84.6059, "city": "Lexington" },
+    "DEN": { "lat": 39.8561, "lon": -104.6737, "city": "Denver" },
+    "SFO": { "lat": 37.6213, "lon": -122.379, "city": "San Francisco" },
+    "ORD": { "lat": 41.9742, "lon": -87.9073, "city": "Chicago" },
+    "COS": { "lat": 38.8058, "lon": -104.7008, "city": null }
+  },
+  "trips": [
+    {
+      "name": "Louisville to Denver and San Francisco, and home",
+      "note": "Waits: Denver 15:00 to 11:00 the next day (20 h), named by CrewLu's layover l1, which covers all 20 h; San Francisco 13:30 to 14:30 (1 h), named by the turn t1. The trip starts and ends at home, Louisville.",
+      "home": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SFO", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T13:30:00Z" },
+        { "id": "t1", "type": "turn", "airport": "SFO", "start": "2026-11-14T13:30:00Z", "end": "2026-11-14T14:30:00Z" },
+        { "id": "f3", "type": "flight", "from": "SFO", "to": "SDF", "start": "2026-11-14T14:30:00Z", "end": "2026-11-14T19:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T10:00:00Z", "kind": "home", "words": "Home", "note": "before the first departure, at its origin, SDF, the home airport: home" },
+        { "at": "2026-11-13T13:00:00Z", "kind": "flying", "words": "Flying to Denver", "note": "f1 is between its gates" },
+        { "at": "2026-11-13T15:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "f1 reached the gate at 15:00: the wait starts" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "in the 20-hour wait, which CrewLu's layover overlaps for all 20 h" },
+        { "at": "2026-11-14T12:00:00Z", "kind": "flying", "words": "Flying to San Francisco", "note": "f2 is between its gates" },
+        { "at": "2026-11-14T14:00:00Z", "kind": "turn", "words": "Turn in San Francisco", "note": "in the 1-hour wait, which CrewLu's turn overlaps for all of it" },
+        { "at": "2026-11-14T19:00:00Z", "kind": "home", "words": "Home", "note": "f3 reached the gate: after the last arrival, at SDF, the home airport: home" },
+        { "at": "2026-11-15T04:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival, still home" }
+      ]
+    },
+    {
+      "name": "No ground legs: the wait's length decides",
+      "note": "No ground legs. Waits: Denver 15:00 to 23:00 (8 h: 8 h or more is a layover), San Francisco 01:30 to 02:00 (30 min: a turn), Denver 04:30 to 12:24 (7 h 54 min: under 8 h, a turn).",
+      "home": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SFO", "start": "2026-11-13T23:00:00Z", "end": "2026-11-14T01:30:00Z" },
+        { "id": "f3", "type": "flight", "from": "SFO", "to": "DEN", "start": "2026-11-14T02:00:00Z", "end": "2026-11-14T04:30:00Z" },
+        { "id": "f4", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-14T12:24:00Z", "end": "2026-11-14T15:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T17:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "in the 8-hour wait in Denver: exactly 8 h is a layover" },
+        { "at": "2026-11-14T01:45:00Z", "kind": "turn", "words": "Turn in San Francisco", "note": "in the 30-minute wait in San Francisco: a turn" },
+        { "at": "2026-11-14T08:00:00Z", "kind": "turn", "words": "Turn in Denver", "note": "in the 7 h 54 min wait in Denver: under 8 h, a turn" },
+        { "at": "2026-11-14T16:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival, at SDF, the home airport: home" }
+      ]
+    },
+    {
+      "name": "A delay moves the flights, not CrewLu's ground legs",
+      "note": "f2 leaves 90 min late: 17:30 to 20:00 instead of 16:00 to 18:30. CrewLu's turn (15:00 to 16:00) and layover (from 18:30) keep their scheduled times. The Denver wait, 15:00 to 17:30, overlaps the turn for 1 h and the layover not at all: a turn. The San Francisco wait, 20:00 to 10:00, overlaps the layover for 14 h: a layover.",
+      "home": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "t1", "type": "turn", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-13T16:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SFO", "start": "2026-11-13T16:00:00Z", "end": "2026-11-13T18:30:00Z", "delayMinutes": 90 },
+        { "id": "l1", "type": "layover", "airport": "SFO", "start": "2026-11-13T18:30:00Z", "end": "2026-11-14T10:00:00Z" },
+        { "id": "f3", "type": "flight", "from": "SFO", "to": "SDF", "start": "2026-11-14T10:00:00Z", "end": "2026-11-14T14:30:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T15:30:00Z", "kind": "turn", "words": "Turn in Denver", "note": "in the Denver wait, during CrewLu's turn" },
+        { "at": "2026-11-13T16:30:00Z", "kind": "turn", "words": "Turn in Denver", "note": "still waiting in Denver after CrewLu's turn has ended: the whole wait is a turn" },
+        { "at": "2026-11-13T18:00:00Z", "kind": "flying", "words": "Flying to San Francisco", "note": "f2 is in the air, 90 minutes late" },
+        { "at": "2026-11-13T19:30:00Z", "kind": "flying", "words": "Flying to San Francisco", "note": "f2 is still in the air, though CrewLu's layover began at 18:30" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in San Francisco", "note": "in the San Francisco wait, which CrewLu's layover overlaps for 14 h" }
+      ]
+    },
+    {
+      "name": "Two ground legs share a wait equally: the earlier names it",
+      "note": "One wait in Denver, 15:00 to 23:00 (8 h). CrewLu's turn covers 15:00 to 19:00 and its layover 19:00 to 23:00: 4 h each, a tie, so the earlier, the turn, names the whole wait.",
+      "home": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "t1", "type": "turn", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-13T19:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T19:00:00Z", "end": "2026-11-13T23:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-13T23:00:00Z", "end": "2026-11-14T01:30:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T17:00:00Z", "kind": "turn", "words": "Turn in Denver", "note": "during CrewLu's turn" },
+        { "at": "2026-11-13T21:00:00Z", "kind": "turn", "words": "Turn in Denver", "note": "during CrewLu's layover, but the wait is one, and the turn names it" }
+      ]
+    },
+    {
+      "name": "A next trip shows home until it starts",
+      "note": "A trip still ahead. Before its first departure the pilot is home. Replayed, it's as any trip.",
+      "home": "SDF", "mode": "nextTrip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T14:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-12T12:00:00Z", "kind": "home", "words": "Home", "note": "a day before the next trip: home" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "replaying it: the 20-hour wait in Denver, named by CrewLu's layover" },
+        { "at": "2026-11-14T15:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival, at SDF, the home airport: home" }
+      ]
+    },
+    {
+      "name": "A commuter: home, the drive to base, the trip, and the drive home",
+      "note": "Home is Lexington (LEX); base is Louisville (SDF). Waits: SDF 10:30 to 12:00 (1 h 30, CrewLu's base stay b1), Denver 15:00 to 11:00 (20 h, layover l1), SDF 14:00 to 15:00 (1 h, base stay b2). The trip runs from the drive's start, 09:00, to the drive home's end, 16:30 the next day.",
+      "home": "LEX", "mode": "trip",
+      "legs": [
+        { "id": "d1", "type": "drive", "from": "LEX", "to": "SDF", "start": "2026-11-13T09:00:00Z", "end": "2026-11-13T10:30:00Z" },
+        { "id": "b1", "type": "base", "airport": "SDF", "start": "2026-11-13T10:30:00Z", "end": "2026-11-13T12:00:00Z" },
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T14:00:00Z" },
+        { "id": "b2", "type": "base", "airport": "SDF", "start": "2026-11-14T14:00:00Z", "end": "2026-11-14T15:00:00Z" },
+        { "id": "d2", "type": "drive", "from": "SDF", "to": "LEX", "start": "2026-11-14T15:00:00Z", "end": "2026-11-14T16:30:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T08:00:00Z", "kind": "home", "words": "Home", "note": "before the first departure, the drive, at its origin, LEX, the home airport: home" },
+        { "at": "2026-11-13T10:00:00Z", "kind": "driving", "words": "Driving to Louisville", "note": "d1 is on the road" },
+        { "at": "2026-11-13T11:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "in the wait at Louisville, which CrewLu's base stay covers" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "in the 20-hour wait in Denver" },
+        { "at": "2026-11-14T14:30:00Z", "kind": "base", "words": "At base in Louisville", "note": "back at Louisville, in CrewLu's base stay" },
+        { "at": "2026-11-14T16:00:00Z", "kind": "driving", "words": "Driving to Lexington", "note": "d2 is on the road home" },
+        { "at": "2026-11-14T17:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival, at LEX, the home airport: home" }
+      ]
+    },
+    {
+      "name": "A trip from base, with no drive",
+      "note": "Home is Lexington (LEX); the trip starts and ends at Louisville (SDF), so before and after it the pilot is at base.",
+      "home": "LEX", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T14:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T10:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "before the first departure, at its origin, SDF, not the home airport: base" },
+        { "at": "2026-11-14T18:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "after the last arrival, at SDF, not the home airport: base" }
+      ]
+    },
+    {
+      "name": "A recap shows home after the trip, wherever it ended",
+      "note": "The trip ended in Chicago (ORD), but a recap is shown once the pilot is home, so after the last arrival the pilot is home.",
+      "home": "SDF", "mode": "recap",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "ORD", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T13:30:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "replaying it: the 20-hour wait in Denver" },
+        { "at": "2026-11-14T18:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival of a recap: home" }
+      ]
+    },
+    {
+      "name": "An airport with no city is named by its code",
+      "note": "COS has no city in the airports above, so the words use its code.",
+      "home": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "COS", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "COS", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T08:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "COS", "to": "SDF", "start": "2026-11-14T08:00:00Z", "end": "2026-11-14T11:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in COS", "note": "in the 17-hour wait at COS, named by CrewLu's layover" }
+      ]
+    },
+    {
+      "name": "A drive that runs into a flight: flying wins",
+      "note": "The drive to Louisville runs 12:00 to 13:30 and the flight leaves at 13:00, so from 13:00 to 13:30 both move.",
+      "home": "LEX", "mode": "trip",
+      "legs": [
+        { "id": "d1", "type": "drive", "from": "LEX", "to": "SDF", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T13:30:00Z" },
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T13:00:00Z", "end": "2026-11-13T16:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T12:30:00Z", "kind": "driving", "words": "Driving to Louisville", "note": "only the drive moves" },
+        { "at": "2026-11-13T13:15:00Z", "kind": "flying", "words": "Flying to Denver", "note": "the drive and the flight both move: flying wins" },
+        { "at": "2026-11-13T14:00:00Z", "kind": "flying", "words": "Flying to Denver", "note": "only the flight moves" }
+      ]
+    }
+  ]
+}
