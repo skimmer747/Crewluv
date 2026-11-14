@@ -131,7 +131,8 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
   - Pulled up: one row per kind of fact (§8), and the adsb.lol credit when live data shows.
   - On iPad, in landscape, and on the website at 900 px wide or more, the facts are a side panel instead.
 - **The timeline** covers the trip from its first departure to its last arrival.
-  - Drag it to replay, with play at 1x, 2x, 5x or 10x as in CrewLu.
+  - Drag it to replay, with play at 1x, 2x, 5x or 10x as in CrewLu. At 1x a day passes in 48 s.
+  - A leg in motion that would take less than 3 s at 1x slows so it takes 3 s; the speed setting multiplies that too. Between legs the replay keeps the normal rate, and where legs overlap the slowest wins (added 2026-11-13, as on the website: Crewluve Website `docs/superpowers/specs/2026-11-13-replay-short-legs-design.md`).
   - A Live button jumps back to now.
   - Replay moves the planes and the night. Live data affects only the present (§7.6).
 - **"Your time"** is the device's time zone, as the alerts already use.

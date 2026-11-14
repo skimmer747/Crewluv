@@ -71,17 +71,23 @@ struct TripMapScreen: View {
         .onChange(of: usesSidePanel) { _, isSidePanel in
             if !isSidePanel { sheetStop = .small }
         }
-        .onChange(of: tripMap.span) {
-            // A new schedule, such as a delay, gives the timeline new ends.
+        .onChange(of: Self.replayLegs(of: tripMap)) {
+            // A new schedule, such as a delay, gives the timeline new ends and a new pace.
             clock = Self.clock(for: tripMap)
         }
     }
 
-    /// Live, or for a recap paused at its trip's start.
+    /// Live, or for a recap paused at its trip's start. A short leg slows the replay while it moves.
     private static func clock(for tripMap: TripMap) -> TripReplayClock {
-        tripMap.mode == .recap
-            ? TripReplayClock(span: tripMap.span, pausedAt: tripMap.span.start)
-            : TripReplayClock(span: tripMap.span)
+        let legs = replayLegs(of: tripMap)
+        return tripMap.mode == .recap
+            ? TripReplayClock(span: tripMap.span, legs: legs, pausedAt: tripMap.span.start)
+            : TripReplayClock(span: tripMap.span, legs: legs)
+    }
+
+    /// Each drive and flight, from its start to its end with any delay.
+    private static func replayLegs(of tripMap: TripMap) -> [TripReplayClock.Stretch] {
+        tripMap.legs.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
     }
 
     private var facts: TripFacts {
