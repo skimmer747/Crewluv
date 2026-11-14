@@ -11,7 +11,10 @@ import SwiftUI
 
 struct FactsPanel: View {
     let facts: TripFacts
+    /// The timeline bar's blocks, at the clock's pace.
+    let timeline: TripTimeline
     @Binding var clock: TripReplayClock
+    @Binding var isQuickLayovers: Bool
     /// The trip time on screen.
     let time: Date
     /// The real time of this tick.
@@ -35,7 +38,7 @@ struct FactsPanel: View {
                 VStack(alignment: .leading, spacing: 12) {
                     header
                     if isExpanded { factsBody }
-                    timeline
+                    timelineControl
                 }
             }
         } else {
@@ -45,7 +48,7 @@ struct FactsPanel: View {
                     ScrollView { factsBody }
                         .frame(maxHeight: .infinity)
                 }
-                timeline
+                timelineControl
             }
         }
     }
@@ -69,8 +72,9 @@ struct FactsPanel: View {
         FactsBody(rows: facts.rows(at: time, now: now), tripSoFar: facts.tripSoFar(at: time))
     }
 
-    private var timeline: some View {
-        TripTimelineControl(clock: $clock, time: time, now: now)
+    private var timelineControl: some View {
+        TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
+                            activity: facts.tripMap.activity(at: time), time: time, now: now)
     }
 
     private func toggle() {

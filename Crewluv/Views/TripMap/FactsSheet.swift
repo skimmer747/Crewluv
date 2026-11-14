@@ -22,7 +22,10 @@ struct FactsSheet: View {
     }
 
     let facts: TripFacts
+    /// The timeline bar's blocks, at the clock's pace.
+    let timeline: TripTimeline
     @Binding var clock: TripReplayClock
+    @Binding var isQuickLayovers: Bool
     @Binding var stop: Stop
     /// The full-screen map's height. The small stop stays under half of it, below the middle stop.
     let screenHeight: CGFloat
@@ -41,12 +44,15 @@ struct FactsSheet: View {
     private static let smallStopLimit: CGFloat = 0.45
 
     var body: some View {
-        // Its own clock: a sheet is a separate presentation from the map under it.
-        TimelineView(.periodic(from: .now, by: clock.isPlaying ? 1.0 / 30 : 1)) { context in
+        // Its own clock: a sheet is a separate presentation from the map under it. Up to 60 times a second during a
+        // replay, as the map, so the bar's thumb moves as smoothly.
+        TimelineView(.animation(minimumInterval: clock.isPlaying ? 1.0 / 60 : 1)) { context in
             let time = clock.time(at: context.date)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    FactsHeader(headline: facts.sheetHeadline(at: time), clock: $clock, time: time, now: context.date)
+                    FactsHeader(headline: facts.sheetHeadline(at: time), timeline: timeline,
+                                activity: facts.tripMap.activity(at: time), clock: $clock,
+                                isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
                         .onGeometryChange(for: CGFloat.self) { Self.headerExtent($0) } action: { headerHeight = $0 }
                     FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time))
                 }

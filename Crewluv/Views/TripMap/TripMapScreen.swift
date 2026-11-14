@@ -4,12 +4,16 @@
 //
 //  The full-screen trip map (moving map spec §6, Stage 2 spec §6): pan and zoom, change the style, replay the trip and
 //  read its facts. On iPhone the facts are a sheet you drag up; on iPad and in landscape, a panel down the leading
-//  edge. A recap opens paused at its trip's start. Weather on landing is fetched while the screen is open.
+//  edge. A recap opens paused at its trip's start. Weather on landing is fetched while the screen is open. Quick
+//  layovers, remembered for every trip, hurries a replay through the waits on the ground (activity markers design §3).
 //
 
 import SwiftUI
 
 struct TripMapScreen: View {
+    /// Where Quick layovers is remembered. It's on until the family turns it off (activity markers design §3.1).
+    static let quickLayoversKey = "tripMapQuickLayovers"
+
     let tripMap: TripMap
     let storyStore: LegStoryStore
     let dayNumber: Int?
@@ -19,6 +23,7 @@ struct TripMapScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(TripMapScreen.quickLayoversKey) private var isQuickLayovers = true
     @State private var clock: TripReplayClock
     @State private var style: TripMapStyle = .hybrid
     @State private var camera: TripMapCamera
@@ -41,48 +46,70 @@ struct TripMapScreen: View {
         self.storyStore = storyStore
         self.dayNumber = dayNumber
         self.totalDays = totalDays
-        _clock = State(initialValue: Self.clock(for: tripMap))
+        // The remembered setting, read from the defaults `@AppStorage` uses, since the property can't be read yet.
+        // `onChange(of: isQuickLayovers, initial: true)` keeps the clock in step with it from then on.
+        let rememberedQuickLayovers = UserDefaults.standard.object(forKey: Self.quickLayoversKey) as? Bool ?? true
+        _clock = State(initialValue: Self.clock(for: tripMap, isQuickLayovers: rememberedQuickLayovers))
         _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg)))
     }
 
     var body: some View {
-        // Once per update, not per frame: the facts change as their stories and forecasts arrive.
+        // Once per update, not per frame: the facts change as their stories and forecasts arrive, and the timeline's
+        // blocks as the clock's pace does.
         let facts = self.facts
-        // Every second live; about 30 times a second while a replay runs. The map draws its night and lines for each
-        // tick's time.
-        TimelineView(.periodic(from: .now, by: clock.isPlaying ? 1.0 / 30 : 1)) { context in
+        let timeline = TripTimeline(tripMap: tripMap, clock: clock)
+        content(facts: facts, timeline: timeline)
+            .sheet(isPresented: isShowingSheet, onDismiss: finishClosing) {
+                FactsSheet(facts: facts, timeline: timeline, clock: $clock, isQuickLayovers: $isQuickLayovers,
+                           stop: $sheetStop, screenHeight: screenFrame.height, height: $sheetHeight)
+            }
+            // Both start again when a flight's route or times change, so a new delay fetches the new landing hour.
+            .task(id: LegStoryStore.preparationKey(for: tripMap)) { await storyStore.prepare(tripMap) }
+            .task(id: LegStoryStore.preparationKey(for: tripMap)) { await weather.keepRefreshing(for: tripMap) }
+            .task(id: isClosing) {
+                // Should the sheet never report going, as when Close comes while it's still sliding up, the map closes anyway.
+                guard isClosing, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
+                dismiss()
+            }
+            .onChange(of: usesSidePanel) { _, isSidePanel in
+                if !isSidePanel { sheetStop = .small }
+            }
+            .onChange(of: Self.replayLegs(of: tripMap)) {
+                // A new schedule, such as a delay, gives the timeline new ends and a new pace.
+                clock = Self.clock(for: tripMap, isQuickLayovers: isQuickLayovers)
+            }
+            .onChange(of: isQuickLayovers, initial: true) { _, isOn in
+                // The replay carries on from the same moment at the new pace.
+                clock.setQuickLayovers(isOn, at: .now)
+            }
+    }
+
+    /// The map and its controls: every second live, and up to 60 times a second while a replay runs, so the night
+    /// sweeps smoothly through a quick layover. The map draws its night and lines for each tick's time.
+    private func content(facts: TripFacts, timeline: TripTimeline) -> some View {
+        TimelineView(.animation(minimumInterval: clock.isPlaying ? 1.0 / 60 : 1)) { context in
             let time = clock.time(at: context.date)
-            screen(time: time, now: context.date, facts: facts)
+            screen(time: time, now: context.date, facts: facts, timeline: timeline)
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
                     refit(legID: legID)
                 }
-        }
-        .sheet(isPresented: isShowingSheet, onDismiss: finishClosing) {
-            FactsSheet(facts: facts, clock: $clock, stop: $sheetStop, screenHeight: screenFrame.height, height: $sheetHeight)
-        }
-        // Both start again when a flight's route or times change, so a new delay fetches the new landing hour.
-        .task(id: LegStoryStore.preparationKey(for: tripMap)) { await storyStore.prepare(tripMap) }
-        .task(id: LegStoryStore.preparationKey(for: tripMap)) { await weather.keepRefreshing(for: tripMap) }
-        .task(id: isClosing) {
-            // Should the sheet never report going, as when Close comes while it's still sliding up, the map closes anyway.
-            guard isClosing, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
-            dismiss()
-        }
-        .onChange(of: usesSidePanel) { _, isSidePanel in
-            if !isSidePanel { sheetStop = .small }
-        }
-        .onChange(of: Self.replayLegs(of: tripMap)) {
-            // A new schedule, such as a delay, gives the timeline new ends and a new pace.
-            clock = Self.clock(for: tripMap)
+                .onChange(of: clock.hasFinished(at: context.date)) { _, hasFinished in
+                    // A finished replay holds its end, paused, so the map stops updating with nothing moving. Play
+                    // starts it over, as before.
+                    if hasFinished { clock.pause(at: .now) }
+                }
         }
     }
 
-    /// Live, or for a recap paused at its trip's start. A short leg slows the replay while it moves.
-    private static func clock(for tripMap: TripMap) -> TripReplayClock {
+    /// Live, or for a recap paused at its trip's start. A short leg slows the replay while it moves, and with Quick
+    /// layovers on each wait hurries by.
+    private static func clock(for tripMap: TripMap, isQuickLayovers: Bool) -> TripReplayClock {
         let legs = replayLegs(of: tripMap)
+        let waits = tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
         return tripMap.mode == .recap
-            ? TripReplayClock(span: tripMap.span, legs: legs, pausedAt: tripMap.span.start)
-            : TripReplayClock(span: tripMap.span, legs: legs)
+            ? TripReplayClock(span: tripMap.span, legs: legs, waits: waits, isQuickLayovers: isQuickLayovers,
+                              pausedAt: tripMap.span.start)
+            : TripReplayClock(span: tripMap.span, legs: legs, waits: waits, isQuickLayovers: isQuickLayovers)
     }
 
     /// Each drive and flight, from its start to its end with any delay.
@@ -95,7 +122,7 @@ struct TripMapScreen: View {
     }
 
     @ViewBuilder
-    private func screen(time: Date, now: Date, facts: TripFacts) -> some View {
+    private func screen(time: Date, now: Date, facts: TripFacts, timeline: TripTimeline) -> some View {
         let base = ZStack(alignment: .top) {
             // The camera frames the trip in what the sheet or the panel leaves clear.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
@@ -108,7 +135,8 @@ struct TripMapScreen: View {
         }
         if usesSidePanel {
             base.overlay(alignment: .bottomLeading) {
-                FactsPanel(facts: facts, clock: $clock, time: time, now: now, isExpanded: $isPanelExpanded)
+                FactsPanel(facts: facts, timeline: timeline, clock: $clock, isQuickLayovers: $isQuickLayovers,
+                           time: time, now: now, isExpanded: $isPanelExpanded)
                     .frame(width: Self.panelWidth)
                     .padding([.horizontal, .bottom])
                     .padding(.top, topBarHeight + 8)

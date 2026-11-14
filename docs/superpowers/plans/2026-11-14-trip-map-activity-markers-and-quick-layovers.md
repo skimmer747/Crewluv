@@ -3592,3 +3592,15 @@ The blocks were copied from this plan by script, and every replacement matched o
   - `Piece` is `private` in an extension and used by `private` stored properties. The clock did the same before this plan and built.
   - `waits` is worked out again on each read, as often as 60 times a second in a replay. That's trivial for a trip's handful of legs.
   - `replay-cases.json` has no overlapping legs. The app and the website already test overlap separately, with the same numbers.
+
+### Batch B (Tasks 7–9)
+
+The blocks were copied from this plan by script, and every replacement matched once. Today's `UIHostingController` marker fix (`safeAreaRegions = []`, `updateTraitsIfNeeded()`) is intact. The review (sonnet) found nothing critical or important and no regressions.
+- **Fixed:**
+  - `TripTimelineBlocks` measures a length only in the pass that shows it. The ahead pass skips blocks already wholly played, and the played pass skips blocks the thumb hasn't reached. Before, every label was resolved and measured twice on every tick.
+  - At accessibility text sizes, Live goes under the bar. Beside it, Live could squeeze the bar to a few points.
+- **Left:**
+  - `activity(at:)` and `waits` are worked out again on each tick, by the map, the sheet and the panel. That's cheap at a trip's size.
+  - `TripTimeline` is rebuilt in `body`, so again on each camera or sheet change. It isn't rebuilt per frame.
+  - White symbols and lengths on orange, teal and green are low contrast, about 2:1 on orange. These are the design's colors. The words under the bar and VoiceOver carry the kind. Check on device.
+  - The previews' own storage isn't read by the screen's `init`, so a preview's first frame may use the default pace.

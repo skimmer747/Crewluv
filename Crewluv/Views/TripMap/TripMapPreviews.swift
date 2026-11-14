@@ -2,8 +2,10 @@
 //  TripMapPreviews.swift
 //  CrewLuve
 //
-//  The trip map card in each state, around the time the canvas opens: Louisville to Cologne to Dubai and home,
-//  Anchorage to Tokyo across the date line, and the Europe trip's recap. Each preview builds its own story store.
+//  The trip map card in each state, around the time the canvas opens: Louisville to Cologne to Dubai and home with
+//  CrewLu's layovers, an hour's turn in Cologne, a commuter at base, Anchorage to Tokyo across the date line, and the
+//  Europe trip's recap. The full-screen map shows with Quick layovers on and off. Each preview builds its own story
+//  store.
 //
 
 #if DEBUG
@@ -25,23 +27,73 @@ private enum TripMapPreviewData {
                 delayMinutes: nil, airlineCode: nil, label: nil)
     }
 
+    /// One of CrewLu's ground legs at `code`: a layover, a turn, or a stay at base or home.
+    static func ground(_ id: String, _ type: TripLeg.LegType, at code: String, _ city: String,
+                       start: Date, hours: Double, zone: String) -> TripLeg {
+        TripLeg(id: id, tripId: "P1", type: type, startTime: start, endTime: start.addingTimeInterval(hours * 3600),
+                airportCode: code, city: city, timezoneIdentifier: zone, arrivalTimezoneIdentifier: nil,
+                flightNumber: nil, departureAirport: nil, arrivalAirport: nil, departureCity: nil, arrivalCity: nil,
+                tripDayNumber: nil, tripTotalDays: nil, delayMinutes: nil, airlineCode: nil, label: nil)
+    }
+
+    /// A commuter's 90-minute drive from Lexington to base in Louisville.
+    static func driveToBase(start: Date) -> TripLeg {
+        TripLeg(id: "D1", tripId: "P1", type: .drive, startTime: start, endTime: start.addingTimeInterval(1.5 * 3600),
+                airportCode: nil, city: nil, timezoneIdentifier: "America/New_York", arrivalTimezoneIdentifier: "America/New_York",
+                flightNumber: nil, departureAirport: "LEX", arrivalAirport: "SDF", departureCity: "Lexington", arrivalCity: "Louisville",
+                tripDayNumber: nil, tripTotalDays: nil, delayMinutes: nil, airlineCode: nil, label: nil)
+    }
+
+    /// Louisville to Cologne, a day there, Dubai, 20 hours there, and home, from `start`.
+    static func europeLegs(from start: Date) -> [TripLeg] {
+        [
+            flight("UPS207", "SDF", "CGN", "Louisville", "Cologne", start: start, hours: 8, zone: "America/New_York", arrivalZone: "Europe/Berlin"),
+            ground("L1", .layover, at: "CGN", "Cologne", start: start.addingTimeInterval(8 * 3600), hours: 24, zone: "Europe/Berlin"),
+            flight("UPS208", "CGN", "DXB", "Cologne", "Dubai", start: start.addingTimeInterval(32 * 3600), hours: 6, zone: "Europe/Berlin", arrivalZone: "Asia/Dubai"),
+            ground("L2", .layover, at: "DXB", "Dubai", start: start.addingTimeInterval(38 * 3600), hours: 20, zone: "Asia/Dubai"),
+            flight("UPS209", "DXB", "SDF", "Dubai", "Louisville", start: start.addingTimeInterval(58 * 3600), hours: 14, zone: "Asia/Dubai", arrivalZone: "America/New_York"),
+        ]
+    }
+
     /// The Europe trip, `hoursIn` hours after its first departure.
     static func europe(hoursIn: Double, isNextTrip: Bool = false, isRecap: Bool = false) -> TripMap? {
         let now = Date()
-        let start = now.addingTimeInterval(-hoursIn * 3600)
+        return TripMap.make(tripLegs: europeLegs(from: now.addingTimeInterval(-hoursIn * 3600)), isNextTrip: isNextTrip,
+                            isRecap: isRecap, homeAirportCode: "SDF", legacyDelayMinutes: nil, at: now, coordinate: { coordinate($0) })
+    }
+
+    /// Louisville to Cologne and straight back after an hour's turn, half an hour into the turn.
+    static var turn: TripMap? {
+        let now = Date()
+        let start = now.addingTimeInterval(-8.5 * 3600)
         let legs = [
             flight("UPS207", "SDF", "CGN", "Louisville", "Cologne", start: start, hours: 8, zone: "America/New_York", arrivalZone: "Europe/Berlin"),
-            flight("UPS208", "CGN", "DXB", "Cologne", "Dubai", start: start.addingTimeInterval(32 * 3600), hours: 6, zone: "Europe/Berlin", arrivalZone: "Asia/Dubai"),
-            flight("UPS209", "DXB", "SDF", "Dubai", "Louisville", start: start.addingTimeInterval(58 * 3600), hours: 14, zone: "Asia/Dubai", arrivalZone: "America/New_York"),
+            ground("T1", .turn, at: "CGN", "Cologne", start: start.addingTimeInterval(8 * 3600), hours: 1, zone: "Europe/Berlin"),
+            flight("UPS206", "CGN", "SDF", "Cologne", "Louisville", start: start.addingTimeInterval(9 * 3600), hours: 9, zone: "Europe/Berlin", arrivalZone: "America/New_York"),
         ]
-        return TripMap.make(tripLegs: legs, isNextTrip: isNextTrip, isRecap: isRecap, homeAirportCode: "SDF", legacyDelayMinutes: nil,
-                            at: now, coordinate: { coordinate($0) })
+        return TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "SDF", legacyDelayMinutes: nil, at: now, coordinate: { coordinate($0) })
+    }
+
+    /// A commuter who lives in Lexington, at base in Louisville, an hour and a half before the Europe trip.
+    static var atBase: TripMap? {
+        let now = Date()
+        let legs = [driveToBase(start: now.addingTimeInterval(-2 * 3600)),
+                    ground("B1", .base, at: "SDF", "Louisville", start: now.addingTimeInterval(-0.5 * 3600), hours: 2, zone: "America/New_York")]
+            + europeLegs(from: now.addingTimeInterval(1.5 * 3600))
+        return TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "LEX", legacyDelayMinutes: nil, at: now, coordinate: { coordinate($0) })
     }
 
     static var pacific: TripMap? {
         let start = Date().addingTimeInterval(-3 * 3600)
         let legs = [flight("UPS61", "ANC", "NRT", "Anchorage", "Tokyo", start: start, hours: 8, zone: "America/Anchorage", arrivalZone: "Asia/Tokyo")]
         return TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "SDF", legacyDelayMinutes: nil, at: Date(), coordinate: { coordinate($0) })
+    }
+
+    /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
+    static func storage(quickLayovers isOn: Bool) -> UserDefaults {
+        let defaults = UserDefaults(suiteName: "TripMapPreviews.quickLayovers.\(isOn)") ?? .standard
+        defaults.set(isOn, forKey: TripMapScreen.quickLayoversKey)
+        return defaults
     }
 }
 
@@ -53,6 +105,18 @@ private enum TripMapPreviewData {
 
 #Preview("Layover") {
     if let map = TripMapPreviewData.europe(hoursIn: 12) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Turn") {
+    if let map = TripMapPreviewData.turn {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("At base") {
+    if let map = TripMapPreviewData.atBase {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
     }
 }
@@ -75,15 +139,17 @@ private enum TripMapPreviewData {
     }
 }
 
-#Preview("Full screen, in flight") {
+#Preview("Full screen, in flight, Quick layovers on") {
     if let map = TripMapPreviewData.europe(hoursIn: 4) {
         TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: 1, totalDays: 4)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true))
     }
 }
 
-#Preview("Full screen, recap") {
+#Preview("Full screen, recap, Quick layovers off") {
     if let map = TripMapPreviewData.europe(hoursIn: 75, isRecap: true) {
         TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: nil, totalDays: nil)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: false))
     }
 }
 #endif
