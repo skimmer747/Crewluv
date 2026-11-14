@@ -193,15 +193,15 @@ nonisolated enum TripMapWording {
         }
     }
 
-    // MARK: - Private
+    // MARK: - Helpers, shared with FactsWording
 
     /// The names of the cities the trip's flights reach, in order, each once, home left out — for VoiceOver.
-    private static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {
+    static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {
         var seen = homeCodes
         return legs.filter { $0.kind == .flight }.map(\.destination).filter { seen.insert($0.code).inserted }.map(\.name)
     }
 
-    private static func milesText(_ miles: Int, locale: Locale) -> String {
+    static func milesText(_ miles: Int, locale: Locale) -> String {
         "\(miles.formatted(.number.locale(locale))) mi"
     }
 
@@ -211,7 +211,7 @@ nonisolated enum TripMapWording {
         return clockTime(leg.end, in: there, locale: locale)
     }
 
-    private static func clockTime(_ date: Date, in zone: TimeZone, locale: Locale) -> String {
+    static func clockTime(_ date: Date, in zone: TimeZone, locale: Locale) -> String {
         date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: zone))
     }
 
