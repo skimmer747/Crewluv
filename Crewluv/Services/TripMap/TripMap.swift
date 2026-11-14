@@ -2,8 +2,9 @@
 //  TripMap.swift
 //  CrewLuve
 //
-//  The trip the map shows (moving map spec §5.1): its drawable legs, whether the pilot is flying, on the ground
-//  mid-trip, or home with this trip ahead, and where the pilot is at any moment.
+//  The trip the map shows (moving map spec §5.1): its drawable legs, CrewLu's ground legs, whether the pilot is flying,
+//  on the ground mid-trip, or home with this trip ahead, and where the pilot is at any moment. What they're doing there
+//  is in TripMap+Activity.swift.
 //
 
 import CoreLocation
@@ -24,6 +25,9 @@ nonisolated struct TripMap {
     let mode: Mode
     /// Never empty, earliest first.
     let legs: [MapLeg]
+    /// CrewLu's layovers, turns, and stays at base and home, earliest first. They name the waits between legs
+    /// (activity markers design §2.2), and aren't drawn.
+    let groundStops: [GroundStop]
     let home: AirportMark?
     /// From the first departure to the last arrival: the full-screen map's timeline.
     let span: DateInterval
@@ -101,6 +105,7 @@ nonisolated struct TripMap {
                    coordinate: coordinate)
         }
         guard let first = legs.first else { return nil }
+        let groundStops = sorted.compactMap(GroundStop.init(leg:))
         let lastArrival = legs.map(\.end).max() ?? first.end
         let home = homeAirportCode.flatMap { code in
             coordinate(code).map { AirportMark(code: code, city: nil, coordinate: $0, timeZone: nil) }
@@ -116,7 +121,7 @@ nonisolated struct TripMap {
             mode = .onTrip
         }
         let firstDeparture = legs.map(\.start).min() ?? first.start
-        return TripMap(mode: mode, legs: legs, home: home,
+        return TripMap(mode: mode, legs: legs, groundStops: groundStops, home: home,
                        span: DateInterval(start: firstDeparture, end: max(lastArrival, firstDeparture)),
                        tripDays: tripLegs.compactMap(\.tripTotalDays).max())
     }
