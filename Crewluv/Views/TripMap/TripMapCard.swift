@@ -3,8 +3,9 @@
 //  CrewLuve
 //
 //  The trip map on the status screen (moving map spec §5, Stage 2 spec §6.4, §6.5). In flight it follows the plane,
-//  with the headline fact on its chip; on the ground it shows the whole trip with a heart where the pilot is; at home,
-//  the next trip, or for a day after a trip, its recap. Tapping the map opens it full screen.
+//  with the headline fact on its chip; on the ground it shows the whole trip with a marker for what the pilot is doing
+//  where they are (activity markers design §2); at home, the next trip, or for a day after a trip, its recap. Tapping
+//  the map opens it full screen.
 //
 
 import SwiftUI

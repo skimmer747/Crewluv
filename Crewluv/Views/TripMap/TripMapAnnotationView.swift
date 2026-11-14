@@ -85,20 +85,20 @@ final class TripMapAnnotationView: MKAnnotationView {
     // MARK: - Placing each marker
 
     /// Where the view's centre sits from its coordinate. The airport's dot sits on the airport with its code below;
-    /// the heart stands on its place, as SwiftUI's bottom anchor had it.
+    /// the pilot's marker stands on its place, as the heart did.
     private static func centerOffset(of marker: TripMapMarker, size: CGSize) -> CGPoint {
         switch marker {
         case .airport: CGPoint(x: 0, y: size.height / 2 - TripMapMarkers.Airport.dotDiameter / 2)
-        case .heart: CGPoint(x: 0, y: -size.height / 2)
+        case .pilot: CGPoint(x: 0, y: -size.height / 2)
         case .car, .plane: .zero
         }
     }
 
-    /// The plane on top, then the heart, the cars and the airports.
+    /// The plane on top, then the pilot's marker, the cars and the airports.
     private static func zPriority(of marker: TripMapMarker) -> MKAnnotationViewZPriority {
         switch marker {
         case .plane: .max
-        case .heart: MKAnnotationViewZPriority(rawValue: 900)
+        case .pilot: MKAnnotationViewZPriority(rawValue: 900)
         case .car: MKAnnotationViewZPriority(rawValue: 700)
         case .airport: .defaultUnselected
         }

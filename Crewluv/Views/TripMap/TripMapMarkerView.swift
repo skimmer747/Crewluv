@@ -16,8 +16,8 @@ struct TripMapMarkerView: View {
             TripMapMarkers.AirportLabel(code: code, palette: palette)
         case .car:
             TripMapMarkers.Car()
-        case .heart:
-            TripMapMarkers.Heart()
+        case .pilot(let kind):
+            TripMapMarkers.Pilot(kind: kind)
         case .plane(let angle):
             PlaneMarker(angle: angle)
         }

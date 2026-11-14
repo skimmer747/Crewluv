@@ -46,8 +46,9 @@ nonisolated struct TripMapDrawing {
     let airports: [AirportMark]
     let cars: [TripMapPoint]
     let plane: PlaneMark?
-    /// The heart: where the pilot is when nothing is moving.
-    let pin: AirportMark?
+    /// What the pilot is doing on the ground, and where (activity markers design §2): nil while a leg moves, when the
+    /// plane or the car shows them.
+    let pilot: TripActivity?
 
     init(tripMap: TripMap, at date: Date) {
         var segments: [RouteSegment] = []
@@ -82,6 +83,6 @@ nonisolated struct TripMapDrawing {
         self.airports = tripMap.legs.flatMap { [$0.origin, $0.destination] }.filter { seen.insert($0.code).inserted }
         self.cars = cars
         self.plane = plane
-        self.pin = tripMap.pilotLocation(at: date)
+        self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
     }
 }

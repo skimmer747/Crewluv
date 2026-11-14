@@ -2,7 +2,7 @@
 //  TripMapAnnotation.swift
 //  CrewLuve
 //
-//  One marker on the trip map as MapKit holds it: an airport, a car, the heart or the plane. Its coordinate is
+//  One marker on the trip map as MapKit holds it: an airport, a car, the pilot's marker or the plane. Its coordinate is
 //  observable, so MapKit moves the marker's view when the coordinator moves it.
 //
 

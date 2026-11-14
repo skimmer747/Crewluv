@@ -23,7 +23,7 @@ struct TripMapStatusTests {
 
         #expect(map.mode == .onTrip)
         #expect(map.legs.map(\.id) == ["h1", "h2", "h3"], "the whole trip, flown legs too")
-        #expect(map.pilotLocation(at: hours(36))?.code == "SDF", "the heart sits at home, where the last leg landed")
+        #expect(map.pilotLocation(at: hours(36))?.code == "SDF", "the pilot is at home, where the last leg landed")
         #expect(map.nextFlight(after: hours(36))?.id == "h3")
     }
 

@@ -24,15 +24,16 @@ final class TripMapDrawingTests: XCTestCase {
         let plane = try XCTUnwrap(drawing.plane)
         let expected = try XCTUnwrap(map.currentLeg).position(at: hours(4))
         XCTAssertEqual(plane.coordinate.latitude, expected.latitude, accuracy: 1e-9)
-        XCTAssertNil(drawing.pin, "the plane shows where they are")
+        XCTAssertNil(drawing.pilot, "the plane shows where they are")
     }
 
-    func test_init_onTheLayover_greysTheFlownLegAndPinsCologne() throws {
+    func test_init_onTheLayover_greysTheFlownLegAndPutsThePilotOnALayoverInCologne() throws {
         let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: hours(12)))
         let drawing = TripMapDrawing(tripMap: map, at: hours(12))
         XCTAssertEqual(styles(drawing), ["f1-flown": .flown, "f2-upcoming": .upcoming, "f3-upcoming": .upcoming])
         XCTAssertNil(drawing.plane)
-        XCTAssertEqual(drawing.pin?.code, "CGN")
+        XCTAssertEqual(drawing.pilot?.place.code, "CGN")
+        XCTAssertEqual(drawing.pilot?.kind, .layover)
     }
 
     func test_init_taxiingOut_showsThePlaneAtTheGateWithTheWholeLegAhead() throws {
@@ -58,5 +59,11 @@ final class TripMapDrawingTests: XCTestCase {
         let car = try XCTUnwrap(drawing.cars.first)
         let middle = try XCTUnwrap(map.legs.first).position(atFraction: 0.5)
         XCTAssertEqual(car.coordinate.longitude, middle.longitude, accuracy: 1e-9, "parked halfway when not driving")
+    }
+
+    func test_init_whileDriving_hasNoGroundMarker() throws {
+        let legs = [TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(0), hours: 2)]
+        let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(1)))
+        XCTAssertNil(TripMapDrawing(tripMap: map, at: hours(1)).pilot, "the car shows where they are")
     }
 }
