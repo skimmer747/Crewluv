@@ -5226,3 +5226,22 @@ Tasks 11–15 were copied from the plan's code by script. Changes since then:
 - **`WeatherService.landingForecast`:**
   - It takes the hour that holds the landing, not just the first hour WeatherKit returns.
   - A cancelled request isn't logged as a failure.
+
+### Batch E (Tasks 18–20), from its review
+
+Tasks 18–20 were copied from the plan's code by script. Changes since then:
+- **`TripMapScreen` starts `prepare` and `keepRefreshing` with `.task(id: flightTimes)`,** each leg's `LegStoryStore.timesKey`, as batch D asked, so a delay fetches the new landing hour.
+- **The facts are built once per update of `TripMapScreen`,** not on every frame of the timeline, and handed to the panel and the sheet.
+- **A new schedule resets the timeline:** `onChange(of: tripMap.span)` makes a new clock, live or, for a recap, paused at the start. The clock kept the old span's ends before.
+- **The sheet's small stop is measured.** `FactsSheet` measures its header with the padding around it, adds the home indicator's room, and holds the stop under 45% of the screen. When the header is too tall for that, the small stop scrolls.
+  - The guessed 160 pt left too little room once the home indicator's 34 pt came off.
+  - At the largest text sizes, the scaled guess was taller than the middle stop.
+- **The sheet's stop is a `FactsSheet.Stop`** (small, medium, large), not a `PresentationDetent`. The small stop's height can change as it's measured without the selection falling out of the detents, and the sheet opens at its small stop instead of settling there from the middle.
+- **The map keeps clear of the sheet only up to the middle stop** (half the screen). Higher, it stays framed as it was.
+  - The sheet's height counts the home indicator's room: `size.height + safeAreaInsets.bottom`.
+- **The map clears the side panel's real trailing edge,** measured in window coordinates. That includes the leading safe area and the padding, open or folded. It cleared 380 pt before, which left the plane under the panel's edge on an iPhone in landscape.
+- **At accessibility text sizes the whole side panel scrolls,** since the headline and the timeline alone can be taller than a landscape iPhone.
+- **The card's stacked chips keep the recap's play symbol** at the largest text sizes, and no longer use the chip's text as a `ForEach` id.
+- **`TripMapChip` shrinks to 85% before cutting a long headline off.**
+
+Not taken: refreshing the rows less often than the timeline during a replay. The costliest part is one scan of the 505 cities per call, well under a millisecond a frame, small next to MapKit's drawing.
