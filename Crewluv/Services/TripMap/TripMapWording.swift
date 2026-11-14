@@ -23,6 +23,8 @@ nonisolated enum TripMapWording {
             return (place, next)
         case .nextTrip:
             return (nextTripChip(startingAt: tripMap.span.start, now: date, calendar: calendar, locale: locale), nil)
+        case .recap:
+            return (FactsWording.recapChip(days: tripMap.dayCount(in: calendar)), "Replay the trip")
         }
     }
 
@@ -83,7 +85,7 @@ nonisolated enum TripMapWording {
                            calendar: Calendar = .current, locale: Locale = .current) -> [String] {
         let cities = destinations(of: tripMap.legs, leavingOut: Set([tripMap.home?.code].compactMap { $0 }))
         switch tripMap.mode {
-        case .inFlight:
+        case .inFlight, .recap:
             return []
         case .onTrip:
             var items: [String] = []
@@ -142,6 +144,7 @@ nonisolated enum TripMapWording {
 
     /// The pill at the top: "UPS207 · In flight", "Driving to Louisville", "Day 2 of 4" or "Next trip".
     static func topPill(for tripMap: TripMap, at date: Date, dayNumber: Int?, totalDays: Int?) -> String {
+        if tripMap.mode == .recap, date >= tripMap.span.end { return "Trip recap" }
         if let leg = tripMap.legInMotion(at: date) {
             switch leg.kind {
             case .flight: return [leg.flightNumber, "In flight"].compactMap { $0 }.joined(separator: " · ")
@@ -190,6 +193,9 @@ nonisolated enum TripMapWording {
             let cities = destinationNames(of: tripMap.legs, leavingOut: Set([tripMap.home?.code].compactMap { $0 }))
             let day = dayPhrase(for: tripMap.span.start, now: now, calendar: calendar, locale: locale)
             return "Map of the next trip, \(day): \(cities.joined(separator: ", "))."
+        case .recap:
+            let chip = FactsWording.recapChip(days: tripMap.dayCount(in: calendar))
+            return "Trip recap: \(chip.prefix(1).lowercased() + chip.dropFirst())."
         }
     }
 

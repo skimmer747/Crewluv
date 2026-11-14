@@ -73,4 +73,11 @@ final class TripReplayClockTests: XCTestCase {
         XCTAssertTrue(clock.isLive)
         XCTAssertEqual(clock.time(at: now), now)
     }
+
+    func test_initPausedAt_isPausedThere() {
+        let clock = TripReplayClock(span: span, pausedAt: span.start)
+        XCTAssertFalse(clock.isLive)
+        XCTAssertFalse(clock.isPlaying)
+        XCTAssertEqual(clock.time(at: now), span.start)
+    }
 }

@@ -28,6 +28,12 @@ nonisolated struct TripReplayClock {
         self.span = span
     }
 
+    /// Paused at `date`: the recap opens at its trip's start, ready to play (Stage 2 spec §6.5).
+    init(span: DateInterval, pausedAt date: Date) {
+        self.init(span: span)
+        scrub(to: date)
+    }
+
     var isLive: Bool { anchor == nil }
 
     /// Whether a replay is running. It stays true once the replay reaches the trip's end, so the UI checks

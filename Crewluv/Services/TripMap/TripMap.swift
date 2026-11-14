@@ -17,6 +17,8 @@ nonisolated struct TripMap {
         case onTrip
         /// At home or base, with this trip still ahead.
         case nextTrip
+        /// Home, within a day of this trip ending: its recap (Stage 2 spec §8).
+        case recap
     }
 
     let mode: Mode
@@ -25,6 +27,8 @@ nonisolated struct TripMap {
     let home: AirportMark?
     /// From the first departure to the last arrival: the full-screen map's timeline.
     let span: DateInterval
+    /// CrewLu's count of the trip's days, when the legs carry it.
+    let tripDays: Int?
 
     var isInFlight: Bool {
         if case .inFlight = mode { return true }
@@ -45,10 +49,18 @@ nonisolated struct TripMap {
         legs.first { $0.kind == .flight && $0.start > date }
     }
 
+    /// The trip's days: CrewLu's count when the legs carry it, else the calendar days it spans.
+    func dayCount(in calendar: Calendar) -> Int {
+        if let tripDays { return max(1, tripDays) }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: span.start), to: calendar.startOfDay(for: span.end)).day ?? 0
+        return days + 1
+    }
+
     /// Where the pilot is at `date` when nothing is moving, or nil while a leg is. Before a trip still ahead
     /// starts, that's home.
     func pilotLocation(at date: Date) -> AirportMark? {
         guard legInMotion(at: date) == nil else { return nil }
+        if mode == .recap, date >= span.end { return home ?? legs.last?.destination }
         if mode == .nextTrip, date < span.start { return home ?? legs.first?.origin }
         return legs.last(where: { $0.end <= date })?.destination ?? legs.first?.origin
     }
@@ -67,12 +79,14 @@ nonisolated struct TripMap {
 
     /// The map of `tripLegs`, one trip's legs as the status screen picked them, or nil when none can be drawn.
     /// - `isNextTrip`: the legs are a trip still ahead, shown from home.
+    /// - `isRecap`: the legs are a trip just finished, shown as its recap.
     /// - `legacyDelayMinutes`: the summary-wide delay from a CrewLu that doesn't tag legs. As `TripStateResolver`
     ///   does, it moves only the flight it covers, and only when no leg carries its own.
     /// - `coordinate`: where an airport is, by code.
     static func make(
         tripLegs: [TripLeg],
         isNextTrip: Bool,
+        isRecap: Bool = false,
         homeAirportCode: String?,
         legacyDelayMinutes: Int?,
         at now: Date,
@@ -92,7 +106,9 @@ nonisolated struct TripMap {
             coordinate(code).map { AirportMark(code: code, city: nil, coordinate: $0, timeZone: nil) }
         }
         let mode: Mode
-        if isNextTrip {
+        if isRecap {
+            mode = .recap
+        } else if isNextTrip {
             mode = .nextTrip
         } else if let flying = legs.first(where: { $0.kind == .flight && $0.isMoving(at: now) }) {
             mode = .inFlight(legID: flying.id)
@@ -101,7 +117,8 @@ nonisolated struct TripMap {
         }
         let firstDeparture = legs.map(\.start).min() ?? first.start
         return TripMap(mode: mode, legs: legs, home: home,
-                       span: DateInterval(start: firstDeparture, end: max(lastArrival, firstDeparture)))
+                       span: DateInterval(start: firstDeparture, end: max(lastArrival, firstDeparture)),
+                       tripDays: tripLegs.compactMap(\.tripTotalDays).max())
     }
 
     private static func mapLeg(

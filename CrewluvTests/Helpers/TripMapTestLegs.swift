@@ -37,7 +37,8 @@ enum TripMapTestLegs {
         arrivalCity: String? = nil,
         timezone: String? = nil,
         arrivalTimezone: String? = nil,
-        tripId: String? = "T1"
+        tripId: String? = "T1",
+        tripTotalDays: Int? = nil
     ) -> TripLeg {
         TripLeg(
             id: id,
@@ -55,7 +56,7 @@ enum TripMapTestLegs {
             departureCity: departureCity,
             arrivalCity: arrivalCity,
             tripDayNumber: nil,
-            tripTotalDays: nil,
+            tripTotalDays: tripTotalDays,
             delayMinutes: delayMinutes,
             airlineCode: nil,
             label: nil

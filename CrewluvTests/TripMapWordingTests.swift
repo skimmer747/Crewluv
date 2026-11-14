@@ -156,4 +156,28 @@ final class TripMapWordingTests: XCTestCase {
         let items = TripMapWording.statsItems(for: map, at: start.addingTimeInterval(3 * 3600), dayNumber: nil, totalDays: nil, calendar: calendar, locale: locale)
         XCTAssertEqual(items, ["0 mi so far"])
     }
+
+    // MARK: - The recap (Stage 2 spec §6.5)
+
+    private func recap() throws -> TripMap {
+        try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: false, isRecap: true, homeAirportCode: "SDF",
+                                   legacyDelayMinutes: nil, at: now, coordinate: TripMapTestLegs.coordinate))
+    }
+
+    func test_cardChips_recap_homeFromDaysAway_andReplay() throws {
+        let map = try recap()
+        let chips = TripMapWording.cardChips(for: map, at: map.span.end.addingTimeInterval(3600), calendar: calendar, locale: locale)
+        XCTAssertEqual(chips.top, "Home from 4 days away")
+        XCTAssertEqual(chips.bottom, "Replay the trip")
+    }
+
+    func test_topPill_recapAfterTheTrip_isTripRecap() throws {
+        let map = try recap()
+        XCTAssertEqual(TripMapWording.topPill(for: map, at: map.span.end, dayNumber: nil, totalDays: nil), "Trip recap")
+    }
+
+    func test_statsItems_recap_isEmpty() throws {
+        let map = try recap()
+        XCTAssertEqual(TripMapWording.statsItems(for: map, at: map.span.end, dayNumber: nil, totalDays: nil), [])
+    }
 }

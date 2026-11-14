@@ -4,6 +4,7 @@
 //
 //  Which trip the status screen's map shows (moving map spec §5.1, §12):
 //  - at home or base, the next trip, unless it's a night there in the middle of a trip: that trip is under way;
+//  - at home or base within a day of a trip ending, that trip's recap, unless the next trip leaves within 12 hours;
 //  - on a trip, that trip's legs;
 //  - from a CrewLu too old to send legs, just the flight in the air.
 //
@@ -18,13 +19,18 @@ extension TripMap {
         let coordinate: (String) -> CLLocationCoordinate2D? = { code in
             airports.airportInfo(forIataCode: code).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
         }
+        let tripLegs = status.tripLegs
         let isSettled = status.displayStatus.isSettled
+        // The recap waits for home: a commuter at base still has the way home ahead.
+        let recapLegs = status.displayStatus == .home ? Self.recapLegs(in: tripLegs, at: now) : nil
         let legs: [TripLeg]
-        if isSettled {
-            guard let trip = UpcomingTripInfo.from(tripLegs: status.tripLegs, at: now, homeAirportCode: status.homeAirportCode) else { return nil }
-            legs = status.tripLegs.filter { $0.tripId == trip.tripId }
-        } else if status.hasTripLegs {
-            let segment = TripStateResolver.contiguousSegment(covering: now, in: status.tripLegs)
+        if let recapLegs {
+            legs = recapLegs
+        } else if isSettled {
+            guard let trip = UpcomingTripInfo.from(tripLegs: tripLegs, at: now, homeAirportCode: status.homeAirportCode) else { return nil }
+            legs = tripLegs.filter { $0.tripId == trip.tripId }
+        } else if !tripLegs.isEmpty {
+            let segment = TripStateResolver.contiguousSegment(covering: now, in: tripLegs)
             // Legs that no longer cover now (stale, or a flight running late past them) still leave the
             // summary's flight in the air to draw, as the old in-flight map did.
             legs = segment.isEmpty ? (Self.currentFlightLeg(of: status).map { [$0] } ?? []) : segment
@@ -34,11 +40,35 @@ extension TripMap {
         // A night at home or base in the middle of a trip (CrewLu's `.home` or `.base` leg between two duty periods)
         // reads as settled, and its upcoming trip is the rest of the trip under way. Only a trip with no leg started yet
         // is the next trip; shown as one, the trip under way would start on a date already past.
-        let isNextTrip = isSettled && legs.allSatisfy { $0.startTime > now }
-        guard let map = TripMap.make(tripLegs: legs, isNextTrip: isNextTrip,
+        let isNextTrip = recapLegs == nil && isSettled && legs.allSatisfy { $0.startTime > now }
+        guard let map = TripMap.make(tripLegs: legs, isNextTrip: isNextTrip, isRecap: recapLegs != nil,
                                      homeAirportCode: status.homeAirportCode ?? status.baseAirportCode,
                                      legacyDelayMinutes: status.flightDelayMinutes, at: now, coordinate: coordinate) else { return nil }
         self = map
+    }
+
+    /// How long a recap shows after its trip's last leg ends (Stage 2 spec §8.1).
+    static let recapDuration: TimeInterval = 24 * 3600
+    /// A next trip leaving this soon takes over from the recap.
+    static let recapYieldsWithin: TimeInterval = 12 * 3600
+
+    /// The legs of the trip whose last leg ended in the past 24 hours, or nil when there's none, another trip is under
+    /// way (a night at home in the middle of it), or the next trip leaves within 12 hours. Legs with no trip, like a
+    /// standalone jumpseat, aren't a trip.
+    static func recapLegs(in tripLegs: [TripLeg], at now: Date) -> [TripLeg]? {
+        let trips = Dictionary(grouping: tripLegs.filter { $0.tripId != nil }, by: \.tripId)
+        let isTripUnderWay = trips.values.contains { legs in
+            (legs.map(\.startTime).min() ?? .distantFuture) <= now && (legs.map(\.endTime).max() ?? .distantPast) > now
+        }
+        guard !isTripUnderWay else { return nil }
+        let finished = trips.values.compactMap { legs -> (legs: [TripLeg], end: Date)? in
+            guard let end = legs.map(\.endTime).max(), end <= now, now.timeIntervalSince(end) < recapDuration else { return nil }
+            return (legs, end)
+        }
+        guard let recap = finished.max(by: { $0.end < $1.end }) else { return nil }
+        let nextDeparture = tripLegs.filter { $0.tripId != nil && $0.startTime > now }.map(\.startTime).min()
+        if let nextDeparture, nextDeparture.timeIntervalSince(now) <= recapYieldsWithin { return nil }
+        return recap.legs
     }
 
     /// The flight in the air, from the summary's `currentFlight*` fields: for a CrewLu that sends no legs,
