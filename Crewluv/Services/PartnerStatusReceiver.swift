@@ -401,6 +401,7 @@ class PartnerStatusReceiver {
         let now = Date()
         guard let reading = statusSource.reading else {
             pilotStatus = nil
+            liveSource.watch([])
             clearLiveFlights()
             return
         }

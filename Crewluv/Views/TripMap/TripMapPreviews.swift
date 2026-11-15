@@ -132,7 +132,7 @@ private enum TripMapPreviewData {
         let legs = europeLegs(from: start)
         guard let origin = coordinate("SDF"), let destination = coordinate("CGN") else { return nil }
         let takeoff = start.addingTimeInterval(5 * 60)
-        let unseen = hasUnseenOcean ? takeoff.addingTimeInterval(1.5 * 3600)...takeoff.addingTimeInterval(2.5 * 3600) : nil
+        let unseen = hasUnseenOcean ? takeoff.addingTimeInterval(3600)...takeoff.addingTimeInterval(2 * 3600) : nil
         let live = liveFlight(legID: "UPS207", from: origin, via: CLLocationCoordinate2D(latitude: 58, longitude: -45),
                               to: destination, takeoff: takeoff, lastSeen: now.addingTimeInterval(-lastSeenMinutesAgo * 60),
                               unseen: unseen)
@@ -206,7 +206,8 @@ private enum TripMapPreviewData {
 }
 
 #Preview("Real plane, estimated past an unseen ocean") {
-    if let map = TripMapPreviewData.europeLive(hoursIn: 4, lastSeenMinutesAgo: 25, hasUnseenOcean: true) {
+    // Last seen long enough ago that the dotted line to the plane reaches out from under the ghost.
+    if let map = TripMapPreviewData.europeLive(hoursIn: 4, lastSeenMinutesAgo: 75, hasUnseenOcean: true) {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
     }
 }

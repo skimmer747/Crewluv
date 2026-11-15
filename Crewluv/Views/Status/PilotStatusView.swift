@@ -271,7 +271,7 @@ struct PilotStatusView: View {
             }
         }
         .navigationDestination(isPresented: $showSchedule) {
-            EventTimelineView(status: status)
+            EventTimelineView(status: status, flights: flights)
         }
         .scrollEdgeEffectStyle(.soft, for: .vertical)
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in

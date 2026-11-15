@@ -58,6 +58,23 @@ final class LiveMarkerTests: XCTestCase {
         XCTAssertEqual(Set(placements.keys), ["airport-SDF", "airport-PHL", "real-plane"])
     }
 
+    func test_placements_legsThatAreOneFlight_areOneRealPlane_andNoSchedulesPlane() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        let legs = [cases.tripLeg(flightCase, id: "twin-a"), cases.tripLeg(flightCase, id: "twin-b")]
+        let flights = LiveLegs.flights(for: legs, legacyDelayMinutes: nil, answered: cases.live(flightCase).map { ["twin-a": $0] } ?? [:],
+                                       clockOffset: 0, coordinate: cases.coordinateOrNil)
+        let replaced = LiveLegs.replacingTimes(in: legs, with: flights, at: moment.at)
+        let map = try XCTUnwrap(TripMap.make(tripLegs: replaced, isNextTrip: false, homeAirportCode: "SDF", legacyDelayMinutes: nil,
+                                             flights: flights, at: moment.at, coordinate: cases.coordinateOrNil))
+        let drawing = TripMapDrawing(tripMap: map, at: moment.at)
+        XCTAssertNil(drawing.plane, "no leg of the flight is left on the schedule beside the real plane")
+        XCTAssertNotNil(drawing.realPlane)
+        let placements = TripMapMarker.placements(for: drawing, palette: .onDarkMap)
+        XCTAssertEqual(Set(placements.keys), ["airport-SDF", "airport-PHL", "real-plane", "ghost"])
+    }
+
     func test_markers_thePlanesAreOneSize() {
         XCTAssertEqual(TripMapMarker.realPlane(angle: 1, isEstimated: false).sizeKey, TripMapMarker.plane(angle: 0).sizeKey)
         XCTAssertEqual(TripMapMarker.ghost(angle: 1).sizeKey, TripMapMarker.plane(angle: 0).sizeKey)

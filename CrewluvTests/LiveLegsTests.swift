@@ -55,13 +55,45 @@ final class LiveLegsTests: XCTestCase {
         let cases = try TripMapFixtures.liveCases()
         let flightCase = try cases.flight(named: "ahead, in the air")
         let live = try XCTUnwrap(cases.live(flightCase))
-        let legs = [cases.tripLeg(flightCase, id: "f1"), cases.tripLeg(flightCase, id: "f2")]
+        let later = TripMapTestLegs.leg("f2", from: "SDF", to: "CGN", start: flightCase.arrival.addingTimeInterval(86_400), hours: 8,
+                                        flightNumber: "UPS208")
+        let legs = [cases.tripLeg(flightCase, id: "f1"), later]
         let made = flights(cases, for: legs, answered: ["f1": live, "gone": live])
         XCTAssertEqual(Array(made.keys), ["f1"])
         XCTAssertEqual(made["f1"]?.live, live)
         XCTAssertEqual(made["f1"]?.path.isReal, true)
         XCTAssertNotNil(made["f1"]?.record)
         XCTAssertTrue(flights(cases, for: legs, answered: [:]).isEmpty)
+    }
+
+    func test_flights_legsThatAreOneFlight_shareItsAnswer_whichComesUnderTheFirstOfTheirIDs() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let live = try XCTUnwrap(cases.live(flightCase))
+        let legs = [cases.tripLeg(flightCase, id: "twin-b"), cases.tripLeg(flightCase, id: "twin-a")]
+        let made = flights(cases, for: legs, answered: ["twin-a": live])
+        XCTAssertEqual(made.keys.sorted(), ["twin-a", "twin-b"])
+        XCTAssertEqual(made["twin-b"]?.live, live)
+        XCTAssertEqual(made["twin-b"]?.plan.arrival, made["twin-a"]?.plan.arrival)
+        // An answer under the other id is no flight's: Crewlu Cloud answers under the first.
+        XCTAssertTrue(flights(cases, for: legs, answered: ["twin-b": live]).isEmpty)
+    }
+
+    func test_flights_handTheClockOffsetOn() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        let legs = [cases.tripLeg(flightCase)]
+        let answered = ["f1": try XCTUnwrap(cases.live(flightCase))]
+        // A phone ten minutes fast: Crewlu Cloud's clock is 600 seconds behind it.
+        let made = LiveLegs.flights(for: legs, legacyDelayMinutes: nil, answered: answered, clockOffset: -600,
+                                    coordinate: cases.coordinateOrNil)
+        let byThePhone = moment.at.addingTimeInterval(600)
+        XCTAssertEqual(try XCTUnwrap(made["f1"]).progress(at: byThePhone).phase, .inAir,
+                       "the plane was seen seconds ago by Crewlu Cloud's clock, not ten minutes ago")
+        // With no offset handed on, the same moment would make the plane an estimate.
+        let withNoOffset = try XCTUnwrap(flights(cases, for: legs, answered: answered)["f1"])
+        XCTAssertEqual(withNoOffset.progress(at: byThePhone).phase, .estimated)
     }
 
     func test_flights_planIsTheScheduleMovedByTheLegsOwnDelay() throws {
@@ -420,6 +452,125 @@ final class LiveLegsTests: XCTestCase {
         let taxiing = LiveLegs.replacingTimes(in: [landedLeg], with: landed, at: landedCase.moments[0].at)
         let justBeforeTheGate = try XCTUnwrap(taxiing.first).endTime.addingTimeInterval(-30)
         XCTAssertNil(LiveLegs.estimatedArrival(in: taxiing, flights: landed, at: justBeforeTheGate))
+    }
+
+    // MARK: - Legs that are one flight
+
+    @MainActor
+    func test_replacingTimes_legsThatAreOneFlight_allTakeTheRealTimes_soNoneIsLeftOnTheSchedule() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        let after = cases.wait("w2", .layover, at: "PHL", from: flightCase.arrival, to: flightCase.arrival.addingTimeInterval(86_400))
+        let legs = [cases.tripLeg(flightCase, id: "twin-a"), cases.tripLeg(flightCase, id: "twin-b"), after]
+        let made = flights(cases, for: legs, answered: ["twin-a": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)
+
+        for twin in replaced.prefix(2) {
+            assertEqual(twin.startTime, moment.start, twin.id)
+            assertEqual(twin.endTime, moment.end, twin.id)
+        }
+        assertEqual(replaced[2].startTime, moment.end, "the wait after starts where the flight ends")
+        // The plane is ahead: five minutes before the scheduled arrival it has reached the gate, and no leg of the
+        // flight still has it in the air.
+        let fiveBefore = flightCase.arrival.addingTimeInterval(-300)
+        XCTAssertEqual(TripStateResolver.resolve(legs: replaced, at: fiveBefore)?.displayStatus, .layover)
+        XCTAssertEqual(TripStateResolver.resolve(legs: readBack(replaced), at: fiveBefore)?.displayStatus, .layover)
+    }
+
+    // MARK: - The schedule's list
+
+    func test_forTheSchedule_aLiveFlightShowsItsRealTimes_withItsDelayInsideThem() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        // CrewLu has tagged the flight 20 minutes late, so its written times are 20 minutes before its real ones.
+        // The schedule's list adds no delay: it would show them as they're written.
+        let leg = cases.tripLeg(flightCase, delayMinutes: 20)
+        let after = cases.wait("w2", .layover, at: "PHL", from: flightCase.arrival, to: flightCase.arrival.addingTimeInterval(86_400))
+        let made = flights(cases, for: [leg, after], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: [leg, after], with: made, at: moment.at)
+        assertEqual(replaced[0].endTime, moment.end.addingTimeInterval(-20 * 60), "as the status carries it")
+
+        let shown = LiveLegs.forTheSchedule(replaced, with: made)
+        assertEqual(shown[0].startTime, moment.start)
+        assertEqual(shown[0].endTime, moment.end)
+        XCTAssertNil(shown[0].delayMinutes)
+        XCTAssertEqual(shown[1], replaced[1], "the wait is as the status carries it")
+        assertEqual(shown[1].startTime, moment.end, "and starts where the flight is shown to end")
+    }
+
+    func test_forTheSchedule_aTimeTheRealPlaneHasntMoved_staysAsWritten_whereItsWaitMeetsIt() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "off late, and seen from the start")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        // CrewLu has tagged the flight 30 minutes late, and its waits meet its written times. The plane left later
+        // still, and a late departure doesn't move a leg's start. Its landing is the real plane's.
+        let leg = cases.tripLeg(flightCase, delayMinutes: 30)
+        let before = cases.wait("w1", .turn, at: "SDF", from: leg.startTime.addingTimeInterval(-3600), to: leg.startTime)
+        let after = cases.wait("w2", .layover, at: "PHL", from: leg.endTime, to: leg.endTime.addingTimeInterval(86_400))
+        let legs = [before, leg, after]
+        let made = flights(cases, for: legs, answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)
+        XCTAssertEqual(replaced[1].startTime, leg.startTime, "the start isn't the real plane's")
+        XCTAssertEqual(replaced[0], before)
+
+        let shown = LiveLegs.forTheSchedule(replaced, with: made)
+        XCTAssertEqual(shown[1].startTime, leg.startTime, "as it's written, and not half an hour later")
+        XCTAssertEqual(shown[1].startTime, shown[0].endTime, "where the wait before it ends: no gap in the list")
+        assertEqual(shown[1].endTime, moment.end, "the real plane's landing")
+        assertEqual(shown[2].startTime, shown[1].endTime, "where the wait after it starts: no overlap")
+        XCTAssertNil(shown[1].delayMinutes)
+    }
+
+    @MainActor
+    func test_forTheSchedule_theWaitBeforeAFlightTaggedLate_endsWhereTheFlightIsShownToStart() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        // CrewLu has tagged the flight 20 minutes late and written its layover up to the flight's written start. The
+        // plane left before the delayed time, so its start is the real plane's.
+        let leg = cases.tripLeg(flightCase, delayMinutes: 20)
+        let before = cases.wait("w1", .layover, at: "SDF", from: leg.startTime.addingTimeInterval(-86_400), to: leg.startTime)
+        let after = cases.wait("w2", .layover, at: "PHL", from: leg.endTime, to: leg.endTime.addingTimeInterval(86_400))
+        let legs = [before, leg, after]
+        let made = flights(cases, for: legs, answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        // The legs as the schedule's list is handed them: read back from the status.
+        let carried = readBack(LiveLegs.replacingTimes(in: legs, with: made, at: moment.at))
+        let carriedWait = try XCTUnwrap(carried.first { $0.id == "w1" })
+        assertEqual(carriedWait.endTime, moment.start.addingTimeInterval(-20 * 60), "the status ends it at the flight's written start")
+
+        let shown = LiveLegs.forTheSchedule(carried, with: made)
+        let flight = try XCTUnwrap(shown.first { $0.id == "f1" })
+        let waitBefore = try XCTUnwrap(shown.first { $0.id == "w1" })
+        let waitAfter = try XCTUnwrap(shown.first { $0.id == "w2" })
+        assertEqual(flight.startTime, moment.start, "the real plane's start")
+        assertEqual(waitBefore.endTime, flight.startTime, "no hole in the list before the flight")
+        XCTAssertEqual(waitBefore.startTime, before.startTime)
+        assertEqual(flight.endTime, moment.end)
+        assertEqual(waitAfter.startTime, flight.endTime, "and none after it")
+    }
+
+    func test_forTheSchedule_aLiveFlightWithNothingRealYet_isAsItWas() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "waiting to be seen")
+        let leg = cases.tripLeg(flightCase, delayMinutes: 20)
+        let made = flights(cases, for: [leg], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: [leg], with: made, at: flightCase.moments[0].at)
+        XCTAssertEqual(LiveLegs.forTheSchedule(replaced, with: made), [leg])
+    }
+
+    func test_forTheSchedule_aFlightWithNoLiveData_isAsItWas() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let live = cases.tripLeg(flightCase, id: "f1")
+        let made = flights(cases, for: [live], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        // The next day's flight, which CrewLu has tagged 30 minutes late, has no live data: the list shows it as it
+        // always has.
+        let late = TripMapTestLegs.leg("late", from: "SDF", to: "CGN", start: flightCase.arrival.addingTimeInterval(86_400), hours: 8,
+                                       flightNumber: "UPS208", delayMinutes: 30)
+        XCTAssertEqual(LiveLegs.forTheSchedule([live, late], with: made), [live, late])
+        XCTAssertEqual(LiveLegs.forTheSchedule([late], with: [:]), [late])
     }
 
     // MARK: - The legs as the status carries them

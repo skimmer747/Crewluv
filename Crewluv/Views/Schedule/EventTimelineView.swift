@@ -9,6 +9,9 @@ import SwiftUI
 
 struct EventTimelineView: View {
     let status: SharedPilotStatus
+    /// Each flight with live data, by its leg's id (Stage 3 spec §7.1): its row shows the real plane's times, as
+    /// every card does.
+    var flights: [String: MapFlight] = [:]
 
     @State private var selectedDate: Date? = nil
     @State private var isProgrammaticScroll = false
@@ -16,7 +19,7 @@ struct EventTimelineView: View {
     @State private var pinnedSectionDate: Date?
 
     private var legs: [TripLeg] {
-        status.tripLegs.sorted { $0.startTime < $1.startTime }
+        LiveLegs.forTheSchedule(status.tripLegs, with: flights).sorted { $0.startTime < $1.startTime }
     }
 
     var body: some View {

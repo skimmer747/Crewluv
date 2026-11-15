@@ -16,13 +16,7 @@ nonisolated enum LiveLegs {
     /// once by Crewlu Cloud, under the first of their ids in text order: only that one is watched, or the others'
     /// windows would stay open after the flight had landed.
     static func watched(in legs: [TripLeg]) -> [LiveFlightSource.Leg] {
-        var firstOfEachFlight: [String: TripLeg] = [:]
-        for leg in legs where leg.type == .flight {
-            let flight = "\(leg.flightNumber ?? "")|\(leg.departureAirport ?? "")|\(leg.startTime.timeIntervalSince1970)"
-            if let kept = firstOfEachFlight[flight], kept.id <= leg.id { continue }
-            firstOfEachFlight[flight] = leg
-        }
-        return firstOfEachFlight.values
+        firstOfEachFlight(in: legs).values
             .sorted { ($0.startTime, $0.id) < ($1.startTime, $1.id) }
             .map {
                 LiveFlightSource.Leg(id: $0.id, departure: $0.effectiveStart, arrival: $0.effectiveEnd)
@@ -30,7 +24,8 @@ nonisolated enum LiveLegs {
     }
 
     /// Each flight of `legs` that Crewlu Cloud answered, by its leg's id: its plan, from its scheduled times moved
-    /// by its own delay, with the path and the record made from the answer.
+    /// by its own delay, with the path and the record made from the answer. Legs that are one flight share its
+    /// answer, so each shows the real plane and none is left on the schedule beside it.
     /// - Parameters:
     ///   - legacyDelayMinutes: the summary-wide delay of a CrewLu that doesn't tag legs. While one is in effect
     ///     there's no leg to hold the real times against, so no flight has live data and the schedule shows.
@@ -43,9 +38,10 @@ nonisolated enum LiveLegs {
     ) -> [String: MapFlight] {
         let isDelaySummaryWide = (legacyDelayMinutes ?? 0) != 0 && !legs.contains { ($0.delayMinutes ?? 0) != 0 }
         guard !answered.isEmpty, !isDelaySummaryWide else { return [:] }
+        let answeredUnder = firstOfEachFlight(in: legs)
         var flights: [String: MapFlight] = [:]
         for leg in legs where leg.type == .flight {
-            guard let live = answered[leg.id],
+            guard let first = answeredUnder[flightKey(of: leg)], let live = answered[first.id],
                   let origin = leg.departureAirport.flatMap(coordinate),
                   let destination = leg.arrivalAirport.flatMap(coordinate) else { continue }
             flights[leg.id] = MapFlight(departure: leg.effectiveStart, arrival: leg.effectiveEnd,
@@ -115,6 +111,32 @@ nonisolated enum LiveLegs {
         }?.effectiveEnd
     }
 
+    /// `legs`, as `replacingTimes` gives them, for the schedule's list, which shows each leg's written times as they
+    /// are and adds no delay. A time of a live flight that the real plane has moved is written less the leg's delay,
+    /// so the list would show it wrong by that much: here it's the real time. A time the plane hasn't moved stays as
+    /// it's written, where the wait beside it still meets it. The wait before a flight that's tagged late ends at
+    /// the flight's written start, as the status has it: here it ends where the flight is shown to start, so the
+    /// list has no hole before the flight. Every other leg is as it was.
+    static func forTheSchedule(_ legs: [TripLeg], with flights: [String: MapFlight]) -> [TripLeg] {
+        guard !flights.isEmpty else { return legs }
+        var shown = legs
+        for (index, leg) in legs.enumerated() {
+            guard let flight = flights[leg.id], leg.delay != 0 else { continue }
+            // A time `replacingTimes` left alone is the plan's own, to the bit.
+            let isStartReal = leg.effectiveStart != flight.plan.departure
+            let isEndReal = leg.effectiveEnd != flight.plan.arrival
+            guard isStartReal || isEndReal else { continue }
+            shown[index] = leg.with(startTime: isStartReal ? leg.effectiveStart : leg.startTime,
+                                    endTime: isEndReal ? leg.effectiveEnd : leg.endTime, keepingDelay: false)
+            guard isStartReal, leg.delay > 0 else { continue }
+            for (place, wait) in legs.enumerated()
+            where waitTypes.contains(wait.type) && abs(wait.endTime.timeIntervalSince(leg.startTime)) <= 60 {
+                shown[place] = wait.with(startTime: wait.startTime, endTime: leg.effectiveStart)
+            }
+        }
+        return shown
+    }
+
     /// The legs as the status carries them, written as `CloudSummary` writes them: sorted keys give the same legs
     /// the same bytes on every run.
     static func blob(_ legs: [TripLeg]) -> Data? {
@@ -128,6 +150,22 @@ nonisolated enum LiveLegs {
 
     /// CrewLu's waits on the ground, which a flight's real times move the edges of.
     private static let waitTypes: Set<TripLeg.LegType> = [.turn, .layover, .home, .base]
+
+    /// What makes two legs one flight: the same number, departure airport and scheduled departure.
+    private static func flightKey(of leg: TripLeg) -> String {
+        "\(leg.flightNumber ?? "")|\(leg.departureAirport ?? "")|\(leg.startTime.timeIntervalSince1970)"
+    }
+
+    /// Of the legs that are each flight, the first by its id in text order: the one Crewlu Cloud answers under.
+    private static func firstOfEachFlight(in legs: [TripLeg]) -> [String: TripLeg] {
+        var firstOfEachFlight: [String: TripLeg] = [:]
+        for leg in legs where leg.type == .flight {
+            let flight = flightKey(of: leg)
+            if let kept = firstOfEachFlight[flight], kept.id <= leg.id { continue }
+            firstOfEachFlight[flight] = leg
+        }
+        return firstOfEachFlight
+    }
 
     /// Whether a wait's `edge` is where its flight's was, within a minute: at the scheduled time, as CrewLu writes
     /// its waits, or at that time moved by the flight's delay. A wait that begins later, after an event say, isn't
@@ -145,12 +183,13 @@ nonisolated private extension TripLeg {
     var effectiveStart: Date { startTime.addingTimeInterval(delay) }
     var effectiveEnd: Date { endTime.addingTimeInterval(delay) }
 
-    /// The leg at other times.
-    func with(startTime: Date, endTime: Date) -> TripLeg {
+    /// The leg at other times, with its delay or with none.
+    func with(startTime: Date, endTime: Date, keepingDelay: Bool = true) -> TripLeg {
         TripLeg(id: id, tripId: tripId, type: type, startTime: startTime, endTime: endTime, airportCode: airportCode,
                 city: city, timezoneIdentifier: timezoneIdentifier, arrivalTimezoneIdentifier: arrivalTimezoneIdentifier,
                 flightNumber: flightNumber, departureAirport: departureAirport, arrivalAirport: arrivalAirport,
                 departureCity: departureCity, arrivalCity: arrivalCity, tripDayNumber: tripDayNumber,
-                tripTotalDays: tripTotalDays, delayMinutes: delayMinutes, airlineCode: airlineCode, label: label)
+                tripTotalDays: tripTotalDays, delayMinutes: keepingDelay ? delayMinutes : nil, airlineCode: airlineCode,
+                label: label)
     }
 }

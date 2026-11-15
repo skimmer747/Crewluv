@@ -19,7 +19,7 @@ nonisolated struct FlightDrawing {
     let ghost: PlaneMark?
 
     /// - Parameters:
-    ///   - date: the moment, by this device's clock.
+    ///   - date: the moment: now by this device's clock, or a moment of the replay.
     ///   - isReplay: `date` is a moment of the replay, not now. The real plane then flies its record, alone.
     init(leg: MapLeg, at date: Date, isReplay: Bool) {
         let path = leg.flight?.path

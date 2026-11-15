@@ -152,7 +152,7 @@ struct ContentView: View {
 
                 Divider()
 
-                EventTimelineView(status: status)
+                EventTimelineView(status: status, flights: receiver.flights)
                     .frame(maxWidth: .infinity)
             }
         }
