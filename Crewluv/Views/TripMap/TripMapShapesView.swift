@@ -21,7 +21,7 @@ final class TripMapShapesView: UIView {
     static let clipMargin: CGFloat = 50
 
     /// How the lines stack, bottom first: the line being flown on top.
-    private static let lineOrder: [RouteSegment.Style] = [.flown, .drive, .upcoming, .flying]
+    private static let lineOrder: [RouteSegment.Style] = [.flown, .drive, .upcoming, .unseen, .flying, .seen]
 
     /// Called when what's drawn must be laid again: the view has changed size.
     var onNeedsRedraw: (() -> Void)?

@@ -14,6 +14,9 @@ nonisolated struct TripMapPalette: Equatable {
     let flying: Color
     let flown: Color
     let drive: Color
+    /// The real path flown (Stage 3 spec §6.2): where the plane was seen, and where it wasn't.
+    let seen: Color
+    let unseen: Color
     /// An airport's code, and the halo that keeps it readable over the map.
     let label: Color
     let labelHalo: Color
@@ -26,6 +29,8 @@ nonisolated struct TripMapPalette: Equatable {
         flying: Color(red: 0.62, green: 0.76, blue: 1.0),
         flown: Color(white: 0.82),
         drive: .white,
+        seen: .white,
+        unseen: .white,
         label: .white,
         labelHalo: .black.opacity(0.75)
     )
@@ -35,6 +40,8 @@ nonisolated struct TripMapPalette: Equatable {
         flying: .blue,
         flown: .gray,
         drive: .gray,
+        seen: .blue,
+        unseen: .blue,
         label: Color(white: 0.12),
         labelHalo: .white
     )
@@ -45,6 +52,8 @@ nonisolated struct TripMapPalette: Equatable {
         case .flying: flying
         case .flown: flown
         case .drive: drive
+        case .seen: seen
+        case .unseen: unseen
         }
     }
 
@@ -54,6 +63,8 @@ nonisolated struct TripMapPalette: Equatable {
         case .flying: StrokeStyle(lineWidth: 3, lineCap: .round)
         case .flown: StrokeStyle(lineWidth: 2.5, lineCap: .round)
         case .drive: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [0.5, 6])
+        case .seen: StrokeStyle(lineWidth: 3, lineCap: .round)
+        case .unseen: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [0.5, 6])
         }
     }
 }

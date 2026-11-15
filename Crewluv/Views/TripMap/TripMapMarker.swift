@@ -17,8 +17,12 @@ nonisolated enum TripMapMarker: Equatable {
     case car
     /// Where the pilot is on the ground, showing what they're doing there: a layover, a turn, base or home.
     case pilot(TripActivity.Kind)
-    /// The schedule's plane, pointing at `angle` (`PlaneHeading`).
+    /// The schedule's plane, alone, pointing at `angle` (`PlaneHeading`).
     case plane(angle: Double)
+    /// The real plane (Stage 3 spec §5.4), faded while it's an estimate of where the plane is.
+    case realPlane(angle: Double, isEstimated: Bool)
+    /// Where an on-schedule plane would be, beside the real one.
+    case ghost(angle: Double)
 
     /// One marker, and where it goes.
     nonisolated struct Placement {
@@ -33,12 +37,12 @@ nonisolated enum TripMapMarker: Equatable {
         case .airport(let code, _, _): "airport-\(code)"
         case .car: "car"
         case .pilot: "pilot"
-        case .plane: "plane"
+        case .plane, .realPlane, .ghost: "plane"
         }
     }
 
     /// Every marker `drawing` shows, by name: each airport by its code, each car by its drive's own id, and the
-    /// pilot's marker and the plane by themselves. The pilot's marker keeps its name as its kind changes.
+    /// pilot's marker and each of the planes by themselves. The pilot's marker keeps its name as its kind changes.
     static func placements(for drawing: TripMapDrawing, palette: TripMapPalette) -> [String: Placement] {
         var placements: [String: Placement] = [:]
         for airport in drawing.airports {
@@ -54,6 +58,13 @@ nonisolated enum TripMapMarker: Equatable {
         }
         if let plane = drawing.plane {
             placements["plane"] = Placement(coordinate: plane.coordinate, marker: .plane(angle: plane.angle))
+        }
+        if let ghost = drawing.ghost {
+            placements["ghost"] = Placement(coordinate: ghost.coordinate, marker: .ghost(angle: ghost.angle))
+        }
+        if let realPlane = drawing.realPlane {
+            placements["real-plane"] = Placement(coordinate: realPlane.coordinate,
+                                                 marker: .realPlane(angle: realPlane.angle, isEstimated: realPlane.isEstimated))
         }
         return placements
     }

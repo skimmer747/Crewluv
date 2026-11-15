@@ -90,14 +90,16 @@ final class TripMapAnnotationView: MKAnnotationView {
         switch marker {
         case .airport: CGPoint(x: 0, y: size.height / 2 - TripMapMarkers.Airport.dotDiameter / 2)
         case .pilot: CGPoint(x: 0, y: -size.height / 2)
-        case .car, .plane: .zero
+        case .car, .plane, .realPlane, .ghost: .zero
         }
     }
 
-    /// The plane on top, then the pilot's marker, the cars and the airports.
+    /// The plane on top, real or the schedule's, then the ghost beside the real one, the pilot's marker, the cars
+    /// and the airports.
     private static func zPriority(of marker: TripMapMarker) -> MKAnnotationViewZPriority {
         switch marker {
-        case .plane: .max
+        case .plane, .realPlane: .max
+        case .ghost: MKAnnotationViewZPriority(rawValue: 950)
         case .pilot: MKAnnotationViewZPriority(rawValue: 900)
         case .car: MKAnnotationViewZPriority(rawValue: 700)
         case .airport: .defaultUnselected
