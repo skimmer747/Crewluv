@@ -63,7 +63,7 @@
 - Modify: `CrewluvTests/Helpers/TripMap+HandMade.swift`
 - Test: `CrewluvTests/TripMapActivityTests.swift`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 #### Edit `CrewluvTests/TripMapActivityTests.swift`
 
@@ -162,7 +162,7 @@ With:
     func test_activity_everySharedCase_matches() throws {
 ```
 
-- [ ] **Step 2: Add the model.**
+- [x] **Step 2: Add the model.**
 
 #### Edit `Crewluv/Services/TripMap/TripMap.swift`
 
@@ -272,7 +272,7 @@ With:
                   tripDays: tripDays)
 ```
 
-- [ ] **Step 3: The rule.**
+- [x] **Step 3: The rule.**
 
 #### Edit `Crewluv/Services/TripMap/TripMap+Activity.swift`
 
@@ -338,7 +338,7 @@ With:
     }
 ```
 
-- [ ] **Step 4:** No commit yet: Batch A commits together after Todd's ⌘U (Task 6).
+- [x] **Step 4:** No commit yet: Batch A commits together after Todd's ⌘U (Task 6).
 
 ---
 
@@ -349,7 +349,7 @@ With:
 - Modify: `CrewluvTests/Helpers/TripMapFixtures.swift`
 - Modify: `CrewluvTests/TripMapActivityTests.swift`
 
-- [ ] **Step 1: The cases.** The file's `about` gains the rules, and two trips go in before the recap trip. Every trip already there is unchanged; none has an unnamed wait at its home airport, so their answers stand.
+- [x] **Step 1: The cases.** The file's `about` gains the rules, and two trips go in before the recap trip. Every trip already there is unchanged; none has an unnamed wait at its home airport, so their answers stand.
 
 #### Edit `CrewluvTests/Fixtures/TripMap/activity-cases.json`
 
@@ -441,7 +441,7 @@ With:
       "name": "A recap shows home after the trip, wherever it ended",
 ```
 
-- [ ] **Step 2: Read the new fields.**
+- [x] **Step 2: Read the new fields.**
 
 #### Edit `CrewluvTests/Helpers/TripMapFixtures.swift`
 
@@ -507,7 +507,7 @@ With:
                             isWaitingAtBase: trip.waitingAt == .base, legacyDelayMinutes: nil, at: .distantPast,
 ```
 
-- [ ] **Step 3: Check the new trips by hand.** The cases were worked out against the design's rules. They're checked again in Batch A's ⌘U through `test_activity_everySharedCase_matches`. After the commit, send the trip-map-web session the file's path, so the website copies it byte for byte.
+- [x] **Step 3: Check the new trips by hand.** The cases were worked out against the design's rules. They're checked again in Batch A's ⌘U through `test_activity_everySharedCase_matches`. After the commit, send the trip-map-web session the file's path, so the website copies it byte for byte.
 
 ---
 
@@ -518,7 +518,7 @@ With:
 - Modify: `Crewluv/Services/TripMap/TripMapWording.swift`
 - Test: `CrewluvTests/TripMapStatusTests.swift`, `CrewluvTests/TripMapWordingTests.swift`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 #### Edit `CrewluvTests/TripMapStatusTests.swift`
 
@@ -578,7 +578,7 @@ With:
     func test_nextTripChip_namesTheDay() {
 ```
 
-- [ ] **Step 2: The status.**
+- [x] **Step 2: The status.**
 
 #### Edit `Crewluv/Services/TripMap/TripMap+Status.swift`
 
@@ -598,7 +598,7 @@ With:
                                      legacyDelayMinutes: status.flightDelayMinutes, at: now, coordinate: coordinate) else { return nil }
 ```
 
-- [ ] **Step 3: The words.**
+- [x] **Step 3: The words.**
 
 #### Edit `Crewluv/Services/TripMap/TripMapWording.swift`
 
@@ -663,7 +663,7 @@ With:
 - Create: `Crewluv/Services/TripMap/TripMapSlide.swift`
 - Create: `CrewluvTests/TripMapSlideTests.swift`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 #### Create `CrewluvTests/TripMapSlideTests.swift`
 
@@ -717,7 +717,7 @@ final class TripMapSlideTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: The maths.**
+- [x] **Step 2: The maths.**
 
 #### Create `Crewluv/Services/TripMap/TripMapSlide.swift`
 
@@ -772,7 +772,7 @@ nonisolated enum TripMapSlide {
 - Modify: `Crewluv/Views/TripMap/TripMapClearance.swift`
 - Test: `CrewluvTests/TripMapClearanceTests.swift`
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 #### Edit `CrewluvTests/TripMapClearanceTests.swift`
 
@@ -804,7 +804,7 @@ With:
     }
 ```
 
-- [ ] **Step 2: The top edge.** Today's callers pass `leading:` and `bottom:`, and keep building through the defaults.
+- [x] **Step 2: The top edge.** Today's callers pass `leading:` and `bottom:`, and keep building through the defaults.
 
 #### Edit `Crewluv/Views/TripMap/TripMapClearance.swift`
 
@@ -876,7 +876,7 @@ With:
 - Modify: `Crewluv/Services/TripMap/TripMapCamera.swift`
 - Test: `CrewluvTests/TripMapCameraTests.swift`
 
-- [ ] **Step 1: Write the failing test.**
+- [x] **Step 1: Write the failing test.**
 
 #### Edit `CrewluvTests/TripMapCameraTests.swift`
 
@@ -902,7 +902,7 @@ With:
     }
 ```
 
-- [ ] **Step 2: The camera.**
+- [x] **Step 2: The camera.**
 
 #### Edit `Crewluv/Services/TripMap/TripMapCamera.swift`
 
@@ -943,14 +943,14 @@ With:
         isAnimated = animated
 ```
 
-- [ ] **Step 3: Todd runs ⌘U on an iPhone simulator.** Expected: no failures.
+- [x] **Step 3: Todd runs ⌘U on an iPhone simulator.** Expected: no failures.
   - **New:** `TripMapSlideTests` (6), and in `TripMapActivityTests` 7 more (20 in all).
   - **Grown:** `TripMapStatusTests` +2, `TripMapWordingTests` +1 (25), `TripMapClearanceTests` +2 (7) and `TripMapCameraTests` +1 (6).
   - **The shared cases:** `test_activity_everySharedCase_matches` runs the two new trips.
   - **Missing class:** an open Xcode can miss a new test file. Close the project, open it again, and press ⌘U again.
   - **A failure:** read it and stop. Never change an expected value or a shared case to make it pass.
 
-- [ ] **Step 4: Ask to commit Batch A.** Suggested message: `feat(crewluv): a commuter's waits at base read "At base", a pilot waiting at base for a trip is shown there, and the camera's slide and the card's clearance are ready`. Stage only Tasks 1–6's files and this plan. Then send the trip-map-web session the path of `CrewluvTests/Fixtures/TripMap/activity-cases.json` and the commit, so the website copies the file.
+- [x] **Step 4: Ask to commit Batch A.** Suggested message: `feat(crewluv): a commuter's waits at base read "At base", a pilot waiting at base for a trip is shown there, and the camera's slide and the card's clearance are ready`. Stage only Tasks 1–6's files and this plan. Then send the trip-map-web session the path of `CrewluvTests/Fixtures/TripMap/activity-cases.json` and the commit, so the website copies the file.
 
 ---
 
@@ -961,7 +961,7 @@ With:
 - Modify: `Crewluv/Views/TripMap/TripMapCameraController.swift`
 - Modify: `Crewluv/Views/TripMap/TripMapCoordinator.swift`
 
-- [ ] **Step 1: The marker's size, in one place.**
+- [x] **Step 1: The marker's size, in one place.**
 
 #### Edit `Crewluv/Views/TripMap/TripMapMarkers.swift`
 
@@ -994,7 +994,7 @@ With:
                 .frame(width: Self.diameter, height: Self.diameter)
 ```
 
-- [ ] **Step 2: The slide.** A framing without animation slides at once, before anything is drawn. An animated one slides with an animation once MapKit says the region has settled, unless the family has touched the map since.
+- [x] **Step 2: The slide.** A framing without animation slides at once, before anything is drawn. An animated one slides with an animation once MapKit says the region has settled, unless the family has touched the map since.
 
 #### Edit `Crewluv/Views/TripMap/TripMapCameraController.swift`
 
@@ -1122,7 +1122,7 @@ With:
 - Modify: `Crewluv/Views/TripMap/TripMapCard.swift`
 - Modify: `Crewluv/Views/TripMap/TripMapScreen.swift`
 
-- [ ] **Step 1: The card.** It measures each chip's height, not its width, so the time on a chip changing never moves the camera. At the largest text sizes the chips go under the map, and the band goes with them.
+- [x] **Step 1: The card.** It measures each chip's height, not its width, so the time on a chip changing never moves the camera. At the largest text sizes the chips go under the map, and the band goes with them.
 
 #### Edit `Crewluv/Views/TripMap/TripMapCard.swift`
 
@@ -1238,7 +1238,7 @@ With:
     }
 ```
 
-- [ ] **Step 2: The full-screen map.** It keeps the marker where the timeline is, on opening, on recenter, and as a flight starts or ends.
+- [x] **Step 2: The full-screen map.** It keeps the marker where the timeline is, on opening, on recenter, and as a flight starts or ends.
 
 #### Edit `Crewluv/Views/TripMap/TripMapScreen.swift`
 
@@ -1357,12 +1357,12 @@ With:
 #Preview("Recap") {
 ```
 
-- [ ] **Step 1: Todd builds (⌘B), then looks at the card previews:**
+- [x] **Step 1: Todd builds (⌘B), then looks at the card previews:**
   - **Next trip, waiting at base:** the teal briefcase at Louisville, and "At base · next trip …".
   - **At base, Next trip and Recap:** the marker is on the card now, not off its left edge, and no chip covers it.
   - **Layover:** the bed isn't under "Next: …", and Apple's logo sits above the bottom chip.
-- [ ] **Step 2: Todd runs ⌘U.** Expected: no failures. Batch B adds no tests; the slide's maths is tested in Batch A.
-- [ ] **Step 3: Ask to commit Batch B.** Suggested message: `feat(crewluv): the trip map card frames the trip between its chips and slides the pilot's marker into view when a wide trip doesn't fit`. Stage only Tasks 7–9's files and this plan.
+- [x] **Step 2: Todd runs ⌘U.** Expected: no failures. Batch B adds no tests; the slide's maths is tested in Batch A.
+- [x] **Step 3: Ask to commit Batch B.** Suggested message: `feat(crewluv): the trip map card frames the trip between its chips and slides the pilot's marker into view when a wide trip doesn't fit`. Stage only Tasks 7–9's files and this plan.
 
 ---
 
@@ -1491,33 +1491,33 @@ With:
 `TripMapCamera`, `TripMapClearance`, `TripMapSlide` (how far the camera slides to keep the pilot in view), `TripMapMarker`'s placements,
 ```
 
-- [ ] **Step 1: Ask to commit.** Suggested message: `docs(crewluv): the moving map spec, the activity markers design and CLAUDE.md for waits at base and the card's framing`.
+- [x] **Step 1: Ask to commit.** Suggested message: `docs(crewluv): the moving map spec, the activity markers design and CLAUDE.md for waits at base and the card's framing`.
 
 ---
 
 ### Task 11: Code review
 
-- [ ] **Step 1:** Dispatch `superpowers:code-reviewer` with `model: "sonnet"`. Give it the design, this plan, and every file Tasks 1–9 changed. Ask it to check:
+- [x] **Step 1:** Dispatch `superpowers:code-reviewer` with `model: "sonnet"`. Give it the design, this plan, and every file Tasks 1–9 changed. Ask it to check:
   - **The rule:** CrewLu's ground legs still win. Home comes before base. With no base known, nothing changes. A trip ahead waits at base only when the status says so.
   - **The slide:** it follows a framing only. A non-animated framing slides before `onFramedWithoutAnimation`. A family's touch drops a pending slide. It never zooms. It isn't used in flight.
   - **The card:** only heights are measured, the band goes at accessibility sizes, and the clearance can't drive a framing loop. A changed margin refits once, since the heights settle.
   - **Isolation and imports:** `TripMapSlide` is `nonisolated`, and each file imports what its members need.
-- [ ] **Step 2:** Check each finding against the code before acting. Keep a list for Todd of what was fixed and what was left, and why.
+- [x] **Step 2:** Check each finding against the code before acting. Keep a list for Todd of what was fixed and what was left, and why.
 
 ### Task 12: Todd runs the tests
 
-- [ ] Todd runs ⌘U on an iPhone simulator. Expected: no failures, with the counts in Task 6 Step 3.
+- [x] Todd runs ⌘U on an iPhone simulator. Expected: no failures, with the counts in Task 6 Step 3.
 
 ### Task 13: Todd's device check, then close out
 
-- [ ] **Step 1: On the iPad, then the iPhone.** Run from Xcode, press ⌘., and open Crewluve from its icon.
+- [x] **Step 1: On the iPad, then the iPhone.** Run from Xcode, press ⌘., and open Crewluve from its icon.
   1. **The Louisville–Cologne–Dubai trip on the card** (the previews or the demo): at base, before the next trip and in the recap, the marker always shows, and no chip covers it or an airport.
   2. **Apple's logo** on the card sits above the bottom chip.
   3. **Waiting at base before a trip:** the briefcase at base, and "At base · next trip …".
   4. **The full-screen map:** recenter on a wide trip slides the marker into view after its zoom. Pan the map: nothing slides afterwards.
   5. **A replay:** the map moves only as a flight starts or ends, as before, and the marker shows after each landing.
-- [ ] **Step 2: Close out.** Tell Todd what's ready, what the review found, and what the device check showed. Mark the moving map spec's 2026-11-14 waits-at-base paragraph with the check's day, tick this plan, and commit both on Todd's yes. Never push.
-- [ ] **Step 3: The revision note.** Add to the Apple Note "Crewluve revisions", under 1.4 (49), after the Quick layovers bullet: "• When your pilot commutes, the map shows them at base before and after the trip, and the card keeps their marker in view on long trips, clear of the labels."
+- [x] **Step 2: Close out.** Tell Todd what's ready, what the review found, and what the device check showed. Mark the moving map spec's 2026-11-14 waits-at-base paragraph with the check's day, tick this plan, and commit both on Todd's yes. Never push.
+- [x] **Step 3: The revision note.** Add to the Apple Note "Crewluve revisions", under 1.4 (49), after the Quick layovers bullet: "• When your pilot commutes, the map shows them at base before and after the trip, and the card keeps their marker in view on long trips, clear of the labels."
 
 ---
 
