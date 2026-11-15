@@ -147,10 +147,34 @@ extension TripMapFixtures {
             guard let place = airports[code], place.count == 2 else { throw MissingAirport(code: code) }
             return CLLocationCoordinate2D(latitude: place[0], longitude: place[1])
         }
+
+        /// A flight case as the app's types: its plan, its live data, and the path and record made from them.
+        func made(_ flight: Flight) throws -> Made {
+            let origin = try coordinate(of: flight.from)
+            let destination = try coordinate(of: flight.to)
+            let distance = GreatCircle.distance(from: origin, to: destination)
+            guard let plan = FlightPlan(departure: flight.departure, arrival: flight.arrival, distance: distance) else {
+                throw MissingPlan(name: flight.name)
+            }
+            let live = flight.flight.map { LiveFlight($0, trail: $0.trail) }
+            let path = FlightPath(from: origin, to: destination, flight: live)
+            return Made(plan: plan, flight: live, path: path, record: FlightRecord(path: path, plan: plan))
+        }
+    }
+
+    struct Made {
+        let plan: FlightPlan
+        let flight: LiveFlight?
+        let path: FlightPath
+        let record: FlightRecord?
     }
 
     struct MissingAirport: Error {
         let code: String
+    }
+
+    struct MissingPlan: Error {
+        let name: String
     }
 
     /// One nautical mile in meters, for comparing with the cases.
