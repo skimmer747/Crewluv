@@ -29,7 +29,7 @@
 - 38 XCTest tests and 45 Swift Testing tests pass, with no warnings.
 - The package was rebuilt as it stands after each of Tasks 3 to 8, in order, and passed each time.
 - The Swift agreed with the JavaScript reference on every shared case at its first run.
-- Eight deliberate breaks were tried. Seven failed a test at once. The eighth (the ghost before the plan's takeoff) passed, so the cases gained the flight "off early and the long way round", which fails it.
+- Ten deliberate breaks were tried, and each now fails a test. Two passed when first tried, or would have: the ghost before the plan's takeoff, and a late takeoff moving the leg's start. The cases gained a flight for each.
 - Not checked: the two edits to `TripMapWording.swift` and the real `TripMapFixtures`, which need the whole app. A stand-in with the same two functions was used.
 
 **Where this plan settles details the spec left open, or differs from it in small ways:**
@@ -44,6 +44,11 @@
 - **A label of an hour or more** is written as the landing countdown writes it: "1 h 15 min behind". `TripMapWording.minutesText` now writes both.
 - **The label's words are here,** in `TripMapWording.liveLabel`, since the shared cases hold them. The card's other words are 3B-2's.
 - **A flight in the air with no trail point yet** has a real path from its fix.
+- **"In the air", for the path's last place, is the fix's own word** (`on_ground` is false), whatever the flight's state.
+- **The takeoff is the first place the plane was seen,** a trail point or, with no trail yet, the fix, when it's within 30 nm of the departure airport.
+- **The takeoff and the record differ a little.** The takeoff is the first place's time (§7.1). The record has the plane leave the airport before that, at the plan's speed, to reach the first place on time (§7.2): half a minute for a first place 3 nm out.
+- **A landing more than 10 minutes after the last place seen** ends the path with an unseen stretch, and the record crosses it in proportion to the time.
+- **A landed flight's touchdown is its record's,** where it has one, so the estimate and the record can't disagree. A landing time before the last point counts as the last point's.
 - **A landing nobody saw** needs no path of its own. The path's last stretch stays the planned great circle, and the estimated plane's place along it says how much is behind the plane. 3B-2 draws that part dotted.
 - **A leg's start moves earlier whenever its takeoff is known,** in every phase.
 - **On the ground, the real plane is at its fix,** and counts as 0 along the path.
@@ -72,10 +77,10 @@ These come from Todd's standing instructions. They override the skill's defaults
 9. **Reviewers:** dispatch `superpowers:code-reviewer` with `model: "sonnet"`.
 10. **Work on `feature/trip-map-live`,** never on `main` (Task 1). The checkout is shared with other sessions, so commit only this plan's files, and never stash, reset or switch branches.
 
-Test command for Todd, one class per checkpoint:
+Test command for Todd, one class per checkpoint. The OS is named because Todd's iPhone 17 Pro simulator is on iOS 26.5, and without it `xcodebuild` looks for one on the newest iOS and finds none:
 
 ```bash
-xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:CrewluvTests/<TestClass>
+xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -only-testing:CrewluvTests/<TestClass>
 ```
 
 ## File map
@@ -118,7 +123,7 @@ Review with `superpowers:code-reviewer` (sonnet) after each batch, then Todd run
 
 **Files:** none.
 
-- [ ] **Step 1: Check the branch and the tree.**
+- [x] **Step 1: Check the branch and the tree.**
 
 ```bash
 git -C /Users/toddanderson/Dev/Crewluv status --short && git -C /Users/toddanderson/Dev/Crewluv branch --show-current
@@ -128,9 +133,9 @@ git -C /Users/toddanderson/Dev/Crewluv status --short && git -C /Users/toddander
   - Anything else: stop and ask Todd.
   - Other changed files that aren't this plan's are left alone. Another session may share this checkout.
 
-- [ ] **Step 2: Check Node.** `node --version` should say v20 or later. The reference uses nothing but Node itself.
+- [x] **Step 2: Check Node.** `node --version` should say v20 or later. The reference uses nothing but Node itself.
 
-- [ ] **Step 3: Read the door's contract.** `~/Dev/Duty-flight-live/supabase/partner-api.md`, section "The live plane". If that worktree is gone, the branch `feature/flight-live` of CrewLu's repo has it.
+- [x] **Step 3: Read the door's contract.** `~/Dev/Duty-flight-live/supabase/partner-api.md`, section "The live plane". If that worktree is gone, the branch `feature/flight-live` of CrewLu's repo has it.
 
 ---
 
@@ -143,7 +148,7 @@ git -C /Users/toddanderson/Dev/Crewluv status --short && git -C /Users/toddander
 
 The reference is the spec's §4 to §7 in plain JavaScript, with no shared code with the app or the website. `generate.mjs` makes up flights (a trail every 2 minutes along a route, a late first point, an ocean nobody saw, a landing), runs them through the reference, and writes each answer down.
 
-- [ ] **Step 1: Write the reference.** Create `scripts/live-cases/live.mjs`:
+- [x] **Step 1: Write the reference.** Create `scripts/live-cases/live.mjs`:
 
 ```js
 // The reference for live-cases.json: Stage 3's flight plan, path, record and progress (spec §4 to §7), written
@@ -373,7 +378,8 @@ export function progress(plan, path, record, flight, now) {
   let touchdown = null
   if (phase === 'inAir' || phase === 'estimated') touchdown = fix.seenAt + timeToFly(plan, distance(fix.at, path.destination))
   if (phase === 'onGround' && now >= plan.takeoff) touchdown = now + (plan.touchdown - plan.takeoff)
-  if (phase === 'landed') touchdown = flight.landedAt ?? fix.seenAt
+  // A landed flight's touchdown is its record's, where it has one, so the two can't disagree.
+  if (phase === 'landed') touchdown = record ? record.touchdown : (flight.landedAt ?? fix.seenAt)
   const liveArrival = touchdown === null ? null : touchdown + (plan.arrival - plan.touchdown)
   const gap = touchdown === null ? null : roundHalfAway((plan.touchdown - touchdown) / 60)
 
@@ -414,7 +420,7 @@ export function isWindowOpen(departure, arrival, flight, now) {
 }
 ```
 
-- [ ] **Step 2: Write the generator.** Create `scripts/live-cases/generate.mjs`:
+- [x] **Step 2: Write the generator.** Create `scripts/live-cases/generate.mjs`:
 
 ```js
 // Writes CrewluvTests/Fixtures/TripMap/live-cases.json from the reference in live.mjs.
@@ -542,6 +548,8 @@ const plans = [
     'SDF', 'CVG', '2026-11-13T12:00:00Z', '2026-11-13T12:45:00Z', [0, 30, 100], [0, 10, 23, 30]),
   planCase('a leg under both allowances', 'A 30-minute block is too short for the taxi allowances, so the plane flies from gate to gate at one speed.',
     'SDF', 'CVG', '2026-11-13T12:00:00Z', '2026-11-13T12:30:00Z', [0, 30, 100], [0, 15, 30, 40]),
+  planCase('a block of exactly 32 minutes', 'Just long enough for both allowances and the shortest cruise: 15 min out, 7 in, and 10 in the air.',
+    'SDF', 'CVG', '2026-11-13T12:00:00Z', '2026-11-13T12:32:00Z', [0, 30, 72], [0, 5, 10]),
   planCase('a slow leg', 'Louisville to Philadelphia in 3 h: the cruise would be under 280 kt, so the whole leg is one steady speed.',
     'SDF', 'PHL', '2026-11-13T12:00:00Z', '2026-11-13T15:00:00Z', [0, 120, 300, 600], [0, 25, 158, 170]),
   planCase('a leg that goes nowhere', 'The same airport at both ends has no speed of its own, so 280 kt stands in.',
@@ -570,6 +578,26 @@ const earlyOffAt = t('2026-11-13T12:02:00Z')
 const earlyTimes = []
 for (let time = t('2026-11-13T12:03:00Z'); time <= t('2026-11-13T12:13:00Z'); time += 120) earlyTimes.push(time)
 const earlyTrail = earlyTimes.map((time, i) => trailPoint(theLongWayRound, 300, earlyOffAt, time, 3000 + i * 3000))
+
+// Louisville to Philadelphia, off ten minutes after the plan's takeoff and seen from the start.
+const lateOffAt = t('2026-11-13T12:24:34Z')
+const lateTimes = []
+for (let time = t('2026-11-13T12:25:00Z'); time <= t('2026-11-13T12:41:00Z'); time += 120) lateTimes.push(time)
+const lateTrail = lateTimes.map((time, i) => trailPoint(toPhiladelphia, phlKnots, lateOffAt, time, Math.min(35000, 2000 + i * 4000)))
+
+// Louisville to Cincinnati on a 30-minute block, off two minutes before it.
+const toCincinnati = [airports.SDF, airports.CVG]
+const hopOffAt = t('2026-11-13T11:57:40Z')
+const hopTimes = []
+for (let time = t('2026-11-13T11:58:00Z'); time <= t('2026-11-13T12:08:00Z'); time += 120) hopTimes.push(time)
+const hopTrail = hopTimes.map((time, i) => trailPoint(toCincinnati, 200, hopOffAt, time, 2000 + i * 1500))
+
+// The ahead flight's points ten minutes apart, as the door might send them: out of order, and two with one time.
+const tenMinutes = ['2026-11-13T12:05:00Z', '2026-11-13T12:15:00Z', '2026-11-13T12:25:00Z', '2026-11-13T12:35:00Z']
+  .map((at) => trailPoint(toPhiladelphia, phlKnots, offAt, t(at), 33000))
+const secondAtOnce = trailPoint(toPhiladelphia, phlKnots, offAt, t('2026-11-13T12:25:10Z'), 33000)
+secondAtOnce[0] = tenMinutes[2][0]
+const outOfOrder = [tenMinutes[0], tenMinutes[2], tenMinutes[1], tenMinutes[3], secondAtOnce]
 
 // Louisville to Cologne, taking off 25 minutes late, first seen well out, and unseen over the ocean.
 const toCologne = [airports.SDF, [43.5, -70.0], [49.5, -52.0], [54.0, -20.0], airports.CGN]
@@ -604,6 +632,44 @@ const flights = [
     ],
     places: ['2026-11-13T12:02:30Z', '2026-11-13T12:10:00Z'],
     distancesNm: [20],
+  }),
+  flightCase({
+    name: 'off late, and seen from the start', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'Its first point is 3 nm out at 12:25, ten minutes after the plan\'s takeoff. The takeoff is known and late, and a late departure doesn\'t move the leg: its start stays at 12:00.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, lateOffAt, t('2026-11-13T12:41:40Z'), 35000), null, lateTrail),
+    moments: [['2026-11-13T12:41:50Z', 'In the air, with the start where the schedule has it.']],
+    places: ['2026-11-13T12:20:00Z', '2026-11-13T12:30:00Z'],
+    distancesNm: [50],
+  }),
+  flightCase({
+    name: 'a short hop, off two minutes early', from: 'SDF', to: 'CVG', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T12:30:00Z',
+    note: 'A 30-minute block has no taxi allowances and one steady speed. So the leg starts at the takeoff itself, and the live arrival is the touchdown.',
+    flight: wire('leg-cvg', 'UPS1236', 'airborne', airFix(toCincinnati, 200, hopOffAt, t('2026-11-13T12:08:30Z'), 9000), null, hopTrail),
+    moments: [['2026-11-13T12:08:40Z', 'In the air: the start is the takeoff, and the end is the touchdown.']],
+    places: ['2026-11-13T11:57:50Z', '2026-11-13T12:05:00Z'],
+    distancesNm: [10, 60],
+  }),
+  flightCase({
+    name: 'in the air, with no trail point yet', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'A fix in the air and an empty trail. The path is real from the fix: Louisville to the fix, then the great circle on. The fix is under 30 nm out, so its time is the takeoff.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, t('2026-11-13T12:15:30Z'), t('2026-11-13T12:16:10Z'), 2500), null, []),
+    moments: [['2026-11-13T12:16:20Z', 'In the air, at the fix.']],
+    places: ['2026-11-13T12:16:00Z', '2026-11-13T12:30:00Z'],
+    distancesNm: [2],
+  }),
+  flightCase({
+    name: 'the fix is the last trail point', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'Right after a trail point is written, the fix has its place and its time. It adds nothing to the path: one stretch fewer than the ahead flight, whose fix is 40 s newer.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, offAt, t('2026-11-13T12:41:00Z'), 35000), null, phlTrail),
+    moments: [['2026-11-13T12:41:30Z', 'In the air, at the last trail point.']],
+  }),
+  flightCase({
+    name: 'points out of order, ten minutes apart, and two at once', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'The trail comes as 12:05, 12:25, 12:15, 12:35 and a second point stamped 12:25 a little further on. It\'s put in order of time, with the two of one time in the order they came. Points exactly 10 minutes apart are seen: only more than 10 is unseen. At 12:25 the plane is at the second of the two.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, offAt, t('2026-11-13T12:35:20Z'), 33000), null, outOfOrder),
+    moments: [['2026-11-13T12:35:30Z', 'In the air.']],
+    places: ['2026-11-13T12:10:00Z', '2026-11-13T12:25:00Z', '2026-11-13T12:30:00Z'],
+    distancesNm: [100, 146.5],
   }),
   flightCase({
     name: 'behind, with a late first point and an unseen ocean', from: 'SDF', to: 'CGN', departure: '2026-11-13T18:00:00Z', arrival: '2026-11-14T02:00:00Z',
@@ -654,6 +720,20 @@ const flights = [
     distancesNm: [400],
   }),
   flightCase({
+    name: 'landed, with a landing time before its last point', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'Crewlu Cloud never sends this, and a record can\'t run backwards: the landing counts as no earlier than the last point, 12:41, for the record and the estimate alike.',
+    flight: wire('leg-phl', 'UPS1234', 'landed', groundFix([39.87, -75.24], t('2026-11-13T12:42:00Z')), t('2026-11-13T12:40:00Z'), phlTrail),
+    moments: [['2026-11-13T13:00:00Z', 'Landed at 12:41, not 12:40.']],
+    places: ['2026-11-13T12:40:30Z', '2026-11-13T12:41:00Z'],
+    distancesNm: [400],
+  }),
+  flightCase({
+    name: 'landed, and never seen in the air', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'Landed with an empty trail: there\'s no real path and no record, the real plane is at Philadelphia, and the leg ends 7 minutes after the landing.',
+    flight: wire('leg-phl', 'UPS1234', 'landed', groundFix([39.87, -75.24], t('2026-11-13T13:21:30Z')), t('2026-11-13T13:20:00Z'), []),
+    moments: [['2026-11-13T13:30:00Z', 'Landed, on the great circle.']],
+  }),
+  flightCase({
     name: 'on the ground somewhere else', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
     note: 'Seen on the ground at Pittsburgh, which is neither airport: a diversion. The real plane shows where it is, with no estimate, label or ghost.',
     flight: wire('leg-phl', 'UPS1234', 'ground', groundFix(airports.PIT, t('2026-11-13T13:20:00Z')), null, []),
@@ -679,7 +759,8 @@ const labelCase = (phase, gapMinutes) => ({ phase, gapMinutes, label: live.label
 const labels = [
   labelCase('inAir', 0), labelCase('inAir', 5), labelCase('inAir', -5), labelCase('inAir', 6), labelCase('inAir', -6),
   labelCase('inAir', 12), labelCase('inAir', -20), labelCase('inAir', 75), labelCase('inAir', -120),
-  labelCase('estimated', 5), labelCase('estimated', 12), labelCase('estimated', -20), labelCase('estimated', -6),
+  labelCase('estimated', 5), labelCase('estimated', -5), labelCase('estimated', 6), labelCase('estimated', 12),
+  labelCase('estimated', -20), labelCase('estimated', -6),
   labelCase('onGround', null), labelCase('onGround', 0), labelCase('onGround', -5), labelCase('onGround', -6),
   labelCase('onGround', -20), labelCase('onGround', -95),
   labelCase('landed', 8), labelCase('landed', -15), labelCase('landed', 5), labelCase('landed', -5), labelCase('landed', 6),
@@ -708,8 +789,12 @@ const windows = [
     wire('leg-cgn', 'UPS207', 'airborne', cologneFix('2026-11-14T04:50:00Z'), null, [])),
   windowCase('3 hours after, in the air with a fix 31 minutes old', '2026-11-14T05:00:00Z',
     wire('leg-cgn', 'UPS207', 'airborne', cologneFix('2026-11-14T04:29:00Z'), null, [])),
+  windowCase('3 hours after, in the air with a fix exactly 30 minutes old', '2026-11-14T05:00:00Z',
+    wire('leg-cgn', 'UPS207', 'airborne', cologneFix('2026-11-14T04:30:00Z'), null, [])),
   windowCase('3 hours after, on the ground with a new fix', '2026-11-14T05:00:00Z',
     wire('leg-cgn', 'UPS207', 'ground', groundFix(airports.PIT, t('2026-11-14T04:59:00Z')), null, [])),
+  windowCase('a minute under 12 hours after, still in the air', '2026-11-14T13:59:00Z',
+    wire('leg-cgn', 'UPS207', 'airborne', cologneFix('2026-11-14T13:58:00Z'), null, [])),
   windowCase('12 hours after, still in the air', '2026-11-14T14:00:00Z',
     wire('leg-cgn', 'UPS207', 'airborne', cologneFix('2026-11-14T13:59:00Z'), null, [])),
 ]
@@ -743,27 +828,27 @@ for (const f of flights) {
 }
 ```
 
-- [ ] **Step 3: Write the cases.**
+- [x] **Step 3: Write the cases.**
 
 ```bash
 cd /Users/toddanderson/Dev/Crewluv && node scripts/live-cases/generate.mjs
 ```
 
-Expected, on the first line: `6 plans, 11 flights, 27 labels, 12 gaps, 10 windows; 50262 bytes`. Then a line for each flight, among them:
+Expected, on the first line: `7 plans, 18 flights, 29 labels, 12 gaps, 12 windows; 72721 bytes`. Then a line for each flight, among them:
 
 ```
 - off early and the long way round: path 581.109 nm (8 stretches, unseen 0), 12:14:00 inAir gap -3 "On schedule" plane 52.356 ghost 0 | 12:15:20 inAir gap -3 "On schedule" plane 52.356 ghost 83.605
 ```
 
-- [ ] **Step 4: Check the file.**
+- [x] **Step 4: Check the file.**
 
 ```bash
 shasum -a 256 CrewluvTests/Fixtures/TripMap/live-cases.json
 ```
 
-Expected: `d9cd05010a44ceb442b36f425de1606376017e780d2c82ba36d1fcebb36ab376`. Another Node's maths can differ in a last digit, which changes the hash and nothing that matters: if the first line above matched, go on, and say so when asking to commit.
+Expected: `f55edd91ab8dc37634ae8b2bfd0912dcde79c757d426f08a85b6aba18f6dde30`. Another Node's maths can differ in a last digit, which changes the hash and nothing that matters: if the first line above matched, go on, and say so when asking to commit.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `test(crewluv): the real plane's shared cases, made by a reference written apart from the app and the website: the schedule's plan, paths from trails, the record, the landing estimate, every label and the window (Stage 3 spec §16.1)`.
+- [x] **Step 5: Ask to commit.** Suggested message: `test(crewluv): the real plane's shared cases, made by a reference written apart from the app and the website: the schedule's plan, paths from trails, the record, the landing estimate, every label and the window (Stage 3 spec §16.1)`.
 
 ---
 
@@ -779,7 +864,7 @@ Expected: `d9cd05010a44ceb442b36f425de1606376017e780d2c82ba36d1fcebb36ab376`. An
 
 `partner_live` answers `{"now", "cursor", "flights": [...]}`, with every time in milliseconds since 1970. The door's decoder reads dates as seconds, so these types read the numbers themselves.
 
-- [ ] **Step 1: Write the failing tests.** In `CrewluvTests/LivePartnerDoorTests.swift`, the last test of `LivePartnerDoorTests` is `test_anAnswerThatDoesntDecode_isUnavailable`. After its closing brace, and before the brace that closes the struct, add:
+- [x] **Step 1: Write the failing tests.** In `CrewluvTests/LivePartnerDoorTests.swift`, the last test of `LivePartnerDoorTests` is `test_anAnswerThatDoesntDecode_isUnavailable`. After its closing brace, and before the brace that closes the struct, add:
 
 ```swift
     // MARK: - The Live Plane
@@ -897,7 +982,7 @@ Expected: `d9cd05010a44ceb442b36f425de1606376017e780d2c82ba36d1fcebb36ab376`. An
     }
 ```
 
-- [ ] **Step 2: Give the stand-in door the call.** In `CrewluvTests/Helpers/PartnerCloudStandIns.swift`, make five changes to `StandInPartnerDoor`.
+- [x] **Step 2: Give the stand-in door the call.** In `CrewluvTests/Helpers/PartnerCloudStandIns.swift`, make five changes to `StandInPartnerDoor`.
 
 Its first line becomes:
 
@@ -940,7 +1025,7 @@ Before `private func nextJoinAnswer()`, add:
 
 ```
 
-- [ ] **Step 3: Write `LiveFlight`.** Create `Crewluv/Services/TripMap/Live/LiveFlight.swift`:
+- [x] **Step 3: Write `LiveFlight`.** Create `Crewluv/Services/TripMap/Live/LiveFlight.swift`:
 
 ```swift
 //
@@ -1015,7 +1100,7 @@ nonisolated extension LiveFlight {
 }
 ```
 
-- [ ] **Step 4: Write the answer.** Create `Crewluv/Services/PartnerCloud/PartnerLiveAnswer.swift`:
+- [x] **Step 4: Write the answer.** Create `Crewluv/Services/PartnerCloud/PartnerLiveAnswer.swift`:
 
 ```swift
 //
@@ -1127,7 +1212,7 @@ nonisolated extension LiveFlight.TrailPoint: Decodable {
 }
 ```
 
-- [ ] **Step 5: Let the call be used from another file.** In `Crewluv/Services/PartnerCloud/LivePartnerDoor.swift`, replace:
+- [x] **Step 5: Let the call be used from another file.** In `Crewluv/Services/PartnerCloud/LivePartnerDoor.swift`, replace:
 
 ```swift
     /// Posts one RPC and decodes its answer, or the door's refusal. A failure is logged with the
@@ -1146,7 +1231,7 @@ with:
 
 This is one of the helper's 15 files. Nothing else in it changes, and it needs no new file.
 
-- [ ] **Step 6: Write the door's call.** Create `Crewluv/Services/PartnerCloud/LiveFlightDoor.swift`:
+- [x] **Step 6: Write the door's call.** Create `Crewluv/Services/PartnerCloud/LiveFlightDoor.swift`:
 
 ```swift
 //
@@ -1184,9 +1269,9 @@ private struct LiveParameters: Encodable {
 }
 ```
 
-- [ ] **Step 7: Run the tests, expecting them to pass.** Todd runs `LivePartnerDoorTests`: its 17 tests from before and these 7. Building the app for the tests builds the helper with it, so a run that starts also shows the helper still compiles with its 15 files.
+- [x] **Step 7: Run the tests, expecting them to pass.** Todd runs `LivePartnerDoorTests`: its 17 tests from before and these 7. Building the app for the tests builds the helper with it, so a run that starts also shows the helper still compiles with its 15 files.
 
-- [ ] **Step 8: Ask to commit.** Suggested message: `feat(crewluv): the partner door's call for the live plane, apart from PartnerDoor so the alert pushes' helper needs none of it, and partner_live's answer read from milliseconds (Stage 3 spec §10.6, §11)`.
+- [x] **Step 8: Ask to commit.** Suggested message: `feat(crewluv): the partner door's call for the live plane, apart from PartnerDoor so the alert pushes' helper needs none of it, and partner_live's answer read from milliseconds (Stage 3 spec §10.6, §11)`.
 
 ---
 
@@ -1985,12 +2070,17 @@ final class FlightRecordTests: XCTestCase {
         }
     }
 
-    func test_time_isTheInverseOfDistance_allAlongThePath() throws {
+    /// Two places seen at one time are a jump, and no moment is part way across it. Everywhere else, the record's two
+    /// answers are each other's inverse.
+    func test_time_isTheInverseOfDistance_whereverThePlaneDidntJump() throws {
         let cases = try TripMapFixtures.liveCases()
         for flightCase in cases.flights {
             guard let record = try cases.made(flightCase).record else { continue }
+            let knots = record.path.knots
+            let jumps = zip(knots, knots.dropFirst()).filter { $0.time == $1.time }.map { $0.distance...$1.distance }
             for share in stride(from: 0.01, through: 0.99, by: 0.07) {
                 let distance = record.path.length * share
+                guard !jumps.contains(where: { $0.contains(distance) }) else { continue }
                 XCTAssertEqual(record.distance(at: record.time(atDistance: distance)), distance, accuracy: 0.5,
                                "\(flightCase.name) at \(share)")
             }
@@ -2536,7 +2626,8 @@ nonisolated struct LiveProgress: Sendable {
         case .onGround:
             touchdown = now >= plan.takeoff ? now.addingTimeInterval(plan.timeInAir) : nil
         case .landed:
-            touchdown = flight?.landedAt ?? fix?.seenAt
+            // The record's landing, where there is one, so the two can't disagree.
+            touchdown = record?.touchdown ?? flight?.landedAt ?? fix?.seenAt
         case .notLive, .elsewhere:
             touchdown = nil
         }
@@ -3351,10 +3442,20 @@ with:
 - **One landing time** is `LiveProgress.start` and `.end`, worked out where the status screen's model hands the legs on (`PartnerStatusReceiver`, before `TripStateResolver.resolve`).
 - **The moment is Crewlu Cloud's:** `LiveFlightSource.serverTime(at:)`.
 - **The source's legs** are `LiveFlightSource.Leg`: each flight leg's id and its gate times moved by its delay. The status screen calls `watch(_:)` when they change, `screenCameToFront()` and `screenLeftFront()`.
+- **A flight that isn't live can still have a real path and a record:** on the ground after a return, in a state this Crewluve doesn't know, or flown days ago. The map chooses what to draw by `LiveProgress.phase`, not by whether there's a path.
 - **Drawing:** `FlightPath.stretches` with their kinds, `LiveProgress.planeDistance` and `.ghostDistance` along the path, and `FlightPath.point(atDistance:)`. The planned stretch behind an estimated plane, from `flownLength` to `planeDistance`, is dotted.
 - **The words** for the label are `TripMapWording.liveLabel`.
 - **The website** copies `live-cases.json` to `tests/fixtures/trip-map/` and runs every case. `scripts/live-cases/live.mjs` is a reference to check against, not code to import.
 - **A real answer to record,** for the demo scenes: Crewlu Cloud has watched Todd's flights since 15 Nov 2026 and keeps each trail for 16 days.
+
+## Changes made during execution
+
+- **Batch A's review (15 Nov 2026)** found nothing wrong in the Swift or in any expected value, and found behaviours the shared cases didn't pin. So before Tasks 2 and 3 were committed:
+  - the cases gained seven flights (off late and seen from the start; a short hop off two minutes early; in the air with no trail point yet; the fix is the last trail point; points out of order, ten minutes apart, and two at once; landed with a landing time before its last point; landed and never seen in the air), a plan (a block of exactly 32 minutes), two labels and two windows;
+  - a landed flight's touchdown became its record's, in the reference and in `LiveProgress`;
+  - `FlightRecordTests`' inverse test leaves out the distances inside a jump, where two places were seen at one time;
+  - five choices the reference had made without saying are now in this plan's list of settled details.
+- **The test command names the simulator's OS.** Todd's first run found no iPhone 17 Pro on the newest iOS.
 
 ## Self-review
 
