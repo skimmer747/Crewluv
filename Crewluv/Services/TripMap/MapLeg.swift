@@ -3,7 +3,8 @@
 //  CrewLuve
 //
 //  One drawable leg of the trip map: a flight or a drive between two known airports, at its delay-shifted times
-//  (moving map spec §7.1, §7.3).
+//  (moving map spec §7.1, §7.3). A flight carries its plan, its path and its record (Stage 3 spec §11), and a
+//  flight with a real plane has the real plane's times (Stage 3 spec §7.1).
 //
 
 import CoreLocation
@@ -20,6 +21,26 @@ nonisolated struct MapLeg: Identifiable {
     /// Reaching the gate, moved by any delay.
     let end: Date
     let flightNumber: String?
+    /// A flight's plan, its path and, once it's been seen in the air, its record. Nil for a drive, and for a flight
+    /// that arrives no later than it leaves.
+    let flight: MapFlight?
+
+    init(
+        id: String, kind: Kind, origin: AirportMark, destination: AirportMark, start: Date, end: Date,
+        flightNumber: String?, flight: MapFlight? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.origin = origin
+        self.destination = destination
+        self.start = start
+        self.end = end
+        self.flightNumber = flightNumber
+        self.flight = flight
+    }
+
+    /// Whether `end` is the real plane's estimate, which the words mark with "about" (Stage 3 spec §9).
+    var isArrivalEstimated: Bool { flight?.isEstimate(end) ?? false }
 
     /// The great-circle distance between the two airports, in meters.
     var distance: Double { GreatCircle.distance(from: origin.coordinate, to: destination.coordinate) }
