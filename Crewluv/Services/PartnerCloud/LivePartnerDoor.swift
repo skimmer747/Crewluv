@@ -72,8 +72,9 @@ struct LivePartnerDoor: PartnerDoor {
     // MARK: - Calls
 
     /// Posts one RPC and decodes its answer, or the door's refusal. A failure is logged with the
-    /// RPC's name and why, but never the request, which holds the key and the token.
-    private func call<Answer: Decodable>(
+    /// RPC's name and why, but never the request, which holds the key and the token. Not private, so
+    /// the live plane's call can be written in a file the alert pushes' helper doesn't build.
+    func call<Answer: Decodable>(
         _ name: String, _ parameters: some Encodable
     ) async throws(PartnerDoorError) -> Answer {
         var request = URLRequest(url: Self.rpcURL.appending(path: name), timeoutInterval: Self.timeout)
