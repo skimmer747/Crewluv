@@ -26,16 +26,19 @@
 - **3B-3, the facts:** the story along the real path, the plane's row with `AircraftTypeNames`, and the credit.
 
 **How this plan was checked.** Every code block here was built and run in a scratch Swift package with the app target's settings (macOS, Swift 6.4, language mode 5, the main actor by default, approachable concurrency), beside copies of the 15 app files the helper builds:
-- 41 XCTest tests and 45 Swift Testing tests pass, with no warnings.
+- 41 XCTest tests and 52 Swift Testing tests pass, with no warnings.
 - The package was rebuilt as it stands after each of Tasks 3 to 8, in order, and passed each time.
 - The Swift agreed with the JavaScript reference on every shared case at its first run.
-- Ten deliberate breaks were tried, and each now fails a test. Two passed when first tried, or would have: the ghost before the plan's takeoff, and a late takeoff moving the leg's start. The cases gained a flight for each.
+- Fourteen deliberate breaks were tried, and each now fails a test. Two passed when first tried, or would have: the ghost before the plan's takeoff, and a late takeoff moving the leg's start. The cases gained a flight for each. A third, a second call going out while one is under way, would have hung its test, which now fails instead.
 - Not checked: the two edits to `TripMapWording.swift` and the real `TripMapFixtures`, which need the whole app. A stand-in with the same two functions was used.
 
 **Where this plan settles details the spec left open, or differs from it in small ways:**
 - **`LiveFlightDoor`, not `PartnerDoor`.** The spec has `PartnerDoor` gain `live(key:after:)`, and also has none of the helper's 15 files change. `PartnerDoor.swift` and `LivePartnerDoor.swift` are two of the 15, and the helper must compile with only those files, so the call can't go in them. It's a protocol of its own, with `LivePartnerDoor`'s call in an extension the helper doesn't build.
 - **One word changes in one of the helper's files:** `LivePartnerDoor.call` loses `private`, so the extension can use it. No file joins the helper.
 - **`sharing_ended`** goes to `PilotStatusSource.endSharing()`, as the push registration's does. That forgets the key through `CrewluCloudDevice` and tells the screen. `LiveFlightSource` reads the key itself, as `PushRegistrar` does, and takes no answer for a key the device has since replaced.
+- **`LiveFlightSource` asks only while its screen says it's in front.** The spec's "never in the background" is the screen's to keep, by calling `screenLeftFront()` as it stops the 60-second check: the class can't see whether the app is in front. A source let go without that call stops its own check (`isolated deinit`).
+- **A second `ask()` while one is under way asks nothing.** The one under way brings the answer.
+- **Crewlu Cloud's clock is measured from the middle of the call,** so a slow call skews it by half as much.
 - **`LiveFlightSource` has no `@MainActor` written on it.** The app's default puts it on the main actor, as it does `PilotStatusSource`. Written out, its initializer's defaults are worked out off the main actor, and the compiler warns.
 - **A block too short for the taxi allowances** has none, as in Stage 1. So its live arrival is its touchdown: the spec's "plus `taxiInAllowance`" is the plan's own taxi in.
 - **A leg that goes nowhere** (the same airport at both ends) has no speed of its own, so 280 kt stands in.
@@ -2932,7 +2935,7 @@ The source keeps each flight by its leg's id. It sends the last answer's cursor 
 
 Don't write `@MainActor` on the class (see "Where this plan settles details").
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveFlightSourceTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveFlightSourceTests.swift`:
 
 ```swift
 //
@@ -3126,18 +3129,58 @@ final class LiveFlightSourceTests {
 
         let asking = Task { await source.ask() }
         await eventually { door.lives.count == 1 }
-        await source.ask()
+        // In a task of its own: a second call that did go out would wait on the door, and must fail here, not hang.
+        let again = Task { await source.ask() }
+        for _ in 0..<100 {
+            await Task.yield()
+        }
 
         #expect(door.lives.count == 1)
         door.release()
         await asking.value
+        await again.value
         #expect(minutes(of: "leg-1", in: source) == [0])
+    }
+
+    @Test func test_ask_whenTheCallForEveryPointFails_keepsWhatItHas_andItsCursor() async {
+        door.liveAnswers = [
+            answer(cursor: 7, [flight("leg-1", points: [0, 2])]),
+            answer(cursor: 9, [flight("leg-1", points: [6], count: 4)]),
+            .failure(.unavailable),
+            answer(cursor: 9, [flight("leg-1", points: [4, 6], count: 4)]),
+        ]
+        let source = source()
+
+        await source.ask()
+        await source.ask()
+
+        #expect(minutes(of: "leg-1", in: source) == [0, 2])
+
+        await source.ask()
+
+        #expect(door.lives.map(\.after) == [nil, 7, nil, 7])
+        #expect(minutes(of: "leg-1", in: source) == [0, 2, 4, 6])
     }
 
     // MARK: - The Connection
 
     @Test func test_ask_sharingEnded_forgetsTheFlights_andTellsTheStatusSource() async {
         door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])]), .failure(.refused(.sharingEnded))]
+        let source = source()
+
+        await source.ask()
+        await source.ask()
+
+        #expect(source.flights.isEmpty)
+        #expect(timesSharingEnded == 1)
+    }
+
+    @Test func test_ask_sharingEnded_onTheCallForEveryPoint_endsSharingToo() async {
+        door.liveAnswers = [
+            answer(cursor: 7, [flight("leg-1", points: [0, 2])]),
+            answer(cursor: 9, [flight("leg-1", points: [6], count: 4)]),
+            .failure(.refused(.sharingEnded)),
+        ]
         let source = source()
 
         await source.ask()
@@ -3189,6 +3232,27 @@ final class LiveFlightSourceTests {
         #expect(Set(source.flights.keys) == ["leg-9"])
     }
 
+    @Test func test_ask_withAnotherKey_forgetsTheLastKeysFlights_evenWhenCrewluCloudCantBeReached() async {
+        door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])]), .failure(.unavailable)]
+        let source = source()
+
+        await source.ask()
+        keys.key = String(repeating: "7a", count: 32)
+        await source.ask()
+
+        #expect(source.flights.isEmpty)
+    }
+
+    @Test func test_ask_withNoKey_asksNothing() async {
+        keys.key = nil
+        let source = source()
+
+        await source.ask()
+
+        #expect(door.lives.isEmpty)
+        #expect(timesSharingEnded == 0)
+    }
+
     @Test func test_ask_onICloud_asksNothing_andForgetsTheFlights() async {
         door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])])]
         let source = source()
@@ -3224,6 +3288,22 @@ final class LiveFlightSourceTests {
 
         #expect(source.clockOffset == 90)
         #expect(source.serverTime(at: now.addingTimeInterval(10)) == now.addingTimeInterval(100))
+    }
+
+    @Test func test_serverTime_afterASlowCall_measuresFromTheCallsMiddle() async {
+        // The call takes 20 s by this device's clock, and Crewlu Cloud read its own clock somewhere inside it.
+        let asked = now
+        door.liveAnswers = [answer(cursor: 0, now: asked.addingTimeInterval(110))]
+        door.holdsLives = true
+        let source = source()
+
+        let asking = Task { await source.ask() }
+        await eventually { door.lives.count == 1 }
+        now = asked.addingTimeInterval(20)
+        door.release()
+        await asking.value
+
+        #expect(source.clockOffset == 100)
     }
 
     // MARK: - The 30-Second Check
@@ -3288,6 +3368,32 @@ final class LiveFlightSourceTests {
         source.screenLeftFront()
     }
 
+    @Test func test_screenCameToFront_twice_leavesOneCheckRunning() async {
+        door.liveAnswers = [answer(cursor: 0), answer(cursor: 0)]
+        let source = source()
+
+        await source.screenCameToFront()
+        await eventually { clock.waitingCount == 1 }
+        await source.screenCameToFront()
+        await eventually { clock.sleeps.count == 2 }
+        await eventually { clock.waitingCount == 1 }
+
+        #expect(door.lives.count == 2)
+        source.screenLeftFront()
+    }
+
+    @Test func test_aSourceLetGo_takesItsCheckWithIt() async {
+        door.liveAnswers = [answer(cursor: 0)]
+        var source: LiveFlightSource? = source()
+
+        await source?.screenCameToFront()
+        await eventually { clock.waitingCount == 1 }
+        source = nil
+        await eventually { clock.waitingCount == 0 }
+
+        #expect(clock.sleeps.count == 1)
+    }
+
     @Test func test_screenLeftFront_stopsTheCheck() async {
         door.liveAnswers = [answer(cursor: 0)]
         let source = source()
@@ -3303,7 +3409,7 @@ final class LiveFlightSourceTests {
 }
 ```
 
-- [ ] **Step 2: Write `LiveFlightSource`.** Create `Crewluv/Services/TripMap/Live/LiveFlightSource.swift`:
+- [x] **Step 2: Write `LiveFlightSource`.** Create `Crewluv/Services/TripMap/Live/LiveFlightSource.swift`:
 
 ```swift
 //
@@ -3318,7 +3424,9 @@ import Observation
 
 /// The pilot's flights with live data, for one status screen (Stage 3 spec §11). It asks Crewlu Cloud's
 /// partner_live once each time the screen comes to the front, and every 30 seconds while a flight's window is open.
-/// It never asks in the background, and never while this device follows its pilot through iCloud.
+/// The 30-second check runs only between `screenCameToFront()` and `screenLeftFront()`: the screen keeps it out of
+/// the background by saying when it leaves the front. It never asks while this device follows its pilot through
+/// iCloud.
 @Observable
 final class LiveFlightSource {
 
@@ -3372,6 +3480,11 @@ final class LiveFlightSource {
         self.now = now
     }
 
+    /// A source let go while its screen is in front takes its 30-second check with it.
+    isolated deinit {
+        timer.stop()
+    }
+
     /// Crewlu Cloud's time when this device's clock says `date`. Fix ages and windows are measured against it.
     func serverTime(at date: Date) -> Date {
         date.addingTimeInterval(clockOffset)
@@ -3395,14 +3508,23 @@ final class LiveFlightSource {
         timer.stop()
     }
 
-    /// Asks Crewlu Cloud once, and takes its answer. A call under way is left to finish.
+    /// Asks Crewlu Cloud once, and takes its answer. While a call is under way, another asks nothing: the one under
+    /// way brings the answer.
     func ask() async {
         guard !isAsking else { return }
         guard isOnCrewluCloud() else {
             forget()
             return
         }
-        guard let key = try? keys.deviceKey() else { return }
+        let key: String
+        do {
+            // With no key, this device is no longer on Crewlu Cloud: the status source finds that out at its next read.
+            guard let stored = try keys.deviceKey() else { return }
+            key = stored
+        } catch {
+            debugLog("[LiveFlightSource] This device's key couldn't be read, so the live plane wasn't asked for")
+            return
+        }
         if key != answeredKey {
             forget()
         }
@@ -3410,15 +3532,17 @@ final class LiveFlightSource {
         defer { isAsking = false }
         let sent = cursor
         do {
+            var askedAt = now()
             let answer = try await door.live(key: key, after: sent)
             // An answer for a key this device has since replaced, say by switching, is another connection's.
             guard (try? keys.deviceKey()) == key else { return }
-            if !take(answer, isWhole: sent == nil) {
+            if !take(answer, isWhole: sent == nil, askedAt: askedAt) {
                 // A trail doesn't add up: a point reached Crewlu Cloud after one with a later id, or the flight is
                 // new here and has points from before the cursor. Every point, then.
+                askedAt = now()
                 let whole = try await door.live(key: key, after: nil)
                 guard (try? keys.deviceKey()) == key else { return }
-                _ = take(whole, isWhole: true)
+                _ = take(whole, isWhole: true, askedAt: askedAt)
             }
             answeredKey = key
         } catch .refused(.sharingEnded) {
@@ -3427,17 +3551,19 @@ final class LiveFlightSource {
             forget()
             endSharing()
         } catch {
-            // Crewlu Cloud couldn't be reached, or refused for another reason: what's here stays.
+            // Crewlu Cloud couldn't be reached, or refused for another reason, and the door has logged why: what's
+            // here stays.
         }
     }
 
     // MARK: - Private
 
-    /// The 30-second check: asks while any flight's window is open.
+    /// The 30-second check: asks while any flight's window is open. Until the first answer the windows are measured
+    /// by this device's clock alone, which the ask on coming to the front soon puts right.
     private func check() async {
-        let now = serverTime(at: now())
+        let serverNow = serverTime(at: now())
         let isAnyWindowOpen = legs.contains {
-            LiveWindow.isOpen(departure: $0.departure, arrival: $0.arrival, flight: flights[$0.id], at: now)
+            LiveWindow.isOpen(departure: $0.departure, arrival: $0.arrival, flight: flights[$0.id], at: serverNow)
         }
         guard isAnyWindowOpen else { return }
         await ask()
@@ -3445,8 +3571,9 @@ final class LiveFlightSource {
 
     /// Makes `answer` the flights. One that isn't whole brings each flight's points since the cursor, which go after
     /// the points already here. False, changing nothing, when a trail then holds another number of points than
-    /// Crewlu Cloud says the flight has. A whole answer is taken as it comes.
-    private func take(_ answer: PartnerLiveAnswer, isWhole: Bool) -> Bool {
+    /// Crewlu Cloud says the flight has. A whole answer is taken as it comes. `askedAt` is when its call went out, by
+    /// this device's clock.
+    private func take(_ answer: PartnerLiveAnswer, isWhole: Bool, askedAt: Date) -> Bool {
         var answered: [String: LiveFlight] = [:]
         for flight in answer.flights {
             let trail = isWhole ? flight.trail : (flights[flight.legID]?.trail ?? []) + flight.trail
@@ -3457,7 +3584,9 @@ final class LiveFlightSource {
             flights = answered
         }
         cursor = answer.cursor
-        clockOffset = answer.now.timeIntervalSince(now())
+        // Crewlu Cloud read its clock somewhere inside the call: the call's middle is the best guess of when.
+        let middle = askedAt.addingTimeInterval(now().timeIntervalSince(askedAt) / 2)
+        clockOffset = answer.now.timeIntervalSince(middle)
         return true
     }
 
@@ -3472,9 +3601,9 @@ final class LiveFlightSource {
 }
 ```
 
-- [ ] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveFlightSourceTests`: 21 tests.
+- [x] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveFlightSourceTests`: 28 tests.
 
-- [ ] **Step 4: Ask to commit.** Suggested message: `feat(crewluv): LiveFlightSource asks Crewlu Cloud for the live plane when the status screen comes to the front and every 30 seconds while a flight's window is open, keeps each flight's trail whole, and measures by Crewlu Cloud's clock (Stage 3 spec §11)`.
+- [x] **Step 4: Ask to commit.** Suggested message: `feat(crewluv): LiveFlightSource asks Crewlu Cloud for the live plane when the status screen comes to the front and every 30 seconds while a flight's window is open, keeps each flight's trail whole, and measures by Crewlu Cloud's clock (Stage 3 spec §11)`.
 
 ---
 
@@ -3522,6 +3651,9 @@ with:
 - **One landing time** is `LiveProgress.start` and `.end`, worked out where the status screen's model hands the legs on (`PartnerStatusReceiver`, before `TripStateResolver.resolve`).
 - **The moment is Crewlu Cloud's:** `LiveFlightSource.serverTime(at:)`.
 - **The source's legs** are `LiveFlightSource.Leg`: each flight leg's id and its gate times moved by its delay. The status screen calls `watch(_:)` when they change, `screenCameToFront()` and `screenLeftFront()`.
+- **The status screen calls `screenLeftFront()` whenever its scene phase leaves `.active`, and when it goes away,** just as it stops the 60-second check. That's what keeps the live plane from being asked for in the background.
+- **`ask()` returns at once when a call is already under way,** so a pull to refresh that awaits it may come back before the answer does.
+- **Legs that are one flight** are answered under the first of their ids. Hand `watch(_:)` one leg for them, or the others' windows stay open after the flight has landed.
 - **A flight that isn't live can still have a real path and a record:** on the ground after a return, in a state this Crewluve doesn't know, or flown days ago. The map chooses what to draw by `LiveProgress.phase`, not by whether there's a path.
 - **Drawing:** `FlightPath.stretches` with their kinds, `LiveProgress.planeDistance` and `.ghostDistance` along the path, and `FlightPath.point(atDistance:)`. The planned stretch behind an estimated plane, from `flownLength` to `planeDistance`, is dotted.
 - **The words** for the label are `TripMapWording.liveLabel`.
@@ -3544,6 +3676,13 @@ with:
   - `minutesText` sits with `TripMapWording`'s shared helpers, since the countdown uses it too;
   - the tests gained three (a landing exactly 10 minutes after the last point, two points of one time through `FlightPath`, a gap that can't be right), compare the plan's times within a tolerance, and count the places and times they check.
 
+- **Batch C's review (15 Nov 2026)** found no order of answers that leaves a trail wrong, and nothing an await can corrupt. Before Task 8 was committed:
+  - the class's comment no longer promises what only its screen can keep: it asks between `screenCameToFront()` and `screenLeftFront()`, and stops its own check when it's let go;
+  - a key that can't be read is logged, where it was passed over in silence;
+  - Crewlu Cloud's clock is measured from the middle of the call;
+  - the test for a second call while one is under way now fails where it would have hung;
+  - seven tests were added: the call for every point failing, and refused with `sharing_ended`; another key with Crewlu Cloud out of reach; no key at all; a slow call's clock; coming to the front twice; a source let go.
+
 ## Self-review
 
 - **Spec coverage.**
@@ -3561,3 +3700,4 @@ with:
 - **Legs of a summary that are one flight** are answered once, under the first of their ids. The other leg shows the schedule.
 - **A flight leg with no callsign** (a van, or an airline Crewlu Cloud doesn't know) still opens a window, so the source asks every 30 seconds and gets no flight for it.
 - **The source asks again for every point at most once a run.** If that answer's count is off too, it's taken as it comes.
+- **After this device leaves Crewlu Cloud with no window open,** the last flights stay in the source until its screen next comes to the front. Their legs are another pilot's, so nothing shows them.
