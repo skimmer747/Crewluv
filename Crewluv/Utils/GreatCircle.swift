@@ -16,6 +16,9 @@ nonisolated enum GreatCircle {
     /// One statute mile, in meters. Families think in miles (moving map spec §8.3).
     static let metersPerMile: Double = 1_609.344
 
+    /// One nautical mile, in meters. The flight plan's distances and speeds are in them (Stage 3 spec §4).
+    static let metersPerNauticalMile: Double = 1_852
+
     /// The distance between two places along the earth's surface, in meters.
     static func distance(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> Double {
         earthRadius * centralAngle(from: start, to: end)
