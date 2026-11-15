@@ -152,6 +152,8 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
 
 ## 7. The schedule and the real plane
 
+Stage 3's design (`2026-11-14-crewluve-moving-map-stage3-live-design.md`) refines this section, §5.2, §5.3, §6, §8, §9, §10, §11, §12 and §15. Where they differ, it wins.
+
 ### 7.1 Route lines
 
 - **The planned route** of a leg is a great circle.
@@ -297,6 +299,8 @@ They're made by scripts, the way `airports.json` is today, and bundled in the ap
 - **`AircraftTypeNames`:** a small table in code. It covers each airline's fleet that CrewLu pilots fly, plus the common passenger types for deadheads.
 
 ## 9. CrewLu Cloud (`Duty/supabase`)
+
+Stage 3's design refines §9.1–§9.6 (its §10). Where they differ, it wins: one request per run for every flight, a match that follows the aircraft, and trails kept for 16 days.
 
 ### 9.1 The watch list
 
