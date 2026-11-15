@@ -72,7 +72,9 @@ final class FlightRecordTests: XCTestCase {
             guard let record = try cases.made(flightCase).record else { continue }
             var last = -1.0
             var date = flightCase.departure.addingTimeInterval(-3600)
-            while date < flightCase.arrival.addingTimeInterval(3 * 3600) {
+            // To three hours past the schedule's arrival, or past the record's touchdown for a plane later than that.
+            let end = max(flightCase.arrival.addingTimeInterval(3 * 3600), record.touchdown.addingTimeInterval(97))
+            while date < end {
                 let distance = record.distance(at: date)
                 XCTAssertGreaterThanOrEqual(distance, last, "\(flightCase.name) at \(date)")
                 last = distance

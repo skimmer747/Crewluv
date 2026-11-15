@@ -57,7 +57,8 @@ nonisolated struct LiveFlight: Equatable, Sendable {
     let fix: Fix?
     /// When it was first seen on the ground at the arrival airport.
     let landedAt: Date?
-    /// Every point of the path flown, as Crewlu Cloud sent them.
+    /// Every point of the path flown, in the order Crewlu Cloud sent them, which isn't always the order of their
+    /// times: `FlightPath` sorts them.
     let trail: [TrailPoint]
 }
 

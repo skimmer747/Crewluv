@@ -428,6 +428,34 @@ final class LiveFlightSourceTests {
         source.screenLeftFront()
     }
 
+    @Test func test_watch_otherLegs_theCheckAsksByTheirWindows_andKeepsTheFlightsUntilTheNextAnswer() async {
+        door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])]), answer(cursor: 9, [flight("leg-3", points: [2])])]
+        let source = source()
+        source.watch([LiveFlightSource.Leg(id: "leg-1", departure: now.addingTimeInterval(-3600), arrival: now.addingTimeInterval(3600))])
+
+        await source.screenCameToFront()
+        await eventually { clock.waitingCount == 1 }
+        // The summary moves on to a leg whose window hasn't opened.
+        source.watch([LiveFlightSource.Leg(id: "leg-2", departure: now.addingTimeInterval(2 * 3600), arrival: now.addingTimeInterval(4 * 3600))])
+        clock.tick()
+        // The check has run and gone back to sleep.
+        await eventually { clock.sleeps.count == 2 }
+
+        #expect(door.lives.count == 1)
+        #expect(minutes(of: "leg-1", in: source) == [0])
+
+        // And on to one whose window is open.
+        await eventually { clock.waitingCount == 1 }
+        source.watch([LiveFlightSource.Leg(id: "leg-3", departure: now.addingTimeInterval(-3600), arrival: now.addingTimeInterval(3600))])
+        clock.tick()
+        await eventually { door.lives.count == 2 }
+        await eventually { source.flights["leg-3"] != nil }
+
+        #expect(door.lives.map(\.after) == [nil, 7])
+        #expect(minutes(of: "leg-1", in: source) == nil)
+        source.screenLeftFront()
+    }
+
     @Test func test_screenCameToFront_twice_leavesOneCheckRunning() async {
         door.liveAnswers = [answer(cursor: 0), answer(cursor: 0)]
         let source = source()

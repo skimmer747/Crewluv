@@ -95,7 +95,8 @@ final class LiveFlightSource {
     }
 
     /// Asks Crewlu Cloud once, and takes its answer. While a call is under way, another asks nothing: the one under
-    /// way brings the answer.
+    /// way brings the answer. The exception is a call the 30-second check made, which ends unanswered when the check
+    /// is stopped or started again: an `ask()` that found it under way gets no answer either, until the next check.
     func ask() async {
         guard !isAsking else { return }
         guard isOnCrewluCloud() else {
