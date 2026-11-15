@@ -26,7 +26,7 @@
 - **3B-3, the facts:** the story along the real path, the plane's row with `AircraftTypeNames`, and the credit.
 
 **How this plan was checked.** Every code block here was built and run in a scratch Swift package with the app target's settings (macOS, Swift 6.4, language mode 5, the main actor by default, approachable concurrency), beside copies of the 15 app files the helper builds:
-- 41 XCTest tests and 52 Swift Testing tests pass, with no warnings.
+- 41 XCTest tests and 53 Swift Testing tests pass, with no warnings.
 - The package was rebuilt as it stands after each of Tasks 3 to 8, in order, and passed each time.
 - The Swift agreed with the JavaScript reference on every shared case at its first run.
 - Fourteen deliberate breaks were tried, and each now fails a test. Two passed when first tried, or would have: the ghost before the plan's takeoff, and a late takeoff moving the leg's start. The cases gained a flight for each. A third, a second call going out while one is under way, would have hung its test, which now fails instead.
@@ -37,7 +37,7 @@
 - **One word changes in one of the helper's files:** `LivePartnerDoor.call` loses `private`, so the extension can use it. No file joins the helper.
 - **`sharing_ended`** goes to `PilotStatusSource.endSharing()`, as the push registration's does. That forgets the key through `CrewluCloudDevice` and tells the screen. `LiveFlightSource` reads the key itself, as `PushRegistrar` does, and takes no answer for a key the device has since replaced.
 - **`LiveFlightSource` asks only while its screen says it's in front.** The spec's "never in the background" is the screen's to keep, by calling `screenLeftFront()` as it stops the 60-second check: the class can't see whether the app is in front. A source let go without that call stops its own check (`isolated deinit`).
-- **A second `ask()` while one is under way asks nothing.** The one under way brings the answer.
+- **A second `ask()` while one is under way asks nothing.** The one under way brings the answer. The exception is a call the 30-second check made, when the check is stopped or started again mid-call: "Left for later" has it.
 - **Crewlu Cloud's clock is measured from the middle of the call,** so a slow call skews it by half as much.
 - **`LiveFlightSource` has no `@MainActor` written on it.** The app's default puts it on the main actor, as it does `PilotStatusSource`. Written out, its initializer's defaults are worked out off the main actor, and the compiler warns.
 - **A block too short for the taxi allowances** has none, as in Stage 1. So its live arrival is its touchdown: the spec's "plus `taxiInAllowance`" is the plan's own taxi in.
@@ -1091,7 +1091,8 @@ nonisolated struct LiveFlight: Equatable, Sendable {
     let fix: Fix?
     /// When it was first seen on the ground at the arrival airport.
     let landedAt: Date?
-    /// Every point of the path flown, as Crewlu Cloud sent them.
+    /// Every point of the path flown, in the order Crewlu Cloud sent them, which isn't always the order of their
+    /// times: `FlightPath` sorts them.
     let trail: [TrailPoint]
 }
 
@@ -2126,7 +2127,9 @@ final class FlightRecordTests: XCTestCase {
             guard let record = try cases.made(flightCase).record else { continue }
             var last = -1.0
             var date = flightCase.departure.addingTimeInterval(-3600)
-            while date < flightCase.arrival.addingTimeInterval(3 * 3600) {
+            // To three hours past the schedule's arrival, or past the record's touchdown for a plane later than that.
+            let end = max(flightCase.arrival.addingTimeInterval(3 * 3600), record.touchdown.addingTimeInterval(97))
+            while date < end {
                 let distance = record.distance(at: date)
                 XCTAssertGreaterThanOrEqual(distance, last, "\(flightCase.name) at \(date)")
                 last = distance
@@ -3368,6 +3371,34 @@ final class LiveFlightSourceTests {
         source.screenLeftFront()
     }
 
+    @Test func test_watch_otherLegs_theCheckAsksByTheirWindows_andKeepsTheFlightsUntilTheNextAnswer() async {
+        door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])]), answer(cursor: 9, [flight("leg-3", points: [2])])]
+        let source = source()
+        source.watch([LiveFlightSource.Leg(id: "leg-1", departure: now.addingTimeInterval(-3600), arrival: now.addingTimeInterval(3600))])
+
+        await source.screenCameToFront()
+        await eventually { clock.waitingCount == 1 }
+        // The summary moves on to a leg whose window hasn't opened.
+        source.watch([LiveFlightSource.Leg(id: "leg-2", departure: now.addingTimeInterval(2 * 3600), arrival: now.addingTimeInterval(4 * 3600))])
+        clock.tick()
+        // The check has run and gone back to sleep.
+        await eventually { clock.sleeps.count == 2 }
+
+        #expect(door.lives.count == 1)
+        #expect(minutes(of: "leg-1", in: source) == [0])
+
+        // And on to one whose window is open.
+        await eventually { clock.waitingCount == 1 }
+        source.watch([LiveFlightSource.Leg(id: "leg-3", departure: now.addingTimeInterval(-3600), arrival: now.addingTimeInterval(3600))])
+        clock.tick()
+        await eventually { door.lives.count == 2 }
+        await eventually { source.flights["leg-3"] != nil }
+
+        #expect(door.lives.map(\.after) == [nil, 7])
+        #expect(minutes(of: "leg-1", in: source) == nil)
+        source.screenLeftFront()
+    }
+
     @Test func test_screenCameToFront_twice_leavesOneCheckRunning() async {
         door.liveAnswers = [answer(cursor: 0), answer(cursor: 0)]
         let source = source()
@@ -3509,7 +3540,8 @@ final class LiveFlightSource {
     }
 
     /// Asks Crewlu Cloud once, and takes its answer. While a call is under way, another asks nothing: the one under
-    /// way brings the answer.
+    /// way brings the answer. The exception is a call the 30-second check made, which ends unanswered when the check
+    /// is stopped or started again: an `ask()` that found it under way gets no answer either, until the next check.
     func ask() async {
         guard !isAsking else { return }
         guard isOnCrewluCloud() else {
@@ -3601,7 +3633,7 @@ final class LiveFlightSource {
 }
 ```
 
-- [x] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveFlightSourceTests`: 28 tests.
+- [x] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveFlightSourceTests`: 29 tests.
 
 - [x] **Step 4: Ask to commit.** Suggested message: `feat(crewluv): LiveFlightSource asks Crewlu Cloud for the live plane when the status screen comes to the front and every 30 seconds while a flight's window is open, keeps each flight's trail whole, and measures by Crewlu Cloud's clock (Stage 3 spec §11)`.
 
@@ -3613,11 +3645,11 @@ final class LiveFlightSource {
 - Modify: `CLAUDE.md`
 - Modify: this plan
 
-- [ ] **Step 1: Review the whole branch.** Dispatch `superpowers:code-reviewer` (sonnet) on this plan's commits, with the spec's §4 to §7, §10.6 and §11, and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back. A fix that changes an answer goes in the reference first, then the cases are written again (Task 2, Step 3), then the Swift.
+- [x] **Step 1: Review the whole branch.** Dispatch `superpowers:code-reviewer` (sonnet) on this plan's commits, with the spec's §4 to §7, §10.6 and §11, and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back. A fix that changes an answer goes in the reference first, then the cases are written again (Task 2, Step 3), then the Swift.
 
-- [ ] **Step 2: Todd runs every test class of this plan once more,** and the whole `CrewluvTests` scheme if he wants the rest checked too.
+- [x] **Step 2: Todd runs every test class of this plan once more,** and the whole `CrewluvTests` scheme if he wants the rest checked too.
 
-- [ ] **Step 3: Update `CLAUDE.md`.** Under "#### Trip Map", after the bullet that begins "`CrewluvTests/Fixtures/TripMap/progress-cases.json` holds", add:
+- [x] **Step 3: Update `CLAUDE.md`.** Under "#### Trip Map", after the bullet that begins "`CrewluvTests/Fixtures/TripMap/progress-cases.json` holds", add:
 
 ```markdown
 - The real plane's engine (Stage 3 spec `docs/superpowers/specs/2026-11-14-crewluve-moving-map-stage3-live-design.md`) is in `Services/TripMap/Live/`, and nothing shows it yet. `FlightPlan` is the schedule's plan the real plane is measured against. `FlightPath` is a flight's path, real once the plane has been seen in the air, and `FlightRecord` where it was at any moment. `LiveProgress` is the real plane at one moment: live, estimated or landed, its landing estimate and label, where the ghost flies, and the leg's real times. `LiveFlightSource` asks Crewlu Cloud's `partner_live` once when the screen comes to the front and every 30 seconds while a flight's window is open (`LiveWindow`). The call is `LiveFlightDoor`, apart from `PartnerDoor`, so none of the helper's 15 files needs the live plane's types
@@ -3639,9 +3671,9 @@ with:
 │   │   └── Facts/                    # The facts: geography, stories, sky, totals, words
 ```
 
-- [ ] **Step 4: Record what changed.** Add "## Changes made during execution" to the end of this plan: the review's changes, and anything a step did differently. If any of it changes what the spec says, change the spec to match, and say so in the list.
+- [x] **Step 4: Record what changed.** Add "## Changes made during execution" to the end of this plan: the review's changes, and anything a step did differently. If any of it changes what the spec says, change the spec to match, and say so in the list.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `docs(crewluv): the real plane's engine in CLAUDE.md, and the Stage 3B-1 plan as it was built`.
+- [x] **Step 5: Ask to commit.** Suggested message: `docs(crewluv): the real plane's engine in CLAUDE.md, and the Stage 3B-1 plan as it was built`.
 
 ---
 
@@ -3652,7 +3684,10 @@ with:
 - **The moment is Crewlu Cloud's:** `LiveFlightSource.serverTime(at:)`.
 - **The source's legs** are `LiveFlightSource.Leg`: each flight leg's id and its gate times moved by its delay. The status screen calls `watch(_:)` when they change, `screenCameToFront()` and `screenLeftFront()`.
 - **The status screen calls `screenLeftFront()` whenever its scene phase leaves `.active`, and when it goes away,** just as it stops the 60-second check. That's what keeps the live plane from being asked for in the background.
-- **`ask()` returns at once when a call is already under way,** so a pull to refresh that awaits it may come back before the answer does.
+- **`ask()` returns at once when a call is already under way,** so a pull to refresh that awaits it may come back before the answer does. If that call was the 30-second check's and the check is stopped mid-call, no answer comes until the next check ("Left for later"). Settle both when the status screen is given its source.
+- **`LiveProgress` trusts that its record was made from the path and the plan it's handed.** Make the three together, once for each answer, and keep them together on `MapLeg`.
+- **A flight's places in the order of their times are `FlightPath.knots`.** `LiveFlight.trail` is in the order Crewlu Cloud sent it.
+- **Until Crewlu Cloud's switch is `all`, most devices' asks come back with no flights** ("Left for later"). Ask Todd before 3B-2 ships whether the source should then ask less often.
 - **Legs that are one flight** are answered under the first of their ids. Hand `watch(_:)` one leg for them, or the others' windows stay open after the flight has landed.
 - **A flight that isn't live can still have a real path and a record:** on the ground after a return, in a state this Crewluve doesn't know, or flown days ago. The map chooses what to draw by `LiveProgress.phase`, not by whether there's a path.
 - **Drawing:** `FlightPath.stretches` with their kinds, `LiveProgress.planeDistance` and `.ghostDistance` along the path, and `FlightPath.point(atDistance:)`. The planned stretch behind an estimated plane, from `flownLength` to `planeDistance`, is dotted.
@@ -3683,6 +3718,15 @@ with:
   - the test for a second call while one is under way now fails where it would have hung;
   - seven tests were added: the call for every point failing, and refused with `sharing_ended`; another key with Crewlu Cloud out of reach; no key at all; a slow call's clock; coming to the front twice; a source let go.
 
+- **The whole-branch review (15 Nov 2026, Task 9)** found nothing wrong in an answer, and nothing the spec's sections ask for that the code leaves out. Before it, every file of Tasks 2 to 8 was compared with the tested copy once more, and the cases were written again from the reference: both came out the same. The review ran the Swift against 800 random flights made by the reference, and they agreed on every one. It found five small things, and none changes what the app does:
+  - `test_distance_neverGoesBackwards` took every plane to be down three hours after its scheduled arrival. That failed 63 of the random flights, whose records were right: they were later than that. The test now runs to the record's own touchdown;
+  - `LiveFlight.trail`'s comment says its points aren't always in the order of their times;
+  - `ask()`'s comment owns up to the one call that can end unanswered, the 30-second check's when the check is stopped or started again mid-call. "Left for later" has what would close it;
+  - a test was added for `watch(_:)`: the check asks by the windows of the legs it was last given, and the flights it has stay until the next answer;
+  - "Left for later" and what 3B-2 takes gained what the review turned up: asks that come back empty until the switch covers every pilot, a trail count that stays wrong, and the record `LiveProgress` is handed.
+- **None of it changes what the spec says.**
+- **Todd's last run (15 Nov 2026):** the plan's ten test classes once more, after the review's changes. All 130 tests passed on the iPhone 17 Pro simulator, iOS 26.5.
+
 ## Self-review
 
 - **Spec coverage.**
@@ -3698,6 +3742,7 @@ with:
 
 - **A flight back on the ground after a return to its departure airport** keeps its first attempt's trail, and its record flies the plan on from there until it's seen in the air again. The real plane itself shows at the gate.
 - **Legs of a summary that are one flight** are answered once, under the first of their ids. The other leg shows the schedule.
-- **A flight leg with no callsign** (a van, or an airline Crewlu Cloud doesn't know) still opens a window, so the source asks every 30 seconds and gets no flight for it.
-- **The source asks again for every point at most once a run.** If that answer's count is off too, it's taken as it comes.
+- **A flight leg Crewlu Cloud has no flight for still opens a window,** so the source asks every 30 seconds while its screen is in front, and gets nothing for it. That's a leg with no callsign (a van, or an airline Crewlu Cloud doesn't know), and every leg of a pilot the switch doesn't cover: all but the listed pilots, until it's turned to `all`. Each call is small. The source could ask less often after an answer with none of its open legs.
+- **The source asks again for every point at most once a run.** If that answer's count is off too, it's taken as it comes. As `partner_live` is written it can't be, since an answer with every point counts the rows it sends. If it ever were, the next run's count would be off as well, and every run would ask twice until the window shut.
+- **A call the 30-second check made ends unanswered when the check is stopped or started again mid-call,** as the screen leaves the front or comes to it a second time. It's logged as Crewlu Cloud out of reach, and an `ask()` that found it under way has already returned. So an answer can come a check late, up to 30 seconds. To close it, `ask()` would make its call in a task of its own, with a second caller waiting on it: 3B-2 should do that if its pull to refresh is to wait for the answer.
 - **After this device leaves Crewlu Cloud with no window open,** the last flights stay in the source until its screen next comes to the front. Their legs are another pilot's, so nothing shows them.
