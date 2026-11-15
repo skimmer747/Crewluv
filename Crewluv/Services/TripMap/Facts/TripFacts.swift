@@ -104,8 +104,13 @@ nonisolated struct TripFacts {
         switch tripMap.mode {
         case .inFlight:
             if let leg = tripMap.currentLeg {
+                let below = stories[leg.id]?.place(atFraction: leg.progress(at: now))?.name
+                // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9).
+                if let live = TripMapWording.liveSummary(for: leg, over: below, now: now, calendar: calendar, locale: locale) {
+                    return live
+                }
                 let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
-                let over = stories[leg.id]?.place(atFraction: leg.progress(at: now)).map { ", over \($0.name)" } ?? ""
+                let over = below.map { ", over \($0)" } ?? ""
                 let landing = TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale)
                 return "\(lead) \(leg.destination.name)\(over). Lands at \(landing) your time. Estimated from the schedule."
             }

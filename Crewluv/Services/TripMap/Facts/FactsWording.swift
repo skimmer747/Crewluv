@@ -143,13 +143,15 @@ nonisolated enum FactsWording {
         return "\(amount) \(unit) \(seconds > 0 ? "ahead of" : "behind") you"
     }
 
-    /// "lands 4:05 PM there", or in the family's time when the destination keeps it or its zone isn't known.
+    /// "lands 4:05 PM there", or in the family's time when the destination keeps it or its zone isn't known. With
+    /// the real plane's estimate, "lands about 3:52 PM there" (Stage 3 spec §9).
     static func lands(_ leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let about = TripMapWording.about(leg)
         if let there = leg.destination.timeZone,
            there.secondsFromGMT(for: leg.end) != calendar.timeZone.secondsFromGMT(for: leg.end) {
-            return "lands \(TripMapWording.clockTime(leg.end, in: there, locale: locale)) there"
+            return "lands \(about)\(TripMapWording.clockTime(leg.end, in: there, locale: locale)) there"
         }
-        return "lands \(TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        return "lands \(about)\(TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale))"
     }
 
     // MARK: - Helpers
