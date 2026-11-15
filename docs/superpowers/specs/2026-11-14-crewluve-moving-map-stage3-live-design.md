@@ -231,11 +231,13 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
 
 | Part | What it is |
 |---|---|
-| `private.airports` | Each airport's code and position, seeded from the website's `public/data/airports.json` (9,056 airports) |
+| `private.airports` | Each airport's code and position, filled by a second script made from the website's `public/data/airports.json` (9,056 airports) |
 | `private.live_flights` | One row per watched flight: its key, airports and their positions, effective times, state, aircraft and latest fix |
 | `private.live_flight_points` | The trails: one row per point |
 | `private.flight_live_state` | One row: the switch, the listed pilots, and the pause after failures |
 | `private.flight_legs(status)` | A summary's flight legs that can be watched, each with its callsign. The check and `partner_live` both use it |
+| `private.open_live_flights()` | The flights whose window is open. The check and the claim both use it |
+| `private.flight_live_switch(mode, pilots)` | Sets the switch, from the SQL editor |
 | `private.flight_live_tick()` | The 30-second check, run by pg_cron |
 | `flight-live` | The Edge Function: one file with no imports, like `partner-push` |
 | `flight_live_claim`, `flight_live_report` | Its two RPCs, for `service_role` with a Vault password of their own |
@@ -252,6 +254,9 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
   3. the airline is the leg's airline code, else the prefix, else UPS;
   4. a two-character airline code becomes its ICAO code from a table in the SQL: today's 15 airlines, and the cargo and regional airlines the website names. A three-letter code is used as it is. An airline not in the table has no callsign;
   5. the callsign is the ICAO code and the digits without leading zeros: `UPS0207` becomes `UPS207`.
+- **Its times are moved by its own delay.** A summary-wide delay from a CrewLu that doesn't tag legs isn't counted: the window is wide enough without it.
+
+The table holds each airline's real ICAO code, so PSA Airlines is `JIA`. The app's tracking links have `PSA` for it, which is another airline's.
 
 **The window.** A leg is watched from 30 minutes before its effective departure until the first of: landing seen, or 2 hours after its effective arrival. A flight still being seen in the air keeps its window open until 30 minutes after its last fix, to at most 12 hours after its effective arrival.
 
@@ -272,10 +277,10 @@ Every 30 seconds, pg_cron runs `private.flight_live_tick()`. It:
 
 `flight-live` then:
 
-1. **claims** the open rows: each one's callsign, airports' positions, effective departure, state, aircraft and last point's time;
+1. **claims** the open rows: each one's callsign, airports' positions, effective departure, state and aircraft;
 2. **asks adsb.lol once** for every callsign: `GET https://api.adsb.lol/v2/callsign/<a>,<b>,…`, with a 10-second timeout and a `User-Agent` that names CrewLu Cloud. More than 100 callsigns go in further requests, one after another;
 3. **judges** each row's answer (§10.4);
-4. **reports** the new states, fixes and trail points, and how the request went.
+4. **reports** the new states and fixes, and how the request went. The database adds the trail points.
 
 With no window open there are no requests. Otherwise there are 2 a minute, however many pilots are flying.
 
@@ -286,6 +291,7 @@ For a row, the candidates are the aircraft in the answer whose callsign, trimmed
 - **Before it's seen in the air** (`waiting` or `ground`):
   - a candidate on the ground within 10 nm of the departure airport is the flight. The row takes that aircraft, and its state is `ground`. A later candidate that fits takes its place, as when the airline swaps aircraft;
   - a candidate in the air that is the row's aircraft has taken off: `airborne`;
+  - its own aircraft on the ground anywhere else, as after a diversion, stays `ground` with its newest fix;
   - any other candidate in the air is the flight only from 20 minutes before the effective departure, and only when it's between the two airports. Between means its distance from the departure airport plus its distance to the arrival airport is no more than 1.3 times the distance between them plus 200 nm. The row takes that aircraft: `airborne`.
 - **Once it's in the air,** only the row's aircraft counts, wherever it goes:
   - in the air: the fix is kept;
@@ -297,7 +303,7 @@ So a reused flight number on another plane, and a different leg with the same nu
 
 ### 10.5 What it keeps
 
-- **The latest fix:** latitude, longitude, altitude in feet (null on the ground), ground speed in knots, track in degrees (null when missing), whether it's on the ground, registration, type code, and when it was seen. Seen time is the request's time minus `seen_pos`.
+- **The latest fix:** latitude, longitude, altitude in feet (null on the ground), ground speed in knots, track in degrees (null when missing), whether it's on the ground, registration, type code, and when it was seen. Seen time is when the answer came, minus `seen_pos`. A fix older than the one a flight has is left alone.
 - **The trail:** a point for the first fix in the air, then one whenever the last is 110 seconds old or more: `[time, latitude, longitude, altitude]`. Fixes on the ground aren't trail points.
 - **For 16 days.** A daily job deletes a row, with its points, 16 days after it landed, or after its effective arrival if it never did. That covers the longest trip and its recap day. A ten-hour flight is about 300 points.
 - **Only public ADS-B data,** in the `private` schema, which the API doesn't expose.
@@ -311,19 +317,20 @@ A new partner RPC beside `partner_view`, called the same way. `partner_view` doe
 
   ```json
   {"now": <ms>, "cursor": <integer>,
-   "flights": [{"legId", "callsign", "state",
-     "fix": {"lat", "lon", "altitudeFt", "groundSpeedKt", "trackDeg", "onGround",
-             "registration", "typeCode", "seenAt"} | null,
-     "landedAt": <ms> | null,
+   "flights": [{"leg_id", "callsign", "state",
+     "fix": {"lat", "lon", "altitude_ft", "ground_speed_kt", "track_deg", "on_ground",
+             "registration", "type_code", "seen_at"} | null,
+     "landed_at": <ms> | null,
      "trail": [[<ms>, <lat>, <lon>, <ft>], ...],
-     "trailCount": <integer>}]}
+     "trail_count": <integer>}]}
   ```
 
-  - `flights` holds a row for each flight leg in the pilot's current summary that has one, matched by the leg's key through `private.flight_legs`. `legId` is that leg's `id`. A leg the pilot hides or removes stops being answered at once, and nothing else needs to be kept in step.
+  - `flights` holds a row for each flight leg in the pilot's current summary that has one, matched by the leg's key through `private.flight_legs`. `leg_id` is that leg's `id`. A leg the pilot hides or removes stops being answered at once, and nothing else needs to be kept in step.
   - `state` is `waiting`, `ground`, `airborne` or `landed`.
-  - `trail` holds the points newer than `p_after`, oldest first, or all of them without it. `trailCount` is how many points the flight has in all. A device whose own count doesn't match asks again without `p_after`.
+  - `trail` holds the points newer than `p_after`, oldest first, or all of them without it. `trail_count` is how many points the flight has in all. A device whose own count doesn't match asks again without `p_after`.
   - `cursor` goes back as the next `p_after`.
-  - `now` is the server's clock.
+  - `now` is the server's clock. Every time is milliseconds since 1970.
+  - The fields are named with underscores, as the partner door's other answers are.
 - **Errors:** as `partner_view`: `sharing_ended` for a key that's been let go.
 - **The switch applies here too:** off answers no flights, and listed answers only listed pilots' partners.
 - **It doesn't count as the device being seen.** `partner_view` does that.
@@ -331,7 +338,7 @@ A new partner RPC beside `partner_view`, called the same way. `partner_view` doe
 
 ### 10.7 The switch and failures
 
-- **The switch** is `off`, `listed` or `all`, with a list of pilots for `listed`. It ships `off`. It's changed in the SQL editor.
+- **The switch** is `off`, `listed` or `all`, with a list of pilots for `listed`. It ships `off`. It's changed in the SQL editor, with `private.flight_live_switch`.
 - **A timeout, an error or an answer that doesn't read:** nothing is kept from that run, and the next run tries again. After 5 in a row, polling pauses for 5 minutes.
 - **A 429:** polling pauses for 2 minutes.
 - **The devices need no failure state.** A fix that stops arriving makes the plane estimated by itself.
@@ -340,7 +347,7 @@ A new partner RPC beside `partner_view`, called the same way. `partner_view` doe
 
 ### 10.8 Setting it up
 
-One migration, run once in the SQL editor, with its undo in its header, as the push service's is. It makes its own Vault password and the function's address. `flight-live` is added in the dashboard. Nothing is applied to CrewLu Cloud without Todd's OK at each step (§17).
+Two scripts, each run once in the SQL editor with its undo in its header, as the push service's is: the live plane's, which makes its own Vault password and the function's address, then the airports'. `flight-live` is added in the dashboard. Nothing is applied to CrewLu Cloud without Todd's OK at each step (§17).
 
 ## 11. The app
 
@@ -348,7 +355,7 @@ One migration, run once in the SQL editor, with its undo in its header, as the p
 - **`LiveFlightSource`** (`Services/TripMap/`), an `@Observable` `@MainActor` model owned by the status screen.
   - It asks every 30 seconds while the screen is in front and a flight's window is open (§10.2's rule, worked out from the legs), and once each time the screen comes to the front.
   - It never asks in the background, and never on iCloud.
-  - It keeps each flight by leg id, adds new trail points to the ones it has, and checks `trailCount`.
+  - It keeps each flight by leg id, adds new trail points to the ones it has, and checks `trail_count`.
   - It keeps the difference between the server's clock and the device's, so a wrong phone clock doesn't age a fix.
   - `sharing_ended` goes to `CrewluCloudDevice`, as `partner_view`'s does. Any other failure keeps what it has.
 - **New pure types,** `nonisolated` and tested:
@@ -435,7 +442,7 @@ A new `CrewluvTests/Fixtures/TripMap/live-cases.json`, copied to the website's `
   - `private.flight_legs`: callsigns for company flights, other airlines, leading zeros, `GND` and `CML`, and unknown airports;
   - the check: the window, shared rows, the 30-day rule, the switch's three settings, and the pause;
   - claim and report: the password, and what each writes;
-  - `partner_live`: only the partner's own pilot's flights, a hidden leg, `sharing_ended`, `p_after`, `trailCount`, and the switch;
+  - `partner_live`: only the partner's own pilot's flights, a hidden leg, `sharing_ended`, `p_after`, `trail_count`, and the switch;
   - the daily delete;
   - the migration's second run and its undo, and the advisor, privilege and safeupdate guards, which load every migration.
 - **Function tests** under Node, on recorded adsb.lol answers and never live calls:
@@ -446,7 +453,7 @@ A new `CrewluvTests/Fixtures/TripMap/live-cases.json`, copied to the website's `
 
 ### 16.3 Crewluve
 
-XCTest, run in Xcode by Todd: the shared cases through `FlightPlan`, `FlightPath`, `LiveProgress` and `FlightRecord`; `LiveFlightSource` (when it asks, new points, a `trailCount` mismatch, `sharing_ended`, the clock difference); `LegStory` along a path with an unseen stretch; `TripMapDrawing`'s lines and planes; the words; `AircraftTypeNames`; and one landing time through the status screen's model.
+XCTest, run in Xcode by Todd: the shared cases through `FlightPlan`, `FlightPath`, `LiveProgress` and `FlightRecord`; `LiveFlightSource` (when it asks, new points, a `trail_count` mismatch, `sharing_ended`, the clock difference); `LegStory` along a path with an unseen stretch; `TripMapDrawing`'s lines and planes; the words; `AircraftTypeNames`; and one landing time through the status screen's model.
 
 ### 16.4 The website
 
