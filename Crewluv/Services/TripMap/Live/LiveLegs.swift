@@ -105,6 +105,16 @@ nonisolated enum LiveLegs {
         flights[leg.id]?.isEstimate(leg.effectiveEnd) ?? false
     }
 
+    /// When the flight between its gates at `now` reaches its gate, while that time is the real plane's estimate:
+    /// the time the cards say "about" of (spec §9). Nil with no such flight.
+    static func estimatedArrival(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> Date? {
+        guard !flights.isEmpty else { return nil }
+        return legs.first { leg in
+            leg.type == .flight && leg.effectiveStart <= now && now < leg.effectiveEnd
+                && isArrivalEstimated(of: leg, in: flights)
+        }?.effectiveEnd
+    }
+
     /// The legs as the status carries them, written as `CloudSummary` writes them: sorted keys give the same legs
     /// the same bytes on every run.
     static func blob(_ legs: [TripLeg]) -> Data? {

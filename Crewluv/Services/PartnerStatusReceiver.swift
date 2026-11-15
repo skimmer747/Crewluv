@@ -2,11 +2,13 @@
 //  PartnerStatusReceiver.swift
 //  CrewLuve
 //
-//  The status screen's model: the pilot's status as PilotStatusSource reads it
+//  The status screen's model: the pilot's status as PilotStatusSource reads it, with the real plane's times in
+//  place of the schedule's where Crewlu Cloud has seen the flight (Stage 3 spec §7.1)
 //
 
 import Foundation
 import CloudKit
+import CoreLocation
 import Observation
 
 @MainActor
@@ -44,8 +46,21 @@ class PartnerStatusReceiver {
     private let statusSource: PilotStatusSource
     private var transitionTask: Task<Void, Never>?
 
+    /// Asks Crewlu Cloud for the pilot's flights with live data while this screen is in front (Stage 3 spec §11).
+    private let liveSource: LiveFlightSource
+    /// Whether this screen is in front, as it last said.
+    private var isInFront = false
+
+    /// Each flight with live data, by its leg's id: its plan, path and record, for the trip map. The legs in
+    /// `pilotStatus` already carry the real plane's times (Stage 3 spec §7.1).
+    private(set) var flights: [String: MapFlight] = [:]
+    /// When the flight between its gates reaches its gate, while that time is the real plane's estimate: the cards
+    /// say "about" of it (Stage 3 spec §9). Nil with no such flight.
+    private(set) var estimatedArrival: Date?
+
     init(shareManager: CloudKitShareManager) {
         statusSource = .shared
+        liveSource = LiveFlightSource()
 
         // Restore persisted data source
         if let raw = UserDefaults.standard.string(forKey: dataSourceKey),
@@ -121,6 +136,8 @@ class PartnerStatusReceiver {
                 self.lastSyncError = nil
             }
         }
+
+        followLiveFlights()
 
         // Wait for any in-progress share acceptance to complete before checking
         Task {
@@ -283,6 +300,7 @@ class PartnerStatusReceiver {
 
     func enterDemoMode() {
         isInDemoMode = true
+        clearLiveFlights()
         pilotStatus = .demo
         hasAcceptedShare = true
         isLoading = false
@@ -308,6 +326,14 @@ class PartnerStatusReceiver {
         if !hasAcceptedShare && dataSource != .privateDB && !statusSource.isOnCrewluCloud {
             await checkPrivateDatabase()
         }
+    }
+
+    /// Pull to refresh and the refresh button: reads the status, then asks for the live plane, and ends when both
+    /// are in.
+    func refreshByHand() async {
+        await refresh()
+        guard !isInDemoMode else { return }
+        await liveSource.ask()
     }
 
     /// Pulls the persisted data source out of UserDefaults and applies it to the in-memory
@@ -366,10 +392,16 @@ class PartnerStatusReceiver {
     /// Resolve current state from trip legs and schedule next transition.
     /// Trusts Duty's pre-computed fields; only overrides displayStatus and location
     /// when the resolver finds an active leg for real-time transitions.
+    ///
+    /// One landing time (Stage 3 spec §7.1): a flight with live data gets the real plane's times here, before
+    /// anything reads the legs, so the status, the map and every card agree. It runs again at each new answer about
+    /// the live plane, and at each read of the status, which on Crewlu Cloud comes every 60 seconds while the screen
+    /// is in front: a time that changes by itself, as when a plane on the ground stops being seen, is at most that late.
     private func resolveAndSchedule() {
         let now = Date()
         guard let reading = statusSource.reading else {
             pilotStatus = nil
+            clearLiveFlights()
             return
         }
 
@@ -378,13 +410,22 @@ class PartnerStatusReceiver {
 
         guard raw.hasTripLegs else {
             debugLog("[Resolve] No trip legs, using raw status")
+            liveSource.watch([])
+            clearLiveFlights()
             pilotStatus = raw.named(displayName)
             scheduleResolve(transition: nil, reading: reading, now: now)
             return
         }
 
-        let legs = raw.tripLegs
-        debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver")
+        let scheduledLegs = raw.tripLegs
+        liveSource.watch(LiveLegs.watched(in: scheduledLegs))
+        let flights = LiveLegs.flights(for: scheduledLegs, legacyDelayMinutes: raw.flightDelayMinutes,
+                                       answered: liveSource.flights, clockOffset: liveSource.clockOffset,
+                                       coordinate: Self.airportCoordinate)
+        let legs = LiveLegs.replacingTimes(in: scheduledLegs, with: flights, at: now)
+        self.flights = flights
+        estimatedArrival = LiveLegs.estimatedArrival(in: legs, flights: flights, at: now)
+        debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, \(flights.count) with live data")
 
         let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, baseAirportCode: raw.baseAirportCode, at: now)
 
@@ -509,7 +550,7 @@ class PartnerStatusReceiver {
             tripDayNumber: effectiveTripDayNumber,
             tripTotalDays: effectiveTripTotalDays,
             upcomingCities: effectiveUpcomingCities,
-            tripLegsJSON: raw.tripLegsJSON,
+            tripLegsJSON: legs == scheduledLegs ? raw.tripLegsJSON : LiveLegs.blob(legs) ?? raw.tripLegsJSON,
             quickStatus: raw.quickStatus,
             quickStatusIcon: raw.quickStatusIcon,
             quickStatusExpiry: raw.quickStatusExpiry,
@@ -563,12 +604,52 @@ class PartnerStatusReceiver {
 
     /// This screen is in front: the status source's 60-second check runs (partner links piece 4
     /// spec §5.5). It reads only while on Crewlu Cloud, and not for a screen showing the demo.
+    /// The live plane is asked for once now, and every 30 seconds while a flight's window is open (Stage 3 spec §11).
     func startPeriodicCheck() {
         statusSource.startPeriodicCheck(for: self, pausedWhile: { [weak self] in self?.isInDemoMode ?? true })
+        isInFront = true
+        Task { [weak self] in
+            // The screen may have left the front again before this runs.
+            guard let self, self.isInFront else { return }
+            await self.liveSource.screenCameToFront()
+        }
     }
 
-    /// This screen left the front. The check stops once no screen is in front.
+    /// This screen left the front. The check stops once no screen is in front, and the live plane isn't asked for
+    /// until this screen is back.
     func stopPeriodicCheck() {
         statusSource.stopPeriodicCheck(for: self)
+        isInFront = false
+        liveSource.screenLeftFront()
+    }
+
+    // MARK: - The Live Plane
+
+    /// Resolves again at each new answer about the live plane, so the legs' times follow it (Stage 3 spec §7.1).
+    private func followLiveFlights() {
+        withObservationTracking {
+            _ = liveSource.flights
+        } onChange: { [weak self] in
+            // Called just before the flights change: wait until they have.
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.pilotStatus != nil, !self.isInDemoMode {
+                    self.resolveAndSchedule()
+                }
+                self.followLiveFlights()
+            }
+        }
+    }
+
+    /// No flight has live data: the map and the cards show the schedule.
+    private func clearLiveFlights() {
+        flights = [:]
+        estimatedArrival = nil
+    }
+
+    private static func airportCoordinate(_ code: String) -> CLLocationCoordinate2D? {
+        AirportDataProvider.shared.airportInfo(forIataCode: code).map {
+            CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+        }
     }
 }

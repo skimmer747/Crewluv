@@ -384,6 +384,44 @@ final class LiveLegsTests: XCTestCase {
         XCTAssertFalse(LiveLegs.isArrivalEstimated(of: replaced, in: made))
     }
 
+    func test_estimatedArrival_isWhenTheFlightUnderWayReachesItsGate_byTheRealPlanesEstimate() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        // A leg that's 20 minutes late by its own delay: the time the cards show is its end moved by that delay.
+        let leg = cases.tripLeg(flightCase, delayMinutes: 20)
+        let after = cases.wait("w2", .layover, at: "PHL", from: flightCase.arrival, to: flightCase.arrival.addingTimeInterval(86_400))
+        let made = flights(cases, for: [leg, after], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: [leg, after], with: made, at: moment.at)
+
+        let arrival = try XCTUnwrap(LiveLegs.estimatedArrival(in: replaced, flights: made, at: moment.at))
+        assertEqual(arrival, moment.end, "the real plane's estimate, as the countdown has it")
+        XCTAssertNil(LiveLegs.estimatedArrival(in: replaced, flights: [:], at: moment.at), "a flight with no live data")
+        XCTAssertNil(LiveLegs.estimatedArrival(in: [leg, after], flights: made, at: moment.at), "the schedule's time")
+    }
+
+    func test_estimatedArrival_isNil_beforeTheFlightLeavesItsGate_onceItReachesIt_andOnceThePlaneIsDown() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        let leg = cases.tripLeg(flightCase)
+        let made = flights(cases, for: [leg], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+        let replaced = LiveLegs.replacingTimes(in: [leg], with: made, at: moment.at)
+        let flight = try XCTUnwrap(replaced.first)
+        XCTAssertNil(LiveLegs.estimatedArrival(in: replaced, flights: made, at: flight.startTime.addingTimeInterval(-1)), "before it leaves its gate")
+        XCTAssertNotNil(LiveLegs.estimatedArrival(in: replaced, flights: made, at: flight.startTime))
+        XCTAssertNotNil(LiveLegs.estimatedArrival(in: replaced, flights: made, at: flight.endTime.addingTimeInterval(-1)))
+        XCTAssertNil(LiveLegs.estimatedArrival(in: replaced, flights: made, at: flight.endTime), "once it reaches its gate")
+
+        // A plane that's down has a real time, not an estimate, while it's still on its way to the gate.
+        let landedCase = try cases.flight(named: "landed, seen all the way")
+        let landedLeg = cases.tripLeg(landedCase)
+        let landed = flights(cases, for: [landedLeg], answered: ["f1": try XCTUnwrap(cases.live(landedCase))])
+        let taxiing = LiveLegs.replacingTimes(in: [landedLeg], with: landed, at: landedCase.moments[0].at)
+        let justBeforeTheGate = try XCTUnwrap(taxiing.first).endTime.addingTimeInterval(-30)
+        XCTAssertNil(LiveLegs.estimatedArrival(in: taxiing, flights: landed, at: justBeforeTheGate))
+    }
+
     // MARK: - The legs as the status carries them
 
     func test_blob_isReadBackAsTheSameLegs() throws {
