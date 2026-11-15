@@ -22,7 +22,10 @@ nonisolated enum TripMapWording {
             let next = tripMap.nextFlight(after: date).map { nextDepartureChip(for: $0, now: date, calendar: calendar, locale: locale) }
             return (place, next)
         case .nextTrip:
-            return (nextTripChip(startingAt: tripMap.span.start, now: date, calendar: calendar, locale: locale), nil)
+            return (nextTripChip(startingAt: tripMap.span.start, now: date, isAtBase: tripMap.isWaitingAtBase,
+                                 calendar: calendar, locale: locale), nil)
+        case .recap:
+            return (FactsWording.recapChip(days: tripMap.dayCount(in: calendar)), "Replay the trip")
         }
     }
 
@@ -38,9 +41,12 @@ nonisolated enum TripMapWording {
         return "Next: \(leg.destination.name), \(day) \(clockTime(leg.start, in: calendar.timeZone, locale: locale))"
     }
 
-    /// "Home · next trip Wednesday".
-    static func nextTripChip(startingAt start: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Home · next trip \(dayPhrase(for: start, now: now, calendar: calendar, locale: locale))"
+    /// "Home · next trip Wednesday", or "At base · next trip Wednesday" while the pilot waits at base (base waits
+    /// design §3).
+    static func nextTripChip(startingAt start: Date, now: Date, isAtBase: Bool = false, calendar: Calendar = .current,
+                             locale: Locale = .current) -> String {
+        let place = isAtBase ? "At base" : "Home"
+        return "\(place) · next trip \(dayPhrase(for: start, now: now, calendar: calendar, locale: locale))"
     }
 
     /// "Landing in 2 h 10 min", to the gate arrival.
@@ -83,7 +89,7 @@ nonisolated enum TripMapWording {
                            calendar: Calendar = .current, locale: Locale = .current) -> [String] {
         let cities = destinations(of: tripMap.legs, leavingOut: Set([tripMap.home?.code].compactMap { $0 }))
         switch tripMap.mode {
-        case .inFlight:
+        case .inFlight, .recap:
             return []
         case .onTrip:
             var items: [String] = []
@@ -142,6 +148,7 @@ nonisolated enum TripMapWording {
 
     /// The pill at the top: "UPS207 · In flight", "Driving to Louisville", "Day 2 of 4" or "Next trip".
     static func topPill(for tripMap: TripMap, at date: Date, dayNumber: Int?, totalDays: Int?) -> String {
+        if tripMap.mode == .recap, date >= tripMap.span.end { return "Trip recap" }
         if let leg = tripMap.legInMotion(at: date) {
             switch leg.kind {
             case .flight: return [leg.flightNumber, "In flight"].compactMap { $0 }.joined(separator: " · ")
@@ -159,14 +166,32 @@ nonisolated enum TripMapWording {
             return leg.kind == .flight ? landingLine(for: leg, calendar: calendar, locale: locale) : "Driving to \(leg.destination.name)"
         }
         if tripMap.mode == .nextTrip, date < tripMap.span.start {
-            return nextTripChip(startingAt: tripMap.span.start, now: date, calendar: calendar, locale: locale)
+            return nextTripChip(startingAt: tripMap.span.start, now: date, isAtBase: tripMap.isWaitingAtBase,
+                                calendar: calendar, locale: locale)
         }
         return tripMap.pilotLocation(at: date).map { placeChip(for: $0, at: date, locale: locale) } ?? ""
     }
 
-    /// "Fri 9:14 PM", under the timeline and as the slider's VoiceOver value.
+    /// "Fri 9:14 PM", the time under the timeline.
     static func timelineTime(_ date: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         date.formatted(style(calendar: calendar, locale: locale).weekday(.abbreviated).hour().minute())
+    }
+
+    /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
+    static func timelineLine(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
+                             locale: Locale = .current) -> String {
+        let time = timelineTime(date, calendar: calendar, locale: locale)
+        guard let activity else { return time }
+        return "\(time) · \(activity.words)"
+    }
+
+    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3).
+    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
+                                    locale: Locale = .current) -> String {
+        let time = date.formatted(style(calendar: calendar, locale: locale).weekday(.wide).hour().minute())
+        guard let activity else { return time }
+        let words = activity.words
+        return "\(time), \(words.prefix(1).lowercased() + words.dropFirst())"
     }
 
     // MARK: - VoiceOver
@@ -190,18 +215,21 @@ nonisolated enum TripMapWording {
             let cities = destinationNames(of: tripMap.legs, leavingOut: Set([tripMap.home?.code].compactMap { $0 }))
             let day = dayPhrase(for: tripMap.span.start, now: now, calendar: calendar, locale: locale)
             return "Map of the next trip, \(day): \(cities.joined(separator: ", "))."
+        case .recap:
+            let chip = FactsWording.recapChip(days: tripMap.dayCount(in: calendar))
+            return "Trip recap: \(chip.prefix(1).lowercased() + chip.dropFirst())."
         }
     }
 
-    // MARK: - Private
+    // MARK: - Helpers, shared with FactsWording
 
     /// The names of the cities the trip's flights reach, in order, each once, home left out — for VoiceOver.
-    private static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {
+    static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {
         var seen = homeCodes
         return legs.filter { $0.kind == .flight }.map(\.destination).filter { seen.insert($0.code).inserted }.map(\.name)
     }
 
-    private static func milesText(_ miles: Int, locale: Locale) -> String {
+    static func milesText(_ miles: Int, locale: Locale) -> String {
         "\(miles.formatted(.number.locale(locale))) mi"
     }
 
@@ -211,7 +239,7 @@ nonisolated enum TripMapWording {
         return clockTime(leg.end, in: there, locale: locale)
     }
 
-    private static func clockTime(_ date: Date, in zone: TimeZone, locale: Locale) -> String {
+    static func clockTime(_ date: Date, in zone: TimeZone, locale: Locale) -> String {
         date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, timeZone: zone))
     }
 

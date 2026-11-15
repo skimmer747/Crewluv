@@ -2,6 +2,14 @@
 
 Status: approved in brainstorming on 2026-11-13, from mockups of where the map lives, the card in each trip state, the full-screen map, the ghost and live planes, and the live-data relay. It covers the Crewluve app, the Crewluve website, and one new piece of CrewLu Cloud. It's built in three stages (§4), each with its own implementation plan.
 
+**Amended 2026-11-13, our own night drawing:** §6, §7.1, §10, §12, §14 and §15.2. On Todd's iPad the SwiftUI map's night flashed all through a replay: MapKit can't move an overlay, only replace it, and each replacement blinks. The map is now an `MKMapView` with the night and the route lines drawn by the app, as CrewLu's moving map draws them. Plan: `docs/superpowers/plans/2026-11-13-moving-map-own-night-drawing.md`. Checked on Todd's iPad, 14 Nov 2026: no flash at 1x or 10x.
+
+**Amended 2026-11-14, what the pilot is doing, and quick layovers:** §5.1, §6, §10, §14 and §15.1. From Todd's first look at the map on his iPad: the heart becomes a marker for what the pilot is doing, a replay hurries through each wait on the ground, and the timeline is colored by what the pilot is doing and measured in replay time. Design: `docs/superpowers/specs/2026-11-14-trip-map-activity-markers-and-quick-layovers-design.md`. Plan: `docs/superpowers/plans/2026-11-14-trip-map-activity-markers-and-quick-layovers.md`. Todd's device check passed on 14 Nov 2026: the markers change as the replay moves, the bar is colored and steady, and the night sweeps smoothly through a quick layover at 1x and 10x.
+
+**Amended 2026-11-14, waits at base and the card's framing:** §5.1 and §10. A commuter's waits at base, which CrewLu doesn't name, read "At base"; a pilot waiting at base for a trip is shown there; and the card frames the trip between its chips, sliding the pilot's marker into view when a wide trip doesn't fit. Design: `docs/superpowers/specs/2026-11-14-trip-map-base-waits-and-card-framing-design.md`. Plan: `docs/superpowers/plans/2026-11-14-trip-map-base-waits-and-card-framing.md`. Todd's device check passed on 14 Nov 2026: the marker shows on every card clear of its chips, Apple's logo sits above the bottom chip, recenter slides the marker into view, and the map never moves by itself after the family moves it.
+
+**Amended 2026-11-14, fewer markers piled up near home:** §7.1 and §10. The car shows only while the pilot drives, and an airport only drives reach gives way where it crowds another. Design: `docs/superpowers/specs/2026-11-14-trip-map-tidy-markers-design.md`.
+
 ## 1. Goal
 
 Give the pilot's family a moving map that's fun to look at, in the app and on the website. It's built from CrewLu's rebuilt moving map:
@@ -91,9 +99,11 @@ This was clarified while planning Stage 1 (2026-11-13). Replacing the whole loca
   - The headline fact chip sits on the map (§5.2).
 - **On the ground, mid-trip (layover, turn, base):**
   - the whole trip is shown, with legs flown solid and legs still to come dashed;
-  - a heart pin marks where the pilot is;
+  - a marker shows where the pilot is and what they're doing there (amended 2026-11-14, activity markers design §2): a bed on a layover, an hourglass at a turn, a briefcase at base and a house at home, each a white symbol on its color (indigo, orange, teal, green) with a white ring. CrewLu's own ground legs name each wait; with none, 8 hours or more is a layover and less is a turn;
   - two chips: the city with its local time ("Cologne · 9:14 pm there"), and the next departure ("Next: Dubai, tomorrow 6:10 am").
-- **Home, with a trip ahead:** the next trip's route, every leg dashed, with the heart pin at home ("Home · next trip Friday").
+- **Home, with a trip ahead:** the next trip's route, every leg dashed, with the home marker at home ("Home · next trip Friday").
+- **At base, with a trip ahead** (amended 2026-11-14, base waits and card framing design §3): the same, with the base marker at base ("At base · next trip Friday").
+- **The card's framing** (amended 2026-11-14, design §4): the trip is framed in the band between the card's two chips. When a wide trip still doesn't fit, the map slides the least distance that shows the pilot's ground marker.
 - **Home, nothing ahead,** or no leg that can be drawn: no map. The card is today's location card.
 
 ### 5.2 The headline fact
@@ -122,18 +132,22 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
 
 - **Opens on the leg in progress,** or on the whole trip when they're on the ground.
 - **The map fills the screen.**
+  - It pans and zooms. It doesn't turn or tilt (§10).
   - Top left: close.
   - Top right: a style button that cycles hybrid, standard and imagery, as in CrewLu. Hybrid is the default.
-  - A recenter button appears once the map is panned away from the plane.
+  - A recenter button appears once the family pans, pinches or double-taps the map. It frames the leg in motion, or the whole trip, again.
   - A pill at the top: "UPS 207 · 12 min ahead" with live data, and "UPS 207 · In flight" without it.
 - **The facts sheet.** It's a bottom sheet with two stops.
   - Small: the headline fact, the landing line ("Lands Cologne 9:30 pm · 3:30 pm your time") and the timeline.
   - Pulled up: one row per kind of fact (§8), and the adsb.lol credit when live data shows.
   - On iPad, in landscape, and on the website at 900 px wide or more, the facts are a side panel instead.
 - **The timeline** covers the trip from its first departure to its last arrival.
-  - Drag it to replay, with play at 1x, 2x, 5x or 10x as in CrewLu.
+  - Drag it to replay, with play at 1x, 2x, 5x or 10x as in CrewLu. At 1x a day passes in 48 s.
+  - A leg in motion that would take less than 3 s at 1x slows so it takes 3 s; the speed setting multiplies that too. Where legs overlap the slowest wins (added 2026-11-13, as on the website: Crewluve Website `docs/superpowers/specs/2026-11-13-replay-short-legs-design.md`).
+  - **Quick layovers** (amended 2026-11-14, activity markers design §3): a switch beside the speeds, on by default and remembered for every trip. With it on, each wait on the ground takes a second a day, never under 3 s and never slower than the normal rate: a 15- to 27-hour layover takes 3 s, and a 4-day one 4 s. With it off, waits keep the normal rate. Switching it during a replay keeps the moment. Nothing is skipped: the night, the facts and the marker run through every minute of a wait.
+  - **The bar** is the app's own (amended 2026-11-14, design §4). It measures replay time at 1x at the current pace, and is colored by what the pilot is doing: flying blue, driving gray, and each wait in its marker's color. The part played is full color and the part ahead paler. A wait's block shows its length, "20h" or "4d", when the label fits. The line under it says when and what: "Sat 1:40 PM · Layover in Denver".
   - A Live button jumps back to now.
-  - Replay moves the planes and the night. Live data affects only the present (§7.6).
+  - Replay moves the planes and the night, up to 60 times a second (amended 2026-11-14). Live data affects only the present (§7.6).
 - **"Your time"** is the device's time zone, as the alerts already use.
 
 ## 7. The schedule and the real plane
@@ -145,7 +159,8 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
   - With no live data, the part already flown is solid light blue.
 - **The actual path** (live trail, §9.4) is solid white.
 - **Legs flown earlier in the trip** are solid grey along their planned route.
-- **Drives** are a dotted line with a small car, and never get live data.
+- **Drives** are a dotted line, with a small car on it while the pilot drives (amended 2026-11-14, tidy markers design §1), and never get live data.
+- **Drawn by the app,** over Apple's map and under the planes, the heart, the cars and the airports, as the night is (§10). Dashes and dots are laid from each line's far end, so they stay put on the map while the plane eats into the line still to fly, and while the map pans.
 
 ### 7.2 The planes
 
@@ -364,14 +379,22 @@ The site's policy is deliberately tight. It allows its own scripts only, and con
 
 iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines each.
 
-- **The map is SwiftUI's `Map`,** not a port of CrewLu's `MKMapView`. It covers everything with public API:
-  - `.mapStyle(.hybrid(elevation: .flat))`, `.standard` and `.imagery`;
-  - `MapPolyline` for routes, trails and drives;
-  - `MapPolygon` for the night bands;
-  - `Annotation` for the planes and the heart pin;
-  - `MapCameraPosition` for fitting.
-- **Ported from CrewLu, with their tests:** `NightShade`, `PlaneHeading`, the subsolar point in `SolarPosition`, and the date-line fit from `FlatMapFit`. Night refreshes about 10 times a second during replay, and once a minute otherwise.
-- **`Views/TripMap/`:** `TripMapCard`, `TripMapScreen`, `TripMapView` (the `Map` and its content), `FactsSheet`, `TripTimeline`, `HeadlineFactChip`, `TripRecapView`, and their small subviews.
+- **The map is an `MKMapView`,** wrapped for SwiftUI by `TripMapView`, and drawn the way CrewLu's moving map is. This was amended on 2026-11-13: SwiftUI's map can only replace an overlay, and on Todd's iPad each replacement blinked. Apple's map, its logo and Legal link, and the markers stay MapKit's. The night and the route lines are the app's own.
+  - **Styles:** `MKHybridMapConfiguration`, `MKStandardMapConfiguration` and `MKImageryMapConfiguration`, all with `elevationStyle: .flat`.
+  - **The app's drawing:** the night's seven layers and every route, trail and drive line are `CAShapeLayer`s in one view of the app's, `TripMapShapesView`.
+    - It sits just under the view MapKit keeps its annotation views in, so the planes, the pilot's marker, the cars and the airports stay bright at night.
+    - Every update gives the same shapes new outlines. Nothing is taken off the map or put on it.
+  - **Markers:** the planes, the pilot's marker, the cars and the airports are MapKit annotations whose views host the app's SwiftUI markers. Each is hosted with no safe area, since SwiftUI otherwise moved a marker down by the status bar's height on the full-screen map. Where airport codes crowd each other, an airport only drives reach gives way, as Apple Maps hides crowded labels; the planes, the pilot's marker and the car always show (amended 2026-11-14, tidy markers design §2).
+  - **Camera:** `TripMapCamera`. The map frames each new request once, with `MapFit`'s rectangle. A pan, pinch or double tap makes the camera the family's until they recenter. After each framing, the pilot's ground marker slides into view if the framing left it outside the map's margins, which hold the card's chips as well as the sheet and panel (amended 2026-11-14, base waits and card framing design §4; `TripMapSlide`).
+  - **Where things are on screen:** `MapProjection`, ported from CrewLu's `FlatMapFit`, works this out from three places the map is asked about.
+    - Each shape is drawn once for each copy of the world on screen across the date line.
+    - Every shape is cut off just outside the view.
+    - The map pans and zooms but never turns or tilts. The arithmetic is right only for a map seen from straight above, north up.
+  - **Fallback:** if a later iOS keeps its annotation views differently and that view can't be found, the night and the lines are drawn over the map's own content, and so over the markers. That's logged.
+- **Ported from CrewLu, with their tests:** `NightShade`, `PlaneHeading`, the subsolar point in `SolarPosition`, the date-line fit (`MapFit`), and the screen projection and clipping (`MapProjection`, from `FlatMapFit`).
+- **When the night is drawn:** for the map's exact time on every update. That's up to 60 times a second during replay (amended 2026-11-14, so the night sweeps smoothly through a quick layover), every second on the full-screen map otherwise, and every 10 seconds on the card.
+- **What the pilot is doing** (amended 2026-11-14, activity markers design §6): `TripMap` keeps CrewLu's ground legs (`GroundStop`) and answers what the pilot is doing at any moment (`TripMap+Activity`, with `TripWait`, and `TripActivity` with its kinds' symbols, colors and words). `TripReplayClock` paces each wait with Quick layovers and gives the timeline's positions in replay time. `TripTimeline` is the bar's blocks, which `TripTimelineBar` draws, with `TripTimelineTrack` mapping the bar to the timeline.
+- **`Views/TripMap/`:** `TripMapCard`, `TripMapScreen`, `TripMapView` (the `MKMapView`, run by `TripMapCoordinator`, with `TripMapShapesView` and the markers' annotations), `FactsSheet`, `TripTimeline`, `HeadlineFactChip`, `TripRecapView`, and their small subviews.
 - **`Services/TripMap/`:**
   - `TripRoute`: legs to drawable routes, using `AirportDataProvider`.
   - `FlightProgress`: the ghost, live and estimated positions, ahead or behind, and the landing estimate (§7).
@@ -404,7 +427,11 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 - **Unknown airport:** a leg with an airport missing from the platform's list isn't drawn. If that's the leg in the air, the card shows today's fallback ("SDF → CGN"). The app has about 306 airports and the website 9,056, so the app hits this more often (§16).
 - **No legs** (CrewLu versions that don't send them): the map draws only the current leg, from `currentFlight*`. On the ground with no legs, there's no map.
-- **The date line, and polar or long legs:** these are handled by the ported date-line fit and geodesic lines. Web Mercator stops at ±85°, so near-polar paths are drawn clamped.
+- **The date line, and polar or long legs:**
+  - the camera's rectangle takes the short way round (`MapFit`);
+  - the night and the routes are drawn once for each copy of the world on screen, each route laid out in one piece across the line (`MapProjection`);
+  - flights are drawn along their great circle in stretches of at most a degree (`TripMapLine`).
+  - Web Mercator stops at ±85°, so near-polar paths are drawn clamped.
 - **Diversion:** the live plane stays while it's within 250 nm of the route. Beyond that, fixes are dropped and it goes estimated. It never shows a wrong position.
 - **The same flight number on back-to-back legs:** the window and the match check pick the right leg.
 - **A wrong phone clock:** fix ages use `partner_live`'s `now`.
@@ -423,8 +450,9 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 - **The card** is one VoiceOver element, read as a sentence: "UPS 207 to Cologne, 12 minutes ahead of schedule, over Newfoundland. Lands about 3:30 pm."
 - **Each facts row** is a sentence.
-- **The timeline slider** reads its time as its value.
+- **The timeline** reads as a slider (amended 2026-11-14, activity markers design §7). Its value is the moment and what the pilot is doing, "Saturday 1:40 PM, layover in Denver", and swiping up or down moves it. **Quick layovers** is a standard switch with its label. The bar's labels grow with the text size and drop out when they no longer fit; the bar's height stays the same.
 - **The buttons** have labels: close, map style, recenter, Live, play.
+- **The map's markers:** on the full-screen map VoiceOver reads each airport's code, as it did before. The planes, the pilot's marker and the cars are described by the card's sentence and the facts rows. The night and the lines aren't read. On the card the map is hidden, and the card is its one sentence.
 - **Dynamic Type:** the chips and rows scale. At the largest sizes the headline chip moves below the map.
 - **Dark Mode:** the card's frame and the sheet adapt. Hybrid and imagery look the same in both, and standard follows the system.
 - **Reduce Motion:** planes don't slide (§7.2). Replay still works, without animated camera moves.
@@ -438,6 +466,8 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
 
 - `progress-cases.json`: the ghost's timing, the allowances, the ±5 min band, ahead or behind, still on the ground, landed early or late, estimated movement and the landing estimate.
 - `facts-cases.json`: the geography lookup at given points, sunrise or sunset from the cockpit with the dip, milestones, comparisons and trip totals.
+- `replay-cases.json` (added 2026-11-14, activity markers design §5): the replay's pace through legs and waits with Quick layovers on and off, the trip moment at given replay seconds, each trip's whole replay length, and the lengths written on a wait's block.
+- `activity-cases.json` (added 2026-11-14): sample trips with flights, drives and CrewLu's ground legs, and what the pilot is doing at given moments, with the words under the timeline.
 
 The website keeps a copy in `tests/fixtures/trip-map/`. Both suites run every case. A change goes into both copies in the same pair of commits.
 
@@ -445,7 +475,8 @@ The website keeps a copy in `tests/fixtures/trip-map/`. Both suites run every ca
 
 XCTest, run in Xcode by Todd. It covers:
 
-- the ported maths, with CrewLu's tests: `NightShade`, `PlaneHeading`, subsolar point, date-line fit;
+- the ported maths, with CrewLu's tests: `NightShade`, `PlaneHeading`, subsolar point, date-line fit, and `MapProjection` (CrewLu's `FlatMapFit`);
+- the drawing's pure parts: `TripMapLine`, `TripMapCamera`, `TripMapClearance` and `TripMapMarker`'s placements;
 - `FlightProgress` and the facts engine, through the shared cases;
 - `TripRoute`: legs, drives, unknown airports;
 - `LiveFlightSource`: when it polls, `sharing_ended`, a stale fix;

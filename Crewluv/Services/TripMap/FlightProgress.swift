@@ -40,4 +40,11 @@ nonisolated enum FlightProgress {
         let share = date.timeIntervalSince(window.start) / window.duration
         return min(max(share, 0), 1)
     }
+
+    /// When the schedule's plane is `fraction` of the way along its route: the inverse of `scheduledFraction`, for the
+    /// facts' milestones (Stage 2 spec §4.2). Nil when the flight has no time in the air.
+    static func scheduledTime(atFraction fraction: Double, departure: Date, arrival: Date) -> Date? {
+        guard let window = airborneWindow(departure: departure, arrival: arrival) else { return nil }
+        return window.start.addingTimeInterval(min(max(fraction, 0), 1) * window.duration)
+    }
 }

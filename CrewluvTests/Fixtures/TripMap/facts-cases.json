@@ -1,0 +1,132 @@
+{
+  "about": "The trip map's facts (moving map Stage 2 spec §12.1). The app runs every case in FactsCasesTests; the website keeps a copy in tests/fixtures/trip-map/. Change both copies together. Times match to within 60 seconds; words are en_US in America/New_York.",
+  "constants": {
+    "cockpitHorizonDegrees": -3.8627, "milestoneMinutes": 5, "sunHeadlineMinutes": 30, "sampleMiles": 10,
+    "holdMiles": 25, "homeRadiusMiles": 100, "cityRadiusMiles": 40, "coastSnapMiles": 5, "weatherHours": 48
+  },
+  "comparisons": [
+    {"miles": 10, "phrase": null},
+    {"miles": 20, "phrase": "Like running a marathon"},
+    {"miles": 200, "phrase": "Like sailing the Panama Canal 4 times"},
+    {"miles": 600, "phrase": "Like rafting the Grand Canyon twice"},
+    {"miles": 1381.9, "phrase": "Like driving the Alaska Highway"},
+    {"miles": 2980, "phrase": "Like driving coast to coast"},
+    {"miles": 4100, "phrase": "Like sailing the length of the Nile"},
+    {"miles": 9800, "phrase": "Like driving the Alaska Highway 7 times"},
+    {"miles": 14819, "phrase": "Like digging straight through the Earth twice"},
+    {"miles": 26000, "phrase": "Like going once around the Earth"},
+    {"miles": 300000, "phrase": null}
+  ],
+  "places": [
+    {"lat": 38.5, "lon": -98.5, "place": "Kansas", "kind": "state", "country": "the United States"},
+    {"lat": 50.0, "lon": -85.0, "place": "Ontario", "kind": "province", "country": "Canada"},
+    {"lat": 51.0, "lon": 10.0, "place": "Germany", "kind": "country", "country": "Germany"},
+    {"lat": 52.2, "lon": 5.5, "place": "the Netherlands", "kind": "country", "country": "the Netherlands"},
+    {"lat": 58.0, "lon": -54.0, "place": "the Labrador Sea", "kind": "water", "country": null},
+    {"lat": 40.0, "lon": -40.0, "place": "the Atlantic", "kind": "water", "country": null},
+    {"lat": 30.0, "lon": -150.0, "place": "the Pacific", "kind": "water", "country": null},
+    {"lat": 45.5, "lon": -4.5, "place": "the Bay of Biscay", "kind": "water", "country": null},
+    {"lat": 40.71, "lon": -74.01, "place": "New York", "kind": "state", "country": "the United States"},
+    {"lat": 40.75, "lon": -73.85, "place": "New York", "kind": "state", "country": "the United States"},
+    {"lat": 25.76, "lon": -80.19, "place": "Florida", "kind": "state", "country": "the United States"},
+    {"lat": 32.30, "lon": -64.78, "place": "Bermuda", "kind": "country", "country": "Bermuda"},
+    {"lat": 35.90, "lon": 14.45, "place": "Malta", "kind": "country", "country": "Malta"}
+  ],
+  "cities": [
+    {"lat": 45.55, "lon": -73.70, "city": "Montréal"},
+    {"lat": 40.70, "lon": -74.05, "city": "New York"},
+    {"lat": 45.0, "lon": -30.0, "city": null}
+  ],
+  "testGeography": {
+    "areas": [
+      {"name": "Wedge", "kind": "country", "box": [9, -1, 9.3, 1], "rings": [[9, -1, 9.3, -1, 9.3, 1, 9, 1]]},
+      {"name": "Alpha", "kind": "country", "box": [-1, -1, 5, 1], "rings": [[-1, -1, 5, -1, 5, 1, -1, 1]]},
+      {"name": "Bravo", "kind": "country", "box": [5, -1, 12, 1], "rings": [[5, -1, 12, -1, 12, 1, 5, 1]]},
+      {"name": "North", "kind": "state", "country": "Delta", "box": [29, -1, 35.5, 1], "rings": [[29, -1, 35.5, -1, 35.5, 1, 29, 1]]},
+      {"name": "South", "kind": "state", "country": "Delta", "box": [35.5, -1, 37, 1], "rings": [[35.5, -1, 37, -1, 37, 1, 35.5, 1]]},
+      {"name": "Delta", "kind": "country", "box": [29, -1, 37, 1], "rings": [[29, -1, 37, -1, 37, 1, 29, 1]]},
+      {"name": "Echo", "kind": "country", "box": [37, -1, 41, 1], "rings": [[37, -1, 41, -1, 41, 1, 37, 1]]},
+      {"name": "Foxtrot", "kind": "country", "box": [56, -1, 61, 1], "rings": [[56, -1, 61, -1, 61, 1, 56, 1]]},
+      {"name": "the Test Sea", "kind": "water", "box": [12, -1, 53, 1], "rings": [[12, -1, 21, -1, 21, 1, 12, 1], [49, -1, 53, -1, 53, 1, 49, 1]]},
+      {"name": "the Other Sea", "kind": "water", "box": [53, -1, 56, 1], "rings": [[53, -1, 56, -1, 56, 1, 53, 1]]}
+    ],
+    "cities": []
+  },
+  "stories": [
+    {"name": "equator", "from": [0, 0], "to": [0, 20], "departure": "2026-03-20T10:00:00Z", "arrival": "2026-03-20T13:22:00Z", "home": [0.5, 14],
+     "milestones": [
+       {"kind": "crossedInto", "name": "Bravo", "time": "2026-03-20T11:00:00Z"},
+       {"kind": "halfway", "time": "2026-03-20T11:45:00Z"},
+       {"kind": "outOver", "name": "the Test Sea", "time": "2026-03-20T12:03:39Z"},
+       {"kind": "closestToHome", "miles": 35, "time": "2026-03-20T12:21:00Z"}
+     ]},
+    {"name": "states", "from": [0, 30], "to": [0, 40], "departure": "2026-03-20T14:00:00Z", "arrival": "2026-03-20T17:22:00Z", "home": null,
+     "milestones": [
+       {"kind": "halfway", "time": "2026-03-20T15:45:00Z"},
+       {"kind": "crossedInto", "name": "South", "time": "2026-03-20T15:54:00Z"},
+       {"kind": "crossedInto", "name": "Echo", "time": "2026-03-20T16:21:00Z"}
+     ]},
+    {"name": "seas", "from": [0, 50], "to": [0, 60], "departure": "2026-03-20T18:00:00Z", "arrival": "2026-03-20T21:22:00Z", "home": null,
+     "milestones": [
+       {"kind": "halfway", "time": "2026-03-20T19:45:00Z"},
+       {"kind": "crossedInto", "name": "Foxtrot", "time": "2026-03-20T20:01:42Z"}
+     ]},
+    {"name": "nowhere", "from": [10, 0], "to": [10, 20], "departure": "2026-03-20T10:00:00Z", "arrival": "2026-03-20T13:22:00Z", "home": null,
+     "milestones": [
+       {"kind": "halfway", "time": "2026-03-20T11:45:00Z"}
+     ]},
+    {"name": "sunrise", "from": [38.1744, -85.7360], "to": [50.8659, 7.1427], "departure": "2026-11-13T23:00:00Z", "arrival": "2026-11-14T07:00:00Z", "home": null,
+     "milestones": [
+       {"kind": "halfway", "time": "2026-11-14T03:04:00Z"}
+     ]}
+  ],
+  "headlines": [
+    {"story": "equator", "at": "2026-03-20T11:02:00Z", "text": "Just crossed into Bravo"},
+    {"story": "equator", "at": "2026-03-20T11:10:00Z", "text": "Over Bravo"},
+    {"story": "equator", "at": "2026-03-20T11:46:00Z", "text": "Halfway!"},
+    {"story": "equator", "at": "2026-03-20T12:05:00Z", "text": "Out over the Test Sea"},
+    {"story": "equator", "at": "2026-03-20T12:22:00Z", "text": "Closest to home: 35 mi, wave!"},
+    {"story": "equator", "at": "2026-03-20T12:40:00Z", "text": "Over the Test Sea"},
+    {"story": "nowhere", "at": "2026-03-20T12:10:00Z", "text": "Landing in 1 h 12 min"},
+    {"story": "sunrise", "at": "2026-11-14T06:17:43Z", "text": "Sunrise from the cockpit in 21 min"}
+  ],
+  "sunEvents": [
+    {"name": "Louisville to Cologne, evening", "from": [38.1744, -85.7360], "to": [50.8659, 7.1427],
+     "departure": "2026-11-13T18:00:00Z", "arrival": "2026-11-14T02:00:00Z",
+     "events": [{"kind": "sunset", "time": "2026-11-13T20:46:17Z", "peopleBelowMinutes": 21.4}]},
+    {"name": "Louisville to Cologne, overnight", "from": [38.1744, -85.7360], "to": [50.8659, 7.1427],
+     "departure": "2026-11-13T23:00:00Z", "arrival": "2026-11-14T07:00:00Z",
+     "events": [{"kind": "sunrise", "time": "2026-11-14T06:38:13Z", "peopleBelowMinutes": 22.0}]},
+    {"name": "Cologne to Louisville, all daylight", "from": [50.8659, 7.1427], "to": [38.1744, -85.7360],
+     "departure": "2026-11-14T13:00:00Z", "arrival": "2026-11-14T22:00:00Z",
+     "events": []}
+  ],
+  "moonPhases": [
+    {"at": "2026-11-09T21:58:00Z", "phase": "new"},
+    {"at": "2026-11-13T14:33:00Z", "phase": "waxingCrescent"},
+    {"at": "2026-11-17T07:09:00Z", "phase": "firstQuarter"},
+    {"at": "2026-11-20T23:44:00Z", "phase": "waxingGibbous"},
+    {"at": "2026-11-24T16:20:00Z", "phase": "full"},
+    {"at": "2026-11-28T08:55:00Z", "phase": "waningGibbous"},
+    {"at": "2026-12-02T01:31:00Z", "phase": "lastQuarter"},
+    {"at": "2026-12-05T18:06:00Z", "phase": "waningCrescent"}
+  ],
+  "moonUp": [
+    {"lat": 50.87, "lon": 7.14, "at": "2026-11-20T21:00:00Z", "isUp": true},
+    {"lat": 51.79, "lon": 4.25, "at": "2026-11-14T06:38:00Z", "isUp": false}
+  ],
+  "groundSun": [
+    {"lat": 50.8659, "lon": 7.1427, "after": "2026-11-13T20:14:00Z", "kind": "sunrise", "time": "2026-11-14T06:45:24Z"},
+    {"lat": 50.8659, "lon": 7.1427, "after": "2026-11-14T12:00:00Z", "kind": "sunset", "time": "2026-11-14T15:45:47Z"}
+  ],
+  "totals": {
+    "airports": {"SDF": [38.1744, -85.7360], "CGN": [50.8659, 7.1427], "DXB": [25.2532, 55.3657]},
+    "home": "SDF",
+    "legs": [
+      {"id": "f1", "from": "SDF", "to": "CGN", "departure": "2026-11-13T12:00:00Z", "arrival": "2026-11-13T20:00:00Z", "fromZone": "America/New_York", "toZone": "Europe/Berlin"},
+      {"id": "f2", "from": "CGN", "to": "DXB", "departure": "2026-11-14T20:00:00Z", "arrival": "2026-11-15T02:00:00Z", "fromZone": "Europe/Berlin", "toZone": "Asia/Dubai"},
+      {"id": "f3", "from": "DXB", "to": "SDF", "departure": "2026-11-15T22:00:00Z", "arrival": "2026-11-16T12:00:00Z", "fromZone": "Asia/Dubai", "toZone": "America/New_York"}
+    ],
+    "cities": 2, "miles": 14819, "timeZones": 18, "cockpitSunsets": 1
+  }
+}

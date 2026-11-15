@@ -2,62 +2,42 @@
 //  TripMapView.swift
 //  CrewLuve
 //
-//  The trip map itself (moving map spec §7.1, §10): SwiftUI's `Map` with night, routes, airports, cars, the heart
-//  and the plane. It renders `TripMapDrawing` and decides nothing. North stays up: the map pans and zooms but never
-//  rotates or tilts, which is what lets `PlaneHeading` aim the plane from coordinates alone.
+//  The trip map itself (moving map spec §7.1, §10): Apple's map in an `MKMapView`, with the markers as MapKit
+//  annotations and the night and the route lines drawn in our own view just under them, so nothing on the map is
+//  swapped as a replay runs. It renders `TripMapDrawing` and decides nothing. North stays up and the map never tilts:
+//  `PlaneHeading` aims the plane from coordinates alone, and `MapProjection` is right only for a map seen from
+//  straight above.
 //
 
-import MapKit
 import SwiftUI
 
-struct TripMapView: View {
+struct TripMapView: UIViewRepresentable {
     let tripMap: TripMap
     let date: Date
     let style: TripMapStyle
-    /// How often the night is redrawn, in trip seconds (`TripMapDrawing.nightDate`).
-    var nightStep: TimeInterval = 60
-    @Binding var position: MapCameraPosition
-    var isInteractive = false
+    @Binding var camera: TripMapCamera
+    /// What the facts sheet or panel covers: the camera frames the trip clear of it, and Apple's logo sits beside it.
+    var clearance: TripMapClearance = .none
+    /// The full-screen map: it pans and zooms, VoiceOver can explore it, and it keeps clear of the safe area. The
+    /// card's map does none of these.
+    var isFullScreen = false
 
-    @Environment(\.colorScheme) private var colorScheme
+    func makeCoordinator() -> TripMapCoordinator {
+        TripMapCoordinator(parent: self)
+    }
 
-    var body: some View {
-        let drawing = TripMapDrawing(tripMap: tripMap, at: date)
-        let night = NightBand.bands(at: TripMapDrawing.nightDate(for: date, step: nightStep))
-        let palette = style.palette(for: colorScheme)
-        Map(position: $position, interactionModes: isInteractive ? [.pan, .zoom] : []) {
-            ForEach(night) { band in
-                MapPolygon(coordinates: band.coordinates)
-                    .foregroundStyle(TripMapPalette.night)
-            }
-            ForEach(drawing.segments) { segment in
-                MapPolyline(coordinates: segment.coordinates, contourStyle: segment.isGeodesic ? .geodesic : .straight)
-                    .stroke(palette.color(for: segment.style), style: palette.stroke(for: segment.style))
-            }
-            ForEach(drawing.airports) { airport in
-                Annotation(airport.code, coordinate: airport.coordinate) {
-                    TripMapMarkers.Airport()
-                }
-            }
-            ForEach(drawing.cars) { car in
-                Annotation("", coordinate: car.coordinate) {
-                    TripMapMarkers.Car()
-                }
-                .annotationTitles(.hidden)
-            }
-            if let pin = drawing.pin {
-                Annotation("", coordinate: pin.coordinate, anchor: .bottom) {
-                    TripMapMarkers.Heart()
-                }
-                .annotationTitles(.hidden)
-            }
-            if let plane = drawing.plane {
-                Annotation("", coordinate: plane.coordinate) {
-                    PlaneMarker(angle: plane.angle)
-                }
-                .annotationTitles(.hidden)
-            }
-        }
-        .mapStyle(style.mapStyle)
+    func makeUIView(context: Context) -> TripMapContainerView {
+        let container = TripMapContainerView()
+        context.coordinator.attach(to: container)
+        return container
+    }
+
+    func updateUIView(_ container: TripMapContainerView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.update(colorScheme: context.environment.colorScheme)
+    }
+
+    static func dismantleUIView(_ container: TripMapContainerView, coordinator: TripMapCoordinator) {
+        coordinator.tearDown()
     }
 }

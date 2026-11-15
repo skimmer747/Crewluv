@@ -24,15 +24,16 @@ final class TripMapDrawingTests: XCTestCase {
         let plane = try XCTUnwrap(drawing.plane)
         let expected = try XCTUnwrap(map.currentLeg).position(at: hours(4))
         XCTAssertEqual(plane.coordinate.latitude, expected.latitude, accuracy: 1e-9)
-        XCTAssertNil(drawing.pin, "the plane shows where they are")
+        XCTAssertNil(drawing.pilot, "the plane shows where they are")
     }
 
-    func test_init_onTheLayover_greysTheFlownLegAndPinsCologne() throws {
+    func test_init_onTheLayover_greysTheFlownLegAndPutsThePilotOnALayoverInCologne() throws {
         let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: hours(12)))
         let drawing = TripMapDrawing(tripMap: map, at: hours(12))
         XCTAssertEqual(styles(drawing), ["f1-flown": .flown, "f2-upcoming": .upcoming, "f3-upcoming": .upcoming])
         XCTAssertNil(drawing.plane)
-        XCTAssertEqual(drawing.pin?.code, "CGN")
+        XCTAssertEqual(drawing.pilot?.place.code, "CGN")
+        XCTAssertEqual(drawing.pilot?.kind, .layover)
     }
 
     func test_init_taxiingOut_showsThePlaneAtTheGateWithTheWholeLegAhead() throws {
@@ -49,27 +50,31 @@ final class TripMapDrawingTests: XCTestCase {
         XCTAssertEqual(TripMapDrawing(tripMap: map, at: hours(12)).airports.map(\.code), ["SDF", "CGN", "DXB"])
     }
 
-    func test_init_drive_isDottedWithACar() throws {
+    func test_init_drive_isDotted_withACarOnlyWhileDriving() throws {
         let legs = [TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(0), hours: 2)]
         let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(-1)))
-        let drawing = TripMapDrawing(tripMap: map, at: hours(-1))
-        XCTAssertEqual(styles(drawing), ["d1-drive": .drive])
-        XCTAssertEqual(drawing.segments.first?.isGeodesic, false)
-        let car = try XCTUnwrap(drawing.cars.first)
+        let before = TripMapDrawing(tripMap: map, at: hours(-1))
+        XCTAssertEqual(styles(before), ["d1-drive": .drive])
+        XCTAssertEqual(before.segments.first?.isGeodesic, false)
+        XCTAssertEqual(before.cars.count, 0, "no car on a drive still to come")
+        let car = try XCTUnwrap(TripMapDrawing(tripMap: map, at: hours(1)).cars.first)
         let middle = try XCTUnwrap(map.legs.first).position(atFraction: 0.5)
-        XCTAssertEqual(car.coordinate.longitude, middle.longitude, accuracy: 1e-9, "parked halfway when not driving")
+        XCTAssertEqual(car.coordinate.longitude, middle.longitude, accuracy: 1e-9, "halfway through the drive, halfway along it")
+        XCTAssertEqual(TripMapDrawing(tripMap: map, at: hours(3)).cars.count, 0, "no car once the drive is over")
     }
 
-    func test_nightDate_holdsBackToTheStep() {
-        let date = Date(timeIntervalSince1970: 1_000_059)
-        XCTAssertEqual(TripMapDrawing.nightDate(for: date, step: 60), Date(timeIntervalSince1970: 1_000_020))
-        XCTAssertEqual(TripMapDrawing.nightDate(for: date, step: 0), date)
+    func test_init_aCommutersHome_isAnAirportOnlyDrivesReach() throws {
+        let legs = [
+            TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(0), hours: 1.5),
+            TripMapTestLegs.leg("f1", from: "SDF", to: "CGN", start: hours(3), hours: 8),
+        ]
+        let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(-1)))
+        XCTAssertEqual(TripMapDrawing(tripMap: map, at: hours(-1)).driveOnlyAirportCodes, ["LEX"])
     }
 
-    func test_nightBands_haveUniqueIDs_andEveryShape() {
-        let date = Date(timeIntervalSince1970: 1_794_571_200)
-        let bands = NightBand.bands(at: date)
-        XCTAssertEqual(bands.count, NightShade.layers(at: date).map(\.count).reduce(0, +))
-        XCTAssertEqual(Set(bands.map(\.id)).count, bands.count)
+    func test_init_whileDriving_hasNoGroundMarker() throws {
+        let legs = [TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(0), hours: 2)]
+        let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(1)))
+        XCTAssertNil(TripMapDrawing(tripMap: map, at: hours(1)).pilot, "the car shows where they are")
     }
 }

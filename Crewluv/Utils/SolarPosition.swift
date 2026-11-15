@@ -17,7 +17,7 @@ nonisolated enum SolarPosition {
 
     /// The altitude of the sun's center at sunrise and sunset, in degrees:
     /// its upper edge on the horizon, after atmospheric refraction.
-    private static let sunriseAltitude = -0.833
+    static let sunriseAltitude = -0.833
 
     /// Noon UTC on January 1, 2000 (Julian date 2451545.0), the epoch the
     /// solar coordinates count days from.

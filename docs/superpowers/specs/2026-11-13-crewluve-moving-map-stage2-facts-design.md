@@ -81,6 +81,9 @@ Everything comes from the schedule. Stage 3's live data later makes the same fac
 - **The order:** a state or province first, then a country, then a named water.
   - "Over Kansas", "Over Ontario", "Over Germany", "Over the Labrador Sea".
   - Over the US or Canada but in a gap between simplified states, it gives the country.
+  - **The coast snap:** a point over water, or over no place at all, takes the nearest state, province or country within 5 mi, in the same order.
+    - The simplified 1:50m coastlines can be a few miles off. Without the snap, central New York read "the Atlantic" (decided 2026-11-13, reviewing Stage 2A).
+    - Distance is measured to the nearest edge of an area's rings, on a flat map around the point.
   - With nothing found, it gives nil.
 - **The city:** within 40 mi of a city of 1 million or more, the place adds "near Montréal".
 - **The test for inside:** an area holds a point when an odd number of its rings do. That handles holes, like Lesotho inside South Africa.
@@ -260,7 +263,7 @@ While a drive is under way, the rows are the trip so far only.
   - `interactiveDismissDisabled()` keeps the sheet from being swiped away;
   - the drag indicator is visible;
   - iOS 26's glass sheet background is used unchanged.
-- **The sheet reports its height** (`onGeometryChange`). The map takes it as bottom safe-area padding, so the camera frames the plane above the sheet.
+- **The sheet reports its height** (`onGeometryChange`). The map takes it as its bottom clearance (`TripMapClearance`, amended 2026-11-13 with the map's own night drawing): the camera frames the plane above the sheet, and Apple's logo and Legal link sit above it, in the map's layout margins.
 - **Close** dismisses the full-screen map with the sheet up. Todd checks this on the simulator.
 
 ### 6.2 The side panel, `FactsPanel`
@@ -269,7 +272,7 @@ While a drive is under way, the rows are the trip so far only.
 - **Shape:** full height at the leading edge, about 380 pt wide, on glass.
 - **Contents:** `FactsHeader` at the top, the rows in a `ScrollView`, and the timeline pinned at the bottom.
 - **The chevron** collapses it to the headline and timeline. Its label is "Hide facts" or "Show facts".
-- **The map** takes the panel's width as leading safe-area padding.
+- **The map** takes the panel's width, padding included, as its leading clearance (`TripMapClearance`): the camera frames the trip beside the panel, and Apple's logo and Legal link sit beside it.
 
 ### 6.3 Shared parts
 
@@ -330,10 +333,11 @@ Weather shows for a flight only when its landing is between the real now and 48 
 
 ### 8.1 When
 
-In `TripMap+Status`, when the pilot is settled at home or base:
+In `TripMap+Status`, when the pilot is home. Not at base: a commuter there still has the way home ahead (decided reviewing Stage 2A).
 
 - **The recap's trip** is the one (by `tripId`) whose last leg ended in the past 24 hours, and none of whose legs is still to come.
 - **The next trip wins instead** when its first departure is within 12 hours.
+- **No recap while another trip is under way,** such as a night at home in the middle of the next one.
 - **Legs with no `tripId`,** like a standalone jumpseat, aren't a trip.
 - **"Home from 4 days away"** uses the largest `tripTotalDays` among the legs, else the calendar days the trip spans.
 
@@ -360,8 +364,9 @@ In `TripMap+Status`, when the pilot is settled at home or base:
   - `box` is west, south, east, north.
   - A ring is a flat list of longitude, latitude pairs.
 - **Names carry their article** from a table in the script: "the United States", "the Netherlands", "the Labrador Sea".
-  - Oceans are shortened: "North Atlantic Ocean" becomes "the Atlantic".
-  - Otherwise names are Natural Earth's English names.
+  - Oceans are shortened: "Atlantic Ocean" becomes "the Atlantic".
+  - Otherwise names are Natural Earth's English names (`name_en` where it has one), so "the Gulf of California", not "Golfo de California".
+  - Waters are only oceans, seas, bays, gulfs, straits, channels and sounds. Rivers and reefs are left out.
 - **`scripts/build-geography.mjs`** builds it. It runs on plain Node, with no npm packages.
   - **It reads** four files from `nvkelso/natural-earth-vector` v5.1.2 (GeoJSON), saved under `scripts/` and kept out of git:
     - `ne_50m_admin_0_countries`;
@@ -369,6 +374,7 @@ In `TripMap+Status`, when the pilot is settled at home or base:
     - `ne_50m_geography_marine_polys`;
     - `ne_10m_populated_places_simple`, keeping places with a `pop_max` of 1 million or more.
   - **It simplifies** each ring with its own Douglas–Peucker, raising the tolerance until the file is about 500 KB or less. It rounds coordinates to 2 decimals, about 1 km.
+  - **It never drops a place.** An area whose rings all simplify away keeps its largest ring, unsimplified and rounded to 3 decimals, so Malta, Bermuda and Monaco stay.
   - **It prints** the counts and the size.
 - **Downloading the four files** has Todd's OK. The plan still stops to say it's about to.
 
@@ -428,7 +434,7 @@ Planned once Stage 1B is merged. It mirrors the app:
 
 `CrewluvTests/Fixtures/TripMap/facts-cases.json`, with the website's copy in `tests/fixtures/trip-map/` (map spec §15.1). They cover:
 
-- places and nearby cities at given points, against the real `geography.json`;
+- places and nearby cities at given points, against the real `geography.json`, including coastal cities the coast snap fixes and small countries;
 - each test leg's milestones, as kind, place and time;
 - each test leg's cockpit sun events, including the people below;
 - the moon's phase at given moments;

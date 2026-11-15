@@ -37,4 +37,39 @@ final class FlightProgressTests: XCTestCase {
         let departure = Date(timeIntervalSince1970: 1_800_000_000)
         XCTAssertNil(FlightProgress.airborneWindow(departure: departure, arrival: departure.addingTimeInterval(-60)))
     }
+
+    // MARK: - From a fraction to a time (Stage 2 spec §4.2)
+
+    func test_scheduledTime_alongTheWindow_isSteady() {
+        let departure = FactsTestData.equinox
+        let arrival = departure.addingTimeInterval(202 * 60)
+        XCTAssertEqual(FlightProgress.scheduledTime(atFraction: 0, departure: departure, arrival: arrival), departure.addingTimeInterval(15 * 60))
+        XCTAssertEqual(FlightProgress.scheduledTime(atFraction: 0.5, departure: departure, arrival: arrival), departure.addingTimeInterval(105 * 60))
+        XCTAssertEqual(FlightProgress.scheduledTime(atFraction: 1, departure: departure, arrival: arrival), departure.addingTimeInterval(195 * 60))
+    }
+
+    func test_scheduledTime_isTheInverseOfScheduledFraction() throws {
+        let departure = FactsTestData.equinox
+        let arrival = departure.addingTimeInterval(8 * 3600)
+        let time = try XCTUnwrap(FlightProgress.scheduledTime(atFraction: 0.37, departure: departure, arrival: arrival))
+        XCTAssertEqual(FlightProgress.scheduledFraction(departure: departure, arrival: arrival, at: time), 0.37, accuracy: 1e-9)
+    }
+
+    func test_scheduledTime_aShortBlock_usesTheWholeBlock() {
+        let departure = FactsTestData.equinox
+        let arrival = departure.addingTimeInterval(20 * 60)
+        XCTAssertEqual(FlightProgress.scheduledTime(atFraction: 0.5, departure: departure, arrival: arrival), departure.addingTimeInterval(10 * 60))
+    }
+
+    func test_scheduledTime_noBlock_isNil() {
+        XCTAssertNil(FlightProgress.scheduledTime(atFraction: 0.5, departure: FactsTestData.equinox, arrival: FactsTestData.equinox))
+    }
+
+    func test_mapLegTime_aDrive_isSteadyFromStartToEnd() {
+        let drive = MapLeg(id: "d", kind: .drive,
+                           origin: FactsTestData.mark("LEX", latitude: 38.04, longitude: -84.61),
+                           destination: FactsTestData.mark("SDF", latitude: 38.17, longitude: -85.74),
+                           start: FactsTestData.equinox, end: FactsTestData.equinox.addingTimeInterval(3600), flightNumber: nil)
+        XCTAssertEqual(drive.time(atFraction: 0.25), FactsTestData.equinox.addingTimeInterval(900))
+    }
 }

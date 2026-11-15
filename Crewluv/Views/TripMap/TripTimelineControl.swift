@@ -2,13 +2,20 @@
 //  TripTimelineControl.swift
 //  CrewLuve
 //
-//  Play, drag through the trip, go back to Live, and pick 1x to 10x (moving map spec §6).
+//  Play, drag through the trip, go back to Live, pick 1x to 10x, and hurry through waits on the ground (moving map
+//  spec §6; activity markers design §3.1, §4). The bar measures replay time and is colored by what the pilot is doing;
+//  the line under it says when and what.
 //
 
 import SwiftUI
 
 struct TripTimelineControl: View {
     @Binding var clock: TripReplayClock
+    @Binding var isQuickLayovers: Bool
+    /// The bar's blocks, at the clock's pace.
+    let timeline: TripTimeline
+    /// What the pilot is doing at `time`.
+    let activity: TripActivity?
     /// The trip time on screen.
     let time: Date
     /// The real time of this tick.
@@ -17,28 +24,50 @@ struct TripTimelineControl: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 playButton
-                Slider(value: sliderValue, in: range)
-                    .accessibilityLabel("Trip time")
-                    .accessibilityValue(TripMapWording.timelineTime(time))
-                if !clock.isLive {
-                    Button("Live") { clock.goLive() }
-                        .buttonStyle(.bordered)
-                        .accessibilityHint("Shows where things are now")
+                TripTimelineBar(timeline: timeline, progress: clock.progress(at: time),
+                                spokenValue: TripMapWording.timelineSpokenValue(time, activity: activity),
+                                onScrub: scrub(to:))
+                if !clock.isLive && !dynamicTypeSize.isAccessibilitySize {
+                    liveButton
                 }
             }
-            HStack {
-                Text(TripMapWording.timelineTime(time))
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                Spacer()
+            // At the largest text sizes Live goes under the bar, which would otherwise be squeezed to nothing.
+            if !clock.isLive && dynamicTypeSize.isAccessibilitySize {
+                liveButton
+            }
+            Text(TripMapWording.timelineLine(time, activity: activity))
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                // The bar's VoiceOver value says the same.
+                .accessibilityHidden(true)
+            paceControls
+        }
+    }
+
+    /// Quick layovers beside the speeds, or above them when the two don't fit on one line.
+    private var paceControls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                quickLayoversToggle
+                    .fixedSize()
+                Spacer(minLength: 0)
+                speedPicker
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                quickLayoversToggle
                 speedPicker
             }
         }
+    }
+
+    private var quickLayoversToggle: some View {
+        Toggle("Quick layovers", isOn: $isQuickLayovers)
+            .font(.subheadline)
+            .accessibilityHint("Plays the time on the ground faster")
     }
 
     /// A segmented control, or a menu at the largest text sizes where four segments won't fit.
@@ -54,6 +83,12 @@ struct TripTimelineControl: View {
         } else {
             picker.pickerStyle(.segmented).fixedSize()
         }
+    }
+
+    private var liveButton: some View {
+        Button("Live") { clock.goLive() }
+            .buttonStyle(.bordered)
+            .accessibilityHint("Shows where things are now")
     }
 
     private var isShowingPause: Bool {
@@ -72,16 +107,9 @@ struct TripTimelineControl: View {
         .accessibilityLabel(isShowingPause ? "Pause replay" : "Replay the trip")
     }
 
-    private var range: ClosedRange<Double> {
-        let lower = clock.span.start.timeIntervalSince1970
-        return lower...max(clock.span.end.timeIntervalSince1970, lower + 1)
-    }
-
-    private var sliderValue: Binding<Double> {
-        Binding(
-            get: { min(max(time.timeIntervalSince1970, range.lowerBound), range.upperBound) },
-            set: { clock.scrub(to: Date(timeIntervalSince1970: $0)) }
-        )
+    /// Moves the replay to `progress` along the bar, paused there.
+    private func scrub(to progress: Double) {
+        clock.scrub(to: clock.tripTime(atProgress: progress))
     }
 
     private var speed: Binding<TripReplayClock.Speed> {

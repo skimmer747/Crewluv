@@ -44,10 +44,14 @@ nonisolated struct PlaneMark {
 nonisolated struct TripMapDrawing {
     let segments: [RouteSegment]
     let airports: [AirportMark]
+    /// The airports only drives reach, which give way where they crowd another airport (tidy markers design §2).
+    let driveOnlyAirportCodes: Set<String>
+    /// The car of a drive under way.
     let cars: [TripMapPoint]
     let plane: PlaneMark?
-    /// The heart: where the pilot is when nothing is moving.
-    let pin: AirportMark?
+    /// What the pilot is doing on the ground, and where (activity markers design §2): nil while a leg moves, when the
+    /// plane or the car shows them.
+    let pilot: TripActivity?
 
     init(tripMap: TripMap, at date: Date) {
         var segments: [RouteSegment] = []
@@ -59,8 +63,10 @@ nonisolated struct TripMapDrawing {
             switch leg.kind {
             case .drive:
                 segments.append(RouteSegment(id: "\(leg.id)-drive", coordinates: [origin, destination], style: .drive))
-                let fraction = leg.isMoving(at: date) ? leg.progress(at: date) : 0.5
-                cars.append(TripMapPoint(id: "\(leg.id)-car", coordinate: leg.position(atFraction: fraction)))
+                // The car shows only while the pilot drives: a drive that's over or still to come is its line alone.
+                if leg.isMoving(at: date) {
+                    cars.append(TripMapPoint(id: "\(leg.id)-car", coordinate: leg.position(atFraction: leg.progress(at: date))))
+                }
             case .flight where date >= leg.end:
                 segments.append(RouteSegment(id: "\(leg.id)-flown", coordinates: [origin, destination], style: .flown))
             case .flight where leg.isMoving(at: date):
@@ -79,16 +85,12 @@ nonisolated struct TripMapDrawing {
         }
         var seen = Set<String>()
         self.segments = segments
-        self.airports = tripMap.legs.flatMap { [$0.origin, $0.destination] }.filter { seen.insert($0.code).inserted }
+        let airports = tripMap.legs.flatMap { [$0.origin, $0.destination] }.filter { seen.insert($0.code).inserted }
+        self.airports = airports
+        let flightAirportCodes = tripMap.legs.filter { $0.kind == .flight }.flatMap { [$0.origin.code, $0.destination.code] }
+        self.driveOnlyAirportCodes = Set(airports.map(\.code)).subtracting(flightAirportCodes)
         self.cars = cars
         self.plane = plane
-        self.pin = tripMap.pilotLocation(at: date)
-    }
-
-    /// `date` held back to a whole number of `step` seconds, so the night is redrawn only once it has moved enough
-    /// to see (moving map spec §10): every minute live, about ten times a second in replay.
-    static func nightDate(for date: Date, step: TimeInterval) -> Date {
-        guard step > 0 else { return date }
-        return Date(timeIntervalSince1970: (date.timeIntervalSince1970 / step).rounded(.down) * step)
+        self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
     }
 }

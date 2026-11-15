@@ -39,6 +39,8 @@ struct PilotStatusView: View {
     var onRefresh: (() -> Void)? = nil
 
     @State private var showSchedule = false
+    /// The trip map's stories, kept while the screen is (moving map Stage 2 spec §3.3).
+    @State private var legStoryStore = LegStoryStore()
     #if DEBUG
     @State private var showDiagnostics = false
     #endif
@@ -192,7 +194,7 @@ struct PilotStatusView: View {
                     // place; on the ground it sits above it.
                     let tripMap = TripMap(status: status, at: Date())
                     if let tripMap {
-                        TripMapCard(tripMap: tripMap, status: status)
+                        TripMapCard(tripMap: tripMap, status: status, storyStore: legStoryStore)
                     }
 
                     // Location Card

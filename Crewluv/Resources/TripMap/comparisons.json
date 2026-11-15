@@ -1,0 +1,13 @@
+[
+  {"miles": 26.2, "one": "Like running a marathon", "many": "Like running {n} marathons"},
+  {"miles": 51, "one": "Like sailing the Panama Canal", "many": "Like sailing the Panama Canal {times}"},
+  {"miles": 277, "one": "Like rafting the Grand Canyon", "many": "Like rafting the Grand Canyon {times}"},
+  {"miles": 880, "one": "Like driving across Texas", "many": "Like driving across Texas {times}"},
+  {"miles": 1390, "one": "Like driving the Alaska Highway", "many": "Like driving the Alaska Highway {times}"},
+  {"miles": 2340, "one": "Like floating down the Mississippi", "many": "Like floating down the Mississippi {times}"},
+  {"miles": 2800, "one": "Like driving coast to coast", "many": "Like driving coast to coast {times}"},
+  {"miles": 4130, "one": "Like sailing the length of the Nile", "many": "Like sailing the length of the Nile {times}"},
+  {"miles": 5500, "one": "Like walking the Great Wall of China", "many": "Like walking the Great Wall of China {times}"},
+  {"miles": 7918, "one": "Like digging straight through the Earth", "many": "Like digging straight through the Earth {times}"},
+  {"miles": 24901, "one": "Like going once around the Earth", "many": "Like going around the Earth {times}"}
+]

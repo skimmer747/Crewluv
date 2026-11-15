@@ -3,7 +3,7 @@
 //  CrewLuve
 //
 //  The map styles the full-screen map's style button cycles through, as on CrewLu's moving map (moving map spec §6).
-//  Kept flat: no 3D globe, so the night drawn here is the only one.
+//  Kept flat: Apple lights its 3D globe for the real clock, never the replay's, so the night drawn here is the only one.
 //
 
 import MapKit
@@ -29,11 +29,19 @@ enum TripMapStyle: CaseIterable {
         }
     }
 
-    var mapStyle: MapStyle {
+    /// MapKit's configuration for the style, flat and without points of interest.
+    var configuration: MKMapConfiguration {
         switch self {
-        case .hybrid: .hybrid(elevation: .flat, pointsOfInterest: .excludingAll)
-        case .standard: .standard(elevation: .flat, pointsOfInterest: .excludingAll)
-        case .imagery: .imagery(elevation: .flat)
+        case .hybrid:
+            let configuration = MKHybridMapConfiguration(elevationStyle: .flat)
+            configuration.pointOfInterestFilter = .excludingAll
+            return configuration
+        case .standard:
+            let configuration = MKStandardMapConfiguration(elevationStyle: .flat)
+            configuration.pointOfInterestFilter = .excludingAll
+            return configuration
+        case .imagery:
+            return MKImageryMapConfiguration(elevationStyle: .flat)
         }
     }
 

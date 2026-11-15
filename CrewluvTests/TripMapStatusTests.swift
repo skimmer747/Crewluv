@@ -23,7 +23,7 @@ struct TripMapStatusTests {
 
         #expect(map.mode == .onTrip)
         #expect(map.legs.map(\.id) == ["h1", "h2", "h3"], "the whole trip, flown legs too")
-        #expect(map.pilotLocation(at: hours(36))?.code == "SDF", "the heart sits at home, where the last leg landed")
+        #expect(map.pilotLocation(at: hours(36))?.code == "SDF", "the pilot is at home, where the last leg landed")
         #expect(map.nextFlight(after: hours(36))?.id == "h3")
     }
 
@@ -44,6 +44,24 @@ struct TripMapStatusTests {
         #expect(map.mode == .nextTrip)
         #expect(map.legs.map(\.id) == ["h1", "h2", "h3"], "only the trip ahead, not the one just flown")
         #expect(map.pilotLocation(at: hours(-24))?.code == "SDF")
+    }
+
+    @Test func test_initStatus_atBaseBeforeATrip_waitsAtBase() throws {
+        let status = status(.base, legs: lastTrip + tripThrough(.base), homeAirportCode: "LEX")
+        let map = try #require(TripMap(status: status, at: hours(-24)))
+
+        #expect(map.mode == .nextTrip)
+        #expect(map.isWaitingAtBase)
+        #expect(map.pilotLocation(at: hours(-24))?.code == "SDF")
+        #expect(map.activity(at: hours(-24))?.kind == .base)
+    }
+
+    @Test func test_initStatus_atHomeBeforeATrip_isntWaitingAtBase() throws {
+        let status = status(.home, legs: lastTrip + tripThrough(.base), homeAirportCode: "LEX")
+        let map = try #require(TripMap(status: status, at: hours(-24)))
+
+        #expect(!map.isWaitingAtBase)
+        #expect(map.activity(at: hours(-24))?.kind == .home)
     }
 
     // MARK: - Legs
