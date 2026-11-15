@@ -53,11 +53,7 @@ nonisolated enum TripMapWording {
     static func landingCountdown(for leg: MapLeg, now: Date) -> String {
         let minutes = Int((leg.end.timeIntervalSince(now) / 60).rounded(.up))
         guard minutes > 0 else { return "Landing now" }
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours == 0 { return "Landing in \(rest) min" }
-        if rest == 0 { return "Landing in \(hours) h" }
-        return "Landing in \(hours) h \(rest) min"
+        return "Landing in \(minutesText(minutes))"
     }
 
     // MARK: - Landing
@@ -79,6 +75,29 @@ nonisolated enum TripMapWording {
     /// "9:30 PM in Cologne", or nil when the destination keeps the family's time.
     static func arrivalLocalTime(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String? {
         arrivalLocalClock(for: leg, calendar: calendar, locale: locale).map { "\($0) in \(leg.destination.name)" }
+    }
+
+    // MARK: - The real plane
+
+    /// "12 min ahead", "About 20 min behind", "Still on the ground · 20 min behind" or "Landed 8 min early": the real
+    /// plane against the schedule (Stage 3 spec §5.3).
+    static func liveLabel(_ label: LiveLabel) -> String {
+        switch label {
+        case .onSchedule:
+            return "On schedule"
+        case .ahead(let minutes, let isEstimated):
+            return "\(isEstimated ? "About " : "")\(minutesText(minutes)) ahead"
+        case .behind(let minutes, let isEstimated):
+            return "\(isEstimated ? "About " : "")\(minutesText(minutes)) behind"
+        case .stillOnGround(let minutesBehind):
+            return minutesBehind.map { "Still on the ground · \(minutesText($0)) behind" } ?? "Still on the ground"
+        case .landedOnTime:
+            return "Landed on time"
+        case .landedEarly(let minutes):
+            return "Landed \(minutesText(minutes)) early"
+        case .landedLate(let minutes):
+            return "Landed \(minutesText(minutes)) late"
+        }
     }
 
     // MARK: - The bar under the map
@@ -222,6 +241,15 @@ nonisolated enum TripMapWording {
     }
 
     // MARK: - Helpers, shared with FactsWording
+
+    /// "45 min", "2 h" or "2 h 10 min": the landing countdown's length, and the real plane's gap.
+    static func minutesText(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return "\(rest) min" }
+        if rest == 0 { return "\(hours) h" }
+        return "\(hours) h \(rest) min"
+    }
 
     /// The names of the cities the trip's flights reach, in order, each once, home left out — for VoiceOver.
     static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {
