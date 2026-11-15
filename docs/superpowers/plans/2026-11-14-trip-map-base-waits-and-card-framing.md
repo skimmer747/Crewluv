@@ -1539,3 +1539,14 @@ The code, not the blocks above, is the reference for these.
 - **The shared cases:** an independent model of the rules got all 48 moments in the 12 trips, the old and the new. Todd's ⌘U passed, with every count Task 6 expects.
 - **A design fix:** §4.2's "When" now says the full-screen map already frames as a flight starts or ends, in a replay too, and that the slide follows those framings.
 - **The website:** the trip-map-web session copied `activity-cases.json` and passes all 48 moments, committed there as `004846f`.
+
+### Batch B and C (Tasks 7–11)
+
+- **Applied:** the blocks were copied from this plan by script, and every replacement matched once. Todd's previews show the briefcase waiting at base, every card's marker in view between its chips, and Apple's logo above the bottom chip.
+- **The review** (sonnet) found nothing critical.
+  - **Fixed:**
+    - `isWaitingAtBase` counts only when the place the pilot waits isn't the home airport, so the chip and the marker always agree. Before, a pilot whose home is their base got the house with "At base · next trip". There are two new tests in `TripMapActivityTests`, and the design's §3 gained "Home first".
+    - Every framing clears a slide an earlier animated framing left waiting, since MapKit may never report an animation to a rectangle already shown.
+    - `TripMapClearance`'s header is rewrapped.
+  - **Left:** a chip's last measured height stays after the chip goes, and is used if it comes back before it's measured again. That's one extra refit at most.
+- **Seen, not fixed:** on the "At base" card, Louisville's briefcase, the car parked on the drive from Lexington, and the two airport codes crowd each other at this zoom. That was already so with the heart.

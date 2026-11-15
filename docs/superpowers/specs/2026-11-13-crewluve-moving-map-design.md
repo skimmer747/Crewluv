@@ -6,6 +6,8 @@ Status: approved in brainstorming on 2026-11-13, from mockups of where the map l
 
 **Amended 2026-11-14, what the pilot is doing, and quick layovers:** §5.1, §6, §10, §14 and §15.1. From Todd's first look at the map on his iPad: the heart becomes a marker for what the pilot is doing, a replay hurries through each wait on the ground, and the timeline is colored by what the pilot is doing and measured in replay time. Design: `docs/superpowers/specs/2026-11-14-trip-map-activity-markers-and-quick-layovers-design.md`. Plan: `docs/superpowers/plans/2026-11-14-trip-map-activity-markers-and-quick-layovers.md`. Todd's device check passed on 14 Nov 2026: the markers change as the replay moves, the bar is colored and steady, and the night sweeps smoothly through a quick layover at 1x and 10x.
 
+**Amended 2026-11-14, waits at base and the card's framing:** §5.1 and §10. A commuter's waits at base, which CrewLu doesn't name, read "At base"; a pilot waiting at base for a trip is shown there; and the card frames the trip between its chips, sliding the pilot's marker into view when a wide trip doesn't fit. Design: `docs/superpowers/specs/2026-11-14-trip-map-base-waits-and-card-framing-design.md`. Plan: `docs/superpowers/plans/2026-11-14-trip-map-base-waits-and-card-framing.md`.
+
 ## 1. Goal
 
 Give the pilot's family a moving map that's fun to look at, in the app and on the website. It's built from CrewLu's rebuilt moving map:
@@ -98,6 +100,8 @@ This was clarified while planning Stage 1 (2026-11-13). Replacing the whole loca
   - a marker shows where the pilot is and what they're doing there (amended 2026-11-14, activity markers design §2): a bed on a layover, an hourglass at a turn, a briefcase at base and a house at home, each a white symbol on its color (indigo, orange, teal, green) with a white ring. CrewLu's own ground legs name each wait; with none, 8 hours or more is a layover and less is a turn;
   - two chips: the city with its local time ("Cologne · 9:14 pm there"), and the next departure ("Next: Dubai, tomorrow 6:10 am").
 - **Home, with a trip ahead:** the next trip's route, every leg dashed, with the home marker at home ("Home · next trip Friday").
+- **At base, with a trip ahead** (amended 2026-11-14, base waits and card framing design §3): the same, with the base marker at base ("At base · next trip Friday").
+- **The card's framing** (amended 2026-11-14, design §4): the trip is framed in the band between the card's two chips. When a wide trip still doesn't fit, the map slides the least distance that shows the pilot's ground marker.
 - **Home, nothing ahead,** or no leg that can be drawn: no map. The card is today's location card.
 
 ### 5.2 The headline fact
@@ -379,7 +383,7 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
     - It sits just under the view MapKit keeps its annotation views in, so the planes, the pilot's marker, the cars and the airports stay bright at night.
     - Every update gives the same shapes new outlines. Nothing is taken off the map or put on it.
   - **Markers:** the planes, the pilot's marker, the cars and the airports are MapKit annotations whose views host the app's SwiftUI markers. Each is hosted with no safe area, since SwiftUI otherwise moved a marker down by the status bar's height on the full-screen map.
-  - **Camera:** `TripMapCamera`. The map frames each new request once, with `MapFit`'s rectangle. A pan, pinch or double tap makes the camera the family's until they recenter.
+  - **Camera:** `TripMapCamera`. The map frames each new request once, with `MapFit`'s rectangle. A pan, pinch or double tap makes the camera the family's until they recenter. After each framing, the pilot's ground marker slides into view if the framing left it outside the map's margins, which hold the card's chips as well as the sheet and panel (amended 2026-11-14, base waits and card framing design §4; `TripMapSlide`).
   - **Where things are on screen:** `MapProjection`, ported from CrewLu's `FlatMapFit`, works this out from three places the map is asked about.
     - Each shape is drawn once for each copy of the world on screen across the date line.
     - Every shape is cut off just outside the view.

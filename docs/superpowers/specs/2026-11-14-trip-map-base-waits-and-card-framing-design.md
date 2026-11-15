@@ -29,6 +29,7 @@ The map shows a trip ahead when the pilot is at home or at base (`TripMap.Mode.n
 
 - **The marker** is the briefcase at base, not the house at home. Base is placed as the trip's own legs name it, so it has its city: "At base in Louisville". If no leg names it, the marker goes on the trip's first departure airport.
 - **The chip** reads "At base · next trip Friday", and so does the full-screen panel's first line.
+- **Home first:** if that place is the home airport, as for a pilot whose home is their base, it's home: the house and "Home · next trip Friday". So the marker and the chip always agree.
 - **Everything else** is as today: the route, every leg dashed, and home still in the framing.
 
 When the status says **home**, nothing changes: the house at home, "Home · next trip Friday".

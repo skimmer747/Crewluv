@@ -37,9 +37,9 @@ The marker is decided for any moment, so a replay changes it as it goes. While a
 - **A wait** is any stretch of the trip where no leg is moving: from one leg's end, delay included, to the next leg's start. The pilot is at the earlier leg's destination.
 - **Its kind comes from CrewLu's own ground legs.** CrewLu sends layovers, turns, and base and home stays as legs of their own (`TripLeg.LegType` `.layover`, `.turn`, `.base`, `.home`). The map keeps them now, where today it drops every leg that isn't a flight or a drive.
   - The ground leg that overlaps the wait the most gives its kind. A tie goes to the earlier leg.
-  - With no ground leg overlapping, the wait's length decides: 8 hours or more is a layover, less is a turn.
+  - With no ground leg overlapping, the wait is home at the home airport and base at the base airport (amended 2026-11-14, base waits and card framing design §2). Elsewhere its length decides: 8 hours or more is a layover, less is a turn.
 - **Before the trip's first departure:**
-  - **A next trip** (the pilot at home with this trip ahead) shows home.
+  - **A next trip** (the pilot at home with this trip ahead) shows home, or base while the status says the pilot waits there (amended 2026-11-14, base waits and card framing design §3).
   - **Otherwise** the pilot is at the first leg's origin. That's home if it's the home airport, and base if it isn't.
 - **After the trip's last arrival:**
   - **A recap** shows home.
