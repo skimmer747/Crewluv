@@ -25,8 +25,6 @@ final class TripMapAnnotationView: MKAnnotationView {
         canShowCallout = false
         // A marker is never selected, so a tap can't lift a car above the plane. Touches go on to the map.
         isEnabled = false
-        // Every marker always shows: MapKit never hides one for crowding another.
-        displayPriority = .required
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: TripMapAnnotationView, _: UITraitCollection) in
             // An airport's code grows and shrinks with the text size. The hosted marker takes the new size before it's
             // measured, or it would be measured at the old one.
@@ -52,6 +50,8 @@ final class TripMapAnnotationView: MKAnnotationView {
         guard let marker = (annotation as? TripMapAnnotation)?.marker else { return }
         let host = host(showing: marker)
         zPriority = Self.zPriority(of: marker)
+        displayPriority = Self.displayPriority(of: marker)
+        collisionMode = Self.collisionMode(of: marker)
         accessibilityLabel = Self.accessibilityLabel(of: marker)
         isAccessibilityElement = accessibilityLabel != nil
         guard marker.sizeKey != measuredSizeKey else { return }
@@ -104,10 +104,23 @@ final class TripMapAnnotationView: MKAnnotationView {
         }
     }
 
+    /// Every marker always shows, but for an airport only drives reach: it gives way where it crowds another airport,
+    /// as Apple Maps hides crowded labels, and shows again as the map zooms in (tidy markers design §2).
+    private static func displayPriority(of marker: TripMapMarker) -> MKFeatureDisplayPriority {
+        guard case .airport(_, _, isDriveOnly: true) = marker else { return .required }
+        return .defaultHigh
+    }
+
+    /// Only airports take part in crowding: the plane, the pilot's marker and the car never push one aside.
+    private static func collisionMode(of marker: TripMapMarker) -> MKAnnotationView.CollisionMode {
+        guard case .airport = marker else { return .none }
+        return .rectangle
+    }
+
     /// VoiceOver reads each airport's code, as SwiftUI's map read its titles. The card's sentence and the facts
     /// describe the rest.
     private static func accessibilityLabel(of marker: TripMapMarker) -> String? {
-        guard case .airport(let code, _) = marker else { return nil }
+        guard case .airport(let code, _, _) = marker else { return nil }
         return code
     }
 }

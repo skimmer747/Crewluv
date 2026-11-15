@@ -10,9 +10,10 @@
 import CoreLocation
 
 nonisolated enum TripMapMarker: Equatable {
-    /// An airport's dot, with its code under it.
-    case airport(code: String, palette: TripMapPalette)
-    /// A drive's car.
+    /// An airport's dot, with its code under it. One only drives reach gives way where it crowds another airport (tidy
+    /// markers design §2).
+    case airport(code: String, palette: TripMapPalette, isDriveOnly: Bool)
+    /// The car of a drive under way.
     case car
     /// Where the pilot is on the ground, showing what they're doing there: a layover, a turn, base or home.
     case pilot(TripActivity.Kind)
@@ -29,7 +30,7 @@ nonisolated enum TripMapMarker: Equatable {
     /// the pilot's marker is the same size.
     var sizeKey: String {
         switch self {
-        case .airport(let code, _): "airport-\(code)"
+        case .airport(let code, _, _): "airport-\(code)"
         case .car: "car"
         case .pilot: "pilot"
         case .plane: "plane"
@@ -41,8 +42,9 @@ nonisolated enum TripMapMarker: Equatable {
     static func placements(for drawing: TripMapDrawing, palette: TripMapPalette) -> [String: Placement] {
         var placements: [String: Placement] = [:]
         for airport in drawing.airports {
-            placements["airport-\(airport.code)"] = Placement(coordinate: airport.coordinate,
-                                                              marker: .airport(code: airport.code, palette: palette))
+            let marker = TripMapMarker.airport(code: airport.code, palette: palette,
+                                               isDriveOnly: drawing.driveOnlyAirportCodes.contains(airport.code))
+            placements["airport-\(airport.code)"] = Placement(coordinate: airport.coordinate, marker: marker)
         }
         for car in drawing.cars {
             placements[car.id] = Placement(coordinate: car.coordinate, marker: .car)

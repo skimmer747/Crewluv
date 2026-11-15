@@ -8,6 +8,8 @@ Status: approved in brainstorming on 2026-11-13, from mockups of where the map l
 
 **Amended 2026-11-14, waits at base and the card's framing:** §5.1 and §10. A commuter's waits at base, which CrewLu doesn't name, read "At base"; a pilot waiting at base for a trip is shown there; and the card frames the trip between its chips, sliding the pilot's marker into view when a wide trip doesn't fit. Design: `docs/superpowers/specs/2026-11-14-trip-map-base-waits-and-card-framing-design.md`. Plan: `docs/superpowers/plans/2026-11-14-trip-map-base-waits-and-card-framing.md`. Todd's device check passed on 14 Nov 2026: the marker shows on every card clear of its chips, Apple's logo sits above the bottom chip, recenter slides the marker into view, and the map never moves by itself after the family moves it.
 
+**Amended 2026-11-14, fewer markers piled up near home:** §7.1 and §10. The car shows only while the pilot drives, and an airport only drives reach gives way where it crowds another. Design: `docs/superpowers/specs/2026-11-14-trip-map-tidy-markers-design.md`.
+
 ## 1. Goal
 
 Give the pilot's family a moving map that's fun to look at, in the app and on the website. It's built from CrewLu's rebuilt moving map:
@@ -157,7 +159,7 @@ The chip appears from Stage 2. In Stage 1, the in-flight chip shows the landing 
   - With no live data, the part already flown is solid light blue.
 - **The actual path** (live trail, §9.4) is solid white.
 - **Legs flown earlier in the trip** are solid grey along their planned route.
-- **Drives** are a dotted line with a small car, and never get live data.
+- **Drives** are a dotted line, with a small car on it while the pilot drives (amended 2026-11-14, tidy markers design §1), and never get live data.
 - **Drawn by the app,** over Apple's map and under the planes, the heart, the cars and the airports, as the night is (§10). Dashes and dots are laid from each line's far end, so they stay put on the map while the plane eats into the line still to fly, and while the map pans.
 
 ### 7.2 The planes
@@ -382,7 +384,7 @@ iOS 17, SwiftUI, and the project's rules: one type per file, under ~300 lines ea
   - **The app's drawing:** the night's seven layers and every route, trail and drive line are `CAShapeLayer`s in one view of the app's, `TripMapShapesView`.
     - It sits just under the view MapKit keeps its annotation views in, so the planes, the pilot's marker, the cars and the airports stay bright at night.
     - Every update gives the same shapes new outlines. Nothing is taken off the map or put on it.
-  - **Markers:** the planes, the pilot's marker, the cars and the airports are MapKit annotations whose views host the app's SwiftUI markers. Each is hosted with no safe area, since SwiftUI otherwise moved a marker down by the status bar's height on the full-screen map.
+  - **Markers:** the planes, the pilot's marker, the cars and the airports are MapKit annotations whose views host the app's SwiftUI markers. Each is hosted with no safe area, since SwiftUI otherwise moved a marker down by the status bar's height on the full-screen map. Where airport codes crowd each other, an airport only drives reach gives way, as Apple Maps hides crowded labels; the planes, the pilot's marker and the car always show (amended 2026-11-14, tidy markers design §2).
   - **Camera:** `TripMapCamera`. The map frames each new request once, with `MapFit`'s rectangle. A pan, pinch or double tap makes the camera the family's until they recenter. After each framing, the pilot's ground marker slides into view if the framing left it outside the map's margins, which hold the card's chips as well as the sheet and panel (amended 2026-11-14, base waits and card framing design §4; `TripMapSlide`).
   - **Where things are on screen:** `MapProjection`, ported from CrewLu's `FlatMapFit`, works this out from three places the map is asked about.
     - Each shape is drawn once for each copy of the world on screen across the date line.

@@ -12,7 +12,7 @@ struct TripMapMarkerView: View {
 
     var body: some View {
         switch marker {
-        case .airport(let code, let palette):
+        case .airport(let code, let palette, _):
             TripMapMarkers.AirportLabel(code: code, palette: palette)
         case .car:
             TripMapMarkers.Car()

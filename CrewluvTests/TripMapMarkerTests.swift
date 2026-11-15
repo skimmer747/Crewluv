@@ -57,13 +57,16 @@ final class TripMapMarkerTests: XCTestCase {
     func test_placements_drive_nameTheCarByItsDrive() throws {
         let legs = [TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(0), hours: 2)]
         let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(-1)))
-        XCTAssertEqual(markers(map, at: -1)["d1-car"]?.marker, .car)
+        XCTAssertEqual(markers(map, at: 1)["d1-car"]?.marker, .car)
+        XCTAssertNil(markers(map, at: -1)["d1-car"], "no car before the drive")
+        XCTAssertEqual(markers(map, at: -1)["airport-LEX"]?.marker,
+                       .airport(code: "LEX", palette: .onDarkMap, isDriveOnly: true))
     }
 
     func test_placements_airport_carriesTheMapsPalette() throws {
         let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: hours(12)))
         let placements = markers(map, at: 12, palette: .onLightMap)
-        XCTAssertEqual(placements["airport-CGN"]?.marker, .airport(code: "CGN", palette: .onLightMap))
-        XCTAssertNotEqual(placements["airport-CGN"]?.marker, .airport(code: "CGN", palette: .onDarkMap))
+        XCTAssertEqual(placements["airport-CGN"]?.marker, .airport(code: "CGN", palette: .onLightMap, isDriveOnly: false))
+        XCTAssertNotEqual(placements["airport-CGN"]?.marker, .airport(code: "CGN", palette: .onDarkMap, isDriveOnly: false))
     }
 }
