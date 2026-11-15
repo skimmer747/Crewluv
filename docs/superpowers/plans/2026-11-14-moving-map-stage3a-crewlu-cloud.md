@@ -33,7 +33,7 @@
 - **Code review subagents** (`superpowers:code-reviewer`) get `model: "sonnet"`.
 - **Shell variables don't carry from one command to the next** in Claude's Bash tool, so every command here names its folder.
 - **If an expected value doesn't match, stop and ask.** Never change a test to make it pass.
-- **The code in Tasks 1 to 10 has been run.** On 14 Nov 2026 every block was put together in a copy of `supabase/`, in this plan's order, and the tests were run after each task: 396 of 396 passed at the end. So a failure is most likely a slip in copying. Compare with the block before changing anything.
+- **The code in Tasks 1 to 10 has been run.** On 15 Nov 2026, after Task 1's review, every block was put together in a copy of `supabase/`, in this plan's order, and the tests were run after each task: 399 of 399 passed at the end. So a failure is most likely a slip in copying. Compare with the block before changing anything.
 
 ## Decisions made while planning
 
@@ -50,6 +50,9 @@ These refine the spec, and its §10 already has them.
 9. **`flight-live` needs no secrets of its own.** It reads `SUPABASE_URL` and `SUPABASE_SECRET_KEYS`, which Supabase supplies. The password is the Vault's `flight_live_secret`, which the script makes.
 10. **The password helper is the push service's.** `private.push_secret(name)` reads a Vault secret by name, so the live plane's script runs after the push service's.
 11. **The `User-Agent` names `https://crewlu.net`** as where adsb.lol can find CrewLu Cloud. Todd confirmed the address on 14 Nov 2026.
+12. **Nothing a summary holds can stop the check.** It reads every pilot's summary in one statement, so `private.flight_legs` never raises: a time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure, and a delay counts only within a week either way. Task 1's review found that a number like `1e400`, which is valid JSON, would otherwise have stopped the live plane for every pilot.
+13. **A callsign is 8 characters at most,** as an aircraft's is. A longer one is no flight's.
+14. **A pilot's summary puts at most 8 flights on the list at once,** the earliest to leave. That's more than a pilot can have open, and it keeps a summary gone wrong from making `flight-live` ask adsb.lol for thousands.
 
 ## File structure
 
@@ -252,6 +255,13 @@ describe('private.flight_callsign and private.airport_code (spec §10.2)', () =>
       // An ICAO code is used as it is.
       ['FDX147', null, 'FDX147'],
       ['147', 'FDX', 'FDX147'],
+      // The leg's airline code wins over the number's own prefix.
+      ['UPS207', '5X', 'UPS207'],
+      // 8 characters at most, counted after the leading zeros go.
+      ['UPS12345', null, 'UPS12345'],
+      ['UPS000012345', null, 'UPS12345'],
+      ['UPS123456', null, null],
+      [`UPS${'9'.repeat(5000)}`, null, null],
       // No callsign: ground transport, a commercial ticket, an airline that isn't in the table, nothing to read.
       ['GND', null, null],
       ['UPSGND', null, null],
@@ -317,6 +327,34 @@ describe('private.flight_legs (spec §10.2)', () => {
     assert.deepEqual((await legsOf(d, { tripLegs: legs })).map((l) => l.leg_id), ['kept'])
   })
 
+  test('a time or a delay that makes no sense is never an error: the leg is left out, or its delay is none', async (t) => {
+    const d = await db(t)
+    const legs = [
+      leg(0, 60, { id: 'huge-start', startTime: 1e300 }),
+      leg(0, 60, { id: 'huge-end', endTime: 1e300 }),
+      leg(0, 60, { id: 'before-1970', startTime: -5 }),
+      leg(60, 0, { id: 'backwards' }),
+      leg(0, 60, { id: 'huge-delay', delayMinutes: 1e300 }),
+      leg(0, 60, { id: 'text-delay', delayMinutes: 'late' }),
+      leg(0, 60, { id: 'week-and-a-minute', delayMinutes: 10081 }),
+      leg(0, 60, { id: 'early', delayMinutes: -10 }),
+    ]
+    const found = await legsOf(d, { tripLegs: legs })
+    const start = legs[4].startTime
+    assert.deepEqual(
+      found.map((l) => [l.leg_id, l.departs - start]).sort(),
+      [['early', -600], ['huge-delay', 0], ['text-delay', 0], ['week-and-a-minute', 0]],
+    )
+    // 1e400 is a JSON number too big for a double, which JavaScript can't write: it goes in as text.
+    const tooBig = JSON.stringify({ tripLegs: [leg(0, 60, { id: 'x', startTime: 'START' }), leg(0, 60, { id: 'y', delayMinutes: 'DELAY' })] })
+      .replace('"START"', '1e400')
+      .replace('"DELAY"', '-1e400')
+    const rows = await asAdmin(d, 'select leg_id from private.flight_legs($1::jsonb)', [tooBig])
+    assert.deepEqual(rows, [{ leg_id: 'y' }])
+    // Legs that aren't objects are passed over.
+    assert.deepEqual(await legsOf(d, { tripLegs: [5, 'leg', null, [], leg(0, 60, { id: 'kept' })] }).then((ls) => ls.map((l) => l.leg_id)), ['kept'])
+  })
+
   test('a summary with no legs, or legs that aren’t a list, has none', async (t) => {
     const d = await db(t)
     for (const status of [{}, { tripLegs: null }, { tripLegs: 'none' }, { tripLegs: {} }]) {
@@ -334,7 +372,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 5`, `ℹ pass 0`, `ℹ fail 5`. Each fails with `relation "private.airports" does not exist`.
+Expected: `ℹ tests 6`, `ℹ pass 0`, `ℹ fail 6`. Each fails with `relation "private.airports" does not exist`.
 
 - [ ] **Step 3: Write the script's first part**
 
@@ -448,7 +486,8 @@ $$;
 -- The callsign a flight broadcasts (spec §10.2), built as the Crewluve website builds its tracking number (toMove and
 -- trackingFlightNumber): the airline's ICAO code and the flight number's digits without leading zeros. CrewLu writes a
 -- company flight's number as "UPS" and the digits, and another airline's as its code and the digits. Null when the
--- number isn't an optional airline and digits (GND, a number ending in CML), or the airline's ICAO code isn't known.
+-- number isn't an optional airline and digits (GND, a number ending in CML), when the airline's ICAO code isn't known,
+-- or when the callsign would be longer than 8 characters, which no aircraft can broadcast.
 create function private.flight_callsign(p_flight_number text, p_airline_code text) returns text
 language plpgsql immutable set search_path = '' as $$
 declare
@@ -457,6 +496,7 @@ declare
   v_parts text[];
   v_airline text;
   v_icao text;
+  v_callsign text;
 begin
   if v_entered is not null and left(v_raw, char_length(v_entered)) = v_entered then
     v_raw := substr(v_raw, char_length(v_entered) + 1);
@@ -492,14 +532,20 @@ begin
   if v_icao is null then
     return null;
   end if;
-  return v_icao || coalesce(nullif(ltrim(v_parts[2], '0'), ''), '0');
+  v_callsign := v_icao || coalesce(nullif(ltrim(v_parts[2], '0'), ''), '0');
+  return case when char_length(v_callsign) <= 8 then v_callsign end;
 end
 $$;
 
 -- A summary's flight legs that can be watched (spec §10.2), each with its key and its times moved by the delay the
 -- pilot reported. The check and partner_live both read them here, so a leg has one key. A leg with no callsign, a
--- missing time or a missing airport code isn't one. A summary-wide delay from a CrewLu that doesn't tag legs isn't
--- counted: the window is wide enough without it.
+-- missing airport code, or an arrival that isn't after its departure isn't one. A summary-wide delay from a CrewLu
+-- that doesn't tag legs isn't counted: the window is wide enough without it.
+--
+-- Nothing a summary holds can raise here: the check reads every pilot's summary in one statement, so one pilot's odd
+-- summary would stop it for all of them. A time counts only as a number of seconds from 1970 to 2100, and a delay only
+-- as a number of minutes within a week either way: any other delay is none. Each is checked as a numeric before it's
+-- cast, in a case of its own, since a number like 1e400 is valid JSON and too big for a double.
 create function private.flight_legs(p_status jsonb)
 returns table (leg_id text, callsign text, departure text, arrival text, scheduled_departure timestamptz,
                effective_departure timestamptz, effective_arrival timestamptz)
@@ -511,16 +557,22 @@ language sql stable set search_path = '' as $$
              private.flight_callsign(l.leg ->> 'flightNumber', l.leg ->> 'airlineCode') as callsign,
              private.airport_code(l.leg ->> 'departureAirport') as departure,
              private.airport_code(l.leg ->> 'arrivalAirport') as arrival,
-             case when jsonb_typeof(l.leg -> 'startTime') = 'number' then (l.leg ->> 'startTime')::double precision end as starts,
-             case when jsonb_typeof(l.leg -> 'endTime') = 'number' then (l.leg ->> 'endTime')::double precision end as ends,
-             case when jsonb_typeof(l.leg -> 'delayMinutes') = 'number' then (l.leg ->> 'delayMinutes')::double precision * 60 else 0 end as delay
+             case when jsonb_typeof(l.leg -> 'startTime') = 'number' then
+               case when (l.leg ->> 'startTime')::numeric between 0 and 4102444800 then (l.leg ->> 'startTime')::double precision end
+             end as starts,
+             case when jsonb_typeof(l.leg -> 'endTime') = 'number' then
+               case when (l.leg ->> 'endTime')::numeric between 0 and 4102444800 then (l.leg ->> 'endTime')::double precision end
+             end as ends,
+             coalesce(case when jsonb_typeof(l.leg -> 'delayMinutes') = 'number' then
+               case when (l.leg ->> 'delayMinutes')::numeric between -10080 and 10080 then (l.leg ->> 'delayMinutes')::double precision * 60 end
+             end, 0) as delay
         from jsonb_array_elements(
                case when jsonb_typeof(p_status -> 'tripLegs') = 'array' then p_status -> 'tripLegs' else '[]'::jsonb end
              ) as l(leg)
        where l.leg ->> 'type' = 'flight'
     ) r
    where r.leg_id is not null and r.callsign is not null and r.departure is not null and r.arrival is not null
-     and r.starts is not null and r.ends is not null
+     and r.starts is not null and r.ends is not null and r.ends > r.starts
 $$;
 
 revoke all on all functions in schema private from public, anon, authenticated;
@@ -555,7 +607,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 21`, `ℹ pass 21`, `ℹ fail 0`.
+Expected: `ℹ tests 22`, `ℹ pass 22`, `ℹ fail 0`.
 
 - [ ] **Step 6: Commit, with Todd's OK**
 
@@ -650,6 +702,27 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
       'select extract(epoch from effective_departure)::int as departs, extract(epoch from effective_arrival)::int as arrives from private.live_flights',
     )
     assert.deepEqual(rows, [{ departs: captain.startTime, arrives: captain.endTime + 20 * 60 }])
+  })
+
+  test('two legs of one summary with the same key make one row', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const one = leg(-10, 500, { id: 'a' })
+    await pilotWith(d, [one, { ...one, id: 'b', delayMinutes: 30 }])
+    await tick(d)
+    assert.equal((await flights(d)).length, 1)
+  })
+
+  test('one pilot’s summary puts at most 8 flights on the list at once, the earliest to leave', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const many = Array.from({ length: 12 }, (_, n) => leg(-20 + n, 500, { id: `leg-${n}`, flightNumber: `UPS${100 + n}` }))
+    await pilotWith(d, many.toReversed())
+    // Another pilot's flights are counted apart.
+    await pilotWith(d, [leg(-10, 500, { id: 'other', flightNumber: 'UPS900' })])
+    await tick(d)
+    const watched = (await flights(d)).map((f) => f.callsign).sort()
+    assert.deepEqual(watched, ['UPS100', 'UPS101', 'UPS102', 'UPS103', 'UPS104', 'UPS105', 'UPS106', 'UPS107', 'UPS900'])
   })
 
   test('a new delay moves the row’s times, and the row keeps its id', async (t) => {
@@ -753,7 +826,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 18`, `ℹ pass 6`, `ℹ fail 12`. The new ones fail with `function private.flight_live_tick() does not exist`, or `private.flight_live_switch`. The one new test that passes checks the Vault and the switch's row, which Task 1 made.
+Expected: `ℹ tests 21`, `ℹ pass 7`, `ℹ fail 14`. The new ones fail with `function private.flight_live_tick() does not exist`, or `private.flight_live_switch`. The one new test that passes checks the Vault and the switch's row, which Task 1 made.
 
 - [ ] **Step 3: Write the check**
 
@@ -802,6 +875,9 @@ $$;
 -- a row for every leg whose window is open, of the pilots the switch allows who have a partner's device seen in the
 -- last 30 days. Pilots who share a flight share its row, with the earliest effective departure and the latest effective
 -- arrival among them. Then, if any flight is open, it calls flight-live.
+--
+-- A pilot's summary puts at most 8 flights on the list at once, the earliest to leave: more than a pilot can have open
+-- at once, and few enough that a summary gone wrong can't make flight-live ask adsb.lol for thousands.
 create function private.flight_live_tick() returns void
 language plpgsql set search_path = '' as $$
 declare
@@ -816,16 +892,20 @@ begin
   select w.callsign, w.departure, w.arrival, w.scheduled_departure, w.effective_departure, w.effective_arrival,
          d.lat, d.lon, a.lat, a.lon
     from (
-      select l.callsign, l.departure, l.scheduled_departure, min(l.arrival) as arrival,
-             min(l.effective_departure) as effective_departure, max(l.effective_arrival) as effective_arrival
-        from public.partner_status ps
-        cross join lateral private.flight_legs(ps.status) l
-       where (v_state.mode = 'all' or ps.user_id = any (v_state.pilots))
-         and exists (select 1 from public.partner_devices pd
-                      where pd.owner_id = ps.user_id and pd.last_seen_at > now() - interval '30 days')
-         and now() >= l.effective_departure - interval '30 minutes'
-         and now() < l.effective_arrival + interval '2 hours'
-       group by l.callsign, l.departure, l.scheduled_departure
+      select o.callsign, o.departure, o.scheduled_departure, min(o.arrival) as arrival,
+             min(o.effective_departure) as effective_departure, max(o.effective_arrival) as effective_arrival
+        from (
+          select l.*, row_number() over (partition by ps.user_id order by l.effective_departure, l.leg_id) as nth
+            from public.partner_status ps
+            cross join lateral private.flight_legs(ps.status) l
+           where (v_state.mode = 'all' or ps.user_id = any (v_state.pilots))
+             and exists (select 1 from public.partner_devices pd
+                          where pd.owner_id = ps.user_id and pd.last_seen_at > now() - interval '30 days')
+             and now() >= l.effective_departure - interval '30 minutes'
+             and now() < l.effective_arrival + interval '2 hours'
+        ) o
+       where o.nth <= 8
+       group by o.callsign, o.departure, o.scheduled_departure
     ) w
     join private.airports d on d.code = w.departure
     join private.airports a on a.code = w.arrival
@@ -851,7 +931,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 34`, `ℹ pass 34`, `ℹ fail 0`.
+Expected: `ℹ tests 37`, `ℹ pass 37`, `ℹ fail 0`.
 
 - [ ] **Step 5: Commit, with Todd's OK**
 
@@ -992,7 +1072,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 27`, `ℹ pass 18`, `ℹ fail 9`. The new ones fail because `public.flight_live_claim` and `public.flight_live_report` don't exist yet.
+Expected: `ℹ tests 30`, `ℹ pass 21`, `ℹ fail 9`. The new ones fail because `public.flight_live_claim` and `public.flight_live_report` don't exist yet.
 
 - [ ] **Step 3: Write claim and report**
 
@@ -1120,7 +1200,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 43`, `ℹ pass 43`, `ℹ fail 0`.
+Expected: `ℹ tests 46`, `ℹ pass 46`, `ℹ fail 0`.
 
 - [ ] **Step 6: Commit, with Todd's OK**
 
@@ -1246,7 +1326,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 36`, `ℹ pass 27`, `ℹ fail 9`. The new ones fail with `function public.partner_live(text) does not exist`.
+Expected: `ℹ tests 39`, `ℹ pass 30`, `ℹ fail 9`. The new ones fail with `function public.partner_live(text) does not exist`.
 
 - [ ] **Step 3: Write `partner_live`**
 
@@ -1400,7 +1480,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 52`, `ℹ pass 52`, `ℹ fail 0`.
+Expected: `ℹ tests 55`, `ℹ pass 55`, `ℹ fail 0`.
 
 - [ ] **Step 6: Commit, with Todd's OK**
 
@@ -1522,7 +1602,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 41`, `ℹ pass 36`, `ℹ fail 5`. The new ones fail because no cron job is scheduled yet, so the script still makes 0 of its 3.
+Expected: `ℹ tests 44`, `ℹ pass 39`, `ℹ fail 5`. The new ones fail because no cron job is scheduled yet, so the script still makes 0 of its 3.
 
 - [ ] **Step 3: Write the schedule**
 
@@ -1552,7 +1632,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 57`, `ℹ pass 57`, `ℹ fail 0`.
+Expected: `ℹ tests 60`, `ℹ pass 60`, `ℹ fail 0`.
 
 - [ ] **Step 5: Check the two files are whole**
 
@@ -1565,8 +1645,8 @@ cd ~/Dev/Duty-flight-live/supabase && shasum -a 256 migrations/20261114120000_pa
 Expected:
 
 ```
-1b15bf69ca41aa5bf8c5fed367328dd8e901f943ccf489c2d3c71afe824cef27  migrations/20261114120000_partner_links_flight_live.sql
-6e6608799c78c9ca4ef8e0cfcf247e256429c387a775e506e79b880d12cf6dfa  tests/flight_live.test.js
+ffbb54c811e1b9c106fb670fa2be8a37a87a6b698ff0da125890beda4cc615ad  migrations/20261114120000_partner_links_flight_live.sql
+093731fb8c5bdee1573479511a6b0fa3edb9715e530daa193d75ca40a2a74c5e  tests/flight_live.test.js
 ```
 
 A different sum with passing tests means a difference in spacing where two parts join. That's harmless: note it and go on.
@@ -2854,7 +2934,7 @@ In `supabase/tests/README.md`, replace:
 with:
 
 ```markdown
-396 tests run in a little over a minute, each test file in its own process.
+399 tests run in a little over a minute, each test file in its own process.
 ```
 
 In `supabase/tests/README.md`, replace:
@@ -2892,7 +2972,7 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && npm test 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected, after a little over a minute: `ℹ tests 396`, `ℹ pass 396`, `ℹ fail 0`. That's the 313 from Task 0 and 83 new ones, the number the README now gives.
+Expected, after a little over a minute: `ℹ tests 399`, `ℹ pass 399`, `ℹ fail 0`. That's the 313 from Task 0 and 86 new ones, the number the README now gives.
 
 - [ ] **Step 3: Commit, with Todd's OK**
 
@@ -3103,6 +3183,7 @@ Commit this plan and any spec change in `~/Dev/Crewluv`, on `feature/trip-map-li
   - §14: partners see only their own pilot's legs (Task 4); claim and report need the service role and the password (Task 3, and the guards); adsb.lol sees callsigns only, and the log holds no key (Task 8).
   - §16.2: every test it lists is in Tasks 1 to 9.
   - §17: steps 1 and 2 are Task 12. Steps 3 to 5 belong to plans 3B and 3C.
+  - What one pilot's summary can do to everyone else: a time or delay that can't be read (Task 1), and more flights than a pilot can fly (Task 2).
 - **Not covered here, on purpose:** the app and the website (plans 3B and 3C); PostgREST's own answer to a `p_after` that isn't a number, which the tests can't reach and `partner-api.md` documents; Supabase's Deno and adsb.lol themselves, which Task 12 proves on a real flight.
 - **Names** are the same in every task: `flight_live_claim(p_secret)`, `flight_live_report(p_secret, p_flights, p_outcome)`, `partner_live(p_key, p_after)`, `private.flight_live_tick()`, `private.flight_live_switch(p_mode, p_pilots)`, and the header `x-flight-live-secret`. A fix's fields are the same in the function's `Fix`, the report's SQL and `partner_live`'s answer.
 

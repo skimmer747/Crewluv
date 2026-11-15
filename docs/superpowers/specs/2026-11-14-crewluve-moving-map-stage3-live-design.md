@@ -253,8 +253,9 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
   2. it must then be an optional airline prefix and digits. `GND`, and a number ending in `CML`, have no callsign;
   3. the airline is the leg's airline code, else the prefix, else UPS;
   4. a two-character airline code becomes its ICAO code from a table in the SQL: today's 15 airlines, and the cargo and regional airlines the website names. A three-letter code is used as it is. An airline not in the table has no callsign;
-  5. the callsign is the ICAO code and the digits without leading zeros: `UPS0207` becomes `UPS207`.
+  5. the callsign is the ICAO code and the digits without leading zeros: `UPS0207` becomes `UPS207`. One longer than 8 characters, which no aircraft can broadcast, isn't a callsign.
 - **Its times are moved by its own delay.** A summary-wide delay from a CrewLu that doesn't tag legs isn't counted: the window is wide enough without it.
+- **Nothing a summary holds can stop the check,** which reads every pilot's summary together. A time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure, and a delay counts only within a week either way. A leg that fails the first two is left out, and any other delay is none.
 
 The table holds each airline's real ICAO code, so PSA Airlines is `JIA`. The app's tracking links have `PSA` for it, which is another airline's.
 
@@ -266,6 +267,8 @@ The table holds each airline's real ICAO code, so PSA Airlines is `JIA`. The app
 
 - the switch allows that pilot (§10.7); and
 - one of their partners has a device seen in the last 30 days.
+
+At most 8 of a pilot's flights are watched at once, the earliest to leave. That's more than a pilot can have open, and it keeps a summary gone wrong from making `flight-live` ask adsb.lol for thousands.
 
 ### 10.3 Each run
 
