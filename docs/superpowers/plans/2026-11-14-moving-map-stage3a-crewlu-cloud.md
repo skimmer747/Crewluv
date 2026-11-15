@@ -33,11 +33,11 @@
 - **Code review subagents** (`superpowers:code-reviewer`) get `model: "sonnet"`.
 - **Shell variables don't carry from one command to the next** in Claude's Bash tool, so every command here names its folder.
 - **If an expected value doesn't match, stop and ask.** Never change a test to make it pass.
-- **The code in Tasks 1 to 10 has been run.** On 15 Nov 2026, after Task 1's review, every block was put together in a copy of `supabase/`, in this plan's order, and the tests were run after each task: 399 of 399 passed at the end. So a failure is most likely a slip in copying. Compare with the block before changing anything.
+- **The code in Tasks 1 to 10 has been run.** On 15 Nov 2026, after every task's review and the whole-branch review, every block was put together in a copy of `supabase/`, in this plan's order, and the tests were run after each task: 432 of 432 passed at the end. So a failure is most likely a slip in copying. Compare with the block before changing anything.
 
 ## Decisions made while planning
 
-These refine the spec, and its §10 already has them.
+These refine the spec, and its §10 already has them. 1 to 11 were made while planning. 12 to 23 came out of the reviews while the plan was carried out.
 
 1. **`partner_live`'s fields have underscores** (`leg_id`, `altitude_ft`, `trail_count`), as every other partner-door answer has. Times are milliseconds since 1970.
 2. **Two scripts.** The live plane's script makes an empty `private.airports`. A second script, made from the Crewluve website's `airports.json` by `tests/helpers/airports_seed.js`, fills it with 9,056 airports. Its name has no `_partner_links_`, so the tests' `freshDb()` doesn't load 231 KB for every test: each test puts in the few airports it flies between.
@@ -50,9 +50,18 @@ These refine the spec, and its §10 already has them.
 9. **`flight-live` needs no secrets of its own.** It reads `SUPABASE_URL` and `SUPABASE_SECRET_KEYS`, which Supabase supplies. The password is the Vault's `flight_live_secret`, which the script makes.
 10. **The password helper is the push service's.** `private.push_secret(name)` reads a Vault secret by name, so the live plane's script runs after the push service's.
 11. **The `User-Agent` names `https://crewlu.net`** as where adsb.lol can find CrewLu Cloud. Todd confirmed the address on 14 Nov 2026.
-12. **Nothing a summary holds can stop the check.** It reads every pilot's summary in one statement, so `private.flight_legs` never raises: a time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure, and a delay counts only within a week either way. Task 1's review found that a number like `1e400`, which is valid JSON, would otherwise have stopped the live plane for every pilot.
+12. **Nothing a summary holds can stop the check.** It reads every pilot's summary in one statement, so `private.flight_legs` never raises: a time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure and within a day of it, and a delay counts only within a week either way. Task 1's review found that a number like `1e400`, which is valid JSON, would otherwise have stopped the live plane for every pilot.
 13. **A callsign is 8 characters at most,** as an aircraft's is. A longer one is no flight's.
 14. **A pilot's summary puts at most 8 flights on the list at once,** the earliest to leave. That's more than a pilot can have open, and it keeps a summary gone wrong from making `flight-live` ask adsb.lol for thousands.
+15. **Each pilot has rows of their own,** even for a flight two of them are on. The key is the pilot, the callsign, the departure airport and the scheduled departure. Task 2's review found that a shared row let one pilot's summary set another's arrival airport and stretch its window. Sharing saved nothing, since a callsign goes to adsb.lol once however many rows have it. A pilot who deletes their account takes their rows with them.
+16. **The check leaves a row that hasn't changed completely alone.** It filters those rows out before the upsert, so they aren't rewritten or even locked every 30 seconds, and the check doesn't wait on a report that's writing the same row.
+17. **`flight_live_report` trusts nothing it's sent.** It passes over an entry it can't read, rebuilds each fix from its nine fields with every one checked, refuses a fix dated more than 5 minutes ahead, locks its flights in order, and adds trail points in a statement of their own. Task 3's review found that two runs that overlap could add a point twice, that one bad entry lost the whole report, and that a fix went to partners exactly as sent.
+18. **`partner_live` only reads,** and answers a flight once however many of the summary's legs share its key.
+19. **The match passes over anything in adsb.lol's answer that isn't an aircraft it can place:** no address, no callsign, a position off the Earth, or neither a height nor "ground". Each flight is judged on its own, so one that can't be doesn't cost the others theirs.
+20. **A first sighting in the air must not be heading for the departure airport.** The plane still flying the leg before, under the same number and running late, is doing exactly that. And a flight's own aircraft on the ground after a diversion comes before any other plane in the air: Task 7's review found the rules in the wrong order there.
+21. **A run of `flight-live` has a time limit.** It starts no request to adsb.lol later than 20 seconds after it began, and reports that as a failure, so a slow day can't pile runs up. A call with no password is refused before any call to CrewLu Cloud. It reports only news: a new state, another aircraft, or a fix seen at least a second later.
+22. **The watch list is bounded where flights are handed out, not only where rows are made.** The whole-branch review found that a pilot writing new flights before every check left each old row open for a day, so thousands could be asked about. Now a flight that leaves its pilot's summary is deleted if nobody saw it, and no longer wanted if somebody did; the same goes for a pilot the switch no longer lists or whose partners' devices have gone unseen; and `private.open_live_flights` hands out at most 8 of one pilot's.
+23. **`partner_live` isn't marked `stable`,** though it only reads: PostgREST takes a stable function by GET, which would put the device's key in an address.
 
 ## File structure
 
@@ -77,11 +86,11 @@ Each part of a file below is separated from the part before it by exactly one bl
 
 **Files:** none yet.
 
-- [ ] **Step 1: Ask Todd**
+- [x] **Step 1: Ask Todd**
 
 This makes a new branch and a worktree in CrewLu's repo. Ask before making them.
 
-- [ ] **Step 2: Make the worktree**
+- [x] **Step 2: Make the worktree**
 
 Run:
 
@@ -91,7 +100,7 @@ git -C ~/Dev/Duty worktree add ~/Dev/Duty-flight-live -b feature/flight-live fea
 
 Expected: `Preparing worktree (new branch 'feature/flight-live')`, then a `HEAD is now at` line.
 
-- [ ] **Step 3: Copy the tests' `node_modules`**
+- [x] **Step 3: Copy the tests' `node_modules`**
 
 Run:
 
@@ -101,7 +110,7 @@ cp -c -R ~/Dev/Duty/supabase/tests/node_modules ~/Dev/Duty-flight-live/supabase/
 
 Expected: `@electric-sql`, `ajv` and one more name. `node_modules` is ignored by git.
 
-- [ ] **Step 4: Run the tests as they are**
+- [x] **Step 4: Run the tests as they are**
 
 Run:
 
@@ -120,7 +129,7 @@ Expected, after about a minute: `ℹ tests 313`, `ℹ pass 313`, `ℹ fail 0`.
 - Create: `supabase/migrations/20261114120000_partner_links_flight_live.sql`
 - Modify: `supabase/tests/privileges.test.js`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `supabase/tests/flight_live.test.js`. Its helpers are for every task's tests, so some aren't used until later.
 
@@ -132,7 +141,7 @@ Create `supabase/tests/flight_live.test.js`. Its helpers are for every task's te
 // Each test builds its own database, because the check reads every pilot in it.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { asAdmin, asAnon, asService, freshDb, migrationPath, partnerDbUpTo, read } from './helpers/db.js'
+import { asAdmin, asAnon, asService, freshDb, migrationPath, partnerDbUpTo, partnerMigrations, read } from './helpers/db.js'
 import { connected, setStatus } from './helpers/rpc.js'
 
 const FILE = '20261114120000_partner_links_flight_live.sql'
@@ -192,6 +201,8 @@ const switchTo = (d, mode, pilots = []) => asAdmin(d, 'select private.flight_liv
 const tick = (d) => asAdmin(d, 'select private.flight_live_tick()')
 const flights = (d) =>
   asAdmin(d, 'select id::int, callsign, departure, arrival, state, hex, fix from private.live_flights order by id')
+/** The callsigns of the flights flight-live would be handed now. One check makes its rows in no particular order, so sort before comparing several. */
+const open = async (d) => (await asAdmin(d, 'select callsign from private.open_live_flights() order by id')).map((f) => f.callsign)
 const points = (d) => asAdmin(d, 'select flight_id::int as flight, lat, lon, altitude_ft from private.live_flight_points order by id')
 const requests = (d) => asAdmin(d, 'select url, headers, body, timeout_milliseconds from net.http_request_queue order by id')
 const state = async (d) => (await asAdmin(d, 'select mode, pilots, failures, paused_until > now() as paused from private.flight_live_state'))[0]
@@ -334,23 +345,32 @@ describe('private.flight_legs (spec §10.2)', () => {
       leg(0, 60, { id: 'huge-end', endTime: 1e300 }),
       leg(0, 60, { id: 'before-1970', startTime: -5 }),
       leg(60, 0, { id: 'backwards' }),
+      leg(0, 1441, { id: 'longer-than-a-day' }),
       leg(0, 60, { id: 'huge-delay', delayMinutes: 1e300 }),
       leg(0, 60, { id: 'text-delay', delayMinutes: 'late' }),
       leg(0, 60, { id: 'week-and-a-minute', delayMinutes: 10081 }),
       leg(0, 60, { id: 'early', delayMinutes: -10 }),
     ]
     const found = await legsOf(d, { tripLegs: legs })
-    const start = legs[4].startTime
+    // Each leg's own start: two legs made either side of a second's turn start a second apart.
+    const startOf = Object.fromEntries(legs.map((l) => [l.id, l.startTime]))
     assert.deepEqual(
-      found.map((l) => [l.leg_id, l.departs - start]).sort(),
+      found.map((l) => [l.leg_id, l.departs - startOf[l.leg_id]]).sort(),
       [['early', -600], ['huge-delay', 0], ['text-delay', 0], ['week-and-a-minute', 0]],
     )
-    // 1e400 is a JSON number too big for a double, which JavaScript can't write: it goes in as text.
-    const tooBig = JSON.stringify({ tripLegs: [leg(0, 60, { id: 'x', startTime: 'START' }), leg(0, 60, { id: 'y', delayMinutes: 'DELAY' })] })
-      .replace('"START"', '1e400')
-      .replace('"DELAY"', '-1e400')
-    const rows = await asAdmin(d, 'select leg_id from private.flight_legs($1::jsonb)', [tooBig])
-    assert.deepEqual(rows, [{ leg_id: 'y' }])
+    // 1e400 and 1e-400 are JSON numbers that don't fit a double, which JavaScript can't write: they go in as text.
+    const outOfReach = JSON.stringify({
+      tripLegs: [
+        leg(0, 60, { id: 'huge', startTime: 'HUGE' }),
+        leg(0, 60, { id: 'tiny', startTime: 'TINY' }),
+        leg(0, 60, { id: 'huge-delay', delayMinutes: 'HUGE' }),
+        leg(0, 60, { id: 'tiny-delay', delayMinutes: 'TINY' }),
+      ],
+    })
+      .replaceAll('"HUGE"', '1e400')
+      .replaceAll('"TINY"', '1e-400')
+    const rows = await asAdmin(d, 'select leg_id from private.flight_legs($1::jsonb) order by 1', [outOfReach])
+    assert.deepEqual(rows, [{ leg_id: 'huge-delay' }, { leg_id: 'tiny-delay' }])
     // Legs that aren't objects are passed over.
     assert.deepEqual(await legsOf(d, { tripLegs: [5, 'leg', null, [], leg(0, 60, { id: 'kept' })] }).then((ls) => ls.map((l) => l.leg_id)), ['kept'])
   })
@@ -364,7 +384,7 @@ describe('private.flight_legs (spec §10.2)', () => {
 })
 ```
 
-- [ ] **Step 2: Run them, and see them fail**
+- [x] **Step 2: Run them, and see them fail**
 
 Run:
 
@@ -374,7 +394,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.
 
 Expected: `ℹ tests 6`, `ℹ pass 0`, `ℹ fail 6`. Each fails with `relation "private.airports" does not exist`.
 
-- [ ] **Step 3: Write the script's first part**
+- [x] **Step 3: Write the script's first part**
 
 Create `supabase/migrations/20261114120000_partner_links_flight_live.sql`. Its header names everything the finished script makes, and holds the undo, which Task 5 tests.
 
@@ -392,14 +412,19 @@ Create `supabase/migrations/20261114120000_partner_links_flight_live.sql`. Its h
 -- Run it once, in the SQL editor, after the partner-links scripts: a second run fails at its first create table and
 -- changes nothing. Then run 20261114120100_flight_live_airports.sql, which fills private.airports. The switch starts
 -- off: nothing is watched and partner_live answers no flights until private.flight_live_switch turns it on.
+-- flight-live must be deployed with JWT verification off: the check sends the password and no sign-in, so with it on,
+-- Supabase turns every call away before flight-live sees it.
 --
 -- Undo, in the SQL editor, then delete flight-live in the dashboard:
+--   delete from cron.job_run_details
+--    where jobid in (select jobid from cron.job where jobname in ('flight-live', 'flight-live-cleanup', 'flight-live-history'));
 --   select cron.unschedule('flight-live');
 --   select cron.unschedule('flight-live-cleanup');
 --   select cron.unschedule('flight-live-history');
 --   drop function public.partner_live(text, bigint), public.flight_live_report(text, jsonb, text),
 --     public.flight_live_claim(text), private.flight_live_tick(), private.call_flight_live(),
 --     private.flight_live_switch(text, uuid[]), private.open_live_flights(), private.require_flight_live_password(text, text),
+--     private.live_fix(jsonb), private.json_text(jsonb, integer), private.json_whole(jsonb, numeric, numeric),
 --     private.flight_legs(jsonb), private.flight_callsign(text, text), private.airport_code(text);
 --   drop table private.live_flight_points, private.live_flights, private.flight_live_state, private.airports;
 --   delete from vault.secrets where name in ('flight_live_secret', 'flight_live_url');
@@ -412,11 +437,14 @@ create table private.airports (
   lon double precision not null check (lon between -180 and 180)
 );
 
--- One row per watched flight (spec §10.2, §10.5). Its key is the callsign, the departure airport and the scheduled
--- departure, so a captain and a first officer on one flight share a row. fix is the latest fix, as partner_live answers
--- it, and seen_at its time.
+-- One row per pilot's watched flight (spec §10.2, §10.5). Its key is the pilot, the callsign, the departure airport and
+-- the scheduled departure. Each pilot has rows of their own, even for a flight two of them are on, so nothing in one
+-- pilot's summary can change what another pilot's family sees. fix is the latest fix, as partner_live answers it, and
+-- seen_at its time. wanted is whether the check last found the flight in its pilot's summary, with the pilot still
+-- watched: a flight that isn't wanted keeps its trail, and isn't asked about.
 create table private.live_flights (
   id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
   callsign text not null,
   departure text not null,
   arrival text not null,
@@ -432,9 +460,12 @@ create table private.live_flights (
   fix jsonb,
   seen_at timestamptz,
   landed_at timestamptz,
+  wanted boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (callsign, departure, scheduled_departure)
+  unique (user_id, callsign, departure, scheduled_departure)
 );
+-- The flights that can be open, for the check and the claim, which look for them every 30 seconds.
+create index live_flights_open_idx on private.live_flights (user_id, effective_departure) where wanted and state <> 'landed';
 
 -- The trails (spec §10.5): a point for the first fix in the air, then one whenever the last is 110 seconds old or more.
 -- Their ids only grow, so partner_live can hand a device the points after the last one it has.
@@ -539,13 +570,15 @@ $$;
 
 -- A summary's flight legs that can be watched (spec §10.2), each with its key and its times moved by the delay the
 -- pilot reported. The check and partner_live both read them here, so a leg has one key. A leg with no callsign, a
--- missing airport code, or an arrival that isn't after its departure isn't one. A summary-wide delay from a CrewLu
+-- missing airport code, or an arrival that isn't after its departure and within a day of it isn't one: no flight is
+-- that long, and one that claimed to be would stay on the list for as long as it said. A summary-wide delay from a CrewLu
 -- that doesn't tag legs isn't counted: the window is wide enough without it.
 --
 -- Nothing a summary holds can raise here: the check reads every pilot's summary in one statement, so one pilot's odd
 -- summary would stop it for all of them. A time counts only as a number of seconds from 1970 to 2100, and a delay only
 -- as a number of minutes within a week either way: any other delay is none. Each is checked as a numeric before it's
--- cast, in a case of its own, since a number like 1e400 is valid JSON and too big for a double.
+-- cast, in a case of its own, and rounded to a thousandth: 1e400 and 1e-400 are both valid JSON, and neither fits a
+-- double.
 create function private.flight_legs(p_status jsonb)
 returns table (leg_id text, callsign text, departure text, arrival text, scheduled_departure timestamptz,
                effective_departure timestamptz, effective_arrival timestamptz)
@@ -558,13 +591,13 @@ language sql stable set search_path = '' as $$
              private.airport_code(l.leg ->> 'departureAirport') as departure,
              private.airport_code(l.leg ->> 'arrivalAirport') as arrival,
              case when jsonb_typeof(l.leg -> 'startTime') = 'number' then
-               case when (l.leg ->> 'startTime')::numeric between 0 and 4102444800 then (l.leg ->> 'startTime')::double precision end
+               case when (l.leg ->> 'startTime')::numeric between 0 and 4102444800 then round((l.leg ->> 'startTime')::numeric, 3)::double precision end
              end as starts,
              case when jsonb_typeof(l.leg -> 'endTime') = 'number' then
-               case when (l.leg ->> 'endTime')::numeric between 0 and 4102444800 then (l.leg ->> 'endTime')::double precision end
+               case when (l.leg ->> 'endTime')::numeric between 0 and 4102444800 then round((l.leg ->> 'endTime')::numeric, 3)::double precision end
              end as ends,
              coalesce(case when jsonb_typeof(l.leg -> 'delayMinutes') = 'number' then
-               case when (l.leg ->> 'delayMinutes')::numeric between -10080 and 10080 then (l.leg ->> 'delayMinutes')::double precision * 60 end
+               case when (l.leg ->> 'delayMinutes')::numeric between -10080 and 10080 then round((l.leg ->> 'delayMinutes')::numeric, 3)::double precision * 60 end
              end, 0) as delay
         from jsonb_array_elements(
                case when jsonb_typeof(p_status -> 'tripLegs') = 'array' then p_status -> 'tripLegs' else '[]'::jsonb end
@@ -572,13 +605,13 @@ language sql stable set search_path = '' as $$
        where l.leg ->> 'type' = 'flight'
     ) r
    where r.leg_id is not null and r.callsign is not null and r.departure is not null and r.arrival is not null
-     and r.starts is not null and r.ends is not null and r.ends > r.starts
+     and r.starts is not null and r.ends is not null and r.ends > r.starts and r.ends - r.starts <= 86400
 $$;
 
 revoke all on all functions in schema private from public, anon, authenticated;
 ```
 
-- [ ] **Step 4: List the new tables in the privileges guard**
+- [x] **Step 4: List the new tables in the privileges guard**
 
 In `supabase/tests/privileges.test.js`, replace:
 
@@ -599,7 +632,7 @@ with:
   ]
 ```
 
-- [ ] **Step 5: Run the tests, and see them pass**
+- [x] **Step 5: Run the tests, and see them pass**
 
 Run:
 
@@ -609,7 +642,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.
 
 Expected: `ℹ tests 22`, `ℹ pass 22`, `ℹ fail 0`.
 
-- [ ] **Step 6: Commit, with Todd's OK**
+- [x] **Step 6: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_links_flight_live.sql supabase/tests/flight_live.test.js supabase/tests/privileges.test.js && git commit -m "feat(cloud): the live plane's tables, a flight's callsign, and a summary's flight legs that can be watched"
@@ -625,7 +658,7 @@ End the commit message with the session's `Co-Authored-By` line, here and in eve
 - Modify: `supabase/tests/flight_live.test.js` (append)
 - Modify: `supabase/migrations/20261114120000_partner_links_flight_live.sql` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the end of `supabase/tests/flight_live.test.js`:
 
@@ -690,18 +723,46 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
     assert.deepEqual(await requests(d), [])
   })
 
-  test('two pilots on one flight share a row, with the earliest departure and the latest arrival', async (t) => {
+  test('two pilots on one flight each have a row of their own: one pilot’s summary can’t change another’s flight', async (t) => {
     const d = await db(t)
     await switchTo(d, 'all')
     const captain = leg(-10, 500, { id: 'captain' })
     await pilotWith(d, [captain])
-    await pilotWith(d, [{ ...captain, id: 'first-officer', delayMinutes: 20 }])
+    await tick(d)
+    // Another pilot writes the same flight with another arrival and a delay.
+    await pilotWith(d, [{ ...captain, id: 'other', arrivalAirport: 'ONT', delayMinutes: 5 }])
     await tick(d)
     const rows = await asAdmin(
       d,
-      'select extract(epoch from effective_departure)::int as departs, extract(epoch from effective_arrival)::int as arrives from private.live_flights',
+      `select id::int, arrival, extract(epoch from effective_departure)::int as departs,
+              extract(epoch from effective_arrival)::int as arrives from private.live_flights order by id`,
     )
-    assert.deepEqual(rows, [{ departs: captain.startTime, arrives: captain.endTime + 20 * 60 }])
+    assert.deepEqual(rows, [
+      { id: 1, arrival: 'CGN', departs: captain.startTime, arrives: captain.endTime },
+      { id: 2, arrival: 'ONT', departs: captain.startTime + 5 * 60, arrives: captain.endTime + 5 * 60 },
+    ])
+  })
+
+  test('one pilot’s summary that can’t be read doesn’t stop another pilot’s flight being watched', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    await pilotWith(d, [leg(-10, 500, { id: 'bad-1', startTime: 'soon' }), leg(-10, 500, { id: 'bad-2', endTime: 1e300 }), 7, null])
+    await pilotWith(d, [leg(-10, 500, { id: 'good', flightNumber: 'UPS9' })])
+    await tick(d)
+    assert.deepEqual((await flights(d)).map((f) => f.callsign), ['UPS9'])
+  })
+
+  test('a check that finds nothing new leaves the row as it was, and doesn’t lock it', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    await pilotWith(d, [leg(-10, 500)])
+    await tick(d)
+    // xmin changes when a row is rewritten, and xmax when it's locked.
+    const version = () => asAdmin(d, 'select xmin::text as written, xmax::text as locked from private.live_flights')
+    const before = await version()
+    assert.equal(before[0].locked, '0')
+    await tick(d)
+    assert.deepEqual(await version(), before)
   })
 
   test('two legs of one summary with the same key make one row', async (t) => {
@@ -710,7 +771,12 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
     const one = leg(-10, 500, { id: 'a' })
     await pilotWith(d, [one, { ...one, id: 'b', delayMinutes: 30 }])
     await tick(d)
-    assert.equal((await flights(d)).length, 1)
+    const rows = await asAdmin(
+      d,
+      'select extract(epoch from effective_departure)::int as departs, extract(epoch from effective_arrival)::int as arrives from private.live_flights',
+    )
+    // The earliest departure and the latest arrival among them.
+    assert.deepEqual(rows, [{ departs: one.startTime, arrives: one.endTime + 30 * 60 }])
   })
 
   test('one pilot’s summary puts at most 8 flights on the list at once, the earliest to leave', async (t) => {
@@ -737,7 +803,7 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
     assert.deepEqual(rows, [{ id: 1, departs: one.startTime + 15 * 60 }])
   })
 
-  test('a leg whose scheduled departure changes gets a new row, and the old one stays until the daily delete', async (t) => {
+  test('a flight nobody has seen that leaves its pilot’s summary is deleted, as when its scheduled departure changes', async (t) => {
     const d = await db(t)
     await switchTo(d, 'all')
     const one = leg(-10, 500)
@@ -745,7 +811,75 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
     await tick(d)
     await setStatus(d, pilot, { tripLegs: [{ ...one, startTime: one.startTime + 300 }] }, 1)
     await tick(d)
-    assert.deepEqual((await flights(d)).map((f) => f.id), [1, 2])
+    assert.deepEqual((await flights(d)).map((f) => f.id), [2])
+    await setStatus(d, pilot, { tripLegs: [] }, 1)
+    await tick(d)
+    assert.deepEqual(await flights(d), [])
+  })
+
+  test('a flight that has been seen and leaves its pilot’s summary keeps its row, and isn’t asked about until it’s back', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const one = leg(-10, 500)
+    const { pilot } = await pilotWith(d, [one])
+    await tick(d)
+    await asAdmin(d, "update private.live_flights set state = 'airborne', seen_at = now() where id = 1")
+    assert.deepEqual(await open(d), ['UPS207'])
+    await setStatus(d, pilot, { tripLegs: [] }, 1)
+    await tick(d)
+    assert.deepEqual([(await flights(d)).map((f) => f.id), await open(d), (await requests(d)).length], [[1], [], 1])
+    await setStatus(d, pilot, { tripLegs: [one] }, 1)
+    await tick(d)
+    assert.deepEqual([(await flights(d)).map((f) => f.id), await open(d), (await requests(d)).length], [[1], ['UPS207'], 2])
+  })
+
+  test('a pilot who writes new flights before every check never has more than 8 open, and the ones nobody saw don’t pile up', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const { pilot } = await connected(d)
+    for (let round = 0; round < 4; round++) {
+      const fresh = Array.from({ length: 12 }, (_, n) => leg(-20 + n, 500, { id: `r${round}-${n}`, flightNumber: `UPS${round * 100 + n}` }))
+      await setStatus(d, pilot, { tripLegs: fresh }, 1)
+      await tick(d)
+      assert.equal((await flights(d)).length, 8, `round ${round}`)
+    }
+    assert.deepEqual((await open(d)).sort(), ['UPS300', 'UPS301', 'UPS302', 'UPS303', 'UPS304', 'UPS305', 'UPS306', 'UPS307'])
+  })
+
+  test('however many rows a pilot’s summaries have made, 8 of theirs are open: the earliest to leave', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const { pilot } = await connected(d)
+    // Eight flights, then eight more that leave before them, all still in the summary.
+    const later = Array.from({ length: 8 }, (_, n) => leg(-10 + n, 500, { id: `later-${n}`, flightNumber: `UPS${20 + n}` }))
+    await setStatus(d, pilot, { tripLegs: later }, 1)
+    await tick(d)
+    const earlier = Array.from({ length: 8 }, (_, n) => leg(-25 + n, 500, { id: `earlier-${n}`, flightNumber: `UPS${10 + n}` }))
+    await setStatus(d, pilot, { tripLegs: [...later, ...earlier] }, 1)
+    await tick(d)
+    assert.equal((await flights(d)).length, 16)
+    assert.deepEqual((await open(d)).sort(), ['UPS10', 'UPS11', 'UPS12', 'UPS13', 'UPS14', 'UPS15', 'UPS16', 'UPS17'])
+    // Another pilot's share is their own.
+    await pilotWith(d, [leg(-10, 500, { id: 'other', flightNumber: 'UPS900' })])
+    await tick(d)
+    assert.equal((await open(d)).length, 9)
+  })
+
+  test('a pilot the switch no longer lists, or whose partners’ devices have gone unseen, stops being asked about', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const { pilot, deviceId } = await pilotWith(d, [leg(-10, 500)])
+    await tick(d)
+    await asAdmin(d, "update private.live_flights set state = 'airborne', seen_at = now() where id = 1")
+    await switchTo(d, 'listed', ['00000000-0000-0000-0000-000000000000'])
+    await tick(d)
+    assert.deepEqual([await open(d), (await requests(d)).length], [[], 1])
+    await switchTo(d, 'listed', [pilot])
+    await tick(d)
+    assert.deepEqual([await open(d), (await requests(d)).length], [['UPS207'], 2])
+    await asAdmin(d, "update public.partner_devices set last_seen_at = now() - interval '31 days' where id = $1", [deviceId])
+    await tick(d)
+    assert.deepEqual([await open(d), (await requests(d)).length], [[], 2])
   })
 
   test('a pilot whose partners’ devices were all last seen over 30 days ago isn’t watched', async (t) => {
@@ -792,11 +926,12 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
   test('a flight still seen in the air stays open after its window, a landed one doesn’t, and neither does one unseen for 30 minutes', async (t) => {
     const d = await db(t)
     await switchTo(d, 'all')
-    const { pilot } = await pilotWith(d, [leg(-600, -100)])
+    const one = leg(-600, -100)
+    const { pilot } = await pilotWith(d, [one])
     await tick(d)
     assert.equal((await requests(d)).length, 1)
-    // The summary moves on, so the check no longer sets the row's times from it.
-    await setStatus(d, pilot, { tripLegs: [] }, 1)
+    // The summary now has it arriving three hours ago: past its window, so the check no longer sets the row's times.
+    await setStatus(d, pilot, { tripLegs: [{ ...one, endTime: one.endTime - 80 * 60 }] }, 1)
     // Three hours after its arrival, still in the air and seen a minute ago.
     await asAdmin(
       d,
@@ -818,7 +953,7 @@ describe('the 30-second check (spec §10.2, §10.3)', () => {
 })
 ```
 
-- [ ] **Step 2: Run them, and see the new ones fail**
+- [x] **Step 2: Run them, and see the new ones fail**
 
 Run:
 
@@ -826,28 +961,38 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 21`, `ℹ pass 7`, `ℹ fail 14`. The new ones fail with `function private.flight_live_tick() does not exist`, or `private.flight_live_switch`. The one new test that passes checks the Vault and the switch's row, which Task 1 made.
+Expected: `ℹ tests 27`, `ℹ pass 7`, `ℹ fail 20`. The new ones fail with `function private.flight_live_tick() does not exist`, or `private.flight_live_switch`. The one new test that passes checks the Vault and the switch's row, which Task 1 made.
 
-- [ ] **Step 3: Write the check**
+- [x] **Step 3: Write the check**
 
 Append to the end of the script:
 
 ```sql
 -- The flights whose window is open (spec §10.2): from 30 minutes before the effective departure until landing is seen
 -- or 2 hours after the effective arrival. A flight still being seen in the air stays open until 30 minutes after its
--- last fix, to at most 12 hours after its effective arrival.
+-- last fix, to at most 12 hours after its effective arrival. Only flights the check still wants are open, and at most 8
+-- of one pilot's, the earliest to leave: however many rows a pilot's summaries have made, that's their share of what
+-- flight-live asks adsb.lol.
 create function private.open_live_flights() returns setof private.live_flights
 language sql stable set search_path = '' as $$
   select f.*
     from private.live_flights f
-   where f.state <> 'landed'
-     and now() >= f.effective_departure - interval '30 minutes'
-     and (now() < f.effective_arrival + interval '2 hours'
-          or (f.state = 'airborne' and f.seen_at > now() - interval '30 minutes'
-              and now() < f.effective_arrival + interval '12 hours'))
+   where f.id in (
+     select o.id
+       from (
+         select g.id, row_number() over (partition by g.user_id order by g.effective_departure, g.id) as nth
+           from private.live_flights g
+          where g.wanted and g.state <> 'landed'
+            and now() >= g.effective_departure - interval '30 minutes'
+            and (now() < g.effective_arrival + interval '2 hours'
+                 or (g.state = 'airborne' and g.seen_at > now() - interval '30 minutes'
+                     and now() < g.effective_arrival + interval '12 hours'))
+       ) o
+      where o.nth <= 8)
 $$;
 
--- Sets the switch (spec §10.7), in the SQL editor: 'off', 'listed' with the pilots' account ids, or 'all'.
+-- Sets the switch (spec §10.7), in the SQL editor: 'off', 'listed' with the pilots' account ids, or 'all'. A pause
+-- after adsb.lol failed is left to run out: turning the switch on during one starts the check when it ends.
 --   select private.flight_live_switch('listed', array['00000000-0000-0000-0000-000000000000']::uuid[]);
 create function private.flight_live_switch(p_mode text, p_pilots uuid[] default '{}') returns text
 language plpgsql set search_path = '' as $$
@@ -871,10 +1016,16 @@ language sql set search_path = '' as $$
   )
 $$;
 
--- The 30-second check (spec §10.3), which pg_cron runs as postgres. With the switch on and no pause, it makes or updates
--- a row for every leg whose window is open, of the pilots the switch allows who have a partner's device seen in the
--- last 30 days. Pilots who share a flight share its row, with the earliest effective departure and the latest effective
--- arrival among them. Then, if any flight is open, it calls flight-live.
+-- The 30-second check (spec §10.3), which pg_cron runs as postgres. With the switch on and no pause, it reads the
+-- summaries of the pilots the switch allows who have a partner's device seen in the last 30 days, and in one statement:
+--   1. makes or updates each pilot's row for every leg of theirs whose window is open. Legs of one summary that share
+--      a key share a row, with the earliest effective departure and the latest effective arrival among them. A row
+--      that already says all of that isn't touched, or even locked, so a correction to an airport's position reaches
+--      a row only when its times or arrival next change;
+--   2. stops wanting a flight that has been seen, and is no longer in its pilot's summary or whose pilot is no longer
+--      watched: it keeps its trail, and isn't asked about;
+--   3. deletes a flight nobody ever saw that is no longer in its pilot's summary, so rows can't pile up.
+-- Then, if any flight is open, it calls flight-live.
 --
 -- A pilot's summary puts at most 8 flights on the list at once, the earliest to leave: more than a pilot can have open
 -- at once, and few enough that a summary gone wrong can't make flight-live ask adsb.lol for thousands.
@@ -887,33 +1038,56 @@ begin
   if not found or v_state.mode = 'off' or (v_state.paused_until is not null and v_state.paused_until > now()) then
     return;
   end if;
-  insert into private.live_flights as f (callsign, departure, arrival, scheduled_departure, effective_departure,
-                                         effective_arrival, dep_lat, dep_lon, arr_lat, arr_lon)
-  select w.callsign, w.departure, w.arrival, w.scheduled_departure, w.effective_departure, w.effective_arrival,
-         d.lat, d.lon, a.lat, a.lon
-    from (
-      select o.callsign, o.departure, o.scheduled_departure, min(o.arrival) as arrival,
-             min(o.effective_departure) as effective_departure, max(o.effective_arrival) as effective_arrival
-        from (
-          select l.*, row_number() over (partition by ps.user_id order by l.effective_departure, l.leg_id) as nth
-            from public.partner_status ps
-            cross join lateral private.flight_legs(ps.status) l
-           where (v_state.mode = 'all' or ps.user_id = any (v_state.pilots))
-             and exists (select 1 from public.partner_devices pd
-                          where pd.owner_id = ps.user_id and pd.last_seen_at > now() - interval '30 days')
-             and now() >= l.effective_departure - interval '30 minutes'
-             and now() < l.effective_arrival + interval '2 hours'
-        ) o
-       where o.nth <= 8
-       group by o.callsign, o.departure, o.scheduled_departure
-    ) w
-    join private.airports d on d.code = w.departure
-    join private.airports a on a.code = w.arrival
-  on conflict (callsign, departure, scheduled_departure) do update
-    set arrival = excluded.arrival, arr_lat = excluded.arr_lat, arr_lon = excluded.arr_lon,
-        effective_departure = excluded.effective_departure, effective_arrival = excluded.effective_arrival
-    where (f.arrival, f.effective_departure, f.effective_arrival)
-          is distinct from (excluded.arrival, excluded.effective_departure, excluded.effective_arrival);
+  with legs as materialized (
+    select ps.user_id, l.*
+      from public.partner_status ps
+      cross join lateral private.flight_legs(ps.status) l
+     where (v_state.mode = 'all' or ps.user_id = any (v_state.pilots))
+       and exists (select 1 from public.partner_devices pd
+                    where pd.owner_id = ps.user_id and pd.last_seen_at > now() - interval '30 days')
+  ), kept as (
+    insert into private.live_flights as f (user_id, callsign, departure, arrival, scheduled_departure, effective_departure,
+                                           effective_arrival, dep_lat, dep_lon, arr_lat, arr_lon)
+    select w.user_id, w.callsign, w.departure, w.arrival, w.scheduled_departure, w.effective_departure, w.effective_arrival,
+           d.lat, d.lon, a.lat, a.lon
+      from (
+        select o.user_id, o.callsign, o.departure, o.scheduled_departure, min(o.arrival) as arrival,
+               min(o.effective_departure) as effective_departure, max(o.effective_arrival) as effective_arrival
+          from (
+            select g.*, row_number() over (partition by g.user_id order by g.effective_departure, g.leg_id) as nth
+              from legs g
+             where now() >= g.effective_departure - interval '30 minutes'
+               and now() < g.effective_arrival + interval '2 hours'
+          ) o
+         where o.nth <= 8
+         group by o.user_id, o.callsign, o.departure, o.scheduled_departure
+      ) w
+      join private.airports d on d.code = w.departure
+      join private.airports a on a.code = w.arrival
+     where not exists (
+       select 1 from private.live_flights x
+        where x.user_id = w.user_id and x.callsign = w.callsign and x.departure = w.departure
+          and x.scheduled_departure = w.scheduled_departure and x.wanted
+          and (x.arrival, x.effective_departure, x.effective_arrival)
+              is not distinct from (w.arrival, w.effective_departure, w.effective_arrival))
+    on conflict (user_id, callsign, departure, scheduled_departure) do update
+      set wanted = true, arrival = excluded.arrival, arr_lat = excluded.arr_lat, arr_lon = excluded.arr_lon,
+          effective_departure = excluded.effective_departure, effective_arrival = excluded.effective_arrival
+    returning f.id
+  ), let_go as (
+    update private.live_flights f
+       set wanted = false
+     where f.wanted and f.state <> 'landed' and f.seen_at is not null
+       and not exists (select 1 from legs l
+                        where l.user_id = f.user_id and l.callsign = f.callsign and l.departure = f.departure
+                          and l.scheduled_departure = f.scheduled_departure)
+    returning f.id
+  )
+  delete from private.live_flights f
+   where f.seen_at is null
+     and not exists (select 1 from legs l
+                      where l.user_id = f.user_id and l.callsign = f.callsign and l.departure = f.departure
+                        and l.scheduled_departure = f.scheduled_departure);
   if exists (select 1 from private.open_live_flights()) then
     perform private.call_flight_live();
   end if;
@@ -923,7 +1097,7 @@ $$;
 revoke all on all functions in schema private from public, anon, authenticated;
 ```
 
-- [ ] **Step 4: Run the tests, and see them pass**
+- [x] **Step 4: Run the tests, and see them pass**
 
 Run:
 
@@ -931,9 +1105,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 37`, `ℹ pass 37`, `ℹ fail 0`.
+Expected: `ℹ tests 43`, `ℹ pass 43`, `ℹ fail 0`.
 
-- [ ] **Step 5: Commit, with Todd's OK**
+- [x] **Step 5: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_links_flight_live.sql supabase/tests/flight_live.test.js && git commit -m "feat(cloud): the live plane's 30-second check keeps a row for every flight whose window is open, behind a switch that starts off"
@@ -948,7 +1122,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_
 - Modify: `supabase/migrations/20261114120000_partner_links_flight_live.sql` (append)
 - Modify: `supabase/tests/privileges.test.js`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the end of `supabase/tests/flight_live.test.js`:
 
@@ -978,6 +1152,7 @@ describe('flight_live_claim and flight_live_report (spec §10.3, §10.5, §10.7)
           effective_departure: departs,
           state: 'waiting',
           hex: null,
+          seen_at: null,
         },
       ],
     })
@@ -987,21 +1162,131 @@ describe('flight_live_claim and flight_live_report (spec §10.3, §10.5, §10.7)
 
   test('a fix in the air is kept, with a trail point for the first and then one every 110 seconds', async (t) => {
     const { d, secret, id } = await watching(t)
-    const first = fix(300)
+    const start = Date.now() - 300_000
+    const first = fix(0, { seen_at: start })
     assert.deepEqual(await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: first }]), { ok: true })
     assert.deepEqual(await flights(d), [{ id, callsign: 'UPS207', departure: 'SDF', arrival: 'CGN', state: 'airborne', hex: 'a82952', fix: first }])
     assert.deepEqual(await points(d), [{ flight: id, lat: 39.3, lon: -85.7, altitude_ft: 38000 }])
     // 109 seconds on: the fix moves, the trail doesn't.
-    const second = fix(191, { lat: 39.5 })
+    const second = fix(0, { lat: 39.5, seen_at: start + 109_000 })
     await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: second }])
     assert.deepEqual((await flights(d))[0].fix, second)
     assert.equal((await points(d)).length, 1)
-    // 110 seconds on: a second point.
-    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(190, { lat: 39.6, altitude_ft: 38012.4 }) }])
+    // 110 seconds on: a second point, with its height as a whole number.
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(0, { lat: 39.6, altitude_ft: 38012.4, seen_at: start + 110_000 }) }])
     assert.deepEqual(await points(d), [
       { flight: id, lat: 39.3, lon: -85.7, altitude_ft: 38000 },
       { flight: id, lat: 39.6, lon: -85.7, altitude_ft: 38012 },
     ])
+    assert.equal((await flights(d))[0].fix.altitude_ft, 38012)
+  })
+
+  test('the same fix reported twice, as two runs that overlap can, changes nothing the second time', async (t) => {
+    const { d, secret, id } = await watching(t)
+    const seen = fix(200)
+    const entry = { id, state: 'airborne', hex: 'a82952', fix: seen }
+    await report(d, secret, [entry])
+    const version = () => asAdmin(d, 'select xmin::text as written from private.live_flights')
+    const before = await version()
+    // Sent twice in one report as well, with an older fix beside it: the newest is the one that counts.
+    await report(d, secret, [{ ...entry, fix: fix(260) }, entry, entry])
+    assert.deepEqual(await version(), before)
+    assert.equal((await points(d)).length, 1)
+    // A fix 30 seconds newer, from the run that started 30 seconds later, moves the fix and not the trail.
+    await report(d, secret, [{ ...entry, fix: { ...seen, seen_at: seen.seen_at + 30_000 } }])
+    assert.equal((await points(d)).length, 1)
+  })
+
+  test('an entry that can’t be read is passed over, and the others are kept', async (t) => {
+    const { d, secret, id } = await watching(t)
+    await pilotWith(d, [leg(-10, 500, { id: 'other', flightNumber: 'UPS9' })])
+    await tick(d)
+    const good = fix(5)
+    const other = (await flights(d))[1].id
+    const entries = [
+      { id: 'one', state: 'airborne', hex: 'a1', fix: fix(5) },
+      { id, state: 'flying', hex: 'a1', fix: fix(5) },
+      { id, state: 'waiting', hex: 'a1', fix: fix(5) },
+      { id, state: 'airborne', hex: null, fix: fix(5) },
+      { id, state: 'airborne', hex: 'a1', fix: null },
+      { id, state: 'airborne', hex: 'a1', fix: fix(5, { lat: 91 }) },
+      { id, state: 'airborne', hex: 'a1', fix: fix(5, { lon: 'west' }) },
+      { id, state: 'airborne', hex: 'a1', fix: fix(5, { seen_at: 'now' }) },
+      { id, state: 'airborne', hex: 'a1', fix: fix(5, { seen_at: 1e300 }) },
+      5,
+      null,
+      { id: other, state: 'airborne', hex: 'b2', fix: good },
+    ]
+    assert.deepEqual(await report(d, secret, entries), { ok: true })
+    assert.deepEqual((await flights(d)).map((f) => [f.state, f.hex, f.fix]), [['waiting', null, null], ['airborne', 'b2', good]])
+    // A position too small for a double, which JavaScript can't write, is kept as 0 and stops nothing.
+    const tiny = JSON.stringify([{ id, state: 'airborne', hex: 'a1', fix: { ...fix(5), lat: 'TINY', lon: 12.3456789 } }]).replace('"TINY"', '1e-400')
+    await asService(d, "select public.flight_live_report($1, $2::jsonb, 'ok')", [secret, tiny])
+    const [kept] = await flights(d)
+    assert.deepEqual([kept.state, kept.fix.lat, kept.fix.lon], ['airborne', 0, 12.345679])
+    assert.deepEqual((await points(d)).filter((p) => p.flight === id), [{ flight: id, lat: 0, lon: 12.345679, altitude_ft: 38000 }])
+    // A report that isn't a list at all keeps nothing, and still counts how the asking went.
+    for (const notAList of [{}, 'flights', 7, null]) {
+      assert.deepEqual(await report(d, secret, notAList, 'failed'), { ok: true })
+    }
+    assert.equal((await state(d)).failures, 4)
+  })
+
+  test('a fix keeps only its nine fields, each within reason: nothing else reaches a partner', async (t) => {
+    const { d, secret, id } = await watching(t)
+    const seen = Date.now() - 5000
+    const sent = {
+      lat: 39.3,
+      lon: -85.7,
+      altitude_ft: 1e9,
+      ground_speed_kt: -5,
+      track_deg: 720,
+      on_ground: 'yes',
+      registration: 'X'.repeat(50),
+      type_code: 763,
+      seen_at: seen + 0.4,
+      squawk: '6312',
+      nav_heading: 237.66,
+      anything: { else: ['at', 'all'] },
+    }
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: sent, more: 'ignored' }])
+    assert.deepEqual((await flights(d))[0].fix, {
+      lat: 39.3,
+      lon: -85.7,
+      altitude_ft: null,
+      ground_speed_kt: null,
+      track_deg: null,
+      on_ground: false,
+      registration: null,
+      type_code: null,
+      seen_at: seen,
+    })
+  })
+
+  test('a fix dated more than 5 minutes ahead is refused, so it can’t hold off the ones after it', async (t) => {
+    const { d, secret, id } = await watching(t)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(-360) }])
+    assert.equal((await flights(d))[0].state, 'waiting')
+    const real = fix(5)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: real }])
+    assert.deepEqual((await flights(d))[0].fix, real)
+  })
+
+  test('down away from its arrival airport and up again, a flight is on the ground and then in the air again', async (t) => {
+    const { d, secret, id } = await watching(t)
+    const start = Date.now() - 900_000
+    const sequence = [
+      ['ground', fix(0, { altitude_ft: null, on_ground: true, seen_at: start })],
+      ['airborne', fix(0, { seen_at: start + 200_000 })],
+      ['ground', fix(0, { lat: 48.94, lon: -54.57, altitude_ft: null, on_ground: true, seen_at: start + 400_000 })],
+      ['airborne', fix(0, { lat: 49.5, lon: -50, seen_at: start + 600_000 })],
+    ]
+    for (const [reported, seen] of sequence) {
+      await report(d, secret, [{ id, state: reported, hex: 'a82952', fix: seen }])
+      assert.deepEqual([(await flights(d))[0].state, (await flights(d))[0].fix], [reported, seen])
+    }
+    // Only the two fixes in the air are trail points.
+    assert.deepEqual((await points(d)).map((p) => p.lat), [39.3, 49.5])
   })
 
   test('a fix on the ground is kept, and adds no trail point', async (t) => {
@@ -1048,12 +1333,18 @@ describe('flight_live_claim and flight_live_report (spec §10.3, §10.5, §10.7)
     assert.equal(minutes, 5)
   })
 
-  test('a 429 pauses the check for 2 minutes', async (t) => {
+  test('a 429 pauses the check for 2 minutes, starts the count again, and never shortens a longer pause', async (t) => {
     const { d, secret } = await watching(t)
+    const minutes = async () =>
+      (await asAdmin(d, 'select round(extract(epoch from paused_until - now()) / 60)::int as minutes from private.flight_live_state'))[0].minutes
+    await report(d, secret, [], 'failed')
     await report(d, secret, [], 'limited')
-    assert.equal((await state(d)).paused, true)
-    const [{ minutes }] = await asAdmin(d, 'select round(extract(epoch from paused_until - now()) / 60)::int as minutes from private.flight_live_state')
-    assert.equal(minutes, 2)
+    assert.deepEqual(await state(d), { mode: 'all', pilots: [], failures: 0, paused: true })
+    assert.equal(await minutes(), 2)
+    for (let n = 1; n <= 5; n++) await report(d, secret, [], 'failed')
+    assert.equal(await minutes(), 5)
+    await report(d, secret, [], 'limited')
+    assert.equal(await minutes(), 5)
   })
 
   test('report refuses an outcome it doesn’t know', async (t) => {
@@ -1064,7 +1355,7 @@ describe('flight_live_claim and flight_live_report (spec §10.3, §10.5, §10.7)
 })
 ```
 
-- [ ] **Step 2: Run them, and see the new ones fail**
+- [x] **Step 2: Run them, and see the new ones fail**
 
 Run:
 
@@ -1072,9 +1363,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 30`, `ℹ pass 21`, `ℹ fail 9`. The new ones fail because `public.flight_live_claim` and `public.flight_live_report` don't exist yet.
+Expected: `ℹ tests 41`, `ℹ pass 27`, `ℹ fail 14`. The new ones fail because `public.flight_live_claim` and `public.flight_live_report` don't exist yet.
 
-- [ ] **Step 3: Write claim and report**
+- [x] **Step 3: Write claim and report**
 
 Append to the end of the script:
 
@@ -1090,8 +1381,8 @@ end
 $$;
 revoke all on function private.require_flight_live_password(text, text) from public, anon, authenticated;
 
--- flight-live's first call each run (spec §10.3): the open flights, each with what the match needs. Times are
--- milliseconds since 1970.
+-- flight-live's first call each run (spec §10.3): the open flights, each with what the match needs, and when its
+-- fix was seen, so flight-live reports only a newer one. Times are milliseconds since 1970.
 create function public.flight_live_claim(p_secret text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -1104,50 +1395,127 @@ begin
              'arrival', jsonb_build_object('lat', f.arr_lat, 'lon', f.arr_lon),
              'effective_departure', (extract(epoch from f.effective_departure) * 1000)::bigint,
              'state', f.state,
-             'hex', f.hex) order by f.id)
+             'hex', f.hex,
+             'seen_at', (extract(epoch from f.seen_at) * 1000)::bigint) order by f.id)
       from private.open_live_flights() f), '[]'::jsonb));
 end
 $$;
 revoke all on function public.flight_live_claim(text) from public, anon, authenticated;
 grant execute on function public.flight_live_claim(text) to service_role;
 
+-- A whole number from JSON, when it's a number from p_low to p_high, rounded. Anything else is null.
+create function private.json_whole(p_value jsonb, p_low numeric, p_high numeric) returns bigint
+language sql immutable set search_path = '' as $$
+  select case when jsonb_typeof(p_value) = 'number' then
+    case when (p_value #>> '{}')::numeric between p_low and p_high then round((p_value #>> '{}')::numeric)::bigint end
+  end
+$$;
+
+-- A short text from JSON: a string of 1 to p_longest characters. Anything else is null.
+create function private.json_text(p_value jsonb, p_longest integer) returns text
+language sql immutable set search_path = '' as $$
+  select case when jsonb_typeof(p_value) = 'string' then
+    case when char_length(p_value #>> '{}') between 1 and p_longest then p_value #>> '{}' end
+  end
+$$;
+
+-- A fix as live_flights keeps it and partner_live hands it to a partner (spec §10.5): exactly its nine fields, each
+-- checked, whatever else flight-live sent. Null without a position on the Earth and a time from 1970 to 2100: such a
+-- fix isn't kept. The position is rounded to a millionth of a degree, about 4 inches, which also bounds how long a
+-- number can be. So nothing but public ADS-B data can reach a partner through a fix, and nothing in one can raise.
+create function private.live_fix(p_fix jsonb) returns jsonb
+language sql immutable set search_path = '' as $$
+  select case when jsonb_typeof(p_fix -> 'lat') = 'number' and jsonb_typeof(p_fix -> 'lon') = 'number' then
+    case when (p_fix ->> 'lat')::numeric between -90 and 90 and (p_fix ->> 'lon')::numeric between -180 and 180
+              and private.json_whole(p_fix -> 'seen_at', 0, 4102444800000) is not null then
+      jsonb_build_object(
+        'lat', to_jsonb(trim_scale(round((p_fix ->> 'lat')::numeric, 6))),
+        'lon', to_jsonb(trim_scale(round((p_fix ->> 'lon')::numeric, 6))),
+        'altitude_ft', private.json_whole(p_fix -> 'altitude_ft', -2000, 100000),
+        'ground_speed_kt', private.json_whole(p_fix -> 'ground_speed_kt', 0, 5000),
+        'track_deg', private.json_whole(p_fix -> 'track_deg', 0, 360),
+        'on_ground', coalesce(p_fix -> 'on_ground' = 'true'::jsonb, false),
+        'registration', private.json_text(p_fix -> 'registration', 12),
+        'type_code', private.json_text(p_fix -> 'type_code', 4),
+        'seen_at', private.json_whole(p_fix -> 'seen_at', 0, 4102444800000))
+    end
+  end
+$$;
+revoke all on all functions in schema private from public, anon, authenticated;
+
 -- flight-live's last call each run (spec §10.3, §10.5, §10.7). p_flights is what it judged: [{id, state, hex, fix}],
--- only the flights with a new fix. A flight that has landed, and a fix older than the one a flight has, are left alone.
--- A fix in the air adds a trail point when the trail's last one is 110 seconds older or more. p_outcome is how asking
--- adsb.lol went: 'ok'; 'failed', which pauses the check for 5 minutes at the fifth in a row; or 'limited' (HTTP 429),
--- which pauses it for 2 minutes.
+-- for the flights whose fix or state is new. p_outcome is how asking adsb.lol went: 'ok'; 'failed', which pauses the
+-- check for 5 minutes at the fifth in a row; or 'limited' (HTTP 429), which pauses it for 2 minutes.
+--
+-- An entry that can't be read is passed over, so one bad entry never loses the others: it needs a number for its id, a
+-- state of ground, airborne or landed, an aircraft, and a fix private.live_fix keeps, seen no more than 5 minutes
+-- ahead of now. A fix dated in the future would otherwise hold off every later one.
+--
+-- A flight that has landed never changes, and a fix is kept only when it's newer than the one the flight has. A fix in
+-- the air adds a trail point when the trail's last one is 110 seconds older or more.
+--
+-- Two runs can overlap, each up to 30 seconds long. So the flights are locked first, in the order of their ids, which
+-- keeps two reports from waiting on each other. And the trail points are added in a statement of their own, after the
+-- fixes: it then sees the points a run that finished a moment before has added, and never adds one twice. The check
+-- can still lock two flights in another order than a report does: one of the two is then stopped, and its work comes
+-- again 30 seconds later. The failure count is only roughly right when runs overlap: a pause can come a run late.
+-- flight-live sends one entry a flight. If it ever sent two, the newer fix is the one kept.
 create function public.flight_live_report(p_secret text, p_flights jsonb, p_outcome text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
+declare
+  v_judged jsonb;
 begin
   perform private.require_flight_live_password(p_secret, 'flight_live_report');
   if p_outcome is null or p_outcome not in ('ok', 'failed', 'limited') then
     raise exception 'flight_live_report: outcome must be ok, failed or limited' using errcode = '22023';
   end if;
 
-  with judged as (
-    select u.id, u.state, u.hex, u.fix, to_timestamp((u.fix ->> 'seen_at')::double precision / 1000) as seen_at
-      from jsonb_to_recordset(coalesce(p_flights, '[]'::jsonb)) as u(id bigint, state text, hex text, fix jsonb)
-  ), kept as (
-    update private.live_flights f
-       set state = j.state, hex = j.hex, fix = j.fix, seen_at = j.seen_at,
-           landed_at = case when j.state = 'landed' then j.seen_at end
-      from judged j
-     where f.id = j.id and f.state <> 'landed' and (f.seen_at is null or j.seen_at >= f.seen_at)
-    returning f.id, f.state, f.fix, f.seen_at
-  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'state', c.state, 'hex', c.hex, 'fix', c.fix) order by c.id), '[]'::jsonb)
+    into v_judged
+    from (
+      select private.json_whole(e.entry -> 'id', 1, 9223372036854775807) as id,
+             private.json_text(e.entry -> 'state', 8) as state,
+             private.json_text(e.entry -> 'hex', 10) as hex,
+             private.live_fix(e.entry -> 'fix') as fix
+        from jsonb_array_elements(case when jsonb_typeof(p_flights) = 'array' then p_flights else '[]'::jsonb end) as e(entry)
+    ) c
+   where c.id is not null and c.state in ('ground', 'airborne', 'landed') and c.hex is not null and c.fix is not null
+     and to_timestamp((c.fix ->> 'seen_at')::double precision / 1000) <= now() + interval '5 minutes';
+
+  perform 1
+     from private.live_flights f
+    where f.id in (select (j.entry ->> 'id')::bigint from jsonb_array_elements(v_judged) as j(entry))
+    order by f.id
+      for update;
+
+  update private.live_flights f
+     set state = j.state, hex = j.hex, fix = j.fix, seen_at = j.seen_at,
+         landed_at = case when j.state = 'landed' then j.seen_at end
+    from (
+      select distinct on (id) id, state, hex, fix, seen_at
+        from (
+          select (x.entry ->> 'id')::bigint as id, x.entry ->> 'state' as state, x.entry ->> 'hex' as hex, x.entry -> 'fix' as fix,
+                 to_timestamp((x.entry -> 'fix' ->> 'seen_at')::double precision / 1000) as seen_at
+            from jsonb_array_elements(v_judged) as x(entry)
+        ) entries
+       order by id, seen_at desc
+    ) j
+   where f.id = j.id and f.state <> 'landed' and (f.seen_at is null or j.seen_at > f.seen_at);
+
   insert into private.live_flight_points (flight_id, at, lat, lon, altitude_ft)
-  select k.id, k.seen_at, (k.fix ->> 'lat')::double precision, (k.fix ->> 'lon')::double precision,
-         round((k.fix ->> 'altitude_ft')::numeric)::integer
-    from kept k
-   where k.state = 'airborne' and (k.fix ->> 'on_ground')::boolean is not true
+  select f.id, f.seen_at, (f.fix ->> 'lat')::double precision, (f.fix ->> 'lon')::double precision,
+         (f.fix ->> 'altitude_ft')::integer
+    from private.live_flights f
+   where f.id in (select (j.entry ->> 'id')::bigint from jsonb_array_elements(v_judged) as j(entry))
+     and f.state = 'airborne' and f.fix -> 'on_ground' = 'false'::jsonb
      and not exists (select 1 from private.live_flight_points p
-                      where p.flight_id = k.id and p.at > k.seen_at - interval '110 seconds');
+                      where p.flight_id = f.id and p.at > f.seen_at - interval '110 seconds');
 
   update private.flight_live_state
      set failures = case when p_outcome = 'failed' and failures < 4 then failures + 1 else 0 end,
          paused_until = case
-           when p_outcome = 'limited' then now() + interval '2 minutes'
-           when p_outcome = 'failed' and failures >= 4 then now() + interval '5 minutes'
+           when p_outcome = 'limited' then greatest(coalesce(paused_until, now()), now() + interval '2 minutes')
+           when p_outcome = 'failed' and failures >= 4 then greatest(coalesce(paused_until, now()), now() + interval '5 minutes')
            else paused_until
          end
    where only_row;
@@ -1158,7 +1526,7 @@ revoke all on function public.flight_live_report(text, jsonb, text) from public,
 grant execute on function public.flight_live_report(text, jsonb, text) to service_role;
 ```
 
-- [ ] **Step 4: List the two RPCs in the privileges guard**
+- [x] **Step 4: List the two RPCs in the privileges guard**
 
 In `supabase/tests/privileges.test.js`, replace:
 
@@ -1192,7 +1560,7 @@ with:
   test('service RPCs: the service role only, which partner-push and flight-live use', async () => {
 ```
 
-- [ ] **Step 5: Run the tests, and see them pass**
+- [x] **Step 5: Run the tests, and see them pass**
 
 Run:
 
@@ -1200,9 +1568,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 46`, `ℹ pass 46`, `ℹ fail 0`.
+Expected: `ℹ tests 57`, `ℹ pass 57`, `ℹ fail 0`.
 
-- [ ] **Step 6: Commit, with Todd's OK**
+- [x] **Step 6: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_links_flight_live.sql supabase/tests/flight_live.test.js supabase/tests/privileges.test.js && git commit -m "feat(cloud): flight-live's claim and report: the open flights out, and each one's state, fix and trail in"
@@ -1217,7 +1585,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_
 - Modify: `supabase/migrations/20261114120000_partner_links_flight_live.sql` (append)
 - Modify: `supabase/tests/privileges.test.js`, `supabase/tests/advisors.test.js`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the end of `supabase/tests/flight_live.test.js`:
 
@@ -1283,12 +1651,94 @@ describe('partner_live (spec §10.6)', () => {
     assert.deepEqual((await live(d, other.key)).flights.map((f) => f.callsign), ['UPS9'])
   })
 
-  test('a first officer on the captain’s flight sees the same row under their own leg', async (t) => {
-    const { d, secret, id } = await watching(t)
+  test('crew on one flight each see their own row, under their own leg, and never each other’s', async (t) => {
+    const { d, pilot, secret, id } = await watching(t)
     await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(5) }])
+    // The first officer's summary has the very same flight, and no row of their own yet: the captain's isn't theirs.
     const firstOfficer = await pilotWith(d, [leg(-10, 500, { id: 'fo-leg' })])
-    const [flight] = (await live(d, firstOfficer.key)).flights
-    assert.deepEqual([flight.leg_id, flight.state, flight.trail_count], ['fo-leg', 'airborne', 1])
+    assert.deepEqual((await live(d, firstOfficer.key)).flights, [])
+    await tick(d)
+    const theirs = (await live(d, firstOfficer.key)).flights
+    assert.deepEqual(theirs.map((f) => [f.leg_id, f.state, f.trail_count]), [['fo-leg', 'waiting', 0]])
+    const captains = (await live(d, pilot.key)).flights
+    assert.deepEqual(captains.map((f) => [f.leg_id, f.state, f.trail_count]), [['trip-leg-0', 'airborne', 1]])
+  })
+
+  test('a pilot with two flights has one cursor for both, and each trail is cut at it', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const pilot = await pilotWith(d, [leg(-200, -20, { id: 'first', flightNumber: 'UPS1', arrivalAirport: 'RFD' }), leg(-10, 500, { id: 'second', flightNumber: 'UPS2' })])
+    await tick(d)
+    const secret = await password(d)
+    // One check made both rows, in no particular order: each is found by its callsign.
+    const byCallsign = Object.fromEntries((await flights(d)).map((f) => [f.callsign, f.id]))
+    const [one, two] = [byCallsign.UPS1, byCallsign.UPS2]
+    const entry = (id, secondsAgo) => ({ id, state: 'airborne', hex: `a${id}`, fix: fix(secondsAgo) })
+    await report(d, secret, [entry(one, 900), entry(two, 900)])
+    await report(d, secret, [entry(one, 600), entry(two, 600)])
+    const first = await live(d, pilot.key)
+    assert.deepEqual(first.flights.map((f) => [f.leg_id, f.trail.length, f.trail_count]), [['first', 2, 2], ['second', 2, 2]])
+    assert.equal(first.cursor, 4)
+    // Only the second flight gets a new point.
+    await report(d, secret, [entry(two, 300)])
+    const next = await live(d, pilot.key, first.cursor)
+    assert.deepEqual(next.flights.map((f) => [f.leg_id, f.trail.length, f.trail_count]), [['first', 0, 2], ['second', 1, 3]])
+    assert.equal(next.cursor, 5)
+  })
+
+  test('whatever p_after a caller sends, it answers: none of the trail past every point, all of it before the first', async (t) => {
+    const { d, pilot, secret, id } = await watching(t)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(5) }])
+    for (const [after, trail, cursor] of [
+      [5, 0, 5],
+      [9007199254740991, 0, 9007199254740991],
+      [-5, 1, 1],
+      [0, 1, 1],
+      [null, 1, 1],
+    ]) {
+      const answer = await live(d, pilot.key, after)
+      assert.deepEqual([answer.flights[0].trail.length, answer.flights[0].trail_count, answer.cursor], [trail, 1, cursor], `p_after ${after}`)
+    }
+    // The largest number the parameter can hold is past what JavaScript can read back exactly, so only the trail is checked.
+    const [last] = (await live(d, pilot.key, '9223372036854775807')).flights
+    assert.deepEqual([last.trail, last.trail_count], [[], 1])
+  })
+
+  test('a device whose cursor is past a flight’s points can tell it has missed them, and asks again for them all', async (t) => {
+    const { d, pilot, secret, id } = await watching(t)
+    const one = leg(-10, 500)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(400) }])
+    // The pilot hides the leg. The device's cursor moves on with another of the pilot's flights, then the leg is back.
+    await setStatus(d, pilot.pilot, { tripLegs: [leg(-5, 300, { id: 'another', flightNumber: 'UPS8', arrivalAirport: 'RFD' })] }, 1)
+    await tick(d)
+    const other = (await flights(d))[1].id
+    await report(d, secret, [{ id: other, state: 'airborne', hex: 'b1', fix: fix(100) }])
+    const { cursor } = await live(d, pilot.key)
+    assert.equal(cursor, 2)
+    const { startTime, endTime } = (await asAdmin(d, 'select extract(epoch from scheduled_departure)::int as "startTime", extract(epoch from effective_arrival)::int as "endTime" from private.live_flights where id = $1', [id]))[0]
+    await setStatus(d, pilot.pilot, { tripLegs: [{ ...one, startTime, endTime }] }, 1)
+    const [back] = (await live(d, pilot.key, cursor)).flights
+    // It holds none of this flight's points, and trail_count says there's one.
+    assert.deepEqual([back.leg_id, back.trail, back.trail_count], ['trip-leg-0', [], 1])
+    const [whole] = (await live(d, pilot.key)).flights
+    assert.equal(whole.trail.length, 1)
+  })
+
+  test('legs of a summary that share a key are one flight, answered once', async (t) => {
+    const { d, pilot, secret, id } = await watching(t)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(5) }])
+    const [{ startTime, endTime }] = await asAdmin(d, 'select extract(epoch from scheduled_departure)::int as "startTime", extract(epoch from effective_arrival)::int as "endTime" from private.live_flights')
+    const same = leg(0, 0, { startTime, endTime })
+    await setStatus(d, pilot.pilot, { tripLegs: [{ ...same, id: 'b' }, { ...same, id: 'a' }, { ...same, id: 'c' }] }, 1)
+    assert.deepEqual((await live(d, pilot.key)).flights.map((f) => [f.leg_id, f.trail_count]), [['a', 1]])
+  })
+
+  test('a pilot who has written no summary yet has no flights', async (t) => {
+    const d = await db(t)
+    await switchTo(d, 'all')
+    const { key } = await connected(d)
+    const answer = await live(d, key)
+    assert.deepEqual([answer.cursor, answer.flights], [0, []])
   })
 
   test('a leg the pilot removes stops being answered at once', async (t) => {
@@ -1318,7 +1768,7 @@ describe('partner_live (spec §10.6)', () => {
 })
 ```
 
-- [ ] **Step 2: Run them, and see the new ones fail**
+- [x] **Step 2: Run them, and see the new ones fail**
 
 Run:
 
@@ -1326,20 +1776,23 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 39`, `ℹ pass 30`, `ℹ fail 9`. The new ones fail with `function public.partner_live(text) does not exist`.
+Expected: `ℹ tests 55`, `ℹ pass 41`, `ℹ fail 14`. The new ones fail with `function public.partner_live(text) does not exist`.
 
-- [ ] **Step 3: Write `partner_live`**
+- [x] **Step 3: Write `partner_live`**
 
 Append to the end of the script:
 
 ```sql
 -- The pilot's flights with live data, for one of their partners' devices (spec §10.6):
 --   {"now", "cursor", "flights": [{"leg_id", "callsign", "state", "fix", "landed_at", "trail", "trail_count"}]}
--- A flight is answered for each flight leg in the pilot's summary now whose key has a row, so a leg the pilot hides or
--- removes stops at once. trail holds the points after p_after, the last answer's cursor, or every point without it;
+-- A flight is answered for each flight leg in the pilot's summary now whose key has a row of that pilot's, so a leg the
+-- pilot hides or removes stops at once. Legs of the summary that share a key are one flight, answered once, under the
+-- first of their ids. trail holds the points after p_after, the last answer's cursor, or every point without it;
 -- trail_count is how many the flight has, so a device can tell when it has missed some. Times are milliseconds since
--- 1970. With the switch off, or the pilot not listed, it answers no flights. It doesn't count as the device being seen:
--- partner_view does that.
+-- 1970. With the switch off, or the pilot not listed, it answers no flights.
+--
+-- It only reads, so it doesn't count as the device being seen: partner_view does that. It isn't marked stable, though:
+-- PostgREST takes a stable function by GET as well as POST, and a GET would put the device's key in an address.
 create function public.partner_live(p_key text, p_after bigint default null) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -1358,25 +1811,30 @@ begin
            greatest(coalesce(p_after, 0), coalesce(max(a.last_point), 0))
       into v_flights, v_cursor
       from (
-        select l.leg_id, f.scheduled_departure,
-               (select max(p.id) from private.live_flight_points p where p.flight_id = f.id) as last_point,
+        select m.leg_id, m.scheduled_departure,
+               (select max(p.id) from private.live_flight_points p where p.flight_id = m.id) as last_point,
                jsonb_build_object(
-                 'leg_id', l.leg_id,
-                 'callsign', f.callsign,
-                 'state', f.state,
-                 'fix', f.fix,
-                 'landed_at', (extract(epoch from f.landed_at) * 1000)::bigint,
+                 'leg_id', m.leg_id,
+                 'callsign', m.callsign,
+                 'state', m.state,
+                 'fix', m.fix,
+                 'landed_at', (extract(epoch from m.landed_at) * 1000)::bigint,
                  'trail', coalesce((
                    select jsonb_agg(jsonb_build_array((extract(epoch from p.at) * 1000)::bigint, p.lat, p.lon, p.altitude_ft)
                                     order by p.id)
                      from private.live_flight_points p
-                    where p.flight_id = f.id and p.id > coalesce(p_after, 0)), '[]'::jsonb),
-                 'trail_count', (select count(*) from private.live_flight_points p where p.flight_id = f.id)) as flight
-          from public.partner_status ps
-          cross join lateral private.flight_legs(ps.status) l
-          join private.live_flights f
-            on f.callsign = l.callsign and f.departure = l.departure and f.scheduled_departure = l.scheduled_departure
-         where ps.user_id = v_device.owner_id
+                    where p.flight_id = m.id and p.id > coalesce(p_after, 0)), '[]'::jsonb),
+                 'trail_count', (select count(*) from private.live_flight_points p where p.flight_id = m.id)) as flight
+          from (
+            select distinct on (f.id) f.id, l.leg_id, f.scheduled_departure, f.callsign, f.state, f.fix, f.landed_at
+              from public.partner_status ps
+              cross join lateral private.flight_legs(ps.status) l
+              join private.live_flights f
+                on f.user_id = ps.user_id and f.callsign = l.callsign and f.departure = l.departure
+               and f.scheduled_departure = l.scheduled_departure
+             where ps.user_id = v_device.owner_id
+             order by f.id, l.leg_id
+          ) m
       ) a;
   end if;
   return jsonb_build_object(
@@ -1389,7 +1847,7 @@ revoke all on function public.partner_live(text, bigint) from public, anon, auth
 grant execute on function public.partner_live(text, bigint) to anon, authenticated;
 ```
 
-- [ ] **Step 4: List it in the privileges and advisor guards**
+- [x] **Step 4: List it in the privileges and advisor guards**
 
 It's a security definer function the publishable key can call, like the other partner RPCs, so the advisor's lists gain it on purpose.
 
@@ -1472,7 +1930,7 @@ with:
 test('0029 authenticated_security_definer_function_executable: the 15 partner-links RPCs and delete_my_account', async () => {
 ```
 
-- [ ] **Step 5: Run the tests, and see them pass**
+- [x] **Step 5: Run the tests, and see them pass**
 
 Run:
 
@@ -1480,9 +1938,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 55`, `ℹ pass 55`, `ℹ fail 0`.
+Expected: `ℹ tests 71`, `ℹ pass 71`, `ℹ fail 0`.
 
-- [ ] **Step 6: Commit, with Todd's OK**
+- [x] **Step 6: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_links_flight_live.sql supabase/tests/flight_live.test.js supabase/tests/privileges.test.js supabase/tests/advisors.test.js && git commit -m "feat(cloud): partner_live answers a partner's device with its own pilot's flights: each one's state, fix and trail, by leg"
@@ -1496,7 +1954,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_
 - Modify: `supabase/tests/flight_live.test.js` (append)
 - Modify: `supabase/migrations/20261114120000_partner_links_flight_live.sql` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the end of `supabase/tests/flight_live.test.js`:
 
@@ -1514,15 +1972,15 @@ describe('the schedule and the daily delete (spec §10.3, §10.5)', () => {
   })
 
   test('a flight and its trail go 16 days after it landed, or after its arrival if it never did', async (t) => {
-    const { d, secret, id } = await watching(t)
+    const { d, pilot, secret, id } = await watching(t)
     await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(5) }])
     const add = (callsign, landed, arrival) =>
       asAdmin(
         d,
-        `insert into private.live_flights (callsign, departure, arrival, scheduled_departure, effective_departure, effective_arrival,
-                                           dep_lat, dep_lon, arr_lat, arr_lon, landed_at)
-         values ($1, 'SDF', 'CGN', now(), now(), now() + $3::interval, 0, 0, 0, 0, now() + $2::interval)`,
-        [callsign, landed, arrival],
+        `insert into private.live_flights (user_id, callsign, departure, arrival, scheduled_departure, effective_departure,
+                                           effective_arrival, dep_lat, dep_lon, arr_lat, arr_lon, landed_at)
+         values ($4, $1, 'SDF', 'CGN', now(), now(), now() + $3::interval, 0, 0, 0, 0, now() + $2::interval)`,
+        [callsign, landed, arrival, pilot.pilot],
       )
     await add('OLD1', '-17 days', '-17 days')
     await add('NEW1', '-15 days', '-17 days')
@@ -1535,19 +1993,29 @@ describe('the schedule and the daily delete (spec §10.3, §10.5)', () => {
     assert.deepEqual((await points(d)).map((p) => p.flight), [id])
   })
 
+  test('a pilot who deletes their account takes their flights and trails with them', async (t) => {
+    const { d, pilot, secret, id } = await watching(t)
+    await report(d, secret, [{ id, state: 'airborne', hex: 'a82952', fix: fix(5) }])
+    assert.equal((await points(d)).length, 1)
+    await asAdmin(d, 'delete from auth.users where id = $1', [pilot.pilot])
+    assert.deepEqual([await flights(d), await points(d)], [[], []])
+  })
+
   test('the history clean-up keeps a day of this piece’s runs, and leaves other jobs’ alone', async (t) => {
     const d = await db(t)
-    const [{ check }] = await asAdmin(d, "select jobid::int as check from cron.job where jobname = 'flight-live'")
+    const jobId = async (name) => (await asAdmin(d, 'select jobid::int as id from cron.job where jobname = $1', [name]))[0].id
+    const [check, cleanup, push] = [await jobId('flight-live'), await jobId('flight-live-cleanup'), await jobId('partner-push')]
     await asAdmin(
       d,
       `insert into cron.job_run_details (jobid, status, end_time)
        values ($1, 'succeeded', now() - interval '25 hours'), ($1, 'succeeded', now() - interval '23 hours'),
-              (999, 'succeeded', now() - interval '2 days')`,
-      [check],
+              ($2, 'succeeded', now() - interval '25 hours'), ($3, 'succeeded', now() - interval '2 days')`,
+      [check, cleanup, push],
     )
     const [{ command }] = await asAdmin(d, "select command from cron.job where jobname = 'flight-live-history'")
     await d.exec(command)
-    assert.deepEqual(await asAdmin(d, 'select jobid::int as job from cron.job_run_details order by runid'), [{ job: check }, { job: 999 }])
+    // The push service's old run stays: its own clean-up is the one that deletes it.
+    assert.deepEqual(await asAdmin(d, 'select jobid::int as job from cron.job_run_details order by runid'), [{ job: check }, { job: push }])
   })
 })
 
@@ -1557,7 +2025,8 @@ describe('the script, run again and undone', () => {
       d,
       `select (select count(*)::int from pg_proc where proname in ('partner_live', 'flight_live_claim', 'flight_live_report',
                 'flight_live_tick', 'call_flight_live', 'flight_live_switch', 'open_live_flights',
-                'require_flight_live_password', 'flight_legs', 'flight_callsign', 'airport_code')) as functions,
+                'require_flight_live_password', 'live_fix', 'json_text', 'json_whole', 'flight_legs', 'flight_callsign',
+                'airport_code')) as functions,
               (select count(*)::int from pg_class c join pg_namespace n on n.oid = c.relnamespace
                 where n.nspname = 'private' and c.relkind = 'r'
                   and c.relname in ('airports', 'live_flights', 'live_flight_points', 'flight_live_state')) as tables,
@@ -1569,32 +2038,49 @@ describe('the script, run again and undone', () => {
     const d = await partnerDbUpTo(FILE)
     t.after(() => d.close())
     const before = await made(d)
-    assert.deepEqual(before, { functions: 11, tables: 4, secrets: 2, jobs: 3 })
+    assert.deepEqual(before, { functions: 14, tables: 4, secrets: 2, jobs: 3 })
     await assert.rejects(d.exec(read(migration)), /relation "airports" already exists/)
     assert.deepEqual(await made(d), before)
   })
 
-  test('the undo in its header removes everything it added, and nothing of the push service’s', async (t) => {
+  /** Everything the database holds that a script can add: its functions, its tables and indexes, the Vault's names, and the cron jobs and their runs. */
+  const everything = (d) =>
+    asAdmin(
+      d,
+      `select (select jsonb_agg(p.oid::regprocedure::text order by p.oid::regprocedure::text)
+                 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                where n.nspname in ('public', 'private')) as functions,
+              (select jsonb_agg(n.nspname || '.' || c.relname order by n.nspname, c.relname)
+                 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname in ('public', 'private')) as relations,
+              (select jsonb_agg(name order by name) from vault.secrets) as secrets,
+              (select jsonb_agg(jobname order by jobname) from cron.job) as jobs,
+              (select count(*)::int from cron.job_run_details) as runs`,
+    ).then((rows) => rows[0])
+
+  test('the undo in its header leaves the database as it was before the script, and the script can run again', async (t) => {
+    const before = await partnerDbUpTo(partnerMigrations().filter((file) => file < FILE).at(-1))
+    t.after(() => before.close())
     const d = await partnerDbUpTo(FILE)
     t.after(() => d.close())
-    await d.exec(undoSql())
-    assert.deepEqual(await made(d), { functions: 0, tables: 0, secrets: 0, jobs: 0 })
-    const [kept] = await asAdmin(
+    assert.notDeepEqual(await everything(d), await everything(before))
+    // A run of the check in the history, and one of the push service's, which the undo must leave.
+    await asAdmin(
       d,
-      `select to_regprocedure('public.partner_view(text, timestamptz)') is not null as view,
-              to_regprocedure('private.push_secret(text)') is not null as secret,
-              (select count(*)::int from cron.job where jobname like 'partner-push%') as jobs,
-              (select count(*)::int from vault.secrets where name like 'partner_push%') as secrets`,
+      `insert into cron.job_run_details (jobid, status, end_time)
+       select jobid, 'succeeded', now() from cron.job where jobname in ('flight-live', 'partner-push')`,
     )
-    assert.deepEqual(kept, { view: true, secret: true, jobs: 2, secrets: 2 })
-    // And it can be run again after its undo.
+    await asAdmin(before, "insert into cron.job_run_details (jobid, status, end_time) select jobid, 'succeeded', now() from cron.job where jobname = 'partner-push'")
+    await d.exec(undoSql())
+    assert.deepEqual(await everything(d), await everything(before))
+    assert.deepEqual(await made(d), { functions: 0, tables: 0, secrets: 0, jobs: 0 })
     await d.exec(read(migration))
-    assert.deepEqual(await made(d), { functions: 11, tables: 4, secrets: 2, jobs: 3 })
+    assert.deepEqual(await made(d), { functions: 14, tables: 4, secrets: 2, jobs: 3 })
   })
 })
 ```
 
-- [ ] **Step 2: Run them, and see the new ones fail**
+- [x] **Step 2: Run them, and see the new ones fail**
 
 Run:
 
@@ -1602,16 +2088,16 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 44`, `ℹ pass 39`, `ℹ fail 5`. The new ones fail because no cron job is scheduled yet, so the script still makes 0 of its 3.
+Expected: `ℹ tests 61`, `ℹ pass 56`, `ℹ fail 5`. Five of the six new ones fail because no cron job is scheduled yet, so the script still makes 0 of its 3. The sixth, the account deletion, needs nothing new.
 
-- [ ] **Step 3: Write the schedule**
+- [x] **Step 3: Write the schedule**
 
 Append to the end of the script:
 
 ```sql
 select cron.schedule('flight-live', '30 seconds', 'select private.flight_live_tick()');
--- A flight's row and its trail go 16 days after it landed, or after its effective arrival if it never did (spec §10.5):
--- the longest trip and its recap day. Deleted at 04:23 UTC.
+-- A flight's row and its trail go 16 days after it landed, which is the time of the fix that showed it down, or after
+-- its effective arrival if it never did (spec §10.5): the longest trip and its recap day. Deleted at 04:23 UTC.
 select cron.schedule('flight-live-cleanup', '23 4 * * *', $$
   delete from private.live_flights
    where coalesce(landed_at, effective_arrival) < now() - interval '16 days'
@@ -1624,7 +2110,7 @@ select cron.schedule('flight-live-history', '19 4 * * *', $$
 $$);
 ```
 
-- [ ] **Step 4: Run the tests, and see them pass**
+- [x] **Step 4: Run the tests, and see them pass**
 
 Run:
 
@@ -1632,9 +2118,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live.test.js privileges.test.js advisors.test.js safeupdate.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 60`, `ℹ pass 60`, `ℹ fail 0`.
+Expected: `ℹ tests 77`, `ℹ pass 77`, `ℹ fail 0`.
 
-- [ ] **Step 5: Check the two files are whole**
+- [x] **Step 5: Check the two files are whole**
 
 Run:
 
@@ -1645,13 +2131,13 @@ cd ~/Dev/Duty-flight-live/supabase && shasum -a 256 migrations/20261114120000_pa
 Expected:
 
 ```
-ffbb54c811e1b9c106fb670fa2be8a37a87a6b698ff0da125890beda4cc615ad  migrations/20261114120000_partner_links_flight_live.sql
-093731fb8c5bdee1573479511a6b0fa3edb9715e530daa193d75ca40a2a74c5e  tests/flight_live.test.js
+0922345a3c346e8d958481864c68485198c9a18fae31e93d4f53260ba7c52228  migrations/20261114120000_partner_links_flight_live.sql
+8ba00c5bc9b9646be9a8a7181f5b74235f8b1e14ef022b9e24106ebc2b0c1610  tests/flight_live.test.js
 ```
 
 A different sum with passing tests means a difference in spacing where two parts join. That's harmless: note it and go on.
 
-- [ ] **Step 6: Commit, with Todd's OK**
+- [x] **Step 6: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_links_flight_live.sql supabase/tests/flight_live.test.js && git commit -m "feat(cloud): the live plane's check runs every 30 seconds, a flight and its trail go after 16 days, and the script's second run and undo are tested"
@@ -1669,7 +2155,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120000_partner_
 
 The script reads `~/Dev/Crewluve Website/public/data/airports.json`: 9,056 airports as `[code, name, country, lat, lon, time zone]`. If that file isn't there, stop and ask.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `supabase/tests/flight_live_airports.test.js`:
 
@@ -1685,6 +2171,9 @@ import { asAdmin, cloudDb, migrationPath, partnerMigrations, read } from './help
 
 const seed = migrationPath(AIRPORTS_SEED)
 
+/** The file's rows, as text: every line that is a row of the insert. */
+const ROWS = read(seed).split('\n').filter((line) => line.startsWith('('))
+
 /** A database with the partner-links migrations and the seed, closed when the test ends. */
 async function seeded(t) {
   const d = await cloudDb([...partnerMigrations(), AIRPORTS_SEED])
@@ -1695,9 +2184,24 @@ async function seeded(t) {
 const count = async (d) => (await asAdmin(d, 'select count(*)::int as n from private.airports'))[0].n
 
 describe("the live plane's airports (spec §10.1)", () => {
-  test("the seed fills private.airports with the website's 9,056 airports", async (t) => {
+  test('every row of the file is an airport the table can hold, and no code is there twice', () => {
+    // 9,056 when it was made, on 14 Nov 2026: the website's list has grown or shrunk if this changes with a new file.
+    assert.equal(ROWS.length, 9056)
+    const codes = new Set()
+    for (const row of ROWS) {
+      const [, code, lat, lon] = row.match(/^\('([A-Z0-9]{3})',(-?[0-9.e-]+),(-?[0-9.e-]+)\)[,;]$/) ?? []
+      assert.ok(code && Math.abs(Number(lat)) <= 90 && Math.abs(Number(lon)) <= 180, row)
+      assert.ok(!codes.has(code), `${code} is there twice`)
+      codes.add(code)
+    }
+    // Nothing else in the file is SQL: its header, the insert's first line, and the rows.
+    const rest = read(seed).split('\n').filter((line) => line !== '' && !line.startsWith('--') && !line.startsWith('('))
+    assert.deepEqual(rest, ['insert into private.airports (code, lat, lon) values'])
+  })
+
+  test("the seed fills private.airports with every one of the file's airports", async (t) => {
     const d = await seeded(t)
-    assert.equal(await count(d), 9056)
+    assert.equal(await count(d), ROWS.length)
     assert.deepEqual(await asAdmin(d, "select code, lat, lon from private.airports where code in ('SDF', 'CGN', 'ANC') order by code"), [
       { code: 'ANC', lat: 61.1744, lon: -149.9983 },
       { code: 'CGN', lat: 50.8659, lon: 7.1427 },
@@ -1708,7 +2212,7 @@ describe("the live plane's airports (spec §10.1)", () => {
   test('running it a second time fails, and changes nothing', async (t) => {
     const d = await seeded(t)
     await assert.rejects(d.exec(read(seed)), /duplicate key value violates unique constraint "airports_pkey"/)
-    assert.equal(await count(d), 9056)
+    assert.equal(await count(d), ROWS.length)
   })
 
   test('the undo in its header empties the table, and the seed can run again', async (t) => {
@@ -1719,7 +2223,7 @@ describe("the live plane's airports (spec §10.1)", () => {
     await d.exec(undo[0].slice('--   '.length))
     assert.equal(await count(d), 0)
     await d.exec(read(seed))
-    assert.equal(await count(d), 9056)
+    assert.equal(await count(d), ROWS.length)
   })
 
   test("the file is what the script makes from the website's airports.json", { skip: !existsSync(WEBSITE_AIRPORTS) && "the website's repo isn't beside this one" }, () => {
@@ -1728,14 +2232,16 @@ describe("the live plane's airports (spec §10.1)", () => {
 
   test("the script refuses an airport the table can't hold", () => {
     assert.match(airportsSeedSql([['SDF', 'Louisville', 'USA', 38.1746, -85.7382, 'America/Kentucky/Louisville']]), /\('SDF',38\.1746,-85\.7382\);\n$/)
-    for (const bad of [['KSDF', '', '', 38, -85], ["A'B", '', '', 38, -85], ['SDF', '', '', 91, -85], ['SDF', '', '', 38, 181], ['SDF', '', '', null, -85]]) {
+    for (const bad of [['KSDF', '', '', 38, -85], ["A'B", '', '', 38, -85], [['SDF'], '', '', 38, -85], ['SDF', '', '', 91, -85], ['SDF', '', '', 38, 181], ['SDF', '', '', null, -85]]) {
       assert.throws(() => airportsSeedSql([bad]), /an airport the table can't hold/)
     }
+    // And the same code twice.
+    assert.throws(() => airportsSeedSql([['SDF', '', '', 38, -85], ['SDF', '', '', 39, -86]]), /an airport the table can't hold/)
   })
 })
 ```
 
-- [ ] **Step 2: Write the script that makes the file**
+- [x] **Step 2: Write the script that makes the file**
 
 Create `supabase/tests/helpers/airports_seed.js`:
 
@@ -1758,19 +2264,26 @@ const HEADER = `-- The live plane's airports (Crewluv docs/superpowers/specs/202
 -- supabase/tests/helpers/airports_seed.js: change it there, never by hand.
 --
 -- Run it once, in the SQL editor, after 20261114120000_partner_links_flight_live.sql: a second run fails, since the
--- codes are there already, and changes nothing.
+-- codes are there already, and changes nothing. Run before that script, it fails for want of the table, and changes
+-- nothing either.
 --
 -- Undo, in the SQL editor:
 --   truncate private.airports;
 `
 
-/** The seed's SQL for the website's airports: one insert, a row for each, in the file's order. */
+/**
+ * The seed's SQL for the website's airports: one insert, a row for each, in the file's order. Only a code of three
+ * capitals or digits and two numbers in range are ever written, so nothing in the file can change what the SQL does.
+ */
 export function airportsSeedSql(airports) {
+  const seen = new Set()
   const rows = airports.map(([code, , , lat, lon]) => {
+    const isCode = typeof code === 'string' && /^[A-Z0-9]{3}$/.test(code)
     const inRange = typeof lat === 'number' && typeof lon === 'number' && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
-    if (!/^[A-Z0-9]{3}$/.test(String(code)) || !inRange) {
+    if (!isCode || !inRange || seen.has(code)) {
       throw new Error(`airports.json has an airport the table can't hold: ${JSON.stringify([code, lat, lon])}`)
     }
+    seen.add(code)
     return `('${code}',${lat},${lon})`
   })
   return `${HEADER}\ninsert into private.airports (code, lat, lon) values\n${rows.join(',\n')};\n`
@@ -1784,7 +2297,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 }
 ```
 
-- [ ] **Step 3: Add its `npm` script**
+- [x] **Step 3: Add its `npm` script**
 
 In `supabase/tests/package.json`, replace:
 
@@ -1799,7 +2312,7 @@ with:
     "airports-seed": "node helpers/airports_seed.js"
 ```
 
-- [ ] **Step 4: Run the tests, and see them fail**
+- [x] **Step 4: Run the tests, and see them fail**
 
 Run:
 
@@ -1807,9 +2320,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_airports.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 5`, `ℹ pass 1`, `ℹ fail 4`: the file isn't made yet, and only the test of the script itself passes.
+Expected: `ℹ tests 1`, `ℹ pass 0`, `ℹ fail 1`: the file isn't made yet, and the tests read it as they load, so none can run.
 
-- [ ] **Step 5: Make the file**
+- [x] **Step 5: Make the file**
 
 Run:
 
@@ -1821,12 +2334,12 @@ Expected:
 
 ```
 20261114120100_flight_live_airports.sql: 9056 airports
-4623413c992dba30053d10e010ff0d5851ab569bd2b95c8f80d610329833b1e2  ../migrations/20261114120100_flight_live_airports.sql
+a6636d0e950a3bce4de3c10e3d0e53a98902cb52777420fc46a3bece23831f2d  ../migrations/20261114120100_flight_live_airports.sql
 ```
 
 A different sum means the website's `airports.json` has changed since 14 Nov 2026. Say so to Todd and go on: the tests hold the file to the website's.
 
-- [ ] **Step 6: Run the tests, and see them pass**
+- [x] **Step 6: Run the tests, and see them pass**
 
 Run:
 
@@ -1836,7 +2349,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_
 
 Expected: `ℹ fail 0`, and `ℹ tests` equal to `ℹ pass`. The advisor and safeupdate guards load every migration, so they now load the airports too.
 
-- [ ] **Step 7: Commit, with Todd's OK**
+- [x] **Step 7: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120100_flight_live_airports.sql supabase/tests/helpers/airports_seed.js supabase/tests/flight_live_airports.test.js supabase/tests/package.json && git commit -m "feat(cloud): the live plane's airports, 9,056 of them from the Crewluve website's file, and the script that makes them"
@@ -1850,7 +2363,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/migrations/20261114120100_flight_l
 - Create: `supabase/tests/flight_live_function.test.js`
 - Create: `supabase/functions/flight-live/index.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `supabase/tests/flight_live_function.test.js`. `RECORDED` is a real aircraft from adsb.lol's answer, so the tests read the fields as adsb.lol sends them.
 
@@ -1861,7 +2374,7 @@ Create `supabase/tests/flight_live_function.test.js`. `RECORDED` is a real aircr
 // docs/superpowers/specs/2026-11-14-crewluve-moving-map-stage3-live-design.md, §10.3, §10.4 and §10.7.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { distanceNm, fixOf, isBetween, judge } from '../functions/flight-live/index.ts'
+import { bearingDeg, distanceNm, fixOf, isBetween, isHeadingFor, judge } from '../functions/flight-live/index.ts'
 
 const SDF = { lat: 38.1744, lon: -85.736 }
 const CGN = { lat: 50.8659, lon: 7.1427 }
@@ -1891,13 +2404,13 @@ const RECORDED = {
 /** The same record's shape on the ground, from an aircraft parked at St. Louis in the same answer: no track, alt_baro "ground". */
 const RECORDED_ON_GROUND = { hex: 'ab525f', type: 'adsb_icao', flight: 'AAL772  ', r: 'N829AW', t: 'A319', alt_baro: 'ground', gs: 0.0, lat: 38.743833, lon: -90.364532, seen_pos: 3.567, seen: 1.7 }
 
-/** UPS207 in the air over Indiana, as adsb.lol would answer it, with fields over it. */
-const flying = (fields = {}) => ({ ...RECORDED, flight: 'UPS207  ', r: 'N370UP', t: 'B763', ...fields })
+/** UPS207 in the air over Indiana, on its way north-east from Louisville, as adsb.lol would answer it, with fields over it. */
+const flying = (fields = {}) => ({ ...RECORDED, flight: 'UPS207  ', r: 'N370UP', t: 'B763', track: 62, ...fields })
 /** UPS207 on the ground at Louisville's ramp, with fields over it. */
 const parked = (fields = {}) => ({ ...RECORDED_ON_GROUND, hex: 'a82952', flight: 'UPS207  ', r: 'N370UP', t: 'B763', lat: 38.17, lon: -85.73, ...fields })
 
 /** UPS207 from Louisville to Cologne, leaving at NOW_MS, as claim hands it out, with fields over it. */
-const flight = (fields = {}) => ({ id: 7, callsign: 'UPS207', departure: SDF, arrival: CGN, effective_departure: NOW_MS, state: 'waiting', hex: null, ...fields })
+const flight = (fields = {}) => ({ id: 7, callsign: 'UPS207', departure: SDF, arrival: CGN, effective_departure: NOW_MS, state: 'waiting', hex: null, seen_at: null, ...fields })
 
 describe("flight-live's parts (spec §10.4)", () => {
   test('distanceNm is the great-circle distance in nautical miles', () => {
@@ -1914,6 +2427,29 @@ describe("flight-live's parts (spec §10.4)", () => {
     const dakar = { lat: 14.7, lon: -17.4 }
     assert.deepEqual([gander, reykjavik, azores, SDF, CGN].map((place) => isBetween(flight(), place)), [true, true, true, true, true])
     assert.equal(isBetween(flight(), dakar), false)
+    // Across the date line, and over the pole.
+    const pacific = flight({ departure: { lat: 61.1743, lon: -149.9963 }, arrival: { lat: 35.7647, lon: 140.3864 } })
+    assert.equal(isBetween(pacific, { lat: 52, lon: 175 }), true)
+    const polar = flight({ departure: { lat: 70, lon: -150 }, arrival: { lat: 70, lon: 30 } })
+    assert.equal(isBetween(polar, { lat: 89, lon: 0 }), true)
+  })
+
+  test('a bearing is degrees from north, the short way round', () => {
+    assert.ok(Math.abs(bearingDeg(SDF, CGN) - 45.04) < 0.01)
+    assert.deepEqual([bearingDeg({ lat: 0, lon: 0 }, { lat: 10, lon: 0 }), bearingDeg({ lat: 0, lon: 0 }, { lat: 0, lon: 10 })], [0, 90])
+    assert.equal(Math.round(bearingDeg({ lat: 0, lon: 170 }, { lat: 0, lon: -170 })), 90)
+  })
+
+  test('an aircraft is heading for a place when its track is within 90° of the bearing to it', () => {
+    // From over Indiana, Louisville is almost due south (182°).
+    const overIndiana = (track) => ({ lat: 39.365876, lon: -85.678162, track })
+    assert.deepEqual([182, 100, 265, 229].map((track) => isHeadingFor(overIndiana(track), SDF)), [true, true, true, true])
+    assert.deepEqual([62, 2, 300, 91, 273].map((track) => isHeadingFor(overIndiana(track), SDF)), [false, false, false, false, false])
+    // With no track, it isn't known to be. Nor within a mile of the place, where a bearing means nothing.
+    assert.equal(isHeadingFor(overIndiana(undefined), SDF), false)
+    assert.equal(isHeadingFor({ lat: 38.18, lon: -85.736, track: 180 }, SDF), false)
+    // A track written outside 0 to 360 is read the same.
+    assert.deepEqual([182 - 720, 62 + 360].map((track) => isHeadingFor(overIndiana(track), SDF)), [true, false])
   })
 
   test("a fix in the air has the aircraft's position, height, speed, track, tail and type, seen seen_pos seconds before the answer", () => {
@@ -1945,8 +2481,12 @@ describe("flight-live's parts (spec §10.4)", () => {
   })
 
   test('a fix leaves out a blank tail or type, and a height that isn’t a number', () => {
-    const bare = fixOf({ hex: 'a1', lat: 1, lon: 2, seen_pos: 0, r: '  ', alt_baro: undefined }, NOW_MS)
+    const bare = fixOf({ hex: 'a1', lat: 1, lon: 2, seen_pos: 0, r: '  ', alt_baro: 'unknown' }, NOW_MS)
     assert.deepEqual([bare.registration, bare.type_code, bare.altitude_ft, bare.ground_speed_kt, bare.on_ground], [null, null, null, null, false])
+  })
+
+  test('with no height from the altimeter, a fix has the one from GPS', () => {
+    assert.equal(fixOf({ ...RECORDED, alt_baro: undefined }, NOW_MS).altitude_ft, 38075)
   })
 })
 
@@ -1975,10 +2515,51 @@ describe('the match (spec §10.4)', () => {
     assert.deepEqual(judge(flight(), [flying({ seen_pos: 60 })], NOW_MS)?.state, 'airborne')
   })
 
+  test('an entry of the answer that isn’t an aircraft, or makes no sense, is passed over and never an error', () => {
+    const odd = [
+      null,
+      7,
+      'UPS207',
+      [],
+      {},
+      flying({ flight: 207 }),
+      flying({ lat: 91 }),
+      flying({ lon: '-85' }),
+      flying({ seen_pos: Infinity }),
+      flying({ seen_pos: -1 }),
+      flying({ hex: '' }),
+    ]
+    assert.equal(judge(flight(), odd, NOW_MS), null)
+    assert.deepEqual(judge(flight(), [...odd, flying()], NOW_MS), judged('airborne', flying()))
+  })
+
+  test('an aircraft that sends neither a height nor "ground" can’t be told to be flying, and is no candidate', () => {
+    const noHeight = flying({ alt_baro: undefined, alt_geom: undefined })
+    assert.equal(judge(flight(), [noHeight], NOW_MS), null)
+    assert.equal(judge(flight({ state: 'ground', hex: 'a82952' }), [parked({ alt_baro: undefined })], NOW_MS), null)
+    // With only a height from GPS, it's in the air.
+    assert.deepEqual(judge(flight(), [flying({ alt_baro: undefined })], NOW_MS)?.state, 'airborne')
+  })
+
   test('first seen in the air, it is the flight only from 20 minutes before its effective departure', () => {
     assert.equal(judge(flight({ effective_departure: NOW_MS + 21 * MINUTE }), [flying()], NOW_MS), null)
+    assert.equal(judge(flight({ effective_departure: NOW_MS + 20 * MINUTE + 1 }), [flying()], NOW_MS), null)
     assert.deepEqual(judge(flight({ effective_departure: NOW_MS + 20 * MINUTE }), [flying()], NOW_MS), judged('airborne', flying()))
     assert.deepEqual(judge(flight({ effective_departure: NOW_MS - 300 * MINUTE }), [flying()], NOW_MS)?.state, 'airborne')
+  })
+
+  test('first seen in the air, it is the flight only when it isn’t heading for its departure airport', () => {
+    // Over Indiana and flying south-west, towards Louisville: a plane arriving, not the one that left.
+    assert.equal(judge(flight(), [flying({ track: 229 })], NOW_MS), null)
+    // An aircraft that sends no track is taken.
+    assert.deepEqual(judge(flight(), [flying({ track: undefined })], NOW_MS)?.state, 'airborne')
+    // Its own aircraft is its own whichever way it's flying: a turn back towards the airport doesn't lose it.
+    assert.deepEqual(judge(flight({ state: 'ground', hex: 'a82952' }), [flying({ track: 229 })], NOW_MS)?.state, 'airborne')
+  })
+
+  test('with one at the gate and another in the air, a flight not yet seen takes the one at the gate', () => {
+    const inAir = flying({ hex: 'c0ffee' })
+    assert.deepEqual(judge(flight(), [inAir, parked()], NOW_MS), judged('ground', parked()))
   })
 
   test('first seen in the air, it is the flight only between its airports: a reused flight number elsewhere is not', () => {
@@ -2007,6 +2588,9 @@ describe('the match (spec §10.4)', () => {
     const inAir = flight({ state: 'airborne', hex: 'a82952' })
     const atCologne = parked({ lat: 50.87, lon: 7.14 })
     assert.deepEqual(judge(inAir, [atCologne], NOW_MS), judged('landed', atCologne))
+    // 9 nm north of the airport is at it, and 11 nm isn't.
+    assert.deepEqual(judge(inAir, [parked({ lat: 51.0159, lon: 7.1427 })], NOW_MS)?.state, 'landed')
+    assert.deepEqual(judge(inAir, [parked({ lat: 51.0492, lon: 7.1427 })], NOW_MS)?.state, 'ground')
   })
 
   test('down anywhere else it is on the ground again: a return to the departure airport, or a diversion', () => {
@@ -2020,17 +2604,38 @@ describe('the match (spec §10.4)', () => {
     assert.deepEqual(judge(diverted, [flying({ lat: 49.5, lon: -50 })], NOW_MS)?.state, 'airborne')
   })
 
+  test('a diverted flight on the ground isn’t taken over by another plane in the air with its number', () => {
+    const diverted = flight({ state: 'ground', hex: 'a82952', effective_departure: NOW_MS - 300 * MINUTE })
+    const atGander = parked({ lat: 48.94, lon: -54.57 })
+    const another = flying({ hex: 'c0ffee' })
+    assert.deepEqual(judge(diverted, [another, atGander], NOW_MS), judged('ground', atGander))
+    // Once its own is no longer seen, a plane flying on under its number is the flight.
+    assert.deepEqual(judge(diverted, [another], NOW_MS), judged('airborne', another))
+  })
+
+  test('back at its departure airport, it keeps its own aircraft while that’s seen there, then takes the one that leaves in its place', () => {
+    const returned = flight({ state: 'ground', hex: 'a82952', effective_departure: NOW_MS - 120 * MINUTE })
+    const replacement = parked({ hex: 'c0ffee' })
+    assert.deepEqual(judge(returned, [replacement, parked()], NOW_MS)?.hex, 'a82952')
+    assert.deepEqual(judge(returned, [replacement], NOW_MS), judged('ground', replacement))
+  })
+
   test('back-to-back legs with one flight number: the next leg doesn’t take the plane still flying the one before', () => {
     // UPS207 again from Cologne in 3 hours. The plane is still over the Atlantic, inbound.
     const next = flight({ id: 8, departure: CGN, arrival: { lat: 25.2528, lon: 55.3644 }, effective_departure: NOW_MS + 180 * MINUTE })
     assert.equal(judge(next, [flying({ lat: 51.5, lon: -20 })], NOW_MS), null)
+    // Running late, it's still 195 nm out, flying east to Cologne, 10 minutes before the next leg was to leave.
+    const soon = { ...next, effective_departure: NOW_MS + 10 * MINUTE }
+    assert.equal(judge(soon, [flying({ lat: 51, lon: 2, track: 95 })], NOW_MS), null)
+    // The same place and time, flying away from Cologne, would be the flight.
+    assert.deepEqual(judge(soon, [flying({ lat: 50.3, lon: 10, track: 110 })], NOW_MS)?.state, 'airborne')
     // Once it's parked at Cologne, the next leg takes it.
     assert.deepEqual(judge(next, [parked({ lat: 50.87, lon: 7.14 })], NOW_MS)?.state, 'ground')
   })
 })
 ```
 
-- [ ] **Step 2: Run them, and see them fail**
+- [x] **Step 2: Run them, and see them fail**
 
 Run:
 
@@ -2040,7 +2645,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_
 
 Expected: `ERR_MODULE_NOT_FOUND`, with `ℹ pass 0` and `ℹ fail 1`: the function's file isn't there.
 
-- [ ] **Step 3: Write the parts and the match**
+- [x] **Step 3: Write the parts and the match**
 
 Create `supabase/functions/flight-live/index.ts`:
 
@@ -2067,6 +2672,21 @@ export const ADSB_TIMEOUT_MS = 10_000
 /** How long a call to Crewlu Cloud may take, so one held up in the database can't hold a run up for minutes. */
 export const RPC_TIMEOUT_MS = 20_000
 
+/**
+ * A run starts no request to adsb.lol later than this after it began, and reports that as a failure. The check calls
+ * every 30 seconds, so a run that kept on would overlap the next, and the two would ask adsb.lol twice over just when
+ * it's slow. A request under way then is cut off at ASK_END_MS.
+ */
+export const ASK_UNTIL_MS = 20_000
+export const ASK_END_MS = 25_000
+
+/**
+ * A fix is news only when it was seen at least this much later than the one the flight has. adsb.lol answers with an
+ * aircraft's last position until it has a newer one, and the time worked out for the same position shifts by a few
+ * milliseconds from one run to the next.
+ */
+export const NEWER_BY_MS = 1000
+
 /** A position older than this isn't a fix (spec §10.4), in seconds. */
 export const FRESH_S = 60
 
@@ -2089,7 +2709,10 @@ export type Place = { lat: number; lon: number }
 /** What flight-live knows of a flight: never seen, on the ground, in the air, or landed at its arrival airport. */
 export type State = 'waiting' | 'ground' | 'airborne' | 'landed'
 
-/** A flight flight_live_claim hands out. effective_departure is milliseconds since 1970; hex is its aircraft, once one is taken. */
+/**
+ * A flight flight_live_claim hands out. effective_departure and seen_at are milliseconds since 1970; hex is its
+ * aircraft, once one is taken, and seen_at when its last fix was seen.
+ */
 export type Flight = {
   id: number
   callsign: string
@@ -2098,9 +2721,10 @@ export type Flight = {
   effective_departure: number
   state: State
   hex: string | null
+  seen_at: number | null
 }
 
-/** One aircraft in adsb.lol's answer: the fields flight-live reads (spec §2.1). */
+/** One aircraft in adsb.lol's answer: the fields flight-live reads (spec §2.1). Any of them can be missing. */
 export type Aircraft = {
   hex?: string
   flight?: string
@@ -2109,6 +2733,7 @@ export type Aircraft = {
   lat?: number
   lon?: number
   alt_baro?: number | 'ground'
+  alt_geom?: number
   gs?: number
   track?: number
   seen_pos?: number
@@ -2150,20 +2775,55 @@ export function isBetween(flight: Flight, place: Place): boolean {
   return distanceNm(flight.departure, place) + distanceNm(place, flight.arrival) <= BETWEEN_FACTOR * direct + BETWEEN_MARGIN_NM
 }
 
-/** An aircraft with what a fix needs: its address, and a position seen in the last minute. */
-type Seen = Aircraft & { hex: string; lat: number; lon: number; seen_pos: number }
+/** The compass bearing from one place to another, in degrees from north. */
+export function bearingDeg(from: Place, to: Place): number {
+  const dLon = radians(to.lon - from.lon)
+  const y = Math.sin(dLon) * Math.cos(radians(to.lat))
+  const x = Math.cos(radians(from.lat)) * Math.sin(radians(to.lat)) - Math.sin(radians(from.lat)) * Math.cos(radians(to.lat)) * Math.cos(dLon)
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+}
 
-const isSeen = (aircraft: Aircraft): aircraft is Seen =>
-  typeof aircraft.hex === 'string' &&
-  aircraft.hex !== '' &&
-  typeof aircraft.lat === 'number' &&
-  typeof aircraft.lon === 'number' &&
-  typeof aircraft.seen_pos === 'number' &&
-  aircraft.seen_pos >= 0 &&
-  aircraft.seen_pos <= FRESH_S
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+
+/**
+ * Whether an aircraft is flying towards a place: its track is within 90° of the bearing to it. An aircraft that sends
+ * no track isn't known to be, and nor is one within a mile of the place, where a bearing means nothing.
+ */
+export function isHeadingFor(aircraft: Aircraft & Place, place: Place): boolean {
+  if (!finite(aircraft.track) || distanceNm(aircraft, place) < 1) return false
+  const off = (((aircraft.track - bearingDeg(aircraft, place)) % 360) + 540) % 360
+  return Math.abs(off - 180) < 90
+}
+
+/** An aircraft that can be a fix: it has its address, its callsign, a position seen in the last minute, and a height or "ground". */
+type Seen = Aircraft & { hex: string; flight: string; lat: number; lon: number; seen_pos: number }
 
 const onGround = (aircraft: Aircraft) => aircraft.alt_baro === 'ground'
-const whole = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null)
+
+/**
+ * Whether an entry of adsb.lol's answer can be a fix. Anything else is passed over: an entry that isn't an aircraft, a
+ * position off the Earth or over a minute old, and an aircraft that sends neither a height nor "ground", which can't
+ * be told to be flying.
+ */
+function isSeen(entry: unknown): entry is Seen {
+  if (typeof entry !== 'object' || entry === null) return false
+  const aircraft = entry as Aircraft
+  return (
+    typeof aircraft.hex === 'string' &&
+    aircraft.hex !== '' &&
+    typeof aircraft.flight === 'string' &&
+    finite(aircraft.lat) &&
+    Math.abs(aircraft.lat) <= 90 &&
+    finite(aircraft.lon) &&
+    Math.abs(aircraft.lon) <= 180 &&
+    finite(aircraft.seen_pos) &&
+    aircraft.seen_pos >= 0 &&
+    aircraft.seen_pos <= FRESH_S &&
+    (onGround(aircraft) || finite(aircraft.alt_baro) || finite(aircraft.alt_geom))
+  )
+}
+
+const whole = (value: unknown) => (finite(value) ? Math.round(value) : null)
 const text = (value: unknown) => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null)
 
 /** An aircraft's fix. Its position was seen seen_pos seconds before the answer came, at answeredAt. */
@@ -2171,7 +2831,8 @@ export function fixOf(aircraft: Seen, answeredAt: number): Fix {
   return {
     lat: aircraft.lat,
     lon: aircraft.lon,
-    altitude_ft: onGround(aircraft) ? null : whole(aircraft.alt_baro),
+    // The height the altimeter reads, or the one from GPS when it sends no other.
+    altitude_ft: onGround(aircraft) ? null : whole(finite(aircraft.alt_baro) ? aircraft.alt_baro : aircraft.alt_geom),
     ground_speed_kt: whole(aircraft.gs),
     track_deg: whole(aircraft.track),
     on_ground: onGround(aircraft),
@@ -2186,8 +2847,8 @@ export function fixOf(aircraft: Seen, answeredAt: number): Fix {
  * none is, and the flight keeps what it has. A flight follows one aircraft once it's seen in the air, wherever it goes,
  * so a reused flight number on another plane, or another leg with the same number, can't take its place.
  */
-export function judge(flight: Flight, answer: Aircraft[], answeredAt: number): Update | null {
-  const candidates = answer.filter((aircraft): aircraft is Seen => isSeen(aircraft) && aircraft.flight?.trim() === flight.callsign)
+export function judge(flight: Flight, answer: unknown[], answeredAt: number): Update | null {
+  const candidates = answer.filter((entry): entry is Seen => isSeen(entry) && entry.flight.trim() === flight.callsign)
   const own = candidates.find((aircraft) => aircraft.hex === flight.hex)
   const judged = (aircraft: Seen, state: State): Update => ({ id: flight.id, state, hex: aircraft.hex, fix: fixOf(aircraft, answeredAt) })
   const isAt = (aircraft: Seen, airport: Place) => distanceNm(aircraft, airport) <= AIRPORT_RADIUS_NM
@@ -2199,24 +2860,29 @@ export function judge(flight: Flight, answer: Aircraft[], answeredAt: number): U
     return judged(own, isAt(own, flight.arrival) ? 'landed' : 'ground')
   }
 
-  // Not yet seen in the air. Its own aircraft, now in the air, has taken off.
+  // Not yet seen in the air, or down again after a return or a diversion. Its own aircraft, now in the air, has taken off.
   if (own && !onGround(own)) return judged(own, 'airborne')
-  // An aircraft on the ground at the departure airport is the flight: its own first, else another, as after a swap.
+  // An aircraft on the ground at the departure airport is the flight: its own while it's seen there, else another, as
+  // after a swap.
   const atDeparture = candidates.filter((aircraft) => onGround(aircraft) && isAt(aircraft, flight.departure))
   const parked = atDeparture.find((aircraft) => aircraft.hex === flight.hex) ?? atDeparture[0]
   if (parked) return judged(parked, 'ground')
-  // Another aircraft in the air is the flight only near its departure time or after, and only between its airports.
+  // Its own aircraft, on the ground somewhere else after a diversion, is still the flight: no other plane with its
+  // number takes its place while it's seen.
+  if (own) return judged(own, 'ground')
+  // Another aircraft in the air is the flight only near its departure time or after, between its airports, and not
+  // heading for its departure airport: the plane still flying the leg before, with the same number, is doing that.
   if (answeredAt >= flight.effective_departure - EARLY_SIGHTING_MS) {
-    const flying = candidates.find((aircraft) => !onGround(aircraft) && isBetween(flight, aircraft))
+    const flying = candidates.find(
+      (aircraft) => !onGround(aircraft) && isBetween(flight, aircraft) && !isHeadingFor(aircraft, flight.departure),
+    )
     if (flying) return judged(flying, 'airborne')
   }
-  // Its own aircraft, still on the ground somewhere else after a diversion.
-  if (own) return judged(own, 'ground')
   return null
 }
 ```
 
-- [ ] **Step 4: Run the tests, and see them pass**
+- [x] **Step 4: Run the tests, and see them pass**
 
 Run:
 
@@ -2224,9 +2890,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_function.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 16`, `ℹ pass 16`, `ℹ fail 0`. Node warns that type stripping is experimental: that's expected.
+Expected: `ℹ tests 25`, `ℹ pass 25`, `ℹ fail 0`. Node warns that type stripping is experimental: that's expected.
 
-- [ ] **Step 5: Commit, with Todd's OK**
+- [x] **Step 5: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/functions/flight-live/index.ts supabase/tests/flight_live_function.test.js && git commit -m "feat(cloud): flight-live's match follows the aircraft: taken at the departure airport or between the airports near departure time, then wherever it goes"
@@ -2240,27 +2906,29 @@ cd ~/Dev/Duty-flight-live && git add supabase/functions/flight-live/index.ts sup
 - Modify: `supabase/tests/flight_live_function.test.js`
 - Modify: `supabase/functions/flight-live/index.ts` (append)
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `supabase/tests/flight_live_function.test.js`, replace this line:
 
 ```js
-import { distanceNm, fixOf, isBetween, judge } from '../functions/flight-live/index.ts'
+import { bearingDeg, distanceNm, fixOf, isBetween, isHeadingFor, judge } from '../functions/flight-live/index.ts'
 ```
 
 with:
 
 ```js
 import {
-  ADSB_TIMEOUT_MS,
   ADSB_URL,
+  ASK_UNTIL_MS,
   CALLSIGNS_PER_REQUEST,
-  RPC_TIMEOUT_MS,
+  NEWER_BY_MS,
   USER_AGENT,
+  bearingDeg,
   configFromEnv,
   distanceNm,
   fixOf,
   isBetween,
+  isHeadingFor,
   judge,
   makeHandler,
 } from '../functions/flight-live/index.ts'
@@ -2283,8 +2951,8 @@ function standIns({ rpc, adsb = () => ({ status: 200, body: { ac: [] } }) }) {
   async function fetch(url, init) {
     requests.push({ url, init })
     if (url.startsWith(rpcPath)) {
-      const { status = 200, body } = await rpc(url.slice(rpcPath.length), JSON.parse(init.body))
-      return Response.json(body, { status })
+      const { status = 200, body, text } = await rpc(url.slice(rpcPath.length), JSON.parse(init.body))
+      return text === undefined ? Response.json(body, { status }) : new Response(text, { status })
     }
     assert.ok(url.startsWith(ADSB_URL), `an unexpected address: ${url}`)
     const { status = 200, body, text } = await adsb(url.slice(ADSB_URL.length).split(','), init)
@@ -2308,8 +2976,8 @@ const cloud =
   }
 
 /** One run of flight-live, called the way the check calls it: the password in its header, and the body {}. */
-async function run(fetch, { secret = SECRET, config = settings(), log = () => {} } = {}) {
-  const handle = makeHandler({ config, fetch, now: () => NOW_MS, log })
+async function run(fetch, { secret = SECRET, config = settings(), log = () => {}, now = () => NOW_MS } = {}) {
+  const handle = makeHandler({ config, fetch, now, log })
   const headers = { 'content-type': 'application/json' }
   if (secret !== null) headers['x-flight-live-secret'] = secret
   const response = await handle(new Request('https://cloud.test/functions/v1/flight-live', { method: 'POST', headers, body: '{}' }))
@@ -2318,7 +2986,7 @@ async function run(fetch, { secret = SECRET, config = settings(), log = () => {}
 
 describe("flight-live's run (spec §10.3, §10.7)", () => {
   test('it asks adsb.lol once for every open flight’s callsign, and reports what it judged', async () => {
-    const flights = [flight(), flight({ id: 8, callsign: 'UPS2961' }), flight({ id: 9, callsign: 'FDX147' })]
+    const flights = [flight(), flight({ id: 8, callsign: 'UPS2961' }), flight({ id: 9, callsign: 'FDX147', state: 'airborne', hex: 'a82952' })]
     const fake = standIns({ rpc: cloud({ flights }), adsb: () => ({ body: { ac: [flying(), RECORDED], now: NOW_MS } }) })
     assert.deepEqual(await run(fake.fetch), { status: 200, body: { flights: 3, requests: 1, fixes: 2, outcome: 'ok' } })
     const [asked] = fake.asked()
@@ -2361,6 +3029,36 @@ describe("flight-live's run (spec §10.3, §10.7)", () => {
     assert.deepEqual(fake.asked().map(({ url }) => url.slice(ADSB_URL.length).split(',').length), [100, 100, 1])
   })
 
+  test('odd entries in the answer are passed over, and a flight that can’t be judged doesn’t cost the others theirs', async () => {
+    // The second flight has no departure airport, which nothing should send: judging it throws.
+    const flights = [flight(), flight({ id: 8, callsign: 'UPS2961', departure: null })]
+    const lines = []
+    const fake = standIns({ rpc: cloud({ flights }), adsb: () => ({ body: { ac: [null, 7, { flight: 207 }, parked({ flight: 'UPS2961', hex: 'b2' }), parked()] } }) })
+    assert.deepEqual((await run(fake.fetch, { log: (line) => lines.push(line) })).body, { flights: 2, requests: 1, fixes: 1, outcome: 'ok' })
+    assert.deepEqual(fake.calls('flight_live_report')[0].p_flights.map((f) => [f.id, f.state]), [[7, 'ground']])
+    assert.deepEqual(lines, ["flight-live: a flight couldn't be judged: TypeError", 'flight-live: 2 flights, 1 requests, 1 fixes, ok'])
+  })
+
+  test('only news is reported: a new state, another aircraft, or a fix seen at least a second later', async () => {
+    // Its own aircraft, in the air, last seen 30 seconds before this run.
+    const followed = flight({ state: 'airborne', hex: 'a82952', seen_at: NOW_MS - 30_000 })
+    const reportedFor = async (claimed, aircraft) => {
+      const fake = standIns({ rpc: cloud({ flights: [claimed] }), adsb: () => ({ body: { ac: [aircraft] } }) })
+      await run(fake.fetch)
+      return fake.calls('flight_live_report')[0].p_flights.length
+    }
+    // adsb.lol has nothing newer: the same position, seen 30 seconds ago, give or take the run's own timing.
+    assert.equal(await reportedFor(followed, flying({ seen_pos: 30.4 })), 0)
+    assert.equal(await reportedFor(followed, flying({ seen_pos: 29.6 })), 0)
+    assert.equal(NEWER_BY_MS, 1000)
+    // A position seen a second later is news, and so is one seen just now.
+    assert.equal(await reportedFor(followed, flying({ seen_pos: 29 })), 1)
+    assert.equal(await reportedFor(followed, flying({ seen_pos: 0 })), 1)
+    // A new state is news whenever it was seen, and so is another aircraft.
+    assert.equal(await reportedFor(followed, parked({ lat: 50.87, lon: 7.14, seen_pos: 30 })), 1)
+    assert.equal(await reportedFor(flight({ state: 'ground', hex: '0ld0ne', seen_at: NOW_MS - 30_000 }), parked({ seen_pos: 30 })), 1)
+  })
+
   test('a callsign that isn’t letters and digits never goes in an address', async () => {
     const fake = standIns({ rpc: cloud({ flights: [flight({ callsign: 'UPS207/../x' }), flight({ id: 8, callsign: 'UPS2961' })] }) })
     await run(fake.fetch)
@@ -2373,19 +3071,72 @@ describe("flight-live's run (spec §10.3, §10.7)", () => {
     assert.deepEqual([fake.asked(), fake.calls('flight_live_report')], [[], []])
   })
 
-  test('a wrong or missing password is refused by claim, and nothing is asked', async () => {
-    for (const secret of ['wrong', null]) {
-      const fake = standIns({ rpc: cloud({ flights: [flight()] }) })
-      assert.deepEqual(await run(fake.fetch, { secret }), { status: 401, body: { error: 'claim answered 403' } })
-      assert.deepEqual(fake.asked(), [])
-    }
+  test('a wrong password is refused by claim, and nothing is asked', async () => {
+    const fake = standIns({ rpc: cloud({ flights: [flight()] }) })
+    assert.deepEqual(await run(fake.fetch, { secret: 'wrong' }), { status: 401, body: { error: 'claim answered 403' } })
+    assert.deepEqual(fake.asked(), [])
   })
 
-  test('each request has a time limit: 10 seconds for adsb.lol and 20 for Crewlu Cloud', async () => {
+  test('a call with no password is refused at once, with no call to Crewlu Cloud or adsb.lol', async () => {
+    const fake = standIns({ rpc: cloud({ flights: [flight()] }) })
+    assert.deepEqual(await run(fake.fetch, { secret: null }), { status: 401, body: { error: 'no password' } })
+    assert.deepEqual(fake.requests, [])
+  })
+
+  test('every request it makes has a time limit', async () => {
     const fake = standIns({ rpc: cloud({ flights: [flight()] }) })
     await run(fake.fetch)
+    assert.equal(fake.requests.length, 3)
     assert.ok(fake.requests.every(({ init }) => init.signal instanceof AbortSignal))
-    assert.deepEqual([ADSB_TIMEOUT_MS, RPC_TIMEOUT_MS], [10_000, 20_000])
+  })
+
+  test('a run stops asking adsb.lol 20 seconds after it began, keeps nothing, and reports a failure', async () => {
+    const flights = Array.from({ length: 2 * CALLSIGNS_PER_REQUEST + 1 }, (_, n) => flight({ id: n + 1, callsign: `UPS${n + 1}` }))
+    // adsb.lol is slow: each answer takes 11 seconds.
+    let clock = NOW_MS
+    const lines = []
+    const fake = standIns({
+      rpc: cloud({ flights }),
+      adsb: (callsigns) => {
+        clock += 11_000
+        return { body: { ac: [parked({ flight: callsigns[0] })] } }
+      },
+    })
+    const answered = await run(fake.fetch, { now: () => clock, log: (line) => lines.push(line) })
+    // The third request would have started 22 seconds in.
+    assert.deepEqual(answered.body, { flights: 201, requests: 2, fixes: 0, outcome: 'failed' })
+    assert.equal(fake.asked().length, 2)
+    assert.equal(ASK_UNTIL_MS, 20_000)
+    assert.equal(lines[0], 'flight-live: the run took too long to ask adsb.lol for every flight')
+    assert.deepEqual(fake.calls('flight_live_report'), [{ p_secret: SECRET, p_flights: [], p_outcome: 'failed' }])
+  })
+
+  test('each aircraft’s position is timed from when its own answer came', async () => {
+    const flights = Array.from({ length: CALLSIGNS_PER_REQUEST + 1 }, (_, n) => flight({ id: n + 1, callsign: `UPS${n + 1}` }))
+    let clock = NOW_MS
+    const fake = standIns({
+      rpc: cloud({ flights }),
+      adsb: (callsigns) => {
+        clock += 3000
+        return { body: { ac: [parked({ flight: callsigns[0], seen_pos: 1 })] } }
+      },
+    })
+    await run(fake.fetch, { now: () => clock })
+    const [{ p_flights }] = fake.calls('flight_live_report')
+    assert.deepEqual(p_flights.map((f) => [f.id, f.fix.seen_at - NOW_MS]), [[1, 2000], [101, 5000]])
+  })
+
+  test('an answer from claim that can’t be read stops the run with its status, and nothing is asked', async () => {
+    const answers = [
+      [{ status: 502, text: '<html>Bad gateway</html>' }, { status: 502, body: { error: 'claim answered 502' } }],
+      [{ status: 200, text: 'not json' }, { status: 502, body: { error: 'claim answered no flights list' } }],
+      [{ status: 200, body: {} }, { status: 502, body: { error: 'claim answered no flights list' } }],
+    ]
+    for (const [claimed, expected] of answers) {
+      const fake = standIns({ rpc: () => claimed })
+      assert.deepEqual(await run(fake.fetch), expected)
+      assert.deepEqual(fake.asked(), [])
+    }
   })
 
   const failures = [
@@ -2439,7 +3190,7 @@ describe("flight-live's run (spec §10.3, §10.7)", () => {
 })
 ```
 
-- [ ] **Step 2: Run them, and see them fail**
+- [x] **Step 2: Run them, and see them fail**
 
 Run:
 
@@ -2449,7 +3200,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_
 
 Expected: `does not provide an export named 'ADSB_TIMEOUT_MS'`, with `ℹ pass 0` and `ℹ fail 1`.
 
-- [ ] **Step 3: Write the run**
+- [x] **Step 3: Write the run**
 
 Append to the end of `supabase/functions/flight-live/index.ts`:
 
@@ -2470,11 +3221,17 @@ export type Deps = {
   log: (line: string) => void
 }
 
+/** One request's answer from adsb.lol: the callsigns it was asked for, the aircraft it gave, and when it came. */
+type Answer = { callsigns: Set<string>; aircraft: unknown[]; answeredAt: number }
+
 /** flight-live itself: one run per call from the check (spec §10.3). */
 export function makeHandler({ config, fetch, now, log }: Deps) {
   const answer = (status: number, body: object) => Response.json(body, { status })
 
-  /** Calls one of Crewlu Cloud's functions through PostgREST, as the service role. */
+  /**
+   * Calls one of Crewlu Cloud's functions through PostgREST, as the service role. An answer that isn't JSON, as a
+   * gateway's error page isn't, has no body here: its status still says what happened.
+   */
   async function rpc(name: string, args: object) {
     const response = await fetch(`${config.supabaseUrl}/rest/v1/rpc/${name}`, {
       method: 'POST',
@@ -2483,25 +3240,37 @@ export function makeHandler({ config, fetch, now, log }: Deps) {
       body: JSON.stringify(args),
       signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
     })
-    const body = await response.text()
-    return { ok: response.ok, status: response.status, body: body ? JSON.parse(body) : null }
+    const text = await response.text()
+    let body: any = null
+    try {
+      body = text ? JSON.parse(text) : null
+    } catch {
+      body = null
+    }
+    return { ok: response.ok, status: response.status, body }
   }
 
   /**
-   * Asks adsb.lol for every callsign, 100 to a request, one request after another. A request that fails, or is told
-   * to slow down, ends the asking: nothing is judged from part of an answer.
+   * Asks adsb.lol for every callsign, 100 to a request, one request after another, until ASK_UNTIL_MS after the run
+   * began. A request that fails, is told to slow down, or would start too late ends the asking with no answers:
+   * nothing is judged from part of one.
    */
-  async function ask(callsigns: string[]): Promise<{ outcome: Outcome; aircraft: Aircraft[]; answeredAt: number; requests: number }> {
-    const aircraft: Aircraft[] = []
+  async function ask(callsigns: string[], began: number): Promise<{ outcome: Outcome; answers: Answer[]; requests: number }> {
+    const answers: Answer[] = []
     let requests = 0
+    const stopped = (outcome: Outcome) => ({ outcome, answers: [], requests })
     for (let first = 0; first < callsigns.length; first += CALLSIGNS_PER_REQUEST) {
+      if (now() - began > ASK_UNTIL_MS) {
+        log('flight-live: the run took too long to ask adsb.lol for every flight')
+        return stopped('failed')
+      }
       requests += 1
-      const stopped = (outcome: Outcome) => ({ outcome, aircraft: [], answeredAt: now(), requests })
+      const asked = callsigns.slice(first, first + CALLSIGNS_PER_REQUEST)
       try {
-        const response = await fetch(ADSB_URL + callsigns.slice(first, first + CALLSIGNS_PER_REQUEST).join(','), {
+        const response = await fetch(ADSB_URL + asked.join(','), {
           method: 'GET',
           headers: { accept: 'application/json', 'user-agent': USER_AGENT },
-          signal: AbortSignal.timeout(ADSB_TIMEOUT_MS),
+          signal: AbortSignal.timeout(Math.max(1, Math.min(ADSB_TIMEOUT_MS, began + ASK_END_MS - now()))),
         })
         if (response.status === 429) return stopped('limited')
         if (!response.ok) {
@@ -2513,18 +3282,24 @@ export function makeHandler({ config, fetch, now, log }: Deps) {
           log("flight-live: adsb.lol's answer has no aircraft list")
           return stopped('failed')
         }
-        aircraft.push(...body.ac)
+        // Each position's age counts back from when its own answer came.
+        answers.push({ callsigns: new Set(asked), aircraft: body.ac, answeredAt: now() })
       } catch (error) {
         // A timeout, a network error, or an answer that isn't JSON.
         log(`flight-live: asking adsb.lol was stopped by a ${(error as Error).name}`)
         return stopped('failed')
       }
     }
-    return { outcome: 'ok', aircraft, answeredAt: now(), requests }
+    return { outcome: 'ok', answers, requests }
   }
 
   return async function handle(request: Request): Promise<Response> {
     try {
+      const began = now()
+      // No password, no work: not even a call to Crewlu Cloud.
+      const secret = request.headers.get('x-flight-live-secret')
+      if (!secret) return answer(401, { error: 'no password' })
+
       const missing = Object.entries(SETTING_NAMES)
         .filter(([setting]) => !config[setting as keyof Config])
         .map(([, name]) => name)
@@ -2534,19 +3309,37 @@ export function makeHandler({ config, fetch, now, log }: Deps) {
         return answer(500, { error })
       }
 
-      const secret = request.headers.get('x-flight-live-secret')
       const claimed = await rpc('flight_live_claim', { p_secret: secret })
-      if (!claimed.ok) {
-        log(`flight-live: claim answered ${claimed.status}`)
-        return answer(claimed.status === 403 ? 401 : 502, { error: `claim answered ${claimed.status}` })
+      if (!claimed.ok || !Array.isArray(claimed.body?.flights)) {
+        const said = claimed.ok ? 'no flights list' : String(claimed.status)
+        log(`flight-live: claim answered ${said}`)
+        return answer(claimed.status === 403 ? 401 : 502, { error: `claim answered ${said}` })
       }
       const flights: Flight[] = claimed.body.flights
       if (flights.length === 0) return answer(200, { flights: 0, requests: 0, fixes: 0, outcome: 'ok' })
 
       // Each callsign once, however many flights share it, and only ones that are letters and digits: they go in an address.
       const callsigns = [...new Set(flights.map((flight) => flight.callsign))].filter((callsign) => /^[A-Z0-9]{2,8}$/.test(callsign))
-      const asked = await ask(callsigns)
-      const updates = asked.outcome === 'ok' ? flights.flatMap((flight) => judge(flight, asked.aircraft, asked.answeredAt) ?? []) : []
+      const asked = await ask(callsigns, began)
+      // Each flight is judged on its own, against the answer that asked for its callsign: one that can't be judged, for
+      // a reason nobody foresaw, doesn't cost the others theirs. Only news is reported: a new state, another aircraft, or
+      // a fix seen later than the one the flight has.
+      const isNews = (flight: Flight, update: Update) =>
+        update.state !== flight.state ||
+        update.hex !== flight.hex ||
+        typeof flight.seen_at !== 'number' ||
+        update.fix.seen_at - flight.seen_at >= NEWER_BY_MS
+      const judgedOrNothing = (flight: Flight): Update[] => {
+        try {
+          const its = asked.answers.find((one) => one.callsigns.has(flight.callsign))
+          const update = its ? judge(flight, its.aircraft, its.answeredAt) : null
+          return update && isNews(flight, update) ? [update] : []
+        } catch (error) {
+          log(`flight-live: a flight couldn't be judged: ${(error as Error).name}`)
+          return []
+        }
+      }
+      const updates = flights.flatMap(judgedOrNothing)
 
       const reported = await rpc('flight_live_report', { p_secret: secret, p_flights: updates, p_outcome: asked.outcome })
       const counts = { flights: flights.length, requests: asked.requests, fixes: updates.length, outcome: asked.outcome }
@@ -2599,7 +3392,7 @@ if (deno) {
 }
 ```
 
-- [ ] **Step 4: Run the tests, and see them pass**
+- [x] **Step 4: Run the tests, and see them pass**
 
 Run:
 
@@ -2607,9 +3400,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_function.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected: `ℹ tests 33`, `ℹ pass 33`, `ℹ fail 0`.
+Expected: `ℹ tests 48`, `ℹ pass 48`, `ℹ fail 0`.
 
-- [ ] **Step 5: Commit, with Todd's OK**
+- [x] **Step 5: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/functions/flight-live/index.ts supabase/tests/flight_live_function.test.js && git commit -m "feat(cloud): flight-live asks adsb.lol once for every open flight's callsign, and reports what it judged and how the asking went"
@@ -2624,7 +3417,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/functions/flight-live/index.ts sup
 
 These tests join Tasks 1 to 8: the check queues a call, `flight-live` runs on it against the real SQL in PGlite, and `partner_live` shows the fix. They need no new code, so they should pass at once. If one fails, the two halves disagree: stop and ask.
 
-- [ ] **Step 1: Write the tests**
+- [x] **Step 1: Write the tests**
 
 In `supabase/tests/flight_live_function.test.js`, add these two lines right under the import from `../functions/flight-live/index.ts`:
 
@@ -2725,19 +3518,24 @@ describe('flight-live against the real claim and report', () => {
     assert.equal((await queued(d)).length, 1)
   })
 
-  test('a call with the wrong password is refused by the real claim', async (t) => {
+  test('a call with the wrong password is refused by the real claim, and one with none before it gets there', async (t) => {
     const { d } = await watching(t)
     await asAdmin(d, 'select private.flight_live_tick()')
-    const fake = standIns({ rpc: postgrest(d) })
-    const request = new Request('https://cloud.test/functions/v1/flight-live', { method: 'POST', headers: { 'x-flight-live-secret': 'wrong' }, body: '{}' })
-    const response = await makeHandler({ config: settings(), fetch: fake.fetch, now: () => Date.now(), log: () => {} })(request)
-    assert.equal(response.status, 401)
-    assert.deepEqual(fake.asked(), [])
+    for (const [headers, error, calls] of [
+      [{ 'x-flight-live-secret': 'wrong' }, 'claim answered 403', 1],
+      [{}, 'no password', 0],
+    ]) {
+      const fake = standIns({ rpc: postgrest(d) })
+      const request = new Request('https://cloud.test/functions/v1/flight-live', { method: 'POST', headers, body: '{}' })
+      const response = await makeHandler({ config: settings(), fetch: fake.fetch, now: () => Date.now(), log: () => {} })(request)
+      assert.deepEqual([response.status, await response.json(), fake.requests.length], [401, { error }, calls])
+      assert.deepEqual(fake.asked(), [])
+    }
   })
 })
 ```
 
-- [ ] **Step 2: Run them, and see them pass**
+- [x] **Step 2: Run them, and see them pass**
 
 Run:
 
@@ -2745,16 +3543,16 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && node --no-maglev --test flight_live_function.test.js 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail" && shasum -a 256 flight_live_function.test.js ../functions/flight-live/index.ts
 ```
 
-Expected: `ℹ tests 37`, `ℹ pass 37`, `ℹ fail 0`, then:
+Expected: `ℹ tests 52`, `ℹ pass 52`, `ℹ fail 0`, then:
 
 ```
-97870a81a2a208707f3913a43132f9ef71b63f17306368aad67df363fce0e869  flight_live_function.test.js
-daa241bcbe4876bfa79cf3b715c483d9ea5d812860f9ef1706eeb475ccb7165a  ../functions/flight-live/index.ts
+fdfc17fd18aa9a8f432352f8dd4bddb0cb0aac628ee7d0c9d6d0bf8aab39e8fc  flight_live_function.test.js
+0da53185435b5576ffdf6075940798a6f42070a5a03e693e163aa70b40c54ca6  ../functions/flight-live/index.ts
 ```
 
 As in Task 5, a different sum with passing tests is a difference in spacing: note it and go on.
 
-- [ ] **Step 3: Check the function's types**
+- [x] **Step 3: Check the function's types**
 
 Node strips the types without checking them. The Crewluve website has TypeScript installed. Run:
 
@@ -2764,7 +3562,7 @@ cd ~/Dev/Duty-flight-live/supabase/tests && ~/Dev/"Crewluve Website"/node_module
 
 Expected: `types-ok`, with nothing before it.
 
-- [ ] **Step 4: Commit, with Todd's OK**
+- [x] **Step 4: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/tests/flight_live_function.test.js && git commit -m "test(cloud): flight-live against the real claim and report: from the check's call to the fix a partner's device reads"
@@ -2778,7 +3576,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/tests/flight_live_function.test.js
 - Modify: `supabase/partner-api.md`
 - Modify: `supabase/tests/README.md`
 
-- [ ] **Step 1: Make the edits**
+- [x] **Step 1: Make the edits**
 
 Each edit replaces text that appears once.
 
@@ -2857,12 +3655,15 @@ Where adsb.lol can see a pilot's flight, CrewLu Cloud keeps its real position an
 
 - **Times are milliseconds since 1970,** unlike the summary's seconds. `now` is CrewLu Cloud's clock: measure a fix's age against it, not against the device's.
 - **`flights`** has one entry for each flight leg in the pilot's summary that CrewLu Cloud is watching, or watched in the last 16 days. `leg_id` is that leg's `id` in the summary's `tripLegs`. A leg with no entry has no live data: show the schedule.
+- **Legs of the summary that are one flight,** with the same callsign, departure airport and scheduled departure, are answered once, under the first of their ids in text order.
 - **`state`:** `waiting` (never seen), `ground` (on the ground: at the departure airport, or somewhere else after a diversion), `airborne`, or `landed` (seen on the ground at the arrival airport, at `landed_at`).
-- **`fix`** is the last position seen, or null before the first. `altitude_ft` is null on the ground. `ground_speed_kt`, `track_deg`, `registration` and `type_code` are null when adsb.lol didn't send them.
-- **`trail`** is the path flown, oldest first, with a point about every 2 minutes while the flight is seen in the air. Each point is `[time, latitude, longitude, altitude in feet]`.
+- **`fix`** is the last position seen, or null before the first. `altitude_ft` is null on the ground. `ground_speed_kt`, `track_deg` (0 to 360), `registration` and `type_code` are null when adsb.lol didn't send them.
+- **`trail`** is the path flown, oldest first, with a point about every 2 minutes while the flight is seen in the air. Each point is `[time, latitude, longitude, altitude in feet]`, and the altitude is null when adsb.lol sent none.
   - Without `p_after` it's every point. With the last answer's `cursor` it's only the points since.
-  - Keep the points you have and add the new ones. If you then hold a different number than `trail_count`, ask again without `p_after`.
-- **When to call it:** every 30 seconds while the screen is in front and a flight's window is open, and once each time the screen comes to the front. A window runs from 30 minutes before a flight's effective departure to its landing, or to 2 hours after its effective arrival. Never in the background.
+  - Keep the points you have and add the new ones. If you then hold a different number than `trail_count`, ask again without `p_after`. Always make that check: when two of CrewLu Cloud's runs overlap, a point can arrive after one with a later id.
+- **When to call it:** every 30 seconds while the screen is in front and a flight's window is open, and once each time the screen comes to the front. Never in the background, and always by POST: a GET would put the device's key in an address.
+  - A window opens 30 minutes before a flight's effective departure. It closes when the flight is `landed`, or 2 hours after its effective arrival.
+  - Past those 2 hours, keep asking while the last answer shows the flight `airborne` with a fix under 30 minutes old. CrewLu Cloud goes on watching such a flight, for up to 12 hours after its effective arrival.
 - **It doesn't count as the device being seen.** `partner_view` does that.
 - **The switch.** CrewLu Cloud watches flights for nobody (`off`), for listed pilots (`listed`) or for everyone (`all`). It's set in the SQL editor with `select private.flight_live_switch('listed', array['<the pilot's account id>']::uuid[]);`. While it's off, or the pilot isn't listed, `flights` is empty.
 - **Credit adsb.lol** wherever a flight with live data shows: its data is under the ODbL.
@@ -2934,7 +3735,7 @@ In `supabase/tests/README.md`, replace:
 with:
 
 ```markdown
-399 tests run in a little over a minute, each test file in its own process.
+432 tests run in a little over a minute, each test file in its own process.
 ```
 
 In `supabase/tests/README.md`, replace:
@@ -2964,7 +3765,7 @@ with:
 - **pg_cron and pg_net.** The shim only records what they're given.
 ```
 
-- [ ] **Step 2: Run every test**
+- [x] **Step 2: Run every test**
 
 Run:
 
@@ -2972,9 +3773,9 @@ Run:
 cd ~/Dev/Duty-flight-live/supabase/tests && npm test 2>&1 | grep "^ℹ tests\|^ℹ pass\|^ℹ fail"
 ```
 
-Expected, after a little over a minute: `ℹ tests 399`, `ℹ pass 399`, `ℹ fail 0`. That's the 313 from Task 0 and 86 new ones, the number the README now gives.
+Expected, after a little over a minute: `ℹ tests 432`, `ℹ pass 432`, `ℹ fail 0`. That's the 313 from Task 0 and 119 new ones, the number the README now gives.
 
-- [ ] **Step 3: Commit, with Todd's OK**
+- [x] **Step 3: Commit, with Todd's OK**
 
 ```bash
 cd ~/Dev/Duty-flight-live && git add supabase/partner-api.md supabase/tests/README.md && git commit -m "docs(cloud): partner_live in the partner door's contract, and the live plane's tests in the tests' README"
@@ -2986,7 +3787,7 @@ cd ~/Dev/Duty-flight-live && git add supabase/partner-api.md supabase/tests/READ
 
 **Files:** whatever the review changes.
 
-- [ ] **Step 1: Ask for a review**
+- [x] **Step 1: Ask for a review**
 
 Dispatch `superpowers:code-reviewer` with `model: "sonnet"`. Give it the spec's §10, §13, §14 and §16.2, this plan, and the branch's diff:
 
@@ -3001,11 +3802,11 @@ Ask it to look hardest at:
 - what two runs that overlap can do to a flight's row and its trail;
 - SQL that could raise on a summary's odd leg, and so stop the check for everyone.
 
-- [ ] **Step 2: Weigh what it finds**
+- [x] **Step 2: Weigh what it finds**
 
 Use `superpowers:receiving-code-review`. For each finding, check it against the code before changing anything. Fix what's real, with a test that fails first. Tell Todd what was found, what was changed, and what was left and why.
 
-- [ ] **Step 3: Run every test, and commit with Todd's OK**
+- [x] **Step 3: Run every test, and commit with Todd's OK**
 
 Run:
 
@@ -3192,4 +3993,20 @@ Commit this plan and any spec change in `~/Dev/Crewluv`, on `feature/trip-map-li
 - **A flight whose airline flies under another's callsign,** as a regional does for a major, isn't found. The table in `private.flight_callsign` can gain operators as they turn up.
 - **A pilot removed from the list while a flight is open** is still asked about until that flight's window closes.
 - **If adsb.lol starts needing a key,** `flight-live` gains a secret and a header in `ask`.
+- **Rows can pile up for one pilot, though never more than 8 are open.** A pilot who keeps every leg in the summary and keeps adding earlier ones, or whose made-up callsigns are real aircraft that get seen, leaves rows that stay until the daily delete, 16 days on. That costs storage, not requests to adsb.lol. If a pilot ever does it, cap a pilot's rows in the daily delete.
+- **A seen flight whose leg leaves the summary and comes back after its window has closed** isn't watched again, even if it's still in the air under the 12-hour rule. `partner_live` goes on answering its last fix.
+- **A pilot with more than 8 flights inside one day's windows** has only the 8 earliest watched.
 - **The check reads every allowed pilot's summary every 30 seconds.** That's fine at today's numbers. If it grows slow, read only the summaries that changed since the last run, and keep each pilot's upcoming flights in a table.
+
+## Changes made during execution
+
+Tasks 0 to 11, on 15 Nov 2026. Tasks 12 and 13 are still to do.
+
+- **Where it is.** `feature/flight-live` in `~/Dev/Duty-flight-live`: eleven commits, `ffa2e8df` to `91c60200`, not pushed. `npm test` passes 432 of 432, and `tsc --strict` passes on the function.
+- **This plan was rewritten after the reviews.** Its code blocks are what the branch holds now, not what was first planned. They were put together stage by stage in a copy of `supabase/`, tested after each task, and the result compared byte for byte with the worktree.
+- **The branch's history differs from the tasks in one way.** Each task's commit holds that task as it stood after its own review. A later review's fix to an earlier task's part rides in the later commit, and the whole-branch review's fixes are the last commit, `91c60200`.
+- **How the tasks were carried out.** An implementer subagent copied the blocks for Tasks 1 and 2. From Task 3 they were applied by script from the tested pieces, which is exact and quicker. In place of a spec-reviewing subagent, each task's files were compared byte for byte with the tested text.
+- **The reviews.** Every task had a code quality review by `superpowers:code-reviewer` on sonnet, with a re-review where it asked for fixes. Task 11 reviewed the whole branch, and its fixes were reviewed again: ready for the live setup, with nothing critical or important left.
+- **What the reviews changed** is decisions 12 to 23 above. Each came from a review, and each has tests.
+- **A flaky test.** One of Task 4's tests found two rows by their position, and one check makes its rows in no fixed order (21 times one way and 19 the other, over 40 tries). It failed once, and Task 4 was committed in the same command without that being seen. The test was fixed with Task 5. Tests of several rows now find each by its callsign, or sort. Since then every run's full log is kept, and checked for no failures before a commit.
+- **Commits** were made as each task passed its tests and review, on Todd's OK for this plan.

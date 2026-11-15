@@ -232,7 +232,7 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
 | Part | What it is |
 |---|---|
 | `private.airports` | Each airport's code and position, filled by a second script made from the website's `public/data/airports.json` (9,056 airports) |
-| `private.live_flights` | One row per watched flight: its key, airports and their positions, effective times, state, aircraft and latest fix |
+| `private.live_flights` | One row per pilot's watched flight: its key, airports and their positions, effective times, state, aircraft and latest fix |
 | `private.live_flight_points` | The trails: one row per point |
 | `private.flight_live_state` | One row: the switch, the listed pilots, and the pause after failures |
 | `private.flight_legs(status)` | A summary's flight legs that can be watched, each with its callsign. The check and `partner_live` both use it |
@@ -255,27 +255,29 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
   4. a two-character airline code becomes its ICAO code from a table in the SQL: today's 15 airlines, and the cargo and regional airlines the website names. A three-letter code is used as it is. An airline not in the table has no callsign;
   5. the callsign is the ICAO code and the digits without leading zeros: `UPS0207` becomes `UPS207`. One longer than 8 characters, which no aircraft can broadcast, isn't a callsign.
 - **Its times are moved by its own delay.** A summary-wide delay from a CrewLu that doesn't tag legs isn't counted: the window is wide enough without it.
-- **Nothing a summary holds can stop the check,** which reads every pilot's summary together. A time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure, and a delay counts only within a week either way. A leg that fails the first two is left out, and any other delay is none.
+- **Nothing a summary holds can stop the check,** which reads every pilot's summary together. A time counts only as a number of seconds from 1970 to 2100, an arrival must be after its departure and within a day of it, and a delay counts only within a week either way. A leg that fails the first two is left out, and any other delay is none.
 
 The table holds each airline's real ICAO code, so PSA Airlines is `JIA`. The app's tracking links have `PSA` for it, which is another airline's.
 
 **The window.** A leg is watched from 30 minutes before its effective departure until the first of: landing seen, or 2 hours after its effective arrival. A flight still being seen in the air keeps its window open until 30 minutes after its last fix, to at most 12 hours after its effective arrival.
 
-**The key** is the callsign, the departure airport and the scheduled departure. A captain and a first officer on one flight share a row.
+**The key** is the pilot, the callsign, the departure airport and the scheduled departure. Each pilot has rows of their own, even for a flight two of them are on, so nothing in one pilot's summary can change what another pilot's family sees. The moving map spec had crew share a row, which let one pilot's summary set another's arrival airport and window. Sharing saved nothing: a callsign goes to adsb.lol once however many rows have it.
 
 **Whose flights.** The check watches a pilot's flights only when:
 
 - the switch allows that pilot (§10.7); and
 - one of their partners has a device seen in the last 30 days.
 
-At most 8 of a pilot's flights are watched at once, the earliest to leave. That's more than a pilot can have open, and it keeps a summary gone wrong from making `flight-live` ask adsb.lol for thousands.
+At most 8 of a pilot's flights are watched at once, the earliest to leave. That's more than a pilot can have open, and it keeps a summary gone wrong from making `flight-live` ask adsb.lol for thousands. The limit holds where flights are handed to `flight-live`, however many rows a pilot's summaries have made.
+
+**A flight that leaves its pilot's summary** stops being watched at the next check. If nobody ever saw it, its row is deleted. If somebody did, it keeps its row and trail, and is watched again if it comes back. The same happens when the switch stops allowing a pilot, or their partners' devices go unseen for 30 days.
 
 ### 10.3 Each run
 
 Every 30 seconds, pg_cron runs `private.flight_live_tick()`. It:
 
 1. stops if the switch is off or the pause hasn't run out;
-2. makes or updates a row for every leg whose window is open, with the earliest effective departure and the latest effective arrival among the pilots who share it;
+2. makes or updates each pilot's row for every leg of theirs whose window is open, and lets go of the flights that have left their pilot's summary;
 3. calls `flight-live` through pg_net with the Vault password, if any row's window is open and it hasn't landed.
 
 `flight-live` then:
@@ -283,19 +285,23 @@ Every 30 seconds, pg_cron runs `private.flight_live_tick()`. It:
 1. **claims** the open rows: each one's callsign, airports' positions, effective departure, state and aircraft;
 2. **asks adsb.lol once** for every callsign: `GET https://api.adsb.lol/v2/callsign/<a>,<b>,…`, with a 10-second timeout and a `User-Agent` that names CrewLu Cloud. More than 100 callsigns go in further requests, one after another;
 3. **judges** each row's answer (§10.4);
-4. **reports** the new states and fixes, and how the request went. The database adds the trail points.
+4. **reports** what's new, and how the request went: a new state, another aircraft, or a fix seen at least a second later than the one the flight has. The database adds the trail points.
+
+A run starts no request later than 20 seconds after it began, and reports that as a failure: the check calls every 30 seconds, and runs that piled up would ask adsb.lol twice over just when it's slow. A call with no password is refused before anything else.
 
 With no window open there are no requests. Otherwise there are 2 a minute, however many pilots are flying.
 
 ### 10.4 The match: following the aircraft
 
-For a row, the candidates are the aircraft in the answer whose callsign, trimmed, is the row's, with a position seen in the last 60 seconds.
+For a row, the candidates are the aircraft in the answer whose callsign, trimmed, is the row's, with a position on the Earth seen in the last 60 seconds, and either a height or "ground". An aircraft that sends neither can't be told to be flying, and is passed over, as is any entry that isn't an aircraft. Each row is judged on its own, so one that can't be doesn't cost the others their fixes.
 
-- **Before it's seen in the air** (`waiting` or `ground`):
-  - a candidate on the ground within 10 nm of the departure airport is the flight. The row takes that aircraft, and its state is `ground`. A later candidate that fits takes its place, as when the airline swaps aircraft;
-  - a candidate in the air that is the row's aircraft has taken off: `airborne`;
-  - its own aircraft on the ground anywhere else, as after a diversion, stays `ground` with its newest fix;
-  - any other candidate in the air is the flight only from 20 minutes before the effective departure, and only when it's between the two airports. Between means its distance from the departure airport plus its distance to the arrival airport is no more than 1.3 times the distance between them plus 200 nm. The row takes that aircraft: `airborne`.
+- **Before it's seen in the air** (`waiting`, or `ground`, which is also a flight down again after a return or a diversion), in this order:
+  1. its own aircraft in the air has taken off: `airborne`;
+  2. a candidate on the ground within 10 nm of the departure airport is the flight, and the row takes that aircraft: `ground`. Its own comes first while it's seen there, else another, as when the airline swaps aircraft;
+  3. its own aircraft on the ground anywhere else, as after a diversion, stays `ground` with its newest fix. No other plane with its number takes its place while it's seen;
+  4. any other candidate in the air is the flight only from 20 minutes before the effective departure, only between the two airports, and only when it isn't heading for the departure airport. The row takes that aircraft: `airborne`.
+     - Between means its distance from the departure airport plus its distance to the arrival airport is no more than 1.3 times the distance between them plus 200 nm.
+     - Heading for means its track is within 90° of the bearing to the airport. That's the plane still flying the leg before, under the same number and running late. An aircraft that sends no track is taken.
 - **Once it's in the air,** only the row's aircraft counts, wherever it goes:
   - in the air: the fix is kept;
   - on the ground within 10 nm of the arrival airport: `landed`, with the time. The row is finished;
@@ -308,7 +314,9 @@ So a reused flight number on another plane, and a different leg with the same nu
 
 - **The latest fix:** latitude, longitude, altitude in feet (null on the ground), ground speed in knots, track in degrees (null when missing), whether it's on the ground, registration, type code, and when it was seen. Seen time is when the answer came, minus `seen_pos`. A fix older than the one a flight has is left alone.
 - **The trail:** a point for the first fix in the air, then one whenever the last is 110 seconds old or more: `[time, latitude, longitude, altitude]`. Fixes on the ground aren't trail points.
-- **For 16 days.** A daily job deletes a row, with its points, 16 days after it landed, or after its effective arrival if it never did. That covers the longest trip and its recap day. A ten-hour flight is about 300 points.
+- **A report is checked before it's kept.** An entry that can't be read is passed over. A fix is rebuilt from its nine fields, each within reason, so nothing else can reach a partner through it. One dated more than 5 minutes ahead is refused, since it would hold off every fix after it.
+- **Two runs that overlap can't add a point twice.** A report locks its flights in order, keeps only a newer fix, and adds its trail points in a step of their own.
+- **For 16 days.** A daily job deletes a row, with its points, 16 days after it landed, or after its effective arrival if it never did. That covers the longest trip and its recap day. A ten-hour flight is about 300 points. A pilot who deletes their account takes their rows with them.
 - **Only public ADS-B data,** in the `private` schema, which the API doesn't expose.
 
 ### 10.6 `partner_live`
@@ -337,6 +345,8 @@ A new partner RPC beside `partner_view`, called the same way. `partner_view` doe
 - **Errors:** as `partner_view`: `sharing_ended` for a key that's been let go.
 - **The switch applies here too:** off answers no flights, and listed answers only listed pilots' partners.
 - **It doesn't count as the device being seen.** `partner_view` does that.
+- **It's called by POST only.** It only reads, but it isn't marked `stable`: PostgREST would then take it by GET, which puts the device's key in an address.
+- **Devices keep asking past a window's 2 hours** while the last answer shows the flight `airborne` with a fix under 30 minutes old, as the check keeps watching it (§10.2).
 - `partner-api.md` gains its row and rules.
 
 ### 10.7 The switch and failures
@@ -394,7 +404,8 @@ The same design in TypeScript, held to the same answers by the shared cases.
 - **A plane seen again after its estimate has passed,** as after a hold: the estimate moves later and the flight is in the air again, even if the screen had moved on.
 - **A return to the departure airport:** the trail keeps both attempts. The flight is on the ground, then in the air again.
 - **A diversion:** §5.1's last row. CrewLu sends the new plan when the pilot has it.
-- **The same flight number on back-to-back legs:** each leg's row takes the aircraft only at its own departure airport, or in the air near its own departure time.
+- **The same flight number on back-to-back legs:** each leg's row takes the aircraft only at its own departure airport, or in the air near its own departure time and not heading for that airport.
+- **Two airports within 10 nm of each other,** or a flight that lands where it left: the first fix on the ground after takeoff reads as landed.
 - **An airline that flies under another's callsign,** as a regional does for a major: the callsign doesn't match, and the flight stays on the schedule.
 - **The schedule changes** (a new scheduled departure): the leg gets a new row, and the old one is deleted with the others after 16 days.
 - **A reported delay that disagrees with the real plane:** the real plane wins for the times. The ghost and the label measure against the reported delay.
@@ -443,7 +454,7 @@ A new `CrewluvTests/Fixtures/TripMap/live-cases.json`, copied to the website's `
 
 - **SQL tests** in `Duty/supabase/tests`, in PGlite:
   - `private.flight_legs`: callsigns for company flights, other airlines, leading zeros, `GND` and `CML`, and unknown airports;
-  - the check: the window, shared rows, the 30-day rule, the switch's three settings, and the pause;
+  - the check: the window, each pilot's own rows, the cap of 8, the 30-day rule, the switch's three settings, and the pause;
   - claim and report: the password, and what each writes;
   - `partner_live`: only the partner's own pilot's flights, a hidden leg, `sharing_ended`, `p_after`, `trail_count`, and the switch;
   - the daily delete;
