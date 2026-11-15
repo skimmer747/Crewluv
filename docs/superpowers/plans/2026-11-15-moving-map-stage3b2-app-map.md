@@ -23,11 +23,11 @@
 **How this plan was checked.** Every code block here comes from a file that was built and run before the plan was put together. Nothing in it was typed into the plan by hand.
 - **A scratch Swift package** with the app target's settings (macOS, Swift 6.4, language mode 5, the main actor by default, approachable concurrency) holds real copies of the map's model, its facts and the engine, and 35 of their test classes, with this plan's files laid over them.
   - Before this plan's changes: 292 XCTest tests and 69 Swift Testing tests, all passing.
-  - With them: 381 XCTest tests and 71 Swift Testing tests, all passing, with no warnings. 89 of the XCTest tests and 2 of the Swift Testing tests are new, and every test that was there before still passes unchanged, but for the one this plan rewrites.
+  - With them: 387 XCTest tests and 71 Swift Testing tests, all passing, with no warnings. 95 of the XCTest tests and 2 of the Swift Testing tests are new, and every test that was there before still passes unchanged, but for the one this plan rewrites.
   - The new tests run the shared cases (`live-cases.json`) through the new code: every flight and every moment of them is drawn, worded and given its real times, and compared with what the cases expect.
-- **45 deliberate breaks** were made in the new code, one at a time. Each fails at least one test. One slipped through at first: with two legs that are one flight, the test tried them in only one order. It now tries both, and catches it. And the three new tests of `LiveFlightSource` fail against the engine's code as it is today.
+- **47 deliberate breaks** were made in the new code, one at a time. Each fails at least one test. One slipped through at first: with two legs that are one flight, the test tried them in only one order. It now tries both, and catches it. Two of the 47 are for the rule batch A's review added. And the three new tests of `LiveFlightSource` fail against the engine's code as it is today.
 - **The whole app was type-checked for iOS** with `swiftc` against the iOS 27.2 simulator SDK and the app's own settings, outside Xcode: all 177 of its Swift files, with this plan's files in place. No errors and no warnings. The app as it is today passes the same check, so the check means something. With every task in, the app was also compiled all the way to an object file for the simulator, without linking, since a type-check can't see a value used before it's set: again no errors and no warnings.
-- **Task by task:** the package was rebuilt and its tests run as it stands after each of Tasks 2 to 7, and the whole app type-checked as it stands after each of Tasks 2 to 9. Every one passed: the XCTest count went 292, 311, 330, 344, 364 and 381 as each task's tests came in, and the app type-checked with no errors and no warnings each time. So the app's code is whole after every task, not only at the end.
+- **Task by task:** the package was rebuilt and its tests run as it stands after each of Tasks 2 to 7, and the whole app type-checked as it stands after each of Tasks 2 to 9. Every one passed: the XCTest count went 292, 315, 336, 350, 370 and 387 as each task's tests came in, and the app type-checked with no errors and no warnings each time. So the app's code is whole after every task, not only at the end. These numbers are from after batch A's review, which added eight tests.
 - **The plan itself was followed by a script,** on the repo's files as they are at `f65ef7d`: every file it says to create, and every replacement it says to make. All 41 files came out the same as the ones that were tested.
 - **Not checked, because nothing outside Xcode can check it:**
   - Nothing was run on a simulator or a device. No view was seen. The colours, the planes' looks and the dotted lines are as the spec's words have them, and nobody has looked at them yet.
@@ -38,7 +38,7 @@
 **Where this plan settles what the spec left open, or differs from it:**
 - **`MapLeg`'s own questions stay the schedule's.** The spec (§11) has `progress(at:)`, `position(at:)`, `time(atFraction:)`, `heading(at:)` and `distance` ask the path and the record. Here the drawing asks `MapLeg.flight`, and those five stay as they are, between the leg's gate times. The facts read them, and the facts on the real path are 3B-3's. Until then the facts follow the great circle between the real plane's times: "Over Québec" can name a place the real plane isn't over.
 - **A leg's delay stays on it.** Every reader of a leg moves its times by its delay. So a flight's real times are written as the real time less the delay, and each reader lands on the real time without knowing.
-- **The waits either side** (spec §7.1) are CrewLu's turn, layover, base and home legs next in line before and after the flight. One moves only when its flight's own edge did, and only when the wait's edge was where the flight's was, within a minute. So a layover that starts after half an hour's training isn't pulled back over the training when the flight lands early.
+- **The waits either side** (spec §7.1) are CrewLu's turn, layover, base and home legs next in line before and after the flight. One moves only when its flight's own edge did, and only when the wait's edge was where the flight's was, within a minute. So a layover that starts after half an hour's training isn't pulled back over the training when the flight lands early. With a reported delay, the wait before ends at the flight's written start, the delay ahead of its real one, as CrewLu writes every delayed flight's: `SharedPilotStatus.tripLegs` ends a wait there in any case.
 - **A summary-wide delay gets no live data.** That's the delay of a CrewLu that doesn't tag legs, with no leg tagged. There's no leg to hold the real times against, so the schedule shows. A leg with its own delay is unaffected.
 - **A time that changes by itself can be a minute late.** The model resolves at each new answer about the live plane, and at each read of the status, which on Crewlu Cloud comes every 60 seconds while the screen is in front. A plane on the ground whose fix goes stale is the case: its landing time goes back to the schedule's at the next of those.
 - **The real plane shows from gate to gate.** The spec (§5.1) has it at the gate whenever it's seen on the ground there, which is up to 30 minutes before the flight leaves. Before the leg starts, the pilot's marker already stands on that airport, so the plane and its ghost wait for the leg.
@@ -62,7 +62,7 @@
 - **Left to 3B-3:** "Estimated · last seen near Gander" on the headline chip (§8, §9), the plane's row, and the credit.
 
 **Questions for Todd, before this plan runs:**
-1. **The credit.** Crewlu Cloud's contract says to credit adsb.lol wherever a flight with live data shows, and the credit is 3B-3's. Until then only Todd's own account is listed, so only his family's devices can show a real plane. Is that all right for his next flight, with no TestFlight or App Store build of 3B-2 until the credit is in? The other way is a small extra task here: one line in the facts' footer.
+1. **The credit.** Crewlu Cloud's contract says to credit adsb.lol wherever a flight with live data shows, and the credit is 3B-3's. Until then only Todd's own account is listed, so only his family's devices can show a real plane. Is that all right for his next flight, with no TestFlight or App Store build of 3B-2 until the credit is in? The other way is a small extra task here: one line in the facts' footer. **Answered 15 Nov 2026: leave it for 3B-3. No TestFlight or App Store build of 3B-2 until the credit is in.**
 2. **Asking with nothing to hear.** Until the switch is `all`, every other pilot's partners ask every 30 seconds while a flight's window is open and their screen is in front, and get no flights. The engine plan left this for Todd: leave it (each call is small), or have the source ask less often after an empty answer? This plan leaves it.
 3. **A real flight in the previews.** Task 8's previews use a made-up plane. UPS82's real snapshot is in a scratchpad and could be a preview, which would put a real flight's data in the repo. This plan doesn't.
 4. **The release note.** This is the first of Stage 3's plans that changes what a family sees, though only for a listed pilot. Task 11 drafts the note for "Crewluve revisions": which version and build does it go under?
@@ -143,7 +143,7 @@ Then Task 10, on a real flight, and Task 11.
 
 **Files:** none.
 
-- [ ] **Step 1: Check the branch and the tree.**
+- [x] **Step 1: Check the branch and the tree.**
 
 ```bash
 git -C /Users/toddanderson/Dev/Crewluv status --short && git -C /Users/toddanderson/Dev/Crewluv branch --show-current && git -C /Users/toddanderson/Dev/Crewluv log --oneline -1
@@ -153,9 +153,9 @@ git -C /Users/toddanderson/Dev/Crewluv status --short && git -C /Users/toddander
   - Anything else: stop and ask Todd.
   - Other changed files that aren't this plan's are left alone. Another session may share this checkout.
 
-- [ ] **Step 2: Check the questions.** Todd's answers to the five questions above may change a task. If the credit is to go in here, stop and add its task before starting.
+- [x] **Step 2: Check the questions.** Todd's answers to the five questions above may change a task. If the credit is to go in here, stop and add its task before starting.
 
-- [ ] **Step 3: Read the engine.** The eight files in `Crewluv/Services/TripMap/Live/`, and "What 3B-2, 3B-3 and the website's plan take from this one" in plan 3B-1.
+- [x] **Step 3: Read the engine.** The eight files in `Crewluv/Services/TripMap/Live/`, and "What 3B-2, 3B-3 and the website's plan take from this one" in plan 3B-1.
 
 ---
 
@@ -168,7 +168,7 @@ The engine left two things for this plan. A call the 30-second check made ended 
 - Modify: `CrewluvTests/LiveFlightSourceTests.swift`
 - Modify: `Crewluv/Services/TripMap/Live/LiveFlightSource.swift`
 
-- [ ] **Step 1: Make the stand-in door fail a stopped call,** as the real door does: URLSession ends a call whose task was cancelled, and `LivePartnerDoor` reports that as out of reach. Without this, the tests below would pass against the old code.
+- [x] **Step 1: Make the stand-in door fail a stopped call,** as the real door does: URLSession ends a call whose task was cancelled, and `LivePartnerDoor` reports that as out of reach. Without this, the tests below would pass against the old code.
 
 In `CrewluvTests/Helpers/PartnerCloudStandIns.swift`:
 
@@ -192,7 +192,7 @@ with:
         guard !liveAnswers.isEmpty else { throw .unavailable }
 ```
 
-- [ ] **Step 2: Write the tests.** One is rewritten: a second `ask()` now waits. Two are new.
+- [x] **Step 2: Write the tests.** One is rewritten: a second `ask()` now waits. Two are new.
 
 In `CrewluvTests/LiveFlightSourceTests.swift`:
 
@@ -296,7 +296,7 @@ with:
 
 Against the engine's code as it is, all three fail: the second `ask()` is back at once, and the two stopped calls bring no answer.
 
-- [ ] **Step 3: Change `ask()`.**
+- [x] **Step 3: Change `ask()`.**
 
 In `Crewluv/Services/TripMap/Live/LiveFlightSource.swift`:
 
@@ -394,7 +394,7 @@ Replace:
 
     // MARK: - Private
 
-    /// The 30-second check:
+    /// The 30-second check: asks while any flight's window is open. Until the first answer the windows are measured
 ```
 
 with:
@@ -402,14 +402,14 @@ with:
 ```swift
     }
 
-    /// The 30-second check:
+    /// The 30-second check: asks while any flight's window is open. Until the first answer the windows are measured
 ```
 
 The whole class is on the main actor, so the task's closure is too, and `asking` is only ever touched there. `self` is held weakly: a source let go mid-call lives until the call ends and no longer.
 
-- [ ] **Step 4: Checkpoint.** `LiveFlightSourceTests` has 31 tests. Todd runs it with batch A, after Task 4.
+- [x] **Step 4: Checkpoint.** `LiveFlightSourceTests` has 31 tests. Todd runs it with batch A, after Task 4.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `fix(crewluv): LiveFlightSource makes its call in a task of its own, so a call the 30-second check made still brings its answer when the check is stopped, and a second ask waits for the answer (Stage 3 spec §11)`.
+- [x] **Step 5: Ask to commit.** Suggested message: `fix(crewluv): LiveFlightSource makes its call in a task of its own, so a call the 30-second check made still brings its answer when the check is stopped, and a second ask waits for the answer (Stage 3 spec §11)`.
 
 ---
 
@@ -425,7 +425,7 @@ The whole class is on the main actor, so the task's closure is too, and `asking`
 - Create: `Crewluv/Services/TripMap/Live/FlightPath+Drawing.swift`
 - Modify: `Crewluv/Services/TripMap/MapLeg.swift`
 
-- [ ] **Step 1: Write the helper** that turns a shared case's flight into the map's flight, a leg of the map, and a leg of the summary. Every later task's tests use it.
+- [x] **Step 1: Write the helper** that turns a shared case's flight into the map's flight, a leg of the map, and a leg of the summary. Every later task's tests use it.
 
 Create `CrewluvTests/Helpers/LiveCaseLegs.swift`:
 
@@ -508,7 +508,7 @@ extension TripMapFixtures.LiveCases {
 }
 ```
 
-- [ ] **Step 2: Write the tests.**
+- [x] **Step 2: Write the tests.**
 
 Create `CrewluvTests/MapFlightTests.swift`:
 
@@ -700,12 +700,38 @@ final class FlightPathDrawingTests: XCTestCase {
         XCTAssertEqual(path.runs(from: path.flownLength, to: path.length).first?.coordinates.count, 2)
     }
 
-    func test_runs_withNoLength_areEmpty() {
+    func test_runs_ofACutWithNoLength_orBackwards_areEmpty() {
         XCTAssertTrue(greatCircle.runs(from: 0, to: 0).isEmpty)
         XCTAssertTrue(greatCircle.runs(from: 500_000, to: 500_000).isEmpty)
         XCTAssertTrue(greatCircle.runs(from: 500_000, to: 100_000).isEmpty)
         XCTAssertTrue(greatCircle.runs(from: greatCircle.length, to: greatCircle.length * 2).isEmpty)
         XCTAssertTrue(greatCircle.coordinates(from: 0, to: 0).isEmpty)
+    }
+
+    func test_runs_ofAPathThatGoesNowhere_areEmpty() {
+        let nowhere = FlightPath(from: louisville, to: louisville)
+        XCTAssertTrue(nowhere.runs(from: 0, to: 1_000).isEmpty)
+        XCTAssertTrue(nowhere.coordinates(from: 0, to: 1_000).isEmpty)
+        XCTAssertEqual(nowhere.coordinates.count, 2)
+    }
+
+    func test_runs_ofALongRealPath_keepEveryPlaceInOrder() throws {
+        // 600 places seen two minutes apart: one run of 601 joins, built without copying it 600 times over.
+        let cases = try TripMapFixtures.liveCases()
+        let start = try cases.flight(named: "ahead, in the air").departure
+        let trail = (1...600).map { minute in
+            LiveFlight.TrailPoint(time: start.addingTimeInterval(Double(minute) * 120), latitude: 38.2 + Double(minute) * 0.02,
+                                  longitude: -85.7 + Double(minute) * 0.15, altitudeFeet: 38_000)
+        }
+        let live = LiveFlight(legID: "f1", callsign: "UPS207", state: .airborne, fix: nil, landedAt: nil, trail: trail)
+        let path = FlightPath(from: louisville, to: cologne, flight: live)
+        let flown = path.runs(from: 0, to: path.flownLength)
+        XCTAssertEqual(flown.map(\.kind), [.seen])
+        XCTAssertEqual(flown.first?.coordinates.count, 601)
+        for (place, point) in zip(flown[0].coordinates.dropFirst(), trail) {
+            XCTAssertEqual(place.latitude, point.latitude, accuracy: 1e-9)
+            XCTAssertEqual(place.longitude, point.longitude, accuracy: 1e-9)
+        }
     }
 
     func test_coordinatesFromTo_areTheRunsJoined_withoutTheirSharedPlacesTwice() throws {
@@ -764,13 +790,30 @@ final class FlightPathDrawingTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(path.heading(atDistance: path.length * 2)), expected, accuracy: 1e-9)
     }
 
+    func test_heading_beforeThePathsStart_isTheHeadingAtIt() throws {
+        let path = greatCircle
+        XCTAssertEqual(try XCTUnwrap(path.heading(atDistance: -5_000)), try XCTUnwrap(path.heading(atDistance: 0)), accuracy: 1e-12)
+    }
+
+    func test_heading_onARealPath_isAlongThePathFlown_notTowardsTheAirport() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let path = try cases.made(cases.flight(named: "off early and the long way round")).path
+        let along = path.flownLength / 2
+        let look = PlaneHeading.lookAhead * path.length
+        let expected = try XCTUnwrap(PlaneHeading.flatMapAngle(from: path.point(atDistance: along), to: path.point(atDistance: along + look)))
+        let heading = try XCTUnwrap(path.heading(atDistance: along))
+        XCTAssertEqual(heading, expected, accuracy: 1e-9)
+        let straightThere = try XCTUnwrap(PlaneHeading.flatMapAngle(from: path.point(atDistance: along), to: path.destination))
+        XCTAssertGreaterThan(abs(PlaneHeading.shortestTurn(from: heading, to: straightThere)), 0.05, "the long way round isn't the way straight there")
+    }
+
     func test_heading_aPathThatGoesNowhere_isNil() {
         XCTAssertNil(FlightPath(from: louisville, to: louisville).heading(atDistance: 0))
     }
 }
 ```
 
-- [ ] **Step 3: Write `MapFlight` and the path's extension.**
+- [x] **Step 3: Write `MapFlight` and the path's extension.**
 
 Create `Crewluv/Services/TripMap/Live/MapFlight.swift`:
 
@@ -862,19 +905,20 @@ nonisolated extension FlightPath {
         let from = min(max(start, 0), length)
         let to = min(max(end, 0), length)
         guard to > from else { return [] }
-        var runs: [Run] = []
+        var runs: [(kind: Kind, coordinates: [CLLocationCoordinate2D])] = []
         for stretch in stretches {
             let stretchEnd = stretch.startDistance + stretch.length
             guard stretchEnd > from, stretch.startDistance < to else { continue }
             let first = stretch.startDistance >= from ? stretch.start : point(atDistance: from)
             let last = stretchEnd <= to ? stretch.end : point(atDistance: to)
-            if let run = runs.last, run.kind == stretch.kind {
-                runs[runs.count - 1] = Run(kind: run.kind, coordinates: run.coordinates + [last])
+            if runs.last?.kind == stretch.kind {
+                // Added in place: a real path has hundreds of places, and a replay asks 60 times a second.
+                runs[runs.count - 1].coordinates.append(last)
             } else {
-                runs.append(Run(kind: stretch.kind, coordinates: [first, last]))
+                runs.append((stretch.kind, [first, last]))
             }
         }
-        return runs
+        return runs.map { Run(kind: $0.kind, coordinates: $0.coordinates) }
     }
 
     /// The places the path passes between `start` and `end` meters along it, both ends included. Empty when `end`
@@ -896,7 +940,8 @@ nonisolated extension FlightPath {
     }
 
     /// The angle a plane `distance` meters along the path points at, on a map with north up (`PlaneHeading`): along
-    /// the path just ahead of it, or along the last of the path at its end. Nil where the path has no direction.
+    /// the path just ahead of it, or along the last of the path at its end. Nil for a path with no length, and where
+    /// the two places it's aimed between are one.
     func heading(atDistance distance: Double) -> Double? {
         let look = PlaneHeading.lookAhead * length
         guard look > 0 else { return nil }
@@ -908,7 +953,7 @@ nonisolated extension FlightPath {
 
 `framingCoordinates` gives a great circle the same 33 places the camera framed before, so a flight with no live data is framed exactly as it was.
 
-- [ ] **Step 4: Give `MapLeg` its flight.** The initializer is written out so the tests that make a leg by hand, with no flight, still build.
+- [x] **Step 4: Give `MapLeg` its flight.** The initializer is written out so the tests that make a leg by hand, with no flight, still build.
 
 In `Crewluv/Services/TripMap/MapLeg.swift`:
 
@@ -934,7 +979,7 @@ Replace:
 ```swift
     let flightNumber: String?
 
-    /// The great-circle distance
+    /// The great-circle distance between the two airports, in meters.
 ```
 
 with:
@@ -962,12 +1007,12 @@ with:
     /// Whether `end` is the real plane's estimate, which the words mark with "about" (Stage 3 spec §9).
     var isArrivalEstimated: Bool { flight?.isEstimate(end) ?? false }
 
-    /// The great-circle distance
+    /// The great-circle distance between the two airports, in meters.
 ```
 
-- [ ] **Step 5: Checkpoint.** `MapFlightTests` has 6 tests and `FlightPathDrawingTests` 13. Todd runs them with batch A, after Task 4.
+- [x] **Step 5: Checkpoint.** `MapFlightTests` has 6 tests and `FlightPathDrawingTests` 17. Todd runs them with batch A, after Task 4.
 
-- [ ] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): MapFlight keeps a flight's plan, path and record together, FlightPath says what the map draws and frames of it, and MapLeg carries its flight (Stage 3 spec §6.2, §11)`.
+- [x] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): MapFlight keeps a flight's plan, path and record together, FlightPath says what the map draws and frames of it, and MapLeg carries its flight (Stage 3 spec §6.2, §11)`.
 
 ---
 
@@ -979,7 +1024,7 @@ The pure half of spec §7.1. Given the summary's legs and what Crewlu Cloud answ
 - Create: `CrewluvTests/LiveLegsTests.swift`
 - Create: `Crewluv/Services/TripMap/Live/LiveLegs.swift`
 
-- [ ] **Step 1: Write the tests.** `test_replacingTimes_everySharedMoment_givesTheLegTheCasesTimes` runs every moment of every shared flight three times, with no delay, 20 minutes late and 10 minutes early. `test_replacingTimes_theStatusIsInFlightUntilTheRealPlaneArrives_andNoLonger` is the one that goes through `TripStateResolver`.
+- [x] **Step 1: Write the tests.** `test_replacingTimes_everySharedMoment_givesTheLegTheCasesTimes` runs every moment of every shared flight three times, with no delay, 20 minutes late and 10 minutes early. `test_replacingTimes_theStatusIsInFlightUntilTheRealPlaneArrives_andNoLonger` is the one that goes through `TripStateResolver`, and `test_replacingTimes_whatTheModelResolvesFrom_isWhatEveryCardReads` writes the legs into a status and reads them back as every card does.
 
 Create `CrewluvTests/LiveLegsTests.swift`:
 
@@ -1210,6 +1255,7 @@ final class LiveLegsTests: XCTestCase {
         }
     }
 
+    @MainActor
     func test_replacingTimes_aWaitBetweenTwoLiveFlights_takesBothItsEdges() throws {
         let cases = try TripMapFixtures.liveCases()
         let first = try cases.flight(named: "landed, seen all the way")
@@ -1246,6 +1292,11 @@ final class LiveLegsTests: XCTestCase {
         assertEqual(replaced[1].endTime, replaced[2].startTime, "and ends where the second began")
         XCTAssertLessThan(replaced[1].startTime, wait.startTime)
         XCTAssertLessThan(replaced[1].endTime, wait.endTime)
+        // And every card reads it so.
+        for (carried, resolved) in zip(readBack(replaced), replaced) {
+            assertEqual(carried.startTime, resolved.startTime, "\(resolved.id) starts")
+            assertEqual(carried.endTime, resolved.endTime, "\(resolved.id) ends")
+        }
     }
 
     @MainActor
@@ -1268,6 +1319,76 @@ final class LiveLegsTests: XCTestCase {
         let fiveBeforeLeaving = flightCase.departure.addingTimeInterval(-300)
         XCTAssertNil(TripStateResolver.resolve(legs: legs, at: fiveBeforeLeaving), "by the schedule, nothing has started")
         XCTAssertEqual(TripStateResolver.resolve(legs: replaced, at: fiveBeforeLeaving)?.displayStatus, .inFlight)
+    }
+
+    // MARK: - What every card reads
+
+    /// The legs as every card reads them: written into a status as the model writes them, and read back through
+    /// `SharedPilotStatus.tripLegs`, which ends any layover, base or home wait that a flight's written start falls in.
+    @MainActor
+    private func readBack(_ legs: [TripLeg]) -> [TripLeg] {
+        SharedPilotStatus(
+            pilotId: "pilot", pilotFirstName: "Alex", homeAirportCode: "SDF", baseAirportCode: "SDF", homeTimezone: nil,
+            displayStatus: .inFlight, isSleeping: false, isHome: false, isInFlight: true, isOnDuty: true, currentAirport: nil,
+            currentCity: nil, currentTimezone: nil, localTimeAtPilot: nil, currentLatitude: nil, currentLongitude: nil,
+            currentFlightNumber: nil, currentFlightDeparture: nil, currentFlightArrival: nil, currentFlightDepartureTime: nil,
+            currentFlightArrivalTime: nil, currentFlightArrivalTimezone: nil, homeArrivalTime: nil, homeArrivalLabel: nil,
+            homeArrivalCity: nil, nextDepartureTime: nil, nextFlightNumber: nil, nextFlightDestination: nil,
+            nextDepartureLabel: nil, lastTripEndDate: nil, lastTripDurationDays: nil, currentTripId: nil, tripDayNumber: nil,
+            tripTotalDays: nil, upcomingCities: [], tripLegsJSON: LiveLegs.blob(legs), quickStatus: nil, quickStatusIcon: nil,
+            quickStatusExpiry: nil, flightDelayMinutes: nil, displayNameByPartnerJSON: nil, lastUpdated: .now, appVersion: "test"
+        ).tripLegs
+    }
+
+    @MainActor
+    func test_replacingTimes_whatTheModelResolvesFrom_isWhatEveryCardReads() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        var checked = 0
+        for delayMinutes in [nil, 20, -10] as [Int?] {
+            for waitType in [TripLeg.LegType.layover, .base, .home, .turn] {
+                let name = "\(waitType) before, delayed \(delayMinutes ?? 0)"
+                let flight = cases.tripLeg(flightCase, delayMinutes: delayMinutes)
+                // CrewLu writes its waits to meet the flight's scheduled times.
+                let before = cases.wait("w1", waitType, at: "SDF", from: flight.startTime.addingTimeInterval(-7200), to: flight.startTime)
+                let after = cases.wait("w2", .layover, at: "PHL", from: flight.endTime, to: flight.endTime.addingTimeInterval(86_400))
+                let legs = [before, flight, after]
+                let made = flights(cases, for: legs, answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+
+                let replaced = LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)
+                let read = readBack(replaced)
+
+                XCTAssertEqual(read.map(\.id), replaced.map(\.id), name)
+                for (carried, resolved) in zip(read, replaced) {
+                    assertEqual(carried.startTime, resolved.startTime, "\(name): \(resolved.id) starts")
+                    assertEqual(carried.endTime, resolved.endTime, "\(name): \(resolved.id) ends")
+                }
+                // The flight is under way from its real start, whatever its delay.
+                let delay = TimeInterval((delayMinutes ?? 0) * 60)
+                assertEqual(read[1].startTime.addingTimeInterval(delay), moment.start, name)
+                XCTAssertLessThanOrEqual(read[0].endTime, moment.start.addingTimeInterval(0.05), "\(name): the wait is over by then")
+                checked += 1
+            }
+        }
+        XCTAssertEqual(checked, 12)
+    }
+
+    func test_replacingTimes_aDelayedFlightOffEarly_endsTheWaitBeforeItAtItsWrittenStart() throws {
+        let cases = try TripMapFixtures.liveCases()
+        let flightCase = try cases.flight(named: "ahead, in the air")
+        let moment = try cases.moment("13T12:41:50", of: flightCase)
+        // Reported 20 minutes late, and then off 10 minutes sooner than that.
+        let flight = cases.tripLeg(flightCase, delayMinutes: 20)
+        let before = cases.wait("w1", .layover, at: "SDF", from: flight.startTime.addingTimeInterval(-7200), to: flight.startTime)
+        let made = flights(cases, for: [before, flight], answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
+
+        let replaced = LiveLegs.replacingTimes(in: [before, flight], with: made, at: moment.at)
+
+        // A delayed flight's wait ends where the flight's written start is, with the delay between them, as CrewLu
+        // writes every delayed flight. The real start is 20 minutes after it.
+        assertEqual(replaced[0].endTime, replaced[1].startTime)
+        assertEqual(replaced[1].startTime.addingTimeInterval(20 * 60), moment.start)
     }
 
     // MARK: - "About"
@@ -1317,7 +1438,7 @@ final class LiveLegsTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Write `LiveLegs`.**
+- [x] **Step 2: Write `LiveLegs`.**
 
 Create `Crewluv/Services/TripMap/Live/LiveLegs.swift`:
 
@@ -1382,6 +1503,7 @@ nonisolated enum LiveLegs {
     /// (`LiveProgress.start` and `.end`). The wait before such a flight ends, and the wait after it starts, where
     /// the flight does: the wait next in line, when its own edge is where the flight's was. A leg's delay stays on
     /// it, and its times are set so that the delay moves them to the real ones, as every reader of a leg expects.
+    /// What comes back is what `SharedPilotStatus.tripLegs` reads from it again, unchanged.
     static func replacingTimes(in legs: [TripLeg], with flights: [String: MapFlight], at now: Date) -> [TripLeg] {
         guard !flights.isEmpty else { return legs }
         var replaced = legs
@@ -1396,13 +1518,19 @@ nonisolated enum LiveLegs {
             let isStartReal = progress.start != flight.plan.departure
             let isEndReal = progress.end != flight.plan.arrival
             guard isStartReal || isEndReal, progress.end > progress.start else { continue }
-            replaced[index] = leg.with(startTime: isStartReal ? progress.start.addingTimeInterval(-leg.delay) : leg.startTime,
+            let writtenStart = isStartReal ? progress.start.addingTimeInterval(-leg.delay) : leg.startTime
+            replaced[index] = leg.with(startTime: writtenStart,
                                        endTime: isEndReal ? progress.end.addingTimeInterval(-leg.delay) : leg.endTime)
             if isStartReal, place > 0 {
                 let before = replaced[chain[place - 1]]
+                // The wait ends at the flight's real start. A late flight's written start is before its real one,
+                // by its delay, and its wait ends there instead, as CrewLu writes every delayed flight's:
+                // `SharedPilotStatus.tripLegs` would cut it there anyway, since it ends any wait a flight's written
+                // start falls in.
+                let end = min(progress.start, writtenStart)
                 if waitTypes.contains(before.type), meets(before.endTime, leg.startTime, leg.effectiveStart),
-                   progress.start > before.startTime {
-                    replaced[chain[place - 1]] = before.with(startTime: before.startTime, endTime: progress.start)
+                   end > before.startTime {
+                    replaced[chain[place - 1]] = before.with(startTime: before.startTime, endTime: end)
                 }
             }
             if isEndReal, place + 1 < chain.count {
@@ -1465,17 +1593,17 @@ nonisolated private extension TripLeg {
 
 It doesn't call `TripStateResolver.effectiveStart(of:)`: that type is on the main actor, and this one isn't. The extension at the foot moves a leg's times by its delay the same way.
 
-- [ ] **Step 3: Review batch A.** Dispatch `superpowers:code-reviewer` (sonnet) on Tasks 2 to 4, with the spec's §6.1, §7.1 and §11 and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back.
+- [x] **Step 3: Review batch A.** Dispatch `superpowers:code-reviewer` (sonnet) on Tasks 2 to 4, with the spec's §6.1, §7.1 and §11 and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back.
 
-- [ ] **Step 4: Checkpoint, batch A.** Todd runs:
+- [x] **Step 4: Checkpoint, batch A.** Todd runs:
 
 ```bash
 xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' -only-testing:CrewluvTests/LiveFlightSourceTests -only-testing:CrewluvTests/MapFlightTests -only-testing:CrewluvTests/FlightPathDrawingTests -only-testing:CrewluvTests/LiveLegsTests
 ```
 
-Expected: 69 tests pass (31, 6, 13 and 19).
+Expected: 75 tests pass (31, 6, 17 and 21).
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): LiveLegs gives each flight with live data the real plane's times in the legs, with the waits either side moved to meet them, and says which legs to watch (Stage 3 spec §7.1)`.
+- [x] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): LiveLegs gives each flight with live data the real plane's times in the legs, with the waits either side moved to meet them, and says which legs to watch (Stage 3 spec §7.1)`.
 
 ---
 
@@ -2498,7 +2626,7 @@ Replace:
 
 ```swift
     let plane: PlaneMark?
-    /// What the pilot is doing on the ground
+    /// What the pilot is doing on the ground, and where (activity markers design §2): nil while a leg moves, when the
 ```
 
 with:
@@ -2510,7 +2638,7 @@ with:
     let realPlane: RealPlaneMark?
     /// Where an on-schedule plane would be, beside the real one (Stage 3 spec §5.4).
     let ghost: PlaneMark?
-    /// What the pilot is doing on the ground
+    /// What the pilot is doing on the ground, and where (activity markers design §2): nil while a leg moves, when the
 ```
 
 Replace:
@@ -2573,7 +2701,7 @@ Replace:
 
 ```swift
         self.plane = plane
-        self.pilot =
+        self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
 ```
 
 with:
@@ -2582,7 +2710,7 @@ with:
         self.plane = plane
         self.realPlane = realPlane
         self.ghost = ghost
-        self.pilot =
+        self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
 ```
 
 - [ ] **Step 4: Give the new lines their colours and strokes.**
@@ -2593,7 +2721,7 @@ Replace:
 
 ```swift
     let drive: Color
-    /// An airport's code
+    /// An airport's code, and the halo that keeps it readable over the map.
 ```
 
 with:
@@ -2603,7 +2731,7 @@ with:
     /// The real path flown (Stage 3 spec §6.2): where the plane was seen, and where it wasn't.
     let seen: Color
     let unseen: Color
-    /// An airport's code
+    /// An airport's code, and the halo that keeps it readable over the map.
 ```
 
 Replace:
@@ -2823,7 +2951,7 @@ Replace:
             .frame(width: 26, height: 26)
             .background(Circle().fill(.black.opacity(0.35)))
             .overlay(Circle().stroke(.white, lineWidth: 1.5))
-            .animation(
+            .animation(reduceMotion ? nil : .snappy, value: shownAngle)
 ```
 
 with:
@@ -2835,7 +2963,7 @@ with:
             .background(Circle().fill(fill))
             .overlay(Circle().stroke(.white, style: outline))
             .opacity(look == .real(isEstimated: true) ? 0.6 : 1)
-            .animation(
+            .animation(reduceMotion ? nil : .snappy, value: shownAngle)
 ```
 
 Replace:
@@ -2889,7 +3017,7 @@ Replace:
     private static func zPriority(of marker: TripMapMarker) -> MKAnnotationViewZPriority {
         switch marker {
         case .plane: .max
-        case .pilot:
+        case .pilot: MKAnnotationViewZPriority(rawValue: 900)
 ```
 
 with:
@@ -2901,7 +3029,7 @@ with:
         switch marker {
         case .plane, .realPlane: .max
         case .ghost: MKAnnotationViewZPriority(rawValue: 950)
-        case .pilot:
+        case .pilot: MKAnnotationViewZPriority(rawValue: 900)
 ```
 
 In `Crewluv/Views/TripMap/TripMapShapesView.swift`:
@@ -3199,7 +3327,7 @@ Replace:
 ```swift
     // MARK: - The real plane
 
-    /// "12 min ahead"
+    /// "12 min ahead", "About 20 min behind", "Still on the ground · 20 min behind" or "Landed 8 min early": the real
 ```
 
 with:
@@ -3215,7 +3343,7 @@ with:
         return liveLabel(label)
     }
 
-    /// "12 min ahead"
+    /// "12 min ahead", "About 20 min behind", "Still on the ground · 20 min behind" or "Landed 8 min early": the real
 ```
 
 Replace:
@@ -3647,7 +3775,7 @@ with:
 Replace:
 
 ```swift
-    /// A store with Quick layovers set,
+    /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
 ```
 
 with:
@@ -3698,7 +3826,7 @@ with:
                             coordinate: { coordinate($0) })
     }
 
-    /// A store with Quick layovers set,
+    /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
 ```
 
 Replace:
@@ -4022,7 +4150,7 @@ Replace:
 
 ```swift
                                 isOnCrewluCloud: receiver.isOnCrewluCloud,
-                                onExitDemo:
+                                onExitDemo: { receiver.exitDemoMode() },
 ```
 
 with:
@@ -4030,14 +4158,14 @@ with:
 ```swift
                                 isOnCrewluCloud: receiver.isOnCrewluCloud,
                                 flights: receiver.flights,
-                                onExitDemo:
+                                onExitDemo: { receiver.exitDemoMode() },
 ```
 
 Replace:
 
 ```swift
                     isOnCrewluCloud: receiver.isOnCrewluCloud,
-                    onExitDemo:
+                    onExitDemo: { receiver.exitDemoMode() },
 ```
 
 with:
@@ -4045,10 +4173,10 @@ with:
 ```swift
                     isOnCrewluCloud: receiver.isOnCrewluCloud,
                     flights: receiver.flights,
-                    onExitDemo:
+                    onExitDemo: { receiver.exitDemoMode() },
 ```
 
-In each of the 2 places it comes, replace:
+In each of the 2 places it comes, replace this part of a line:
 
 ```swift
 onRefresh: { Task { await receiver.refresh() } }
@@ -4100,7 +4228,7 @@ with:
 Replace:
 
 ```swift
-    /// Days home since the pilot actually reached home.
+    /// Days home since the pilot actually reached home. For a commuter the trip ends
 ```
 
 with:
@@ -4118,7 +4246,7 @@ with:
         }
     }
 
-    /// Days home since the pilot actually reached home.
+    /// Days home since the pilot actually reached home. For a commuter the trip ends
 ```
 
 Replace:
@@ -4137,7 +4265,7 @@ Replace:
 
 ```swift
                         let dateStr = Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
-                        let arrivalSubtitle =
+                        let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 ```
 
 with:
@@ -4148,7 +4276,7 @@ with:
                             abs(TripStateResolver.effectiveEnd(of: $0).timeIntervalSince(homeTime)) < 1
                         } ?? false
                         let dateStr = (isEstimate ? "About " : "") + Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
-                        let arrivalSubtitle =
+                        let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 ```
 
 Replace:
@@ -4196,7 +4324,7 @@ with:
         let about = isLandingEstimated ? "about " : ""
 ```
 
-In each of the 5 places it comes, replace:
+In each of the 5 places it comes, replace this part of a line:
 
 ```swift
  which is \(Text(arrTimeStr).bold()).")
@@ -4327,6 +4455,19 @@ with:
 - **"Estimated · last seen near Gander"** (§8, §9) and the headline chip's order are 3B-3's, with the story along the path.
 - **The credit** goes in the facts' footer whenever a leg has `flight?.live`.
 - **The website** does the same in `src/engine/` and `src/map/`: the real times are written where a summary becomes the engine's schedule, and the drawing chooses by the phase. The table at the head of Task 6 is the drawing's whole rule, and the list of where this plan differs from the spec applies to the website too, so the two stay alike.
+
+## Changes made during execution
+
+- **Replacements are whole lines** (15 Nov 2026). One replacement in Task 3 ended in the middle of a line, and the first implementer's script, which kept the line break after the fence, didn't find it. Every replacement made in one place now starts and ends on a line. The two made in several places are parts of lines, and say so.
+- **The repo's files are compared at the plan's own commit.** Once Task 2 was in, the scripts that check the plan could no longer take the working tree as "before": they read `5e92706`.
+- **Batch A's review (15 Nov 2026)** found nothing wrong in `ask()`: no order of callers, cancellations or stops leaves a call unanswered or makes two at once. It found one thing to fix before Tasks 3 and 4 were committed, and five worth a line:
+  - **The wait before a delayed flight.** `LiveLegs` ended it at the flight's real start. Read back through `SharedPilotStatus.tripLegs`, which ends a layover, base or home wait where a flight's written start falls in it, the wait came back shorter by the delay: so the model resolved from one set of legs and the cards read another. The stretch is always in the past by then, so no status was wrong, but the two must be one. The wait now ends at the earlier of the flight's real start and its written one, and a new test writes the legs into a status and reads them back for every kind of wait, late, early and on time.
+  - `FlightPath.runs` adds each place to its run in place. It copied the run for every place, which a replay of a long flight would have done 60 times a second.
+  - Four tests were added for the path: a path that goes nowhere, a path of 600 places, a heading before the path's start, and a heading along a real path. One was renamed for what it tests.
+  - The reviewer looked again and found the fix right. On its word, the test of a wait between two live flights also reads its legs back as every card does, and the comment on the wait's end says which start it means for a flight that isn't late.
+  - Left as they are, each for its reason: a caller that's stopped still waits for the call under way, which the door's own timeout bounds; `LiveLegs` copies a leg field by field, so a new field fails to build, loudly; a wait shorter than a flight's early start is left alone; and a leg that arrives before it leaves is still watched, and never answered.
+- **Todd's run of batch A (15 Nov 2026):** `LiveFlightSourceTests`, `MapFlightTests`, `FlightPathDrawingTests` and `LiveLegsTests`, after the review's changes. All 75 tests passed on the iPhone 17 Pro simulator, iOS 26.5.
+- **Todd's answer on the credit (15 Nov 2026):** it stays in 3B-3, with no TestFlight or App Store build of 3B-2 until it's in.
 
 ## Self-review
 
