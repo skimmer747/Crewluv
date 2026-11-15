@@ -31,7 +31,8 @@ nonisolated struct TripMap {
     let home: AirportMark?
     /// The pilot's base, as the trip's legs name it, or nil when none does (base waits design §2, §3).
     let base: AirportMark?
-    /// With this trip ahead, the pilot waits at base rather than at home, as the status says (base waits design §3).
+    /// With this trip ahead, the pilot waits at base rather than at home, as the status says, and that isn't the home
+    /// airport (base waits design §3).
     let isWaitingAtBase: Bool
     /// From the first departure to the last arrival: the full-screen map's timeline.
     let span: DateInterval
@@ -132,9 +133,12 @@ nonisolated struct TripMap {
         let base = baseAirportCode.flatMap { code in
             legs.flatMap { [$0.origin, $0.destination] }.first { $0.code == code }
         }
+        // Waiting at base counts only away from home, so the marker and the chip agree: a pilot whose home is their base
+        // is home. With no leg at base, the pilot waits on the first departure airport.
+        let isWaitingAwayFromHome = mode == .nextTrip && isWaitingAtBase && (base ?? first.origin).code != home?.code
         let firstDeparture = legs.map(\.start).min() ?? first.start
         return TripMap(mode: mode, legs: legs, groundStops: groundStops, home: home, base: base,
-                       isWaitingAtBase: mode == .nextTrip && isWaitingAtBase,
+                       isWaitingAtBase: isWaitingAwayFromHome,
                        span: DateInterval(start: firstDeparture, end: max(lastArrival, firstDeparture)),
                        tripDays: tripLegs.compactMap(\.tripTotalDays).max())
     }

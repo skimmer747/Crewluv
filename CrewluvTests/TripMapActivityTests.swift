@@ -213,6 +213,23 @@ final class TripMapActivityTests: XCTestCase {
         XCTAssertNil(elsewhere.base, "no leg names it")
     }
 
+    func test_make_aPilotWhoseHomeIsTheirBase_waitsAtHome() throws {
+        let map = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: true,
+                                             homeAirportCode: "SDF", baseAirportCode: "SDF", isWaitingAtBase: true,
+                                             legacyDelayMinutes: nil, at: hours(-3), coordinate: TripMapTestLegs.coordinate))
+        XCTAssertFalse(map.isWaitingAtBase, "the chip says Home, as the house does")
+        XCTAssertEqual(map.activity(at: hours(-3))?.kind, .home)
+    }
+
+    func test_make_waitingAtABaseNoLegReaches_waitsOnTheFirstDepartureAirport() throws {
+        let map = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: true,
+                                             homeAirportCode: "LEX", baseAirportCode: "ORD", isWaitingAtBase: true,
+                                             legacyDelayMinutes: nil, at: hours(-3), coordinate: TripMapTestLegs.coordinate))
+        XCTAssertTrue(map.isWaitingAtBase)
+        XCTAssertEqual(map.activity(at: hours(-3))?.kind, .base)
+        XCTAssertEqual(map.activity(at: hours(-3))?.place.code, "SDF")
+    }
+
     func test_activity_everySharedCase_matches() throws {
         let cases = try TripMapFixtures.activityCases()
         XCTAssertEqual(TripWait.shortestLayover, cases.constants.shortestLayoverHours * 3600)

@@ -18,12 +18,21 @@ struct TripMapCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var camera: TripMapCamera
     @State private var isShowingFullScreen = false
+    /// The chips' heights as last measured, for the band the trip is framed in (base waits and card framing design
+    /// §4.1).
+    @State private var topChipHeight: CGFloat = 0
+    @State private var bottomChipHeight: CGFloat = 0
+
+    /// How far the chips sit from the map's edges, and the gap kept between a chip and the trip.
+    private static let chipInset: CGFloat = 10
+    private static let chipGap: CGFloat = 4
 
     init(tripMap: TripMap, status: SharedPilotStatus, storyStore: LegStoryStore) {
         self.tripMap = tripMap
         self.status = status
         self.storyStore = storyStore
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg)))
+        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
+                                                    keeping: tripMap.pilotLocation(at: .now)?.coordinate))
     }
 
     var body: some View {
@@ -54,9 +63,11 @@ struct TripMapCard: View {
         }
     }
 
-    /// Frames the leg in the air, or the whole trip, afresh when the trip's state or legs change.
+    /// Frames the leg in the air, or the whole trip, afresh when the trip's state or legs change, keeping the pilot's
+    /// ground marker in view.
     private func refit() {
-        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg), animated: false)
+        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg),
+                     keeping: tripMap.pilotLocation(at: .now)?.coordinate, animated: false)
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight.
@@ -70,11 +81,13 @@ struct TripMapCard: View {
         Button {
             isShowingFullScreen = true
         } label: {
-            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera)
+            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera, clearance: clearance(for: chips))
                 .allowsHitTesting(false)
                 .frame(height: 220)
-                .overlay(alignment: .topLeading) { overlayChip(chips.top) }
-                .overlay(alignment: .bottomLeading) { overlayChip(chips.bottom, systemImage: bottomChipSymbol) }
+                .overlay(alignment: .topLeading) { overlayChip(chips.top, height: $topChipHeight) }
+                .overlay(alignment: .bottomLeading) {
+                    overlayChip(chips.bottom, systemImage: bottomChipSymbol, height: $bottomChipHeight)
+                }
                 .clipShape(.rect(topLeadingRadius: 20, topTrailingRadius: 20))
                 .contentShape(.rect)
         }
@@ -95,12 +108,25 @@ struct TripMapCard: View {
         }
     }
 
+    /// A chip on the map, its height measured into `height`.
     @ViewBuilder
-    private func overlayChip(_ text: String?, systemImage: String? = nil) -> some View {
+    private func overlayChip(_ text: String?, systemImage: String? = nil, height: Binding<CGFloat>) -> some View {
         if let text, !dynamicTypeSize.isAccessibilitySize {
             TripMapChip(text: text, systemImage: systemImage)
-                .padding(10)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height.wrappedValue = $0 }
+                .padding(Self.chipInset)
         }
+    }
+
+    /// The band between the chips on the map: from each edge to the far side of its chip, and a gap. With no chip on
+    /// the map at an edge, nothing there.
+    private func clearance(for chips: (top: String?, bottom: String?)) -> TripMapClearance {
+        guard !dynamicTypeSize.isAccessibilitySize else { return .none }
+        func depth(of chip: String?, height: CGFloat) -> CGFloat {
+            chip == nil ? 0 : Self.chipInset + height + Self.chipGap
+        }
+        return TripMapClearance(top: depth(of: chips.top, height: topChipHeight),
+                                bottom: depth(of: chips.bottom, height: bottomChipHeight))
     }
 
     /// The recap's "Replay the trip" plays.

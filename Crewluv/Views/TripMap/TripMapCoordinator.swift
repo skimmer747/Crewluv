@@ -140,8 +140,10 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
     }
 
     /// Called once the map has settled after any change in what it shows. When the map itself changes size this is
-    /// the call MapKit makes (CrewLu found this), so the drawing is laid again here too.
+    /// the call MapKit makes (CrewLu found this), so the drawing is laid again here too. It's also when an animated
+    /// framing has finished, so the pilot's marker slides into view if it needs to.
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
         shapes?.draw()
+        cameraController?.regionDidChange()
     }
 }

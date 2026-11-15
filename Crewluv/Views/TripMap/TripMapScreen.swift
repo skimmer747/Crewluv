@@ -49,8 +49,10 @@ struct TripMapScreen: View {
         // The remembered setting, read from the defaults `@AppStorage` uses, since the property can't be read yet.
         // `onChange(of: isQuickLayovers, initial: true)` keeps the clock in step with it from then on.
         let rememberedQuickLayovers = UserDefaults.standard.object(forKey: Self.quickLayoversKey) as? Bool ?? true
-        _clock = State(initialValue: Self.clock(for: tripMap, isQuickLayovers: rememberedQuickLayovers))
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg)))
+        let clock = Self.clock(for: tripMap, isQuickLayovers: rememberedQuickLayovers)
+        _clock = State(initialValue: clock)
+        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
+                                                    keeping: tripMap.pilotLocation(at: clock.time(at: .now))?.coordinate))
     }
 
     var body: some View {
@@ -91,7 +93,7 @@ struct TripMapScreen: View {
             let time = clock.time(at: context.date)
             screen(time: time, now: context.date, facts: facts, timeline: timeline)
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
-                    refit(legID: legID)
+                    refit(legID: legID, at: time)
                 }
                 .onChange(of: clock.hasFinished(at: context.date)) { _, hasFinished in
                     // A finished replay holds its end, paused, so the map stops updating with nothing moving. Play
@@ -153,7 +155,7 @@ struct TripMapScreen: View {
             style: style,
             isShowingRecenter: camera.isPositionedByUser,
             onClose: close,
-            onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, force: true) },
+            onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true) },
             onNextStyle: { style = style.next }
         )
     }
@@ -191,10 +193,12 @@ struct TripMapScreen: View {
         if isClosing { dismiss() }
     }
 
-    /// Frames the leg in motion, or the whole trip. Leaves a camera the family moved alone, unless they asked.
-    private func refit(legID: String?, force: Bool = false) {
+    /// Frames the leg in motion, or the whole trip, keeping the pilot's ground marker at `time` in view. Leaves a
+    /// camera the family moved alone, unless they asked.
+    private func refit(legID: String?, at time: Date, force: Bool = false) {
         guard force || !camera.isPositionedByUser else { return }
         let leg = legID.flatMap { id in tripMap.legs.first { $0.id == id } }
-        camera.frame(tripMap.framingRect(focusingOn: leg), animated: !reduceMotion)
+        camera.frame(tripMap.framingRect(focusingOn: leg), keeping: tripMap.pilotLocation(at: time)?.coordinate,
+                     animated: !reduceMotion)
     }
 }

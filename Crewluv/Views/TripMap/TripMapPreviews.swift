@@ -83,6 +83,14 @@ private enum TripMapPreviewData {
         return TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "LEX", legacyDelayMinutes: nil, at: now, coordinate: { coordinate($0) })
     }
 
+    /// A commuter who lives in Lexington, waiting at base in Louisville with the Europe trip a day ahead.
+    static var waitingAtBase: TripMap? {
+        let now = Date()
+        return TripMap.make(tripLegs: europeLegs(from: now.addingTimeInterval(24 * 3600)), isNextTrip: true,
+                            homeAirportCode: "LEX", baseAirportCode: "SDF", isWaitingAtBase: true,
+                            legacyDelayMinutes: nil, at: now, coordinate: { coordinate($0) })
+    }
+
     static var pacific: TripMap? {
         let start = Date().addingTimeInterval(-3 * 3600)
         let legs = [flight("UPS61", "ANC", "NRT", "Anchorage", "Tokyo", start: start, hours: 8, zone: "America/Anchorage", arrivalZone: "Asia/Tokyo")]
@@ -123,6 +131,12 @@ private enum TripMapPreviewData {
 
 #Preview("Next trip") {
     if let map = TripMapPreviewData.europe(hoursIn: -48, isNextTrip: true) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Next trip, waiting at base") {
+    if let map = TripMapPreviewData.waitingAtBase {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
     }
 }

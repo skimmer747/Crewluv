@@ -45,7 +45,7 @@ nonisolated extension TripMap {
     /// between, the wait's kind.
     private func groundKind(at date: Date, place: AirportMark) -> TripActivity.Kind {
         let isHomeAirport = place.code == home?.code
-        if date < span.start, mode == .nextTrip { return isWaitingAtBase && !isHomeAirport ? .base : .home }
+        if date < span.start, mode == .nextTrip { return isWaitingAtBase ? .base : .home }
         if date < span.start { return isHomeAirport ? .home : .base }
         if date >= span.end { return (mode == .recap || isHomeAirport) ? .home : .base }
         // Inside the span with nothing moving, one of the waits holds `date`.

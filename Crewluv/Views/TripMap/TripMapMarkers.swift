@@ -49,13 +49,16 @@ enum TripMapMarkers {
     /// Where the pilot is on the ground, and what they're doing there (activity markers design §2.1): a white symbol on
     /// the activity's color, with a white ring.
     struct Pilot: View {
+        /// The circle's width and height, which the camera keeps in view (base waits and card framing design §4.2).
+        static let diameter: CGFloat = 24
+
         let kind: TripActivity.Kind
 
         var body: some View {
             Image(systemName: kind.symbolName)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
+                .frame(width: Self.diameter, height: Self.diameter)
                 .background(Circle().fill(kind.color))
                 .overlay(Circle().stroke(.white, lineWidth: 1.5))
                 .accessibilityHidden(true)

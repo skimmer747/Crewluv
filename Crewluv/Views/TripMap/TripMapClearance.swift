@@ -3,9 +3,9 @@
 //  CrewLuve
 //
 //  What covers the map: the facts sheet or side panel on the full screen (Stage 2 spec §6.1, §6.2), and the chips on
-//  the card (base waits and card framing design §4.1). The map keeps clear of it in its layout margins. MapKit puts Apple's logo and Legal link inside them and fits the camera's
-//  rectangle inside them too, so the margins alone keep both clear. The clearance is measured from the screen's edges,
-//  so the safe area under it is counted only once.
+//  the card (base waits and card framing design §4.1). The map keeps clear of it in its layout margins. MapKit puts
+//  Apple's logo and Legal link inside them and fits the camera's rectangle inside them too, so the margins alone keep
+//  both clear. The clearance is measured from the screen's edges, so the safe area under it is counted only once.
 //
 
 import UIKit

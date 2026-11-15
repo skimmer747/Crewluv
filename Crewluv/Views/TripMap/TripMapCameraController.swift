@@ -2,9 +2,10 @@
 //  TripMapCameraController.swift
 //  CrewLuve
 //
-//  The trip map's camera (moving map spec §6, Stage 2 spec §6.1, §6.2). It frames each new `TripMapCamera` request,
-//  keeps the map's margins (where MapKit puts Apple's logo and Legal link) and its framing clear of the facts sheet or
-//  panel, and notices when the family moves the map themselves.
+//  The trip map's camera (moving map spec §6, Stage 2 spec §6.1, §6.2, base waits and card framing design §4). It
+//  frames each new `TripMapCamera` request, keeps the map's margins (where MapKit puts Apple's logo and Legal link) and
+//  its framing clear of the facts sheet, the panel or the card's chips, slides the pilot's ground marker into view when
+//  a framing leaves it out, and notices when the family moves the map themselves.
 //
 
 import MapKit
@@ -28,6 +29,8 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     private var framedNumber: Int?
     private var framedSize: CGSize = .zero
     private var framedMargins: UIEdgeInsets = .zero
+    /// The marker an animated framing keeps in view, slid in once the framing has finished.
+    private var pendingKeptInView: CLLocationCoordinate2D?
 
     init(mapView: MKMapView) {
         self.mapView = mapView
@@ -97,9 +100,40 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         framedNumber = camera.framingNumber
         framedSize = mapView.bounds.size
         framedMargins = margins
+        // Each framing replaces any slide an earlier one left waiting: MapKit may never report an animation to a
+        // rectangle already shown.
+        pendingKeptInView = nil
         guard let rect = camera.rect else { return }
         mapView.setVisibleMapRect(rect, edgePadding: .zero, animated: isAnimated)
-        if !isAnimated { onFramedWithoutAnimation?() }
+        if isAnimated {
+            pendingKeptInView = camera.keptInView
+        } else {
+            slide(toKeep: camera.keptInView, animated: false)
+            onFramedWithoutAnimation?()
+        }
+    }
+
+    // MARK: - Keeping the pilot in view
+
+    /// MapKit has finished moving the map: an animated framing's marker slides in now (base waits and card framing
+    /// design §4.2).
+    func regionDidChange() {
+        guard let coordinate = pendingKeptInView else { return }
+        pendingKeptInView = nil
+        slide(toKeep: coordinate, animated: true)
+    }
+
+    /// Slides the map the least distance that brings the pilot's marker, with room around it, inside the map's
+    /// margins: on the card between its chips, on the full-screen map clear of the sheet or panel. It never zooms.
+    private func slide(toKeep coordinate: CLLocationCoordinate2D?, animated: Bool) {
+        guard let mapView, let coordinate else { return }
+        let size = CGSize(width: TripMapMarkers.Pilot.diameter, height: TripMapMarkers.Pilot.diameter)
+        let marker = TripMapSlide.markerFrame(standingOn: mapView.convert(coordinate, toPointTo: mapView), size: size)
+        let offset = TripMapSlide.offset(moving: marker, inside: mapView.bounds.inset(by: mapView.layoutMargins))
+        guard offset != .zero else { return }
+        // The marker moves by `offset` when the point that far the other way from the middle becomes the middle.
+        let middle = CGPoint(x: mapView.bounds.midX - offset.dx, y: mapView.bounds.midY - offset.dy)
+        mapView.setCenter(mapView.convert(middle, toCoordinateFrom: mapView), animated: animated)
     }
 
     // MARK: - The family moving the map
@@ -127,6 +161,8 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     /// A pan or pinch says so as it begins, a tap once it's recognized.
     @objc private func mapGestureChanged(_ recognizer: UIGestureRecognizer) {
         guard recognizer.state == .began || recognizer.state == .ended else { return }
+        // The family's move wins over a slide still to come.
+        pendingKeptInView = nil
         onUserMoved?()
     }
 
