@@ -26,7 +26,7 @@
 - **3B-3, the facts:** the story along the real path, the plane's row with `AircraftTypeNames`, and the credit.
 
 **How this plan was checked.** Every code block here was built and run in a scratch Swift package with the app target's settings (macOS, Swift 6.4, language mode 5, the main actor by default, approachable concurrency), beside copies of the 15 app files the helper builds:
-- 38 XCTest tests and 45 Swift Testing tests pass, with no warnings.
+- 41 XCTest tests and 45 Swift Testing tests pass, with no warnings.
 - The package was rebuilt as it stands after each of Tasks 3 to 8, in order, and passed each time.
 - The Swift agreed with the JavaScript reference on every shared case at its first run.
 - Ten deliberate breaks were tried, and each now fails a test. Two passed when first tried, or would have: the ghost before the plan's takeoff, and a late takeoff moving the leg's start. The cases gained a flight for each.
@@ -51,6 +51,7 @@
 - **A landed flight's touchdown is its record's,** where it has one, so the estimate and the record can't disagree. A landing time before the last point counts as the last point's.
 - **A landing nobody saw** needs no path of its own. The path's last stretch stays the planned great circle, and the estimated plane's place along it says how much is behind the plane. 3B-2 draws that part dotted.
 - **A leg's start moves earlier whenever its takeoff is known,** in every phase.
+- **A gap is held to a year either way,** so a time that can't be right never overflows an `Int`. The reference needs no such hold.
 - **On the ground, the real plane is at its fix,** and counts as 0 along the path.
 - **`LiveWindow` has Crewlu Cloud's own edges,** with its 12-hour end.
 - **A state this Crewluve doesn't know** reads as `waiting`, so a newer Crewlu Cloud shows the schedule instead of failing the whole answer.
@@ -1285,7 +1286,7 @@ private struct LiveParameters: Encodable {
 
 The plan is Stage 1's takeoff and touchdown, with the last 120 nm flown at 280 kt and everything before at one faster speed. A short or slow leg has one steady speed. Two answers come from it, each the other's inverse.
 
-- [ ] **Step 1: Write the cases' reader.** Create `CrewluvTests/Helpers/LiveCases.swift`. Task 5 adds to it.
+- [x] **Step 1: Write the cases' reader.** Create `CrewluvTests/Helpers/LiveCases.swift`. Task 5 adds to it.
 
 ```swift
 //
@@ -1459,7 +1460,7 @@ extension TripMapFixtures {
 }
 ```
 
-- [ ] **Step 2: Write the failing tests.** Create `CrewluvTests/FlightPlanTests.swift`:
+- [x] **Step 2: Write the failing tests.** Create `CrewluvTests/FlightPlanTests.swift`:
 
 ```swift
 //
@@ -1492,8 +1493,8 @@ final class FlightPlanTests: XCTestCase {
             let distance = GreatCircle.distance(from: try cases.coordinate(of: planCase.from), to: try cases.coordinate(of: planCase.to))
             let plan = try XCTUnwrap(FlightPlan(departure: planCase.departure, arrival: planCase.arrival, distance: distance), planCase.name)
             XCTAssertEqual(plan.distance / nauticalMile, planCase.lengthNm, accuracy: 0.01, planCase.name)
-            XCTAssertEqual(plan.takeoff, planCase.takeoff, planCase.name)
-            XCTAssertEqual(plan.touchdown, planCase.touchdown, planCase.name)
+            XCTAssertEqual(plan.takeoff.timeIntervalSince1970, planCase.takeoff.timeIntervalSince1970, accuracy: 0.05, planCase.name)
+            XCTAssertEqual(plan.touchdown.timeIntervalSince1970, planCase.touchdown.timeIntervalSince1970, accuracy: 0.05, planCase.name)
             XCTAssertEqual(plan.isSteady, planCase.isShort, planCase.name)
             XCTAssertEqual(plan.speed * 3600 / nauticalMile, planCase.speedKt, accuracy: 0.01, planCase.name)
             for check in planCase.timeToFly {
@@ -1546,7 +1547,7 @@ final class FlightPlanTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 3: Add the nautical mile.** In `Crewluv/Utils/GreatCircle.swift`, after:
+- [x] **Step 3: Add the nautical mile.** In `Crewluv/Utils/GreatCircle.swift`, after:
 
 ```swift
     /// One statute mile, in meters. Families think in miles (moving map spec §8.3).
@@ -1561,7 +1562,7 @@ add:
     static let metersPerNauticalMile: Double = 1_852
 ```
 
-- [ ] **Step 4: Write `FlightPlan`.** Create `Crewluv/Services/TripMap/Live/FlightPlan.swift`:
+- [x] **Step 4: Write `FlightPlan`.** Create `Crewluv/Services/TripMap/Live/FlightPlan.swift`:
 
 ```swift
 //
@@ -1596,7 +1597,7 @@ nonisolated struct FlightPlan: Equatable, Sendable {
     let distance: Double
     /// The speed before the descent, in meters a second: the cruise, or a short leg's one speed.
     let speed: Double
-    /// Whether the whole leg is flown at `speed`, with no descent of its own: a short leg.
+    /// Whether the whole leg is flown at `speed`, with no faster cruise before a descent: a short leg, or a slow one.
     let isSteady: Bool
 
     /// The plan of a leg between airports `distance` meters apart. Nil when it arrives no later than it leaves.
@@ -1607,8 +1608,10 @@ nonisolated struct FlightPlan: Equatable, Sendable {
         takeoff = window.start
         touchdown = window.end
         self.distance = distance
-        let cruise = (distance - Self.descentDistance) / (window.duration - Self.descentTime)
-        if distance > Self.descentDistance, window.duration > Self.descentTime, cruise > Self.descentSpeed {
+        // A leg has a cruise of its own only when it's longer than the descent, in distance and in time.
+        let hasRoomToCruise = distance > Self.descentDistance && window.duration > Self.descentTime
+        let cruise = hasRoomToCruise ? (distance - Self.descentDistance) / (window.duration - Self.descentTime) : 0
+        if cruise > Self.descentSpeed {
             speed = cruise
             isSteady = false
         } else {
@@ -1647,9 +1650,9 @@ nonisolated struct FlightPlan: Equatable, Sendable {
 }
 ```
 
-- [ ] **Step 5: Run the tests, expecting them to pass.** Todd runs `FlightPlanTests`: 7 tests.
+- [x] **Step 5: Run the tests, expecting them to pass.** Todd runs `FlightPlanTests`: 7 tests.
 
-- [ ] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): FlightPlan, the schedule's plan the real plane is measured against: Stage 1's takeoff and touchdown, a descent of 120 nm at 280 kt, and one speed before it (Stage 3 spec §4)`.
+- [x] **Step 6: Ask to commit.** Suggested message: `feat(crewluv): FlightPlan, the schedule's plan the real plane is measured against: Stage 1's takeoff and touchdown, a descent of 120 nm at 280 kt, and one speed before it (Stage 3 spec §4)`.
 
 ---
 
@@ -1663,7 +1666,7 @@ nonisolated struct FlightPlan: Equatable, Sendable {
 
 The path is a list of great-circle stretches from the departure airport to the arrival airport, each seen, unseen or planned. Its knots are the places the plane was seen, each with its time and its distance along. The record reads the knots: between two it's in proportion to the time, before the first it flies in at the plan's speed, and after the last it flies the plan to the airport.
 
-- [ ] **Step 1: Let the reader make a case's path and record.** `LiveCases` gains `made(_:)`, and beside it come `Made` and `MissingPlan`. Replace the whole of `CrewluvTests/Helpers/LiveCases.swift` with:
+- [x] **Step 1: Let the reader make a case's path and record.** `LiveCases` gains `made(_:)`, and beside it come `Made` and `MissingPlan`. Replace the whole of `CrewluvTests/Helpers/LiveCases.swift` with:
 
 ```swift
 //
@@ -1861,7 +1864,7 @@ extension TripMapFixtures {
 }
 ```
 
-- [ ] **Step 2: Write the path's failing tests.** Create `CrewluvTests/FlightPathTests.swift`:
+- [x] **Step 2: Write the path's failing tests.** Create `CrewluvTests/FlightPathTests.swift`:
 
 ```swift
 //
@@ -2002,6 +2005,24 @@ final class FlightPathTests: XCTestCase {
         XCTAssertEqual(FlightPath(from: louisville, to: philadelphia, flight: landed).stretches.map(\.kind), [.seen, .seen, .unseen])
     }
 
+    func test_init_landedExactlyTenMinutesAfterTheLastPoint_endsSeen() {
+        let trail = [point(0, 38.3, -85.4), point(2, 38.6, -85.0)]
+        let landed = flight(state: .landed, fix: fix(13, 39.87, -75.24, isOnGround: true), landedAt: start.addingTimeInterval(12 * 60), trail: trail)
+        XCTAssertEqual(FlightPath(from: louisville, to: philadelphia, flight: landed).stretches.map(\.kind), [.seen, .seen, .seen])
+    }
+
+    func test_init_twoPointsOfOneTime_keepTheOrderTheyCameIn() {
+        let first = point(2, 38.6, -85.0)
+        let second = point(2, 38.7, -84.9)
+        let path = FlightPath(from: louisville, to: philadelphia, flight: flight(trail: [point(4, 38.9, -84.6), first, second, point(0, 38.3, -85.4)]))
+        XCTAssertEqual(path.knots.count, 4)
+        XCTAssertEqual(path.knots[1].time, path.knots[2].time)
+        let earlier = path.point(atDistance: path.knots[1].distance)
+        let later = path.point(atDistance: path.knots[2].distance)
+        XCTAssertEqual(earlier.latitude, 38.6, accuracy: 1e-6)
+        XCTAssertEqual(later.latitude, 38.7, accuracy: 1e-6)
+    }
+
     func test_init_pointsExactlyTenMinutesApart_areSeen() {
         let path = FlightPath(from: louisville, to: philadelphia, flight: flight(trail: [point(0, 38.3, -85.4), point(10, 39.0, -83.0)]))
         XCTAssertEqual(path.stretches.map(\.kind), [.seen, .seen, .planned])
@@ -2025,7 +2046,7 @@ final class FlightPathTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 3: Write the record's failing tests.** Create `CrewluvTests/FlightRecordTests.swift`:
+- [x] **Step 3: Write the record's failing tests.** Create `CrewluvTests/FlightRecordTests.swift`:
 
 ```swift
 //
@@ -2047,6 +2068,8 @@ final class FlightRecordTests: XCTestCase {
     func test_records_everySharedCase_matches() throws {
         let cases = try TripMapFixtures.liveCases()
         XCTAssertTrue(cases.flights.contains { $0.record != nil })
+        var placesChecked = 0
+        var timesChecked = 0
         for flightCase in cases.flights {
             let record = try cases.made(flightCase).record
             guard let expected = flightCase.record else {
@@ -2054,7 +2077,10 @@ final class FlightRecordTests: XCTestCase {
                 continue
             }
             let made = try XCTUnwrap(record, flightCase.name)
-            XCTAssertEqual(made.takeoff?.timeIntervalSince1970 ?? -1, expected.takeoff?.timeIntervalSince1970 ?? -1, accuracy: 0.05, flightCase.name)
+            XCTAssertEqual(made.takeoff == nil, expected.takeoff == nil, flightCase.name)
+            if let takeoff = made.takeoff, let expectedTakeoff = expected.takeoff {
+                XCTAssertEqual(takeoff.timeIntervalSince1970, expectedTakeoff.timeIntervalSince1970, accuracy: 0.05, flightCase.name)
+            }
             XCTAssertEqual(made.touchdown.timeIntervalSince1970, expected.touchdown.timeIntervalSince1970, accuracy: 0.05, flightCase.name)
             for place in expected.places {
                 let name = "\(flightCase.name) at \(place.at)"
@@ -2062,12 +2088,16 @@ final class FlightRecordTests: XCTestCase {
                 let position = made.position(at: place.at)
                 XCTAssertEqual(position.latitude, place.point[0], accuracy: 0.0001, name)
                 XCTAssertEqual(position.longitude, place.point[1], accuracy: 0.0001, name)
+                placesChecked += 1
             }
             for time in expected.times {
                 XCTAssertEqual(made.time(atDistance: time.alongNm * nauticalMile).timeIntervalSince1970, time.at.timeIntervalSince1970,
                                accuracy: 0.05, "\(flightCase.name) at \(time.alongNm) nm")
+                timesChecked += 1
             }
         }
+        XCTAssertGreaterThan(placesChecked, 0)
+        XCTAssertGreaterThan(timesChecked, 0)
     }
 
     /// Two places seen at one time are a jump, and no moment is part way across it. Everywhere else, the record's two
@@ -2114,7 +2144,7 @@ final class FlightRecordTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 4: Write `FlightPath`.** Create `Crewluv/Services/TripMap/Live/FlightPath.swift`:
+- [x] **Step 4: Write `FlightPath`.** Create `Crewluv/Services/TripMap/Live/FlightPath.swift`:
 
 ```swift
 //
@@ -2166,13 +2196,15 @@ nonisolated struct FlightPath: Sendable {
     let destination: CLLocationCoordinate2D
     /// Never empty, from the departure airport to the arrival airport.
     let stretches: [Stretch]
-    /// Each place the plane was seen, oldest first, and its landing when that was seen. Empty with no trail.
+    /// Each place the plane was seen in the air, oldest first, and then its landing, when it has landed. Empty for a
+    /// flight never seen in the air.
     let knots: [Knot]
     /// The whole path, flown and ahead, in meters.
     let length: Double
     /// How far along the path the plane was last seen: where the way ahead begins. The whole path once it has landed.
     let flownLength: Double
-    /// Whether the flight was seen on the ground at the arrival airport, which ends the path there.
+    /// Whether the path ends with a landing: the flight has landed, and was seen in the air before it. A landed
+    /// flight never seen in the air has the great circle, and this is false: `LiveProgress.phase` says it landed.
     let hasLanded: Bool
 
     /// Whether it's a real path, from places the plane was seen.
@@ -2182,11 +2214,7 @@ nonisolated struct FlightPath: Sendable {
     init(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D, flight: LiveFlight? = nil) {
         self.origin = origin
         self.destination = destination
-        // Oldest first. A stable sort keeps the door's order between points of one time.
-        var seen = (flight?.trail ?? []).map { (coordinate: $0.coordinate, time: $0.time) }.sorted { $0.time < $1.time }
-        if let fix = flight?.fix, !fix.isOnGround, seen.last.map({ fix.seenAt > $0.time }) ?? true {
-            seen.append((fix.coordinate, fix.seenAt))
-        }
+        let seen = Self.sightings(of: flight)
         guard let first = seen.first, let last = seen.last else {
             let length = GreatCircle.distance(from: origin, to: destination)
             stretches = [Stretch(start: origin, end: destination, kind: .planned, startDistance: 0, length: length)]
@@ -2230,6 +2258,21 @@ nonisolated struct FlightPath: Sendable {
         length = distance
     }
 
+    /// A place the plane was seen in the air, and when.
+    private typealias Sighting = (coordinate: CLLocationCoordinate2D, time: Date)
+
+    /// Each place `flight` was seen in the air, oldest first: its trail's points, with two of one time in the order
+    /// they came, and then its fix, when that's in the air and newer than the last of them.
+    private static func sightings(of flight: LiveFlight?) -> [Sighting] {
+        var seen: [Sighting] = (flight?.trail ?? []).enumerated()
+            .sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }
+            .map { ($0.element.coordinate, $0.element.time) }
+        if let fix = flight?.fix, !fix.isOnGround, fix.seenAt > seen.last?.time ?? .distantPast {
+            seen.append((fix.coordinate, fix.seenAt))
+        }
+        return seen
+    }
+
     /// The place `distance` meters along the path. Before its start that's the departure airport, and past its end
     /// the arrival airport.
     func point(atDistance distance: Double) -> CLLocationCoordinate2D {
@@ -2241,7 +2284,7 @@ nonisolated struct FlightPath: Sendable {
 }
 ```
 
-- [ ] **Step 5: Write `FlightRecord`.** Create `Crewluv/Services/TripMap/Live/FlightRecord.swift`:
+- [x] **Step 5: Write `FlightRecord`.** Create `Crewluv/Services/TripMap/Live/FlightRecord.swift`:
 
 ```swift
 //
@@ -2321,9 +2364,9 @@ nonisolated struct FlightRecord: Sendable {
 }
 ```
 
-- [ ] **Step 6: Run the tests, expecting them to pass.** Todd runs `FlightPathTests` (15 tests) and `FlightRecordTests` (4 tests).
+- [x] **Step 6: Run the tests, expecting them to pass.** Todd runs `FlightPathTests` (17 tests) and `FlightRecordTests` (4 tests).
 
-- [ ] **Step 7: Ask to commit.** Suggested message: `feat(crewluv): FlightPath and FlightRecord: a flight's real path from the places it was seen, with the stretches nobody saw, and where the plane was at any moment along it (Stage 3 spec §6.1, §7.2)`.
+- [x] **Step 7: Ask to commit.** Suggested message: `feat(crewluv): FlightPath and FlightRecord: a flight's real path from the places it was seen, with the stretches nobody saw, and where the plane was at any moment along it (Stage 3 spec §6.1, §7.2)`.
 
 ---
 
@@ -2337,7 +2380,7 @@ nonisolated struct FlightRecord: Sendable {
 
 `LiveProgress` is everything about a flight's real plane at one moment. Its plan comes from the leg's scheduled times moved by the reported delay, never from the real times it works out: the ghost and the label measure against the reported delay (spec §13).
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveProgressTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveProgressTests.swift`:
 
 ```swift
 //
@@ -2418,6 +2461,15 @@ final class LiveProgressTests: XCTestCase {
         }
     }
 
+    func test_gapMinutes_aTimeThatCantBeRight_isHeldToAYear_andDoesntOverflow() {
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: 1e30), 525_600)
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: -1e30), -525_600)
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: .infinity), 525_600)
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: -.infinity), -525_600)
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: .nan), 0)
+        XCTAssertEqual(LiveProgress.gapMinutes(aheadBy: 525_599 * 60), 525_599)
+    }
+
     func test_estimatedPlane_agreesWithTheRecord() throws {
         let cases = try TripMapFixtures.liveCases()
         var checked = 0
@@ -2494,7 +2546,7 @@ final class LiveLabelTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Write `LiveLabel`.** Create `Crewluv/Services/TripMap/Live/LiveLabel.swift`:
+- [x] **Step 2: Write `LiveLabel`.** Create `Crewluv/Services/TripMap/Live/LiveLabel.swift`:
 
 ```swift
 //
@@ -2553,7 +2605,7 @@ nonisolated enum LiveLabel: Equatable, Sendable {
 }
 ```
 
-- [ ] **Step 3: Write `LiveProgress`.** Create `Crewluv/Services/TripMap/Live/LiveProgress.swift`:
+- [x] **Step 3: Write `LiveProgress`.** Create `Crewluv/Services/TripMap/Live/LiveProgress.swift`:
 
 ```swift
 //
@@ -2613,67 +2665,91 @@ nonisolated struct LiveProgress: Sendable {
     ///   - flight: the leg's live data, or nil when Crewlu Cloud answered none.
     ///   - now: the moment, by Crewlu Cloud's clock.
     init(plan: FlightPlan, path: FlightPath, record: FlightRecord?, flight: LiveFlight?, at now: Date) {
-        let fix = flight?.fix
         let phase = Self.phase(of: flight, origin: path.origin, at: now)
+        let touchdown = Self.touchdown(in: phase, plan: plan, path: path, record: record, flight: flight, at: now)
+        let plane = Self.plane(in: phase, plan: plan, path: path, fix: flight?.fix, touchdown: touchdown, at: now)
         self.phase = phase
-
-        var touchdown: Date?
-        switch phase {
-        case .inAir, .estimated:
-            touchdown = fix.map {
-                $0.seenAt.addingTimeInterval(plan.timeToFly(GreatCircle.distance(from: $0.coordinate, to: path.destination)))
-            }
-        case .onGround:
-            touchdown = now >= plan.takeoff ? now.addingTimeInterval(plan.timeInAir) : nil
-        case .landed:
-            // The record's landing, where there is one, so the two can't disagree.
-            touchdown = record?.touchdown ?? flight?.landedAt ?? fix?.seenAt
-        case .notLive, .elsewhere:
-            touchdown = nil
-        }
         self.touchdown = touchdown
         liveArrival = touchdown?.addingTimeInterval(plan.taxiIn)
         gapMinutes = touchdown.map { Self.gapMinutes(aheadBy: plan.touchdown.timeIntervalSince($0)) }
         label = LiveLabel(phase: phase, gapMinutes: gapMinutes)
-
-        switch phase {
-        case .inAir:
-            planeDistance = path.flownLength
-            plane = fix?.coordinate
-        case .estimated:
-            let left = touchdown.map { plan.distanceLeft($0.timeIntervalSince(now)) } ?? 0
-            let distance = min(max(path.length - left, path.flownLength), path.length)
-            planeDistance = distance
-            plane = path.point(atDistance: distance)
-        case .landed:
-            planeDistance = path.length
-            plane = path.destination
-        case .onGround:
-            planeDistance = 0
-            plane = fix?.coordinate
-        case .elsewhere:
-            planeDistance = nil
-            plane = fix?.coordinate
-        case .notLive:
-            planeDistance = nil
-            plane = nil
-        }
-
-        switch phase {
-        case .inAir, .estimated, .onGround:
-            ghostDistance = now < plan.takeoff ? 0 : max(0, path.length - plan.distanceLeft(plan.touchdown.timeIntervalSince(now)))
-        case .landed, .elsewhere, .notLive:
-            ghostDistance = nil
-        }
-
+        planeDistance = plane.distance
+        self.plane = plane.coordinate
+        ghostDistance = Self.ghostDistance(in: phase, plan: plan, path: path, at: now)
         let earlyStart = record?.takeoff?.addingTimeInterval(-plan.taxiOut)
         start = earlyStart.map { min($0, plan.departure) } ?? plan.departure
         end = liveArrival ?? plan.arrival
     }
 
+    /// The widest gap there can be, either way: a year of minutes. A time that can't be right is held to it, so it
+    /// never overflows.
+    private static let widestGap: Double = 365 * 24 * 60
+
     /// A gap of `seconds` ahead (behind when negative) in whole minutes, halves away from zero.
     static func gapMinutes(aheadBy seconds: TimeInterval) -> Int {
-        Int((seconds / 60).rounded(.toNearestOrAwayFromZero))
+        let minutes = (seconds / 60).rounded(.toNearestOrAwayFromZero)
+        guard !minutes.isNaN else { return 0 }
+        return Int(min(max(minutes, -widestGap), widestGap))
+    }
+
+    // MARK: - Private
+
+    /// When the real plane touches down, or did (spec §5.2). Nil where there's no estimate.
+    private static func touchdown(
+        in phase: Phase, plan: FlightPlan, path: FlightPath, record: FlightRecord?, flight: LiveFlight?, at now: Date
+    ) -> Date? {
+        switch phase {
+        case .inAir, .estimated:
+            // The last fix, plus the plan's time for the straight distance left.
+            return flight?.fix.map {
+                $0.seenAt.addingTimeInterval(plan.timeToFly(GreatCircle.distance(from: $0.coordinate, to: path.destination)))
+            }
+        case .onGround:
+            // Past the plan's takeoff, it's as if the plane took off this moment.
+            return now >= plan.takeoff ? now.addingTimeInterval(plan.timeInAir) : nil
+        case .landed:
+            // The record's landing, where there is one, so the two can't disagree.
+            return record?.touchdown ?? flight?.landedAt ?? flight?.fix?.seenAt
+        case .notLive, .elsewhere:
+            return nil
+        }
+    }
+
+    /// Where the real plane is, and how far along the path. Neither when it isn't shown, and no distance when it
+    /// isn't on the path.
+    private static func plane(
+        in phase: Phase, plan: FlightPlan, path: FlightPath, fix: LiveFlight.Fix?, touchdown: Date?, at now: Date
+    ) -> (distance: Double?, coordinate: CLLocationCoordinate2D?) {
+        switch phase {
+        case .inAir:
+            return (path.flownLength, fix?.coordinate)
+        case .estimated:
+            // It flies the plan from its last fix, and stays at the arrival airport once it's there (spec §5.5).
+            guard let touchdown else { return (nil, nil) }
+            let left = plan.distanceLeft(touchdown.timeIntervalSince(now))
+            let distance = min(max(path.length - left, path.flownLength), path.length)
+            return (distance, path.point(atDistance: distance))
+        case .landed:
+            return (path.length, path.destination)
+        case .onGround:
+            return (0, fix?.coordinate)
+        case .elsewhere:
+            return (nil, fix?.coordinate)
+        case .notLive:
+            return (nil, nil)
+        }
+    }
+
+    /// How far along the path an on-schedule plane would be (spec §5.4). Nil when the ghost isn't shown.
+    private static func ghostDistance(in phase: Phase, plan: FlightPlan, path: FlightPath, at now: Date) -> Double? {
+        switch phase {
+        case .inAir, .estimated, .onGround:
+            // Until the plan's takeoff it waits at the departure airport, however long the real path is.
+            guard now >= plan.takeoff else { return 0 }
+            return max(0, path.length - plan.distanceLeft(plan.touchdown.timeIntervalSince(now)))
+        case .landed, .elsewhere, .notLive:
+            return nil
+        }
     }
 
     /// What the live data says of a flight from `origin` at `now` (spec §5.1).
@@ -2695,7 +2771,7 @@ nonisolated struct LiveProgress: Sendable {
 }
 ```
 
-- [ ] **Step 4: Write the label's words.** In `Crewluv/Services/TripMap/TripMapWording.swift`, just before the line `    // MARK: - The bar under the map`, add this and a blank line after it:
+- [x] **Step 4: Write the label's words.** In `Crewluv/Services/TripMap/TripMapWording.swift`, just before the line `    // MARK: - The bar under the map`, add this and a blank line after it:
 
 ```swift
     // MARK: - The real plane
@@ -2720,8 +2796,12 @@ nonisolated struct LiveProgress: Sendable {
             return "Landed \(minutesText(minutes)) late"
         }
     }
+```
 
-    /// "45 min", "2 h" or "2 h 10 min".
+- [x] **Step 5: Write the words for a length of minutes.** In the same file, after the line `    // MARK: - Helpers, shared with FactsWording` and the blank line under it, add this and a blank line after it:
+
+```swift
+    /// "45 min", "2 h" or "2 h 10 min": the landing countdown's length, and the real plane's gap.
     static func minutesText(_ minutes: Int) -> String {
         let hours = minutes / 60
         let rest = minutes % 60
@@ -2731,7 +2811,7 @@ nonisolated struct LiveProgress: Sendable {
     }
 ```
 
-- [ ] **Step 5: Let the countdown use the same words.** In the same file, replace:
+- [x] **Step 6: Let the countdown use the same words.** In the same file, replace:
 
 ```swift
         guard minutes > 0 else { return "Landing now" }
@@ -2751,9 +2831,9 @@ with:
     }
 ```
 
-- [ ] **Step 6: Run the tests, expecting them to pass.** Todd runs `LiveProgressTests` (4 tests), `LiveLabelTests` (6 tests), and `TripMapWordingTests` and `TripFactsTests`, which hold the countdown's words as they were.
+- [x] **Step 7: Run the tests, expecting them to pass.** Todd runs `LiveProgressTests` (5 tests), `LiveLabelTests` (6 tests), and `TripMapWordingTests` and `TripFactsTests`, which hold the countdown's words as they were.
 
-- [ ] **Step 7: Ask to commit.** Suggested message: `feat(crewluv): LiveProgress, the real plane at a moment: live, estimated or landed, a landing estimate anchored on the takeoff, how far ahead or behind that is in words, where the ghost flies, and the leg's real times (Stage 3 spec §5, §7.1)`.
+- [x] **Step 8: Ask to commit.** Suggested message: `feat(crewluv): LiveProgress, the real plane at a moment: live, estimated or landed, a landing estimate anchored on the takeoff, how far ahead or behind that is in words, where the ghost flies, and the leg's real times (Stage 3 spec §5, §7.1)`.
 
 ---
 
@@ -2763,7 +2843,7 @@ with:
 - Create: `Crewluv/Services/TripMap/Live/LiveWindow.swift`
 - Test: `CrewluvTests/LiveWindowTests.swift`
 
-- [ ] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveWindowTests.swift`:
+- [x] **Step 1: Write the failing tests.** Create `CrewluvTests/LiveWindowTests.swift`:
 
 ```swift
 //
@@ -2798,7 +2878,7 @@ final class LiveWindowTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: Write `LiveWindow`.** Create `Crewluv/Services/TripMap/Live/LiveWindow.swift`:
+- [x] **Step 2: Write `LiveWindow`.** Create `Crewluv/Services/TripMap/Live/LiveWindow.swift`:
 
 ```swift
 //
@@ -2836,9 +2916,9 @@ nonisolated enum LiveWindow {
 }
 ```
 
-- [ ] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveWindowTests`: 2 tests.
+- [x] **Step 3: Run the tests, expecting them to pass.** Todd runs `LiveWindowTests`: 2 tests.
 
-- [ ] **Step 4: Ask to commit.** Suggested message: `feat(crewluv): LiveWindow, when a flight's live data is worth asking for: from 30 minutes before it leaves to 2 hours after it arrives, and longer while it's still seen in the air (Stage 3 spec §10.2)`.
+- [x] **Step 4: Ask to commit.** Suggested message: `feat(crewluv): LiveWindow, when a flight's live data is worth asking for: from 30 minutes before it leaves to 2 hours after it arrives, and longer while it's still seen in the air (Stage 3 spec §10.2)`.
 
 ---
 
@@ -3456,6 +3536,13 @@ with:
   - `FlightRecordTests`' inverse test leaves out the distances inside a jump, where two places were seen at one time;
   - five choices the reference had made without saying are now in this plan's list of settled details.
 - **The test command names the simulator's OS.** Todd's first run found no iPhone 17 Pro on the newest iOS.
+- **Batch B's review (15 Nov 2026)** found the Swift the same as the reference everywhere it compared, and one thing to fix before Tasks 4 to 7 were committed: a gap's minutes were made an `Int` with nothing to stop a time that can't be right from overflowing it. So:
+  - `LiveProgress.gapMinutes` holds a gap to a year either way, and reads a gap that isn't a number as none;
+  - `LiveProgress.init` hands its three questions (the touchdown, the real plane, the ghost) to functions of their own, and `FlightPath.init` the places seen;
+  - the order between two trail points of one time is spelled out in the sort, which Swift doesn't promise to keep;
+  - `FlightPlan` works its cruise out only where a leg has room for one, and three comments say what the code does (`knots`, `hasLanded`, `isSteady`);
+  - `minutesText` sits with `TripMapWording`'s shared helpers, since the countdown uses it too;
+  - the tests gained three (a landing exactly 10 minutes after the last point, two points of one time through `FlightPath`, a gap that can't be right), compare the plan's times within a tolerance, and count the places and times they check.
 
 ## Self-review
 
