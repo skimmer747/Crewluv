@@ -21,6 +21,8 @@ Families on iCloud, and flights adsb.lol can't see, keep today's map from the sc
   - `alt_baro`, in feet, or the string `"ground"`;
   - `gs` (knots) and `track` (degrees). `track` can be missing on the ground.
 - **Still no CORS header and no key.** A callsign nobody is broadcasting is simply absent from `ac`.
+- **It counts requests by the clock's minute** (found on the first real flight, 15 Nov 2026). What it allows is shared with others who call it from the same addresses. A request in a minute's first ten seconds was never refused (0 of 52), and one in its last ten usually was (21 of 30). A 429's `Retry-After` was the seconds left in the minute.
+- **It has no receivers over parts of northern Canada.** The same flight went unseen for 52 minutes there, 433 nm of its path.
 
 ### 2.2 The map and the facts (Stages 1 and 2, merged)
 
@@ -238,7 +240,7 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
 | `private.flight_legs(status)` | A summary's flight legs that can be watched, each with its callsign. The check and `partner_live` both use it |
 | `private.open_live_flights()` | The flights whose window is open. The check and the claim both use it |
 | `private.flight_live_switch(mode, pilots)` | Sets the switch, from the SQL editor |
-| `private.flight_live_tick()` | The 30-second check, run by pg_cron |
+| `private.flight_live_tick()` | The check, run by pg_cron once a minute |
 | `flight-live` | The Edge Function: one file with no imports, like `partner-push` |
 | `flight_live_claim`, `flight_live_report` | Its two RPCs, for `service_role` with a Vault password of their own |
 | `partner_live` | The partner RPC |
@@ -274,7 +276,7 @@ At most 8 of a pilot's flights are watched at once, the earliest to leave. That'
 
 ### 10.3 Each run
 
-Every 30 seconds, pg_cron runs `private.flight_live_tick()`. It:
+At second 0 of every minute, pg_cron runs `private.flight_live_tick()`. It:
 
 1. stops if the switch is off or the pause hasn't run out;
 2. makes or updates each pilot's row for every leg of theirs whose window is open, and lets go of the flights that have left their pilot's summary;
@@ -287,9 +289,11 @@ Every 30 seconds, pg_cron runs `private.flight_live_tick()`. It:
 3. **judges** each row's answer (§10.4);
 4. **reports** what's new, and how the request went: a new state, another aircraft, or a fix seen at least a second later than the one the flight has. The database adds the trail points.
 
-A run starts no request later than 20 seconds after it began, and reports that as a failure: the check calls every 30 seconds, and runs that piled up would ask adsb.lol twice over just when it's slow. A call with no password is refused before anything else.
+A run starts no request later than 20 seconds after it began, and reports that as a failure: runs that piled up would ask adsb.lol twice over just when it's slow. A call with no password is refused before anything else.
 
-With no window open there are no requests. Otherwise there are 2 a minute, however many pilots are flying.
+With no window open there are no requests. Otherwise there's 1 a minute, however many pilots are flying.
+
+**Why the top of the minute.** adsb.lol counts requests by the clock's minute (§2.1), so a request at a minute's start finds its allowance whole. The check first ran every 30 seconds. pg_cron's 30-second schedule drifts, about 6 seconds an hour, and on the first real flight it slid from :01 and :31 to :22 and :52, where about half its requests were refused. A cron minute doesn't drift. Asked at second 0, 46 requests in a row had no refusal. So a fix is new at most once a minute, and one missed answer leaves it 2 minutes old.
 
 ### 10.4 The match: following the aircraft
 
@@ -353,14 +357,14 @@ A new partner RPC beside `partner_view`, called the same way. `partner_view` doe
 
 - **The switch** is `off`, `listed` or `all`, with a list of pilots for `listed`. It ships `off`. It's changed in the SQL editor, with `private.flight_live_switch`.
 - **A timeout, an error or an answer that doesn't read:** nothing is kept from that run, and the next run tries again. After 5 in a row, polling pauses for 5 minutes.
-- **A 429:** polling pauses for 2 minutes.
+- **A 429** costs that one check. The next is a minute later, which is later than any 429 seen so far has asked for. A 429 counts with the failures: 5 checks in a row that fail or are refused pause polling for 5 minutes. It first paused polling for 2 minutes, ten times what adsb.lol asked, which left a fix 3 minutes old each time. `flight-live` logs what each 429 asks for.
 - **The devices need no failure state.** A fix that stops arriving makes the plane estimated by itself.
 - **If adsb.lol starts needing a key,** it goes in the function's secrets.
 - **If adsb.lol is gone for good,** the switch goes off and every family is on the schedule, with nothing else broken.
 
 ### 10.8 Setting it up
 
-Two scripts, each run once in the SQL editor with its undo in its header, as the push service's is: the live plane's, which makes its own Vault password and the function's address, then the airports'. `flight-live` is added in the dashboard. Nothing is applied to CrewLu Cloud without Todd's OK at each step (§17).
+Three scripts, each run in the SQL editor with its undo in its header, as the push service's is: the live plane's, which makes its own Vault password and the function's address, then the airports', then the one that sets the check to once a minute and a 429 to cost one check (§10.3, §10.7). `flight-live` is added in the dashboard. Nothing is applied to CrewLu Cloud without Todd's OK at each step (§17).
 
 ## 11. The app
 
@@ -412,6 +416,8 @@ The same design in TypeScript, held to the same answers by the shared cases.
 - **A wrong phone clock:** fix ages use the server's clock.
 - **The date line and long legs:** the path's joins are drawn as today's lines are, in stretches of at most a degree, once for each copy of the world on screen.
 - **adsb.lol down, slow or gone:** §10.7.
+- **adsb.lol refusing some requests:** the check asks at each minute's start, where it isn't refused (§10.3). A refused check leaves the fix a minute older, and nothing else changes.
+- **A long stretch with no receivers,** as over northern Canada or an ocean: the plane is estimated until it's seen again, and that stretch of its path is unseen (§5.5, §6.1).
 
 ## 14. Security and privacy
 

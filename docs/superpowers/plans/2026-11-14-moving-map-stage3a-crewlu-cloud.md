@@ -37,7 +37,7 @@
 
 ## Decisions made while planning
 
-These refine the spec, and its §10 already has them. 1 to 11 were made while planning. 12 to 23 came out of the reviews while the plan was carried out.
+These refine the spec, and its §10 already has them. 1 to 11 were made while planning. 12 to 23 came out of the reviews while the plan was carried out. 24 to 27 came out of the first real flight, in Task 12: the tasks' code blocks below are as Tasks 1 to 11 left them, and what these four changed is on the branch.
 
 1. **`partner_live`'s fields have underscores** (`leg_id`, `altitude_ft`, `trail_count`), as every other partner-door answer has. Times are milliseconds since 1970.
 2. **Two scripts.** The live plane's script makes an empty `private.airports`. A second script, made from the Crewluve website's `airports.json` by `tests/helpers/airports_seed.js`, fills it with 9,056 airports. Its name has no `_partner_links_`, so the tests' `freshDb()` doesn't load 231 KB for every test: each test puts in the few airports it flies between.
@@ -62,6 +62,10 @@ These refine the spec, and its §10 already has them. 1 to 11 were made while pl
 21. **A run of `flight-live` has a time limit.** It starts no request to adsb.lol later than 20 seconds after it began, and reports that as a failure, so a slow day can't pile runs up. A call with no password is refused before any call to CrewLu Cloud. It reports only news: a new state, another aircraft, or a fix seen at least a second later.
 22. **The watch list is bounded where flights are handed out, not only where rows are made.** The whole-branch review found that a pilot writing new flights before every check left each old row open for a day, so thousands could be asked about. Now a flight that leaves its pilot's summary is deleted if nobody saw it, and no longer wanted if somebody did; the same goes for a pilot the switch no longer lists or whose partners' devices have gone unseen; and `private.open_live_flights` hands out at most 8 of one pilot's.
 23. **`partner_live` isn't marked `stable`,** though it only reads: PostgREST takes a stable function by GET, which would put the device's key in an address.
+24. **The check runs at second 0 of every minute, not every 30 seconds.** adsb.lol counts requests by the clock's minute, and what it allows is shared with others who call it from the same addresses. On the first real flight a request in a minute's first ten seconds was never refused, and one in its last ten usually was. pg_cron's `'30 seconds'` also drifts, about 6 seconds an hour, so the check had slid from a minute's start towards its end. A fix is now new at most once a minute.
+25. **A 429 costs one check, and counts with the failures.** It paused the check for 2 minutes, ten times what adsb.lol asked for, which left the fix 3 minutes old each time. Now the fifth check in a row that fails or is refused pauses the check for 5 minutes, and nothing before that does.
+26. **`flight-live` logs what each 429 asks for:** the headers that say how long to wait, and the start of its body, with any address and any character a log line could be bent with taken out.
+27. **A third script, `20261115200000_partner_links_flight_live_minute.sql`, holds 24 and 25.** The first script stays as it ran, with a pointer to the third. The third can be run again, says the report's grants again, and has an undo that puts back the first script's report and schedule exactly. Its tests are `flight_live_minute.test.js`.
 
 ## File structure
 
@@ -3822,11 +3826,11 @@ Expected: `ℹ fail 0`. Commit the changes with a message that says what the rev
 
 **Files:** none. CrewLu Cloud changes here, by Todd's hands, one step at a time (spec §17, steps 1 and 2). Claude changes nothing on CrewLu Cloud. With Todd's yes, Claude may read what the setup made.
 
-- [ ] **Step 1: Ask before going live**
+- [x] **Step 1: Ask before going live**
 
 Ask Todd one question: set it up now? After the scripts, the check runs every 30 seconds, but with the switch off it does nothing: no flight is watched, adsb.lol is never asked, and `partner_live` answers no flights. If not now, stop here.
 
-- [ ] **Step 2: `flight-live` in Supabase**
+- [x] **Step 2: `flight-live` in Supabase**
 
 Claude puts the function's file on the clipboard. Run it with the sandbox off: from inside it, `pbcopy` doesn't reach Todd's clipboard.
 
@@ -3847,7 +3851,7 @@ Then send Todd these steps:
 7. On flight-live's page, open its settings (the **Details** tab), turn off the switch for JWT verification (labeled like **Verify JWT**), and save. The check sends no sign-in: the password guards flight-live instead.
 8. Under **Edge Functions**, open **Secrets**, and check that `SUPABASE_URL` and `SUPABASE_SECRET_KEYS` are in the list Supabase supplies. flight-live needs no secret of its own.
 
-- [ ] **Step 3: The live plane's script**
+- [x] **Step 3: The live plane's script**
 
 Claude puts the script on the clipboard, again with the sandbox off:
 
@@ -3864,7 +3868,7 @@ Then send Todd these steps:
 3. If it warns about a destructive operation, that's the two clean-up jobs' `delete`s, which run once a day: confirm it.
 4. Expected: the result of the script's last `select`, a `schedule` column holding a number (the last clean-up job's). If it says `relation "airports" already exists`, the script ran before: stop and ask.
 
-- [ ] **Step 4: The airports' script**
+- [x] **Step 4: The airports' script**
 
 Claude puts it on the clipboard, with the sandbox off:
 
@@ -3880,7 +3884,7 @@ Then send Todd these steps:
 2. Expected: `Success. No rows returned`.
 3. In a new query, run `select count(*) from private.airports;`. Expected: `9056`.
 
-- [ ] **Step 5: Check it's there, and off**
+- [x] **Step 5: Check it's there, and off**
 
 Send Todd this, for a new query:
 
@@ -3905,7 +3909,7 @@ Expected: `{"error": "sharing_ended"}`, then `401`: the publishable key can't ca
 
 Ask Todd to open **Advisors** → **Security** in the dashboard. Expected: two new findings, both about `public.partner_live`: a security definer function that `anon` can call, and that `authenticated` can. They're on purpose, as for the other partner RPCs. Any other new finding: stop and ask.
 
-- [ ] **Step 6: Turn it on for Todd's account**
+- [x] **Step 6: Turn it on for Todd's account**
 
 This is the first step that reaches adsb.lol. It needs Todd's account to have a partner whose device was seen in the last 30 days, and a flight within its window: 30 minutes before its departure to 2 hours after its arrival.
 
@@ -3918,7 +3922,7 @@ select mode, cardinality(pilots) as pilots from private.flight_live_state;
 
 Expected: `listed`, then `listed` and `1`. If it's `0`, the email matched no account: the switch is on for nobody, so nothing is asked. Fix the email and run it again.
 
-- [ ] **Step 7: Watch a flight**
+- [x] **Step 7: Watch a flight**
 
 While one of Todd's flights is in its window, send Todd this:
 
@@ -3935,7 +3939,7 @@ Expected:
 
 If the answers show `"outcome":"failed"` or `"limited"`, or a status other than 200, stop and ask. flight-live's **Logs** tab in the dashboard has a line for each run.
 
-- [ ] **Step 8: Write down what happened**
+- [x] **Step 8: Write down what happened**
 
 Add a section "## Setup, as it went" to the end of this plan, with the date, each step's result, and anything that differed. Then tick the boxes.
 
@@ -3959,18 +3963,18 @@ select private.flight_live_switch('off');
 - Modify: this plan
 - Modify: `~/Dev/Crewluv/docs/superpowers/specs/2026-11-14-crewluve-moving-map-stage3-live-design.md`, only if something changed
 
-- [ ] **Step 1: Record what changed**
+- [x] **Step 1: Record what changed**
 
 Add "## Changes made during execution" to the end of this plan: the review's changes, and anything a step did differently. If any of it changes what the spec's §10 says, change the spec to match, and say so in the list.
 
-- [ ] **Step 2: Note what plans 3B and 3C need**
+- [x] **Step 2: Note what plans 3B and 3C need**
 
 Add "## For the app and the website" to the end of this plan:
 - the final `partner_live` answer, copied from `supabase/partner-api.md`;
 - the switch's state on CrewLu Cloud;
 - one real answer from `partner_live` for a flight in the air, with the device key left out, to record as the demo scenes' and the shared cases' starting point. Todd's own Crewluve can get it once plan 3B's door call exists, so this may wait for 3B.
 
-- [ ] **Step 3: Commit, with Todd's OK**
+- [x] **Step 3: Commit, with Todd's OK**
 
 Commit this plan and any spec change in `~/Dev/Crewluv`, on `feature/trip-map-live`. In CrewLu, ask Todd how he wants `feature/flight-live` merged: use `superpowers:finishing-a-development-branch`.
 
@@ -4000,7 +4004,7 @@ Commit this plan and any spec change in `~/Dev/Crewluv`, on `feature/trip-map-li
 
 ## Changes made during execution
 
-Tasks 0 to 11, on 15 Nov 2026. Tasks 12 and 13 are still to do.
+Tasks 0 to 13, on 15 Nov 2026. How `feature/flight-live` is merged is Todd's to say.
 
 - **Where it is.** `feature/flight-live` in `~/Dev/Duty-flight-live`: eleven commits, `ffa2e8df` to `91c60200`, not pushed. `npm test` passes 432 of 432, and `tsc --strict` passes on the function.
 - **This plan was rewritten after the reviews.** Its code blocks are what the branch holds now, not what was first planned. They were put together stage by stage in a copy of `supabase/`, tested after each task, and the result compared byte for byte with the worktree.
@@ -4010,3 +4014,67 @@ Tasks 0 to 11, on 15 Nov 2026. Tasks 12 and 13 are still to do.
 - **What the reviews changed** is decisions 12 to 23 above. Each came from a review, and each has tests.
 - **A flaky test.** One of Task 4's tests found two rows by their position, and one check makes its rows in no fixed order (21 times one way and 19 the other, over 40 tries). It failed once, and Task 4 was committed in the same command without that being seen. The test was fixed with Task 5. Tests of several rows now find each by its callsign, or sort. Since then every run's full log is kept, and checked for no failures before a commit.
 - **Commits** were made as each task passed its tests and review, on Todd's OK for this plan.
+- **Task 12 changed the branch.** What it found is decisions 24 to 27, and "Setup, as it went" below. On the branch, committed as `235f7ef6` on Todd's OK, not pushed:
+  - the third script and its tests (`flight_live_minute.test.js`);
+  - `flight-live`'s log line for a 429;
+  - the report's and the check's tests for the new rule, `partner-api.md` and the tests' README.
+  - `npm test` passes 442 of 442, and `tsc --strict` passes on the function.
+  - `superpowers:code-reviewer` (sonnet) reviewed it twice. The first review asked for the report's grants to be said again and for the log line's address filter to be mended. The second found the mended filter passing an address with a port, which is fixed and has tests for every form it tried.
+- **The spec changed with it:** §2.1, §10.1, §10.3, §10.7, §10.8 and §13.
+
+## Setup, as it went
+
+15 Nov 2026 (Task 12). Todd did every step himself in the Supabase dashboard, and every reading below is one he ran and sent. Claude read nothing from CrewLu Cloud: its Supabase tools were tried once, on Todd's "ok", and Claude Code's permission check refused them.
+
+**The steps**
+
+- **Step 2, `flight-live`:** deployed from the editor, named `flight-live`. The tab the plan calls Details is **Settings**, and the switch reads "Verify JWT with legacy secret": off. `SUPABASE_URL` and `SUPABASE_SECRET_KEYS` are among the secrets Supabase supplies.
+- **Step 3, the live plane's script:** it ran, and its last `select` returned `schedule` 6.
+- **Step 4, the airports:** 9,056.
+- **Step 5, there and off:** the state row was `off`, `[]`, `0`, NULL, with three jobs on their schedules. The two calls answered `{"error": "sharing_ended"}` and 401. The Security Advisor showed 0 errors and 24 warnings: `public.partner_live` twice (anon and authenticated), no `flight_live_` function, and 22 older ones that aren't this plan's.
+- **Step 6, on for Todd:** `listed`, at about 14:14 UTC. The state row read `listed` and 1.
+- **Step 7, a flight:** UPS82, Louisville to Anchorage, a Boeing 747-8 (N605UP, `a7dba2`).
+  - It was found at the first check, already in the air: 14:15:10 UTC, 31,025 ft, 56 nm out. The switch went on after it took off.
+  - It was followed to its landing, seen at 20:03:05 UTC on the runway at 67 kt. The schedule's touchdown was 20:03:00.
+  - It left 108 trail points: 2,745 nm flown, against 2,707 direct. 488 nm were never seen: the first 56, and 433 over northern Canada, where adsb.lol had no receiver for 52 minutes (17:38 to 18:30 UTC).
+
+**What differed**
+
+1. **The clipboard garbled `§` and `°`** in Steps 2 and 3: `pbcopy` ran with no UTF-8 locale. Every one was in a comment. `flight-live` and the report have since been pasted again with `LC_ALL=en_US.UTF-8 pbcopy`, checked with `pbpaste | cmp`. The first script's other functions keep the garbled comments inside their bodies, which changes nothing they do.
+2. **adsb.lol refused one request in four,** which Step 7 says to stop for. What the day found is from `net._http_response`. Supabase keeps it about 6 hours, so Todd copied it out during the flight.
+   - With the plan's 2-minute pause, 54 of 205 requests were refused, some in every 10 minutes of the flight. Each refusal left the fix 3 minutes old.
+   - `flight-live` was given a log line for what a 429 asks. It read `retry-after=12` at :49 past the minute and `retry-after=38` at :22: the seconds left in the minute.
+   - With a 15-second pause, 57 of 95 were refused. Asked once a minute, at :22 to :26, 14 of 36.
+   - By where in the minute the request fell, over all 336: :00 to :09, 0 of 52 refused; :10 to :19, 9 of 66; :20 to :29, 28 of 66; :30 to :39, 25 of 53; :40 to :49, 42 of 69; :50 to :59, 21 of 30. pg_cron's 30-second schedule had drifted from :01 and :31 at 14:20 UTC to :22 and :52 by 18:26.
+   - With the check at second 0 of every minute, from 19:10 to 19:55 UTC: 46 requests, 45 fixes, no refusal and one failure.
+   - Decisions 24 to 27 are what came of it.
+3. **CrewLu Cloud was changed by hand four times during the flight,** each time by Todd, each a paste from Claude:
+   - `flight-live` with the log line, at about 17:29 UTC;
+   - the report with a 15-second pause, at 17:43;
+   - the report with a 40-second rest after every answer, at 18:31;
+   - the check's job moved to `* * * * *`, at 19:09.
+   - The third script was written to run over all of that and leave what the branch holds. Todd ran it at about 20:58 UTC, and it returned the job's own id, 4.
+   - He then deployed `flight-live` as the branch holds it. A check he ran at about 21:20 UTC read `listed` with no failures and no pause, one job with id 4, active, on `* * * * *`, and the report with the new rule.
+4. **The request log and two snapshots of the flight** (in the air at 17:23 UTC, and landed) are kept outside both repos, in the session's notes. They're Todd's own flight: ask him before either goes into a repo.
+
+**How it's left.** The switch is `listed`, with Todd's account alone, until the app and the website have followed a real flight (spec §17). To turn everything off: `select private.flight_live_switch('off');`.
+
+## For the app and the website
+
+- **`partner_live`'s answer** is as `supabase/partner-api.md` has it on `feature/flight-live`, in "The live plane":
+
+```
+{"now": <ms>, "cursor": <integer>,
+ "flights": [{"leg_id", "callsign", "state",
+   "fix": {"lat", "lon", "altitude_ft", "ground_speed_kt", "track_deg", "on_ground",
+           "registration", "type_code", "seen_at"} | null,
+   "landed_at": <ms> | null,
+   "trail": [[<ms>, <lat>, <lon>, <ft>], ...],
+   "trail_count": <integer>}]}
+```
+
+- **The switch** is `listed`, with Todd's account alone. Every other pilot's partners are answered `"flights": []`.
+- **A fix is new at most once a minute,** a second or two after the minute's start. One missed answer leaves it 2 minutes old, so a plane that's estimated after 2 minutes (spec §5.1) would flicker. Three minutes is being put to Todd.
+- **The first real flight's landing estimate ran late:** by 37 minutes at the start, 20 in the middle and 8 an hour out, then early by 5 to 8 on the approach. The flight took off about 35 minutes late and landed on time. The schedule's air time comes to 423 kt, and it flew 450 to 480. Whether the estimate should use the plane's own speed, which spec §5.2 says it doesn't, is being put to Todd.
+- **A flight can go unseen for most of an hour** over northern Canada, as over an ocean. The first one did, for 52 minutes.
+- **A real answer to record,** for the demo scenes and the previews: two snapshots of that flight exist (see "Setup, as it went"). Ask Todd before using them.
