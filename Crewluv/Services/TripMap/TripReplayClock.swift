@@ -117,6 +117,22 @@ nonisolated struct TripReplayClock {
     mutating func goLive() {
         anchor = nil
     }
+
+    /// The clock for the same trip with new times, such as the real plane's newest landing estimate (Stage 3 spec
+    /// §7.3): at the same moment, playing or paused as this one is, at the same speed and pace. A live clock stays
+    /// live.
+    func carried(to span: DateInterval, legs: [Stretch], waits: [Stretch], at now: Date) -> TripReplayClock {
+        var clock = TripReplayClock(span: span, legs: legs, waits: waits, isQuickLayovers: isQuickLayovers)
+        clock.speed = speed
+        guard !isLive else { return clock }
+        // A clock at either end of the trip stays at that end, wherever the new times put it.
+        let moment = time(at: now)
+        clock.scrub(to: moment >= self.span.end ? span.end : moment <= self.span.start ? span.start : moment)
+        if isPlaying, !hasFinished(at: now) {
+            clock.play(at: now)
+        }
+        return clock
+    }
 }
 
 // MARK: - Positions along the timeline (activity markers design §4.3)

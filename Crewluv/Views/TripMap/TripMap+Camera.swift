@@ -12,4 +12,11 @@ nonisolated extension TripMap {
     func framingRect(focusingOn leg: MapLeg?) -> MKMapRect? {
         MapFit.rect(enclosing: framingCoordinates(focusingOn: leg))
     }
+
+    /// `framingRect` as numbers a view can compare, so the card frames the trip again when a real path grows past
+    /// what it showed (Stage 3 spec §6.2). Empty when there's nothing to frame.
+    func framingKey(focusingOn leg: MapLeg?) -> [Double] {
+        guard let rect = framingRect(focusingOn: leg) else { return [] }
+        return [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
+    }
 }
