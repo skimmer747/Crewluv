@@ -2,14 +2,17 @@
 //  TripMapInFlightBar.swift
 //  CrewLuve
 //
-//  The bar under the card's map in flight (moving map spec §5.3): the flight number, which opens the tracking links
-//  as before, and the landing time, in the family's time and the destination's.
+//  The bar under the card's map in flight (moving map spec §5.3, Stage 3 spec §9): the flight number, which opens
+//  the tracking links as before, how the real plane is doing against the schedule, and the landing time, in the
+//  family's time and the destination's.
 //
 
 import SwiftUI
 
 struct TripMapInFlightBar: View {
     let leg: MapLeg
+    /// "In flight", or the real plane against the schedule: "12 min ahead" (`TripMapWording.flightStatus`).
+    let status: String
 
     @State private var isShowingTracking = false
 
@@ -49,7 +52,7 @@ struct TripMapInFlightBar: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Shows live tracking links")
             }
-            Text("In flight")
+            Text(status)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

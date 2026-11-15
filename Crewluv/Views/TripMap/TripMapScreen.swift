@@ -77,8 +77,10 @@ struct TripMapScreen: View {
                 if !isSidePanel { sheetStop = .small }
             }
             .onChange(of: Self.replayLegs(of: tripMap)) {
-                // A new schedule, such as a delay, gives the timeline new ends and a new pace.
-                clock = Self.clock(for: tripMap, isQuickLayovers: isQuickLayovers)
+                // New times, such as a delay or the real plane's newest landing estimate, give the timeline new ends
+                // and a new pace. A replay carries on from the moment it was at (Stage 3 spec §7.3).
+                clock = clock.carried(to: tripMap.span, legs: Self.replayLegs(of: tripMap),
+                                      waits: Self.replayWaits(of: tripMap), at: .now)
             }
             .onChange(of: isQuickLayovers, initial: true) { _, isOn in
                 // The replay carries on from the same moment at the new pace.
@@ -107,7 +109,7 @@ struct TripMapScreen: View {
     /// layovers on each wait hurries by.
     private static func clock(for tripMap: TripMap, isQuickLayovers: Bool) -> TripReplayClock {
         let legs = replayLegs(of: tripMap)
-        let waits = tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
+        let waits = replayWaits(of: tripMap)
         return tripMap.mode == .recap
             ? TripReplayClock(span: tripMap.span, legs: legs, waits: waits, isQuickLayovers: isQuickLayovers,
                               pausedAt: tripMap.span.start)
@@ -117,6 +119,11 @@ struct TripMapScreen: View {
     /// Each drive and flight, from its start to its end with any delay.
     private static func replayLegs(of tripMap: TripMap) -> [TripReplayClock.Stretch] {
         tripMap.legs.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
+    }
+
+    /// Each wait on the ground, from its start to its end.
+    private static func replayWaits(of tripMap: TripMap) -> [TripReplayClock.Stretch] {
+        tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
     }
 
     private var facts: TripFacts {
@@ -129,7 +136,7 @@ struct TripMapScreen: View {
             // The camera frames the trip in what the sheet or the panel leaves clear.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
                         clearance: TripMapClearance(leading: mapLeadingClearance, bottom: mapBottomClearance),
-                        isFullScreen: true)
+                        isFullScreen: true, isReplay: !clock.isLive)
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
             topBar(time: time)
@@ -151,7 +158,8 @@ struct TripMapScreen: View {
 
     private func topBar(time: Date) -> some View {
         TripMapTopBar(
-            pill: TripMapWording.topPill(for: tripMap, at: time, dayNumber: dayNumber, totalDays: totalDays),
+            pill: TripMapWording.topPill(for: tripMap, at: time, dayNumber: dayNumber, totalDays: totalDays,
+                                         isReplay: !clock.isLive),
             style: style,
             isShowingRecenter: camera.isPositionedByUser,
             onClose: close,

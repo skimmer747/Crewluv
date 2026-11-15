@@ -21,6 +21,9 @@ struct TripMapView: UIViewRepresentable {
     /// The full-screen map: it pans and zooms, VoiceOver can explore it, and it keeps clear of the safe area. The
     /// card's map does none of these.
     var isFullScreen = false
+    /// `date` is a moment of the replay, not now: a flight with a record shows its real plane alone, where the
+    /// record has it (Stage 3 spec §7.3).
+    var isReplay = false
 
     func makeCoordinator() -> TripMapCoordinator {
         TripMapCoordinator(parent: self)

@@ -58,6 +58,8 @@ struct TripMapCard: View {
         }
         .onChange(of: tripMap.mode) { refit() }
         .onChange(of: tripMap.legs.map(\.id)) { refit() }
+        // A real path can grow past what the card framed (Stage 3 spec §6.2).
+        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) { refit() }
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
@@ -99,7 +101,7 @@ struct TripMapCard: View {
     @ViewBuilder
     private func bar(facts: TripFacts, at date: Date) -> some View {
         if let leg = tripMap.currentLeg {
-            TripMapInFlightBar(leg: leg)
+            TripMapInFlightBar(leg: leg, status: TripMapWording.flightStatus(for: leg, at: date))
         } else if tripMap.mode == .recap {
             TripRecapBar(tiles: facts.recapTiles, longest: facts.recapLongestLine)
         } else {

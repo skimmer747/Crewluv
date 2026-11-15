@@ -77,7 +77,7 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         }
         let palette = parent.style.palette(for: colorScheme)
         shapes?.setPalette(palette)
-        let drawing = TripMapDrawing(tripMap: parent.tripMap, at: parent.date)
+        let drawing = TripMapDrawing(tripMap: parent.tripMap, at: parent.date, isReplay: parent.isReplay)
         syncAnnotations(with: TripMapMarker.placements(for: drawing, palette: palette), on: mapView)
         shapes?.setNight(at: parent.date)
         shapes?.setLines(drawing.segments.map(TripMapLine.init(segment:)))
