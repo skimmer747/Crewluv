@@ -11,8 +11,8 @@ import Observation
 /// The pilot's flights with live data, for one status screen (Stage 3 spec §11). It asks Crewlu Cloud's
 /// partner_live once each time the screen comes to the front, and every 30 seconds while a flight's window is open.
 /// The 30-second check runs only between `screenCameToFront()` and `screenLeftFront()`: the screen keeps it out of
-/// the background by saying when it leaves the front. It never asks while this device follows its pilot through
-/// iCloud.
+/// the background by saying when it leaves the front. A call already under way when the screen leaves still brings
+/// its answer. It never asks while this device follows its pilot through iCloud.
 @Observable
 final class LiveFlightSource {
 
@@ -43,7 +43,9 @@ final class LiveFlightSource {
     @ObservationIgnored private var cursor: Int?
     /// The key the flights were answered for. Another key's flights are another connection's.
     @ObservationIgnored private var answeredKey: String?
-    @ObservationIgnored private var isAsking = false
+    /// The call under way, when there is one. It runs in a task of its own, so stopping the 30-second check that
+    /// started it doesn't stop the call.
+    @ObservationIgnored private var asking: Task<Void, Never>?
 
     /// - Parameters:
     ///   - isOnCrewluCloud: whether this device follows its pilot through Crewlu Cloud.
@@ -94,11 +96,26 @@ final class LiveFlightSource {
         timer.stop()
     }
 
-    /// Asks Crewlu Cloud once, and takes its answer. While a call is under way, another asks nothing: the one under
-    /// way brings the answer. The exception is a call the 30-second check made, which ends unanswered when the check
-    /// is stopped or started again: an `ask()` that found it under way gets no answer either, until the next check.
+    /// Asks Crewlu Cloud once, takes its answer, and returns when it has. While a call is under way, another asks
+    /// nothing more and waits for that one's answer: so a pull to refresh ends when the live plane is up to date,
+    /// whoever asked for it.
     func ask() async {
-        guard !isAsking else { return }
+        if let asking {
+            await asking.value
+            return
+        }
+        let call = Task { [weak self] in
+            await self?.askCrewluCloud()
+            self?.asking = nil
+        }
+        asking = call
+        await call.value
+    }
+
+    // MARK: - Private
+
+    /// One call to Crewlu Cloud, and what's kept of its answer.
+    private func askCrewluCloud() async {
         guard isOnCrewluCloud() else {
             forget()
             return
@@ -115,8 +132,6 @@ final class LiveFlightSource {
         if key != answeredKey {
             forget()
         }
-        isAsking = true
-        defer { isAsking = false }
         let sent = cursor
         do {
             var askedAt = now()
@@ -142,8 +157,6 @@ final class LiveFlightSource {
             // here stays.
         }
     }
-
-    // MARK: - Private
 
     /// The 30-second check: asks while any flight's window is open. Until the first answer the windows are measured
     /// by this device's clock alone, which the ask on coming to the front soon puts right.

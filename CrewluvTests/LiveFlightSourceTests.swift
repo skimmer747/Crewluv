@@ -182,7 +182,7 @@ final class LiveFlightSourceTests {
         #expect(minutes(of: "leg-1", in: source) == [0, 2, 4])
     }
 
-    @Test func test_ask_whileOneIsUnderWay_asksNothingMore() async {
+    @Test func test_ask_whileOneIsUnderWay_asksNothingMore_andWaitsForItsAnswer() async {
         door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])])]
         door.holdsLives = true
         let source = source()
@@ -190,15 +190,35 @@ final class LiveFlightSourceTests {
         let asking = Task { await source.ask() }
         await eventually { door.lives.count == 1 }
         // In a task of its own: a second call that did go out would wait on the door, and must fail here, not hang.
-        let again = Task { await source.ask() }
+        var isSecondBack = false
+        let again = Task {
+            await source.ask()
+            isSecondBack = true
+        }
         for _ in 0..<100 {
             await Task.yield()
         }
 
         #expect(door.lives.count == 1)
+        #expect(!isSecondBack, "it waits for the call under way")
         door.release()
         await asking.value
         await again.value
+        #expect(door.lives.count == 1)
+        #expect(minutes(of: "leg-1", in: source) == [0])
+    }
+
+    @Test func test_ask_whoeverAskedIsStopped_theCallStillBringsItsAnswer() async {
+        door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])])]
+        door.holdsLives = true
+        let source = source()
+
+        let asking = Task { await source.ask() }
+        await eventually { door.lives.count == 1 }
+        asking.cancel()
+        door.release()
+        await asking.value
+
         #expect(minutes(of: "leg-1", in: source) == [0])
     }
 
@@ -480,6 +500,24 @@ final class LiveFlightSourceTests {
         await eventually { clock.waitingCount == 0 }
 
         #expect(clock.sleeps.count == 1)
+    }
+
+    @Test func test_screenLeftFront_whileTheCheckIsAsking_stillTakesTheAnswer() async {
+        door.liveAnswers = [answer(cursor: 7, [flight("leg-1", points: [0])]), answer(cursor: 9, [flight("leg-1", points: [2], count: 2)])]
+        let source = source()
+        source.watch([LiveFlightSource.Leg(id: "leg-1", departure: now.addingTimeInterval(-3600), arrival: now.addingTimeInterval(3600))])
+        await source.screenCameToFront()
+        door.holdsLives = true
+
+        await eventually { clock.waitingCount == 1 }
+        clock.tick()
+        await eventually { door.lives.count == 2 }
+        source.screenLeftFront()
+        door.release()
+        await eventually { minutes(of: "leg-1", in: source) == [0, 2] }
+
+        #expect(door.lives.map(\.after) == [nil, 7])
+        #expect(clock.waitingCount == 0, "and the check has stopped")
     }
 
     @Test func test_screenLeftFront_stopsTheCheck() async {

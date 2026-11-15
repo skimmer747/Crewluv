@@ -98,6 +98,8 @@ final class StandInPartnerDoor: PartnerDoor, LiveFlightDoor {
         if holdsLives {
             await withCheckedContinuation { held.append($0) }
         }
+        // A call whose task was stopped fails, as URLSession's does.
+        guard !Task.isCancelled else { throw .unavailable }
         guard !liveAnswers.isEmpty else { throw .unavailable }
         return try liveAnswers.removeFirst().get()
     }
