@@ -29,6 +29,10 @@ nonisolated struct TripMap {
     /// (activity markers design §2.2), and aren't drawn.
     let groundStops: [GroundStop]
     let home: AirportMark?
+    /// The pilot's base, as the trip's legs name it, or nil when none does (base waits design §2, §3).
+    let base: AirportMark?
+    /// With this trip ahead, the pilot waits at base rather than at home, as the status says (base waits design §3).
+    let isWaitingAtBase: Bool
     /// From the first departure to the last arrival: the full-screen map's timeline.
     let span: DateInterval
     /// CrewLu's count of the trip's days, when the legs carry it.
@@ -61,11 +65,11 @@ nonisolated struct TripMap {
     }
 
     /// Where the pilot is at `date` when nothing is moving, or nil while a leg is. Before a trip still ahead
-    /// starts, that's home.
+    /// starts, that's home, or base while the pilot waits there.
     func pilotLocation(at date: Date) -> AirportMark? {
         guard legInMotion(at: date) == nil else { return nil }
         if mode == .recap, date >= span.end { return home ?? legs.last?.destination }
-        if mode == .nextTrip, date < span.start { return home ?? legs.first?.origin }
+        if mode == .nextTrip, date < span.start { return (isWaitingAtBase ? base : home) ?? legs.first?.origin }
         return legs.last(where: { $0.end <= date })?.destination ?? legs.first?.origin
     }
 
@@ -84,6 +88,8 @@ nonisolated struct TripMap {
     /// The map of `tripLegs`, one trip's legs as the status screen picked them, or nil when none can be drawn.
     /// - `isNextTrip`: the legs are a trip still ahead, shown from home.
     /// - `isRecap`: the legs are a trip just finished, shown as its recap.
+    /// - `baseAirportCode`: the pilot's base, which names a wait there that CrewLu doesn't (base waits design §2).
+    /// - `isWaitingAtBase`: with a trip ahead, the status says the pilot is at base, not home (base waits design §3).
     /// - `legacyDelayMinutes`: the summary-wide delay from a CrewLu that doesn't tag legs. As `TripStateResolver`
     ///   does, it moves only the flight it covers, and only when no leg carries its own.
     /// - `coordinate`: where an airport is, by code.
@@ -92,6 +98,8 @@ nonisolated struct TripMap {
         isNextTrip: Bool,
         isRecap: Bool = false,
         homeAirportCode: String?,
+        baseAirportCode: String? = nil,
+        isWaitingAtBase: Bool = false,
         legacyDelayMinutes: Int?,
         at now: Date,
         coordinate: (String) -> CLLocationCoordinate2D?
@@ -120,8 +128,13 @@ nonisolated struct TripMap {
         } else {
             mode = .onTrip
         }
+        // Base as the legs name it, with its city and time zone: a wait or a marker there is at one of their airports.
+        let base = baseAirportCode.flatMap { code in
+            legs.flatMap { [$0.origin, $0.destination] }.first { $0.code == code }
+        }
         let firstDeparture = legs.map(\.start).min() ?? first.start
-        return TripMap(mode: mode, legs: legs, groundStops: groundStops, home: home,
+        return TripMap(mode: mode, legs: legs, groundStops: groundStops, home: home, base: base,
+                       isWaitingAtBase: mode == .nextTrip && isWaitingAtBase,
                        span: DateInterval(start: firstDeparture, end: max(lastArrival, firstDeparture)),
                        tripDays: tripLegs.compactMap(\.tripTotalDays).max())
     }

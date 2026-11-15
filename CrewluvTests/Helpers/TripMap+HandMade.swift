@@ -11,6 +11,7 @@ import Foundation
 
 extension TripMap {
     init(mode: Mode, legs: [MapLeg], home: AirportMark?, span: DateInterval, tripDays: Int?) {
-        self.init(mode: mode, legs: legs, groundStops: [], home: home, span: span, tripDays: tripDays)
+        self.init(mode: mode, legs: legs, groundStops: [], home: home, base: nil, isWaitingAtBase: false, span: span,
+                  tripDays: tripDays)
     }
 }

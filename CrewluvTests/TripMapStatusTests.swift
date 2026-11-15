@@ -46,6 +46,24 @@ struct TripMapStatusTests {
         #expect(map.pilotLocation(at: hours(-24))?.code == "SDF")
     }
 
+    @Test func test_initStatus_atBaseBeforeATrip_waitsAtBase() throws {
+        let status = status(.base, legs: lastTrip + tripThrough(.base), homeAirportCode: "LEX")
+        let map = try #require(TripMap(status: status, at: hours(-24)))
+
+        #expect(map.mode == .nextTrip)
+        #expect(map.isWaitingAtBase)
+        #expect(map.pilotLocation(at: hours(-24))?.code == "SDF")
+        #expect(map.activity(at: hours(-24))?.kind == .base)
+    }
+
+    @Test func test_initStatus_atHomeBeforeATrip_isntWaitingAtBase() throws {
+        let status = status(.home, legs: lastTrip + tripThrough(.base), homeAirportCode: "LEX")
+        let map = try #require(TripMap(status: status, at: hours(-24)))
+
+        #expect(!map.isWaitingAtBase)
+        #expect(map.activity(at: hours(-24))?.kind == .home)
+    }
+
     // MARK: - Legs
 
     /// SDF → CGN (8 h), a night in Cologne, CGN → SDF (9 h), a night at Louisville as `stop` (`.home` or `.base`),

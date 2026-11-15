@@ -27,6 +27,14 @@ final class TripMapCameraTests: XCTestCase {
         XCTAssertEqual(camera.framingNumber, 0)
     }
 
+    func test_frame_keepsTheMarkerItsGiven_andANewFramingReplacesIt() {
+        let cologne = CLLocationCoordinate2D(latitude: 50.87, longitude: 7.14)
+        var camera = TripMapCamera(framing: rect, keeping: cologne)
+        XCTAssertEqual(camera.keptInView?.latitude, 50.87)
+        camera.frame(rect, animated: false)
+        XCTAssertNil(camera.keptInView, "in flight, or with no marker, nothing is kept")
+    }
+
     func test_frame_afterTheFamilyMovedIt_takesTheCameraBackAsANewRequest() {
         var camera = TripMapCamera(framing: rect)
         camera.markPositionedByUser()

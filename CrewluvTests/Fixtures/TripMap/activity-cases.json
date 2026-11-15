@@ -1,5 +1,5 @@
 {
-  "about": "What the pilot is doing at a moment of the trip map (Crewluve activity markers design §2.2, §4.2): the marker's kind (flying and driving show the plane and the car; layover, turn, base and home are the ground markers) and the words under the timeline. Legs are as CrewLu sends them: flights and drives, which delayMinutes moves, and ground legs (layover, turn, base, home) at their scheduled times, which nothing moves. A wait is any stretch from one moving leg's end to the next one's start; the ground leg overlapping it most names it, the earlier on a tie, and with none it's a layover from 8 h and a turn under. Before the first departure: home for a nextTrip, else home or base by whether the first origin is the home airport. After the last arrival: home for a recap, else home or base by whether the last destination is. A place is its city, else its code. mode is trip, nextTrip or recap. Times are UTC. The app's TripMapActivityTests and the website's tests run every case. Change both copies together.",
+  "about": "What the pilot is doing at a moment of the trip map (Crewluve activity markers design §2.2, §4.2): the marker's kind (flying and driving show the plane and the car; layover, turn, base and home are the ground markers) and the words under the timeline. Legs are as CrewLu sends them: flights and drives, which delayMinutes moves, and ground legs (layover, turn, base, home) at their scheduled times, which nothing moves. A wait is any stretch from one moving leg's end to the next one's start; the ground leg overlapping it most names it, the earlier on a tie, and with none it's home at the home airport, base at the base airport, and elsewhere a layover from 8 h and a turn under (Crewluve base waits design §2). Before the first departure: for a nextTrip, base when waitingAt is base and that isn't the home airport, else home; otherwise home or base by whether the first origin is the home airport. After the last arrival: home for a recap, else home or base by whether the last destination is. A place is its city, else its code. mode is trip, nextTrip or recap. base is the base airport, and waitingAt, home or base, is where a nextTrip's pilot waits; both are optional, and waitingAt is home when left out. Times are UTC. The app's TripMapActivityTests and the website's tests run every case. Change both copies together.",
   "constants": { "shortestLayoverHours": 8 },
   "airports": {
     "SDF": { "lat": 38.1746, "lon": -85.7382, "city": "Louisville" },
@@ -133,6 +133,44 @@
       "moments": [
         { "at": "2026-11-13T10:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "before the first departure, at its origin, SDF, not the home airport: base" },
         { "at": "2026-11-14T18:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "after the last arrival, at SDF, not the home airport: base" }
+      ]
+    },
+    {
+      "name": "A commuter whose CrewLu sends no base legs",
+      "note": "Home is Lexington (LEX); base is Louisville (SDF). CrewLu sends the drives, the flights and its layover in Denver, but nothing for the waits at base. Waits: SDF 23:30 to 12:00 (12 h 30, at base though 8 h or more), Denver 15:00 to 11:00 (20 h, layover l1), Chicago 13:30 to 14:30 (1 h, not home or base: a turn), SDF 15:30 to 17:00 (1 h 30, at base).",
+      "home": "LEX", "base": "SDF", "mode": "trip",
+      "legs": [
+        { "id": "d1", "type": "drive", "from": "LEX", "to": "SDF", "start": "2026-11-12T22:00:00Z", "end": "2026-11-12T23:30:00Z" },
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "ORD", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T13:30:00Z" },
+        { "id": "f3", "type": "flight", "from": "ORD", "to": "SDF", "start": "2026-11-14T14:30:00Z", "end": "2026-11-14T15:30:00Z" },
+        { "id": "d2", "type": "drive", "from": "SDF", "to": "LEX", "start": "2026-11-14T17:00:00Z", "end": "2026-11-14T18:30:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-12T21:00:00Z", "kind": "home", "words": "Home", "note": "before the drive, at LEX, the home airport: home" },
+        { "at": "2026-11-12T23:00:00Z", "kind": "driving", "words": "Driving to Louisville", "note": "d1 is on the road" },
+        { "at": "2026-11-13T06:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "in the 12 h 30 wait at SDF, which no ground leg covers: at base, though 8 h or more" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "in the 20-hour wait in Denver, named by CrewLu's layover" },
+        { "at": "2026-11-14T14:00:00Z", "kind": "turn", "words": "Turn in Chicago", "note": "in the 1-hour wait in Chicago, which no ground leg covers, not home or base: a turn" },
+        { "at": "2026-11-14T16:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "in the 1 h 30 wait at SDF before the drive home: at base" },
+        { "at": "2026-11-14T18:00:00Z", "kind": "driving", "words": "Driving to Lexington", "note": "d2 is on the road home" },
+        { "at": "2026-11-14T19:00:00Z", "kind": "home", "words": "Home", "note": "after the last arrival, at LEX, the home airport: home" }
+      ]
+    },
+    {
+      "name": "A next trip while waiting at base shows base until it starts",
+      "note": "Home is Lexington (LEX); base is Louisville (SDF), where the status says the pilot is, with this trip ahead. Before its first departure the pilot is at base, as the trip's legs name it.",
+      "home": "LEX", "base": "SDF", "mode": "nextTrip", "waitingAt": "base",
+      "legs": [
+        { "id": "f1", "type": "flight", "from": "SDF", "to": "DEN", "start": "2026-11-13T12:00:00Z", "end": "2026-11-13T15:00:00Z" },
+        { "id": "l1", "type": "layover", "airport": "DEN", "start": "2026-11-13T15:00:00Z", "end": "2026-11-14T11:00:00Z" },
+        { "id": "f2", "type": "flight", "from": "DEN", "to": "SDF", "start": "2026-11-14T11:00:00Z", "end": "2026-11-14T14:00:00Z" }
+      ],
+      "moments": [
+        { "at": "2026-11-13T08:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "before the first departure, waiting at base: base" },
+        { "at": "2026-11-13T22:00:00Z", "kind": "layover", "words": "Layover in Denver", "note": "replaying it: the 20-hour wait in Denver, named by CrewLu's layover" },
+        { "at": "2026-11-14T15:00:00Z", "kind": "base", "words": "At base in Louisville", "note": "after the last arrival, at SDF, not the home airport: base" }
       ]
     },
     {

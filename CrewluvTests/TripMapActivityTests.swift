@@ -130,6 +130,89 @@ final class TripMapActivityTests: XCTestCase {
 
     // MARK: - The shared cases
 
+    // MARK: - Waits CrewLu doesn't name (base waits design §2, §3)
+
+    /// A commuter, home at Lexington and based at Louisville, with no ground legs at all: the drive in the night before,
+    /// 12 h 30 at base, Cologne and back with 2 hours there, an hour at base, and the drive home.
+    private func commuter(baseAirportCode: String? = "SDF") throws -> TripMap {
+        let legs = [
+            TripMapTestLegs.leg("d1", .drive, from: "LEX", to: "SDF", start: hours(-14), hours: 1.5),
+            TripMapTestLegs.leg("f1", from: "SDF", to: "CGN", start: hours(0), hours: 8),
+            TripMapTestLegs.leg("f2", from: "CGN", to: "SDF", start: hours(10), hours: 9),
+            TripMapTestLegs.leg("d2", .drive, from: "SDF", to: "LEX", start: hours(20), hours: 1.5),
+        ]
+        return try XCTUnwrap(TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "LEX",
+                                          baseAirportCode: baseAirportCode, legacyDelayMinutes: nil, at: hours(-20),
+                                          coordinate: TripMapTestLegs.coordinate))
+    }
+
+    func test_waits_noGroundLegAtBase_isBase_evenFor8HoursOrMore() throws {
+        let map = try commuter()
+        XCTAssertEqual(map.waits.map(\.kind), [.base, .turn, .base])
+        let first = try XCTUnwrap(map.waits.first)
+        XCTAssertEqual(first.end.timeIntervalSince(first.start), 12.5 * 3600)
+        XCTAssertEqual(map.activity(at: hours(-6))?.kind, .base)
+        XCTAssertEqual(map.activity(at: hours(-6))?.place.code, "SDF")
+    }
+
+    func test_waits_noGroundLegAtBase_withNoBaseKnown_isByItsLength() throws {
+        let map = try commuter(baseAirportCode: nil)
+        XCTAssertEqual(map.waits.map(\.kind), [.layover, .turn, .turn])
+    }
+
+    func test_waits_noGroundLegAtHome_isHome() throws {
+        let legs = [
+            TripMapTestLegs.leg("f1", from: "SDF", to: "LEX", start: hours(0), hours: 1),
+            TripMapTestLegs.leg("f2", from: "LEX", to: "CGN", start: hours(12), hours: 8),
+        ]
+        let map = try XCTUnwrap(TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "LEX",
+                                             baseAirportCode: "SDF", legacyDelayMinutes: nil, at: hours(-1),
+                                             coordinate: TripMapTestLegs.coordinate))
+        XCTAssertEqual(map.waits.map(\.kind), [.home])
+    }
+
+    func test_waits_crewLusGroundLegAtBase_stillNamesIt() throws {
+        let legs = [
+            TripMapTestLegs.leg("f1", from: "CGN", to: "SDF", start: hours(0), hours: 9),
+            TripMapTestLegs.leg("t1", .turn, start: hours(9), hours: 1),
+            TripMapTestLegs.leg("f2", from: "SDF", to: "DXB", start: hours(10), hours: 13),
+        ]
+        let map = try XCTUnwrap(TripMap.make(tripLegs: legs, isNextTrip: false, homeAirportCode: "LEX",
+                                             baseAirportCode: "SDF", legacyDelayMinutes: nil, at: hours(-1),
+                                             coordinate: TripMapTestLegs.coordinate))
+        XCTAssertEqual(map.waits.map(\.kind), [.turn])
+    }
+
+    func test_activity_beforeATripAheadWhileWaitingAtBase_isAtBase() throws {
+        let map = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: true,
+                                             homeAirportCode: "LEX", baseAirportCode: "SDF", isWaitingAtBase: true,
+                                             legacyDelayMinutes: nil, at: hours(-3), coordinate: TripMapTestLegs.coordinate))
+        let activity = try XCTUnwrap(map.activity(at: hours(-3)))
+        XCTAssertEqual(activity.kind, .base)
+        XCTAssertEqual(activity.place.code, "SDF")
+        XCTAssertEqual(activity.words, "At base in Louisville", "base as the trip's legs name it, with its city")
+    }
+
+    func test_activity_beforeATripAheadAtHome_isStillHome() throws {
+        let map = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: true,
+                                             homeAirportCode: "LEX", baseAirportCode: "SDF", legacyDelayMinutes: nil,
+                                             at: hours(-3), coordinate: TripMapTestLegs.coordinate))
+        XCTAssertEqual(map.activity(at: hours(-3))?.kind, .home)
+        XCTAssertEqual(map.pilotLocation(at: hours(-3))?.code, "LEX")
+    }
+
+    func test_make_base_isTheLegsOwnMark_andIsWaitedAtOnlyForATripAhead() throws {
+        let underWay = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: false,
+                                                  homeAirportCode: "LEX", baseAirportCode: "SDF", isWaitingAtBase: true,
+                                                  legacyDelayMinutes: nil, at: hours(12), coordinate: TripMapTestLegs.coordinate))
+        XCTAssertEqual(underWay.base?.name, "Louisville")
+        XCTAssertFalse(underWay.isWaitingAtBase, "only a trip still ahead is waited for")
+        let elsewhere = try XCTUnwrap(TripMap.make(tripLegs: TripMapTestLegs.europeTrip(), isNextTrip: true,
+                                                   homeAirportCode: "LEX", baseAirportCode: "ORD", legacyDelayMinutes: nil,
+                                                   at: hours(-3), coordinate: TripMapTestLegs.coordinate))
+        XCTAssertNil(elsewhere.base, "no leg names it")
+    }
+
     func test_activity_everySharedCase_matches() throws {
         let cases = try TripMapFixtures.activityCases()
         XCTAssertEqual(TripWait.shortestLayover, cases.constants.shortestLayoverHours * 3600)
@@ -156,7 +239,8 @@ final class TripMapActivityTests: XCTestCase {
                     tripDayNumber: nil, tripTotalDays: nil, delayMinutes: leg.delayMinutes, airlineCode: nil, label: nil)
         }
         return TripMap.make(tripLegs: legs, isNextTrip: trip.mode == .nextTrip, isRecap: trip.mode == .recap,
-                            homeAirportCode: trip.home, legacyDelayMinutes: nil, at: .distantPast,
+                            homeAirportCode: trip.home, baseAirportCode: trip.base,
+                            isWaitingAtBase: trip.waitingAt == .base, legacyDelayMinutes: nil, at: .distantPast,
                             coordinate: { code in airports[code].map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) } })
     }
 }

@@ -84,6 +84,12 @@ final class TripMapWordingTests: XCTestCase {
         XCTAssertEqual(TripMapWording.dayPhrase(for: now.addingTimeInterval(7 * day), now: now, calendar: calendar, locale: locale), "Nov 20")
     }
 
+    func test_nextTripChip_whileWaitingAtBase_saysAtBase() {
+        XCTAssertEqual(TripMapWording.nextTripChip(startingAt: now.addingTimeInterval(5 * 86_400), now: now, isAtBase: true,
+                                                   calendar: calendar, locale: locale),
+                       "At base · next trip Wednesday")
+    }
+
     func test_nextTripChip_namesTheDay() {
         XCTAssertEqual(TripMapWording.nextTripChip(startingAt: now.addingTimeInterval(5 * 86_400), now: now, calendar: calendar, locale: locale),
                        "Home · next trip Wednesday")

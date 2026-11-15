@@ -22,7 +22,8 @@ nonisolated enum TripMapWording {
             let next = tripMap.nextFlight(after: date).map { nextDepartureChip(for: $0, now: date, calendar: calendar, locale: locale) }
             return (place, next)
         case .nextTrip:
-            return (nextTripChip(startingAt: tripMap.span.start, now: date, calendar: calendar, locale: locale), nil)
+            return (nextTripChip(startingAt: tripMap.span.start, now: date, isAtBase: tripMap.isWaitingAtBase,
+                                 calendar: calendar, locale: locale), nil)
         case .recap:
             return (FactsWording.recapChip(days: tripMap.dayCount(in: calendar)), "Replay the trip")
         }
@@ -40,9 +41,12 @@ nonisolated enum TripMapWording {
         return "Next: \(leg.destination.name), \(day) \(clockTime(leg.start, in: calendar.timeZone, locale: locale))"
     }
 
-    /// "Home · next trip Wednesday".
-    static func nextTripChip(startingAt start: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Home · next trip \(dayPhrase(for: start, now: now, calendar: calendar, locale: locale))"
+    /// "Home · next trip Wednesday", or "At base · next trip Wednesday" while the pilot waits at base (base waits
+    /// design §3).
+    static func nextTripChip(startingAt start: Date, now: Date, isAtBase: Bool = false, calendar: Calendar = .current,
+                             locale: Locale = .current) -> String {
+        let place = isAtBase ? "At base" : "Home"
+        return "\(place) · next trip \(dayPhrase(for: start, now: now, calendar: calendar, locale: locale))"
     }
 
     /// "Landing in 2 h 10 min", to the gate arrival.
@@ -162,7 +166,8 @@ nonisolated enum TripMapWording {
             return leg.kind == .flight ? landingLine(for: leg, calendar: calendar, locale: locale) : "Driving to \(leg.destination.name)"
         }
         if tripMap.mode == .nextTrip, date < tripMap.span.start {
-            return nextTripChip(startingAt: tripMap.span.start, now: date, calendar: calendar, locale: locale)
+            return nextTripChip(startingAt: tripMap.span.start, now: date, isAtBase: tripMap.isWaitingAtBase,
+                                calendar: calendar, locale: locale)
         }
         return tripMap.pilotLocation(at: date).map { placeChip(for: $0, at: date, locale: locale) } ?? ""
     }

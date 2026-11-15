@@ -48,7 +48,7 @@ The card frames its map in the band between its two chips, so nothing sits under
 
 The band leaves the card less room, so a wide trip is more likely to be cut off. So once the map has framed, it checks the pilot's marker:
 
-- **When:** on each framing, of the card or the full-screen map: as the map opens, as the trip changes, as its size or margins change, and on recenter. Never otherwise. During a replay the map doesn't move by itself, and once the family has moved it, it stays where they put it.
+- **When:** on each framing, of the card or the full-screen map: as the map opens, as the trip changes, as its size or margins change, on recenter, and as a flight starts or ends, which the full-screen map already frames for, in a replay too. Never otherwise, so the map never follows the marker from moment to moment, and once the family has moved it, it stays where they put it.
 - **Which marker:** the ground marker (the bed, hourglass, briefcase or house), where the pilot is at the moment the map shows when it frames: now on the card, and the timeline's moment on the full-screen map. In flight the camera frames the flight as today.
 - **The check:** the marker's frame, plus 8 points all round, must lie inside the map's layout margins: inside the band on the card, clear of the sheet or panel on the full-screen map.
 - **The slide:** when it doesn't, the map slides the shortest distance that brings it inside, along each axis on its own. It never zooms, so the rest of the trip loses as little as it can. A marker larger than the space is centered in it.

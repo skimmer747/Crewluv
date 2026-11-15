@@ -247,6 +247,11 @@ enum TripMapFixtures {
             case trip, nextTrip, recap
         }
 
+        /// Where a next trip's pilot waits for it.
+        enum Place: String, Decodable {
+            case home, base
+        }
+
         struct Leg: Decodable {
             let id: String
             let type: TripLeg.LegType
@@ -272,7 +277,11 @@ enum TripMapFixtures {
             let name: String
             let note: String
             let home: String
+            /// The base airport, when the case gives one.
+            let base: String?
             let mode: Mode
+            /// Where a next trip's pilot waits: home when the case leaves it out.
+            let waitingAt: Place?
             let legs: [Leg]
             let moments: [Moment]
         }

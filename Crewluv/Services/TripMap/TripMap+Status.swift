@@ -43,6 +43,8 @@ extension TripMap {
         let isNextTrip = recapLegs == nil && isSettled && legs.allSatisfy { $0.startTime > now }
         guard let map = TripMap.make(tripLegs: legs, isNextTrip: isNextTrip, isRecap: recapLegs != nil,
                                      homeAirportCode: status.homeAirportCode ?? status.baseAirportCode,
+                                     baseAirportCode: status.baseAirportCode,
+                                     isWaitingAtBase: status.displayStatus == .base,
                                      legacyDelayMinutes: status.flightDelayMinutes, at: now, coordinate: coordinate) else { return nil }
         self = map
     }

@@ -18,14 +18,19 @@ nonisolated struct TripMapCamera {
     private(set) var isPositionedByUser = false
     /// Goes up with every framing, so asking for the same rectangle again still moves the map.
     private(set) var framingNumber = 0
+    /// Where the pilot's ground marker stands as the map frames, slid into view if the framing leaves it out (base
+    /// waits and card framing design §4.2). Nil in flight, or with no marker to keep.
+    private(set) var keptInView: CLLocationCoordinate2D?
 
-    init(framing rect: MKMapRect?) {
+    init(framing rect: MKMapRect?, keeping keptInView: CLLocationCoordinate2D? = nil) {
         self.rect = rect
+        self.keptInView = keptInView
     }
 
-    /// Frames `rect` afresh, taking the camera back from the family.
-    mutating func frame(_ rect: MKMapRect?, animated: Bool) {
+    /// Frames `rect` afresh, taking the camera back from the family, and keeps `keptInView` in view.
+    mutating func frame(_ rect: MKMapRect?, keeping keptInView: CLLocationCoordinate2D? = nil, animated: Bool) {
         self.rect = rect
+        self.keptInView = keptInView
         isAnimated = animated
         isPositionedByUser = false
         framingNumber += 1

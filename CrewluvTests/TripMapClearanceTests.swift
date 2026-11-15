@@ -23,6 +23,18 @@ final class TripMapClearanceTests: XCTestCase {
         XCTAssertEqual(TripMapClearance.none.marginsBeyondSafeArea(portrait, isRightToLeft: false), .zero)
     }
 
+    func test_marginsBeyondSafeArea_theCardsChips_addTheirClearanceTopAndBottom() {
+        let clearance = TripMapClearance(top: 46, bottom: 46)
+        XCTAssertEqual(clearance.marginsBeyondSafeArea(.zero, isRightToLeft: false),
+                       NSDirectionalEdgeInsets(top: 46, leading: 0, bottom: 46, trailing: 0))
+    }
+
+    func test_marginsBeyondSafeArea_topClearance_countsTheSafeAreaOnce() {
+        let clearance = TripMapClearance(top: 100)
+        XCTAssertEqual(clearance.marginsBeyondSafeArea(portrait, isRightToLeft: false),
+                       NSDirectionalEdgeInsets(top: 41, leading: 0, bottom: 0, trailing: 0))
+    }
+
     func test_marginsBeyondSafeArea_sheetAboveTheHomeIndicator_addOnlyThePartAboveIt() {
         let clearance = TripMapClearance(leading: 0, bottom: 300)
         XCTAssertEqual(clearance.marginsBeyondSafeArea(portrait, isRightToLeft: false),
