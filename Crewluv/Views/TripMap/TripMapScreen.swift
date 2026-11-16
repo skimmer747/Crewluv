@@ -36,6 +36,8 @@ struct TripMapScreen: View {
     /// The side panel's trailing edge, in window coordinates.
     @State private var panelTrailingEdge: CGFloat = 0
     @State private var topBarHeight: CGFloat = 0
+    /// The bottom of the top bar and the latest event's banner under it, in window coordinates.
+    @State private var topChromeBottom: CGFloat = 0
     @State private var isPanelExpanded = true
     @State private var isClosing = false
 
@@ -135,15 +137,17 @@ struct TripMapScreen: View {
 
     @ViewBuilder
     private func screen(time: Date, now: Date, facts: TripFacts, timeline: TripTimeline) -> some View {
+        let latest = facts.latestEvent(at: time)
         let base = ZStack(alignment: .top) {
-            // The camera frames the trip in what the sheet or the panel leaves clear.
+            // The camera frames the trip in what the sheet or the panel leaves clear, and under the latest event.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
-                        clearance: TripMapClearance(leading: mapLeadingClearance, bottom: mapBottomClearance),
+                        clearance: TripMapClearance(top: latest == nil ? 0 : mapTopClearance, leading: mapLeadingClearance,
+                                                    bottom: mapBottomClearance),
                         isFullScreen: true, isReplay: !clock.isLive)
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
-            topBar(time: time)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
+            topChrome(time: time, latest: latest)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { topChromeBottom = $0 }
         }
         if usesSidePanel {
             base.overlay(alignment: .bottomLeading) {
@@ -156,6 +160,19 @@ struct TripMapScreen: View {
             }
         } else {
             base
+        }
+    }
+
+    /// The top bar, and in flight the latest event's banner under its pill (latest event design §1). Only the bar
+    /// pads the side panel: the banner is centred, clear of it.
+    private func topChrome(time: Date, latest: LatestEvent?) -> some View {
+        VStack(spacing: 8) {
+            topBar(time: time)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
+            if let latest {
+                LatestEventBanner(event: latest, alignment: .center)
+                    .padding(.horizontal)
+            }
         }
     }
 
@@ -179,6 +196,11 @@ struct TripMapScreen: View {
     /// The sheet's height, up to the middle stop: higher, the map is mostly covered and stays framed as it was.
     private var mapBottomClearance: CGFloat {
         usesSidePanel ? 0 : min(sheetHeight, screenFrame.height / 2)
+    }
+
+    /// From the screen's top edge to a little below the latest event's banner.
+    private var mapTopClearance: CGFloat {
+        max(0, topChromeBottom - screenFrame.minY) + 8
     }
 
     /// From the screen's leading edge to the panel's trailing edge, open or folded, with its padding.

@@ -41,10 +41,11 @@ struct TripMapCard: View {
         // The plane moves about a pixel in ten seconds at this size, as today's map refreshed.
         TimelineView(.periodic(from: .now, by: 10)) { context in
             let cardChips = chips(from: facts, at: context.date)
+            let latest = facts.latestEvent(at: context.date)
             VStack(spacing: 0) {
-                mapButton(facts: facts, chips: cardChips, at: context.date)
+                mapButton(facts: facts, chips: cardChips, latest: latest, at: context.date)
                 if dynamicTypeSize.isAccessibilitySize {
-                    stackedChips(cardChips)
+                    stackedChips(cardChips, latest: latest)
                 }
                 if tripMap.isInFlight, status.hasFlightDelay, let delay = status.effectiveFlightDelayMinutes {
                     FlightDelayBanner(delayMinutes: delay)
@@ -72,21 +73,23 @@ struct TripMapCard: View {
                      keeping: tripMap.pilotLocation(at: .now)?.coordinate, animated: false)
     }
 
-    /// Stage 1's chips, with the headline fact on the bottom one in flight.
+    /// Stage 1's chips, with the headline fact on the bottom one in flight. The latest event's banner is at the top,
+    /// so the headline leaves events out (latest event design §2).
     private func chips(from facts: TripFacts, at date: Date) -> (top: String?, bottom: String?) {
         let chips = TripMapWording.cardChips(for: tripMap, at: date)
         guard tripMap.isInFlight else { return chips }
-        return (chips.top, facts.headline(at: date) ?? chips.bottom)
+        return (chips.top, facts.headline(at: date, includesEvents: false) ?? chips.bottom)
     }
 
-    private func mapButton(facts: TripFacts, chips: (top: String?, bottom: String?), at date: Date) -> some View {
+    private func mapButton(facts: TripFacts, chips: (top: String?, bottom: String?), latest: LatestEvent?, at date: Date) -> some View {
         Button {
             isShowingFullScreen = true
         } label: {
-            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera, clearance: clearance(for: chips))
+            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera,
+                        clearance: clearance(for: chips, hasBanner: latest != nil))
                 .allowsHitTesting(false)
                 .frame(height: 220)
-                .overlay(alignment: .topLeading) { overlayChip(chips.top, height: $topChipHeight) }
+                .overlay(alignment: .topLeading) { topOverlay(chips.top, latest: latest) }
                 .overlay(alignment: .bottomLeading) {
                     overlayChip(chips.bottom, systemImage: bottomChipSymbol, height: $bottomChipHeight)
                 }
@@ -110,6 +113,19 @@ struct TripMapCard: View {
         }
     }
 
+    /// The top corner: in flight, the latest event's banner (latest event design §1), else Stage 1's top chip. Its
+    /// height is measured into `topChipHeight`.
+    @ViewBuilder
+    private func topOverlay(_ chip: String?, latest: LatestEvent?) -> some View {
+        if let latest, !dynamicTypeSize.isAccessibilitySize {
+            LatestEventBanner(event: latest)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topChipHeight = $0 }
+                .padding(Self.chipInset)
+        } else {
+            overlayChip(chip, height: $topChipHeight)
+        }
+    }
+
     /// A chip on the map, its height measured into `height`.
     @ViewBuilder
     private func overlayChip(_ text: String?, systemImage: String? = nil, height: Binding<CGFloat>) -> some View {
@@ -121,14 +137,14 @@ struct TripMapCard: View {
     }
 
     /// The band between the chips on the map: from each edge to the far side of its chip, and a gap. With no chip on
-    /// the map at an edge, nothing there.
-    private func clearance(for chips: (top: String?, bottom: String?)) -> TripMapClearance {
+    /// the map at an edge, nothing there. The latest event's banner is the top chip while it shows.
+    private func clearance(for chips: (top: String?, bottom: String?), hasBanner: Bool) -> TripMapClearance {
         guard !dynamicTypeSize.isAccessibilitySize else { return .none }
-        func depth(of chip: String?, height: CGFloat) -> CGFloat {
-            chip == nil ? 0 : Self.chipInset + height + Self.chipGap
+        func depth(isShown: Bool, height: CGFloat) -> CGFloat {
+            isShown ? Self.chipInset + height + Self.chipGap : 0
         }
-        return TripMapClearance(top: depth(of: chips.top, height: topChipHeight),
-                                bottom: depth(of: chips.bottom, height: bottomChipHeight))
+        return TripMapClearance(top: depth(isShown: chips.top != nil || hasBanner, height: topChipHeight),
+                                bottom: depth(isShown: chips.bottom != nil, height: bottomChipHeight))
     }
 
     /// The recap's "Replay the trip" plays.
@@ -136,9 +152,14 @@ struct TripMapCard: View {
         tripMap.mode == .recap ? "play.fill" : nil
     }
 
-    /// At the largest text sizes the chips would cover the map, so they move below it (moving map spec §14).
-    private func stackedChips(_ chips: (top: String?, bottom: String?)) -> some View {
+    /// At the largest text sizes the chips would cover the map, so they move below it (moving map spec §14), the
+    /// latest event first.
+    private func stackedChips(_ chips: (top: String?, bottom: String?), latest: LatestEvent?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let latest {
+                Text("\(latest.title) · \(latest.when)")
+                    .font(.headline)
+            }
             if let top = chips.top {
                 Text(top)
             }
