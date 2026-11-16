@@ -56,6 +56,79 @@ final class FactsWordingTests: XCTestCase {
                        "Closest to home was 40 mi at 3:14 PM")
     }
 
+    func test_closestToHome_aheadOfARealPlane_saysAbout() {
+        let later = now.addingTimeInterval(3600)
+        XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: later, now: now, isEstimate: true, calendar: calendar, locale: locale)),
+                       "Passes 40 mi from home at about 4:14 PM")
+        XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: now, now: later, isEstimate: true, calendar: calendar, locale: locale)),
+                       "Closest to home was 40 mi at 3:14 PM")
+    }
+
+    // MARK: - The real plane (Stage 3 spec §8)
+
+    func test_lastSeen_theCityByIt_elseThePlaceUnderIt_elseHowLongAgo() {
+        let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
+        let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
+        XCTAssertEqual(FactsWording.lastSeen(place, near: city, ago: 600), "near Montréal")
+        XCTAssertEqual(FactsWording.lastSeen(place, near: nil, ago: 600), "over Québec")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 600), "10 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_200), "2 h ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800), "2 h 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800, isSpoken: true), "2 hours 10 minutes ago")
+    }
+
+    func test_lastSeen_aTimeThatCantBeRight_isHeldFromAMinuteToAYear() {
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 20), "1 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: -500), "1 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .infinity), "8760 h ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 min ago")
+    }
+
+    func test_estimated_saysSoFirst() {
+        XCTAssertEqual(FactsWording.estimated(lastSeen: "near Montréal"), "Estimated · last seen near Montréal")
+    }
+
+    func test_aircraft_itsTypeAndRegistration_eachWhereItsKnown() {
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "B763", registration: "N370UP"), "Boeing 767-300 · N370UP")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "ZZZZ", registration: "N370UP"), "ZZZZ · N370UP", "an unknown type shows as itself")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "B763", registration: nil), "Boeing 767-300")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: nil, registration: "N370UP"), "N370UP")
+        XCTAssertNil(FactsWording.aircraft(typeCode: nil, registration: nil))
+        XCTAssertNil(FactsWording.aircraft(typeCode: "  ", registration: ""))
+    }
+
+    func test_heightAndSpeed_toTheNearest100FeetAnd10MilesAnHour() {
+        // 470 kt is 540.9 mph.
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 34_975, groundSpeedKnots: 470, locale: locale), "35,000 ft · 540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 35_000, groundSpeedKnots: nil, locale: locale), "35,000 ft")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: nil, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: nil, groundSpeedKnots: nil, locale: locale))
+    }
+
+    func test_heightAndSpeed_atTheEdgesOfWhatsBelieved_show() {
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 0, groundSpeedKnots: 0, locale: locale), "0 ft · 0 mph")
+        // 800 kt is 920.6 mph.
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 60_000, groundSpeedKnots: 800, locale: locale), "60,000 ft · 920 mph")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: 60_001, groundSpeedKnots: 801, locale: locale))
+    }
+
+    func test_heightAndSpeed_aNumberThatCantBeRight_isLeftOut() {
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 1e12, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: -500, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 35_000, groundSpeedKnots: 5_000, locale: locale), "35,000 ft")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: .nan, groundSpeedKnots: .infinity, locale: locale))
+    }
+
+    func test_halfway_withTheRealPlanesEstimate_saysAbout() {
+        XCTAssertEqual(plain(FactsWording.halfway(at: now, calendar: calendar, locale: locale)), "Halfway at 3:14 PM")
+        XCTAssertEqual(plain(FactsWording.halfway(at: now, isEstimate: true, calendar: calendar, locale: locale)), "Halfway at about 3:14 PM")
+    }
+
+    func test_liveCredit_namesAdsbLol() {
+        XCTAssertEqual(FactsWording.liveCredit, "Live position: adsb.lol")
+        XCTAssertEqual(FactsWording.spokenLiveCredit, "Live position from adsb.lol.")
+    }
+
     // MARK: - The sky
 
     func test_cockpitCountdown_roundsUp() {

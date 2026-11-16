@@ -47,11 +47,64 @@ nonisolated enum FactsWording {
         city.map { "Over \(place.name), near \($0.name)" } ?? "Over \(place.name)"
     }
 
-    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed.
-    static func closestToHome(miles: Int, at time: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
+    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Ahead of a
+    /// real plane the time is its estimate: "Passes 40 mi from home at about 1:05 PM" (Stage 3 spec §9).
+    static func closestToHome(miles: Int, at time: Date, now: Date, isEstimate: Bool = false,
+                              calendar: Calendar = .current, locale: Locale = .current) -> String {
         let clock = TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
-        return time > now ? "Passes \(miles) mi from home at \(clock)" : "Closest to home was \(miles) mi at \(clock)"
+        guard time > now else { return "Closest to home was \(miles) mi at \(clock)" }
+        return "Passes \(miles) mi from home at \(isEstimate ? "about " : "")\(clock)"
     }
+
+    // MARK: - The real plane (Stage 3 spec §8)
+
+    /// The headline and the "below" row while the real plane is an estimate: "Estimated · last seen near Montréal".
+    static func estimated(lastSeen: String) -> String {
+        "Estimated · last seen \(lastSeen)"
+    }
+
+    /// Where an estimated plane was last seen: "near Montréal" by a city of a million or more, else "over Québec",
+    /// else how long ago, "2 h ago". `isSpoken` writes that out for VoiceOver: "2 hours ago".
+    static func lastSeen(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval, isSpoken: Bool = false) -> String {
+        if let city { return "near \(city.name)" }
+        if let place { return "over \(place.name)" }
+        // Held from a minute to a year, so a time that can't be right never overflows.
+        let asked = (ago / 60).rounded()
+        let minutes = asked.isNaN ? 1 : Int(min(max(asked, 1), 365 * 24 * 60))
+        return "\(isSpoken ? TripMapWording.spokenMinutes(minutes) : TripMapWording.minutesText(minutes)) ago"
+    }
+
+    /// The plane's row: "Boeing 767-300 · N370UP". An unknown type code shows as itself, and a missing type or
+    /// registration is left out. Nil with neither.
+    static func aircraft(typeCode: String?, registration: String?) -> String? {
+        let parts = [typeCode.flatMap(nonEmpty).map(AircraftTypeNames.name(for:)), registration.flatMap(nonEmpty)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "35,000 ft · 540 mph": the real plane's height to the nearest 100 ft and its speed over the ground to the
+    /// nearest 10 mph, each where the plane sent one that could be right. Nil with neither.
+    static func heightAndSpeed(altitudeFeet: Double?, groundSpeedKnots: Double?, locale: Locale = .current) -> String? {
+        let height = altitudeFeet.flatMap { feet in
+            believedHeightsFeet.contains(feet) ? "\(number(Int((feet / 100).rounded()) * 100, locale: locale)) ft" : nil
+        }
+        let speed = groundSpeedKnots.flatMap { knots -> String? in
+            guard believedSpeedsKnots.contains(knots) else { return nil }
+            let milesPerHour = knots * GreatCircle.metersPerNauticalMile / GreatCircle.metersPerMile
+            return "\(number(Int((milesPerHour / 10).rounded()) * 10, locale: locale)) mph"
+        }
+        let parts = [height, speed].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// A height or a speed outside these is left out: no airliner sends one, and a number that can't be right
+    /// mustn't reach the screen.
+    static let believedHeightsFeet: ClosedRange<Double> = 0...60_000
+    static let believedSpeedsKnots: ClosedRange<Double> = 0...800
+
+    /// The credit under the facts wherever a flight with live data shows: adsb.lol's data is under the ODbL.
+    static let liveCredit = "Live position: adsb.lol"
+    /// The credit as VoiceOver reads it.
+    static let spokenLiveCredit = "Live position from adsb.lol."
 
     // MARK: - The sky (§4.5)
 
@@ -110,8 +163,9 @@ nonisolated enum FactsWording {
         "\(number(flownMiles, locale: locale)) mi flown · \(number(toGoMiles, locale: locale)) to go"
     }
 
-    static func halfway(at time: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Halfway at \(TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale))"
+    /// "Halfway at 4:12 PM", or with the real plane's estimate "Halfway at about 12:05 PM" (Stage 3 spec §8).
+    static func halfway(at time: Date, isEstimate: Bool = false, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        "Halfway at \(isEstimate ? "about " : "")\(TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale))"
     }
 
     /// "Averaging about 510 mph", to the nearest 10.
@@ -167,5 +221,11 @@ nonisolated enum FactsWording {
 
     private static func name(of kind: SkyFacts.SunEvent.Kind) -> String {
         kind == .sunrise ? "Sunrise" : "Sunset"
+    }
+
+    /// `text` without the spaces around it, or nil when nothing is left.
+    private static func nonEmpty(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
