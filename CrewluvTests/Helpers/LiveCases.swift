@@ -24,6 +24,9 @@ extension TripMapFixtures {
             let onScheduleMinutes: Int
             let unseenGapMinutes: Double
             let firstPointRadiusNm: Double
+            let ownSpeedLeastMinutes: Double
+            let ownSpeedLeastShare: Double
+            let ownSpeedMostShare: Double
             let windowOpensMinutesBefore: Double
             let windowClosesHoursAfter: Double
             let windowKeepsMinutes: Double
@@ -60,6 +63,8 @@ extension TripMapFixtures {
                 let isReal: Bool
                 let lengthNm: Double
                 let flownNm: Double
+                /// The plane's own speed over its cruise so far, or nil when too little of it has been seen.
+                let ownSpeedKt: Double?
                 /// `FlightPath.Kind`'s raw values, one for each stretch.
                 let stretchKinds: [String]
                 let seenNm: Double
@@ -110,6 +115,8 @@ extension TripMapFixtures {
             /// One entry of partner_live's `flights`, or nil where the door answers none for the leg.
             let flight: PartnerLiveAnswer.Flight?
             let path: Path
+            /// The speed the estimate, the estimated plane and the ghost fly before the descent.
+            let flownSpeedKt: Double
             let moments: [Moment]
             let record: Record?
         }

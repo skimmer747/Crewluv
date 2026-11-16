@@ -35,6 +35,22 @@ final class FlightPathTests: XCTestCase {
         let constants = try TripMapFixtures.liveCases().constants
         XCTAssertEqual(FlightPath.unseenGap, constants.unseenGapMinutes * 60)
         XCTAssertEqual(FlightPath.firstPointRadius, constants.firstPointRadiusNm * nauticalMile)
+        XCTAssertEqual(FlightPath.ownSpeedLeastTime, constants.ownSpeedLeastMinutes * 60)
+    }
+
+    func test_ownSpeed_everySharedCase_matches() throws {
+        let cases = try TripMapFixtures.liveCases()
+        var measured = 0
+        for flightCase in cases.flights {
+            let path = try cases.made(flightCase).path
+            guard let expected = flightCase.path.ownSpeedKt else {
+                XCTAssertNil(path.ownSpeed, flightCase.name)
+                continue
+            }
+            XCTAssertEqual(try XCTUnwrap(path.ownSpeed, flightCase.name) * 3600 / nauticalMile, expected, accuracy: 0.01, flightCase.name)
+            measured += 1
+        }
+        XCTAssertGreaterThan(measured, 0)
     }
 
     func test_paths_everySharedCase_matches() throws {

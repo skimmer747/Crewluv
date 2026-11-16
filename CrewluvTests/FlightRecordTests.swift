@@ -84,6 +84,19 @@ final class FlightRecordTests: XCTestCase {
         }
     }
 
+    func test_flownPlan_everySharedCase_isThePlanFlownAlongThePath() throws {
+        let cases = try TripMapFixtures.liveCases()
+        var records = 0
+        for flightCase in cases.flights {
+            let made = try cases.made(flightCase)
+            guard let record = made.record else { continue }
+            XCTAssertEqual(record.flownPlan, made.plan.flown(along: made.path), flightCase.name)
+            XCTAssertEqual(record.plan, made.plan, flightCase.name)
+            records += 1
+        }
+        XCTAssertGreaterThan(records, 0)
+    }
+
     func test_init_aPathWithNoPlaceSeen_isNil() throws {
         let origin = CLLocationCoordinate2D(latitude: 38.1744, longitude: -85.736)
         let destination = CLLocationCoordinate2D(latitude: 39.8719, longitude: -75.2411)

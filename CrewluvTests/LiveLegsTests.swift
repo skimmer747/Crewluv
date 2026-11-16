@@ -176,7 +176,7 @@ final class LiveLegsTests: XCTestCase {
         let replaced = LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)
 
         XCTAssertEqual(replaced.map(\.id), ["w1", "f1", "w2"])
-        // It left 10 minutes early and is 13 minutes ahead.
+        // It left 10 minutes early and is 14 minutes ahead.
         XCTAssertEqual(replaced[0].startTime, before.startTime)
         assertEqual(replaced[0].endTime, moment.start)
         assertEqual(replaced[1].startTime, moment.start)
@@ -310,7 +310,7 @@ final class LiveLegsTests: XCTestCase {
         let made = flights(cases, for: legs, answered: ["f1": try XCTUnwrap(cases.live(flightCase))])
         let replaced = LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)
 
-        // The plane is 13 minutes ahead. Five minutes before the scheduled arrival it has already reached the gate.
+        // The plane is 14 minutes ahead. Five minutes before the scheduled arrival it has already reached the gate.
         let fiveBefore = flightCase.arrival.addingTimeInterval(-300)
         XCTAssertEqual(TripStateResolver.resolve(legs: legs, at: fiveBefore)?.displayStatus, .inFlight, "by the schedule")
         XCTAssertEqual(TripStateResolver.resolve(legs: replaced, at: fiveBefore)?.displayStatus, .layover, "by the real plane")

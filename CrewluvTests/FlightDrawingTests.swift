@@ -204,7 +204,7 @@ final class FlightDrawingTests: XCTestCase {
 
     func test_now_aFlightThatIsntLive_drawsTheSchedulesPlane_asBefore() throws {
         for (name, time) in [("waiting to be seen", "13T12:30:00"), ("no live data", "13T12:30:00"),
-                             ("on the ground before the plan's takeoff", "13T12:12:00")] {
+                             ("on the ground before the plan's takeoff", "13T12:13:00")] {
             let (drawing, leg, moment) = try drawing(of: name, at: time)
             // The schedule's plane taxis for its first 15 minutes, with nothing flown behind it.
             let isTaxiingOut = leg.progress(at: moment.at) == 0

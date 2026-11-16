@@ -10,7 +10,7 @@ export const SHORTEST_CRUISE = 10 * 60
 export const DESCENT_DISTANCE = 120 * NM
 export const DESCENT_SPEED = 280 * NM / 3600
 export const DESCENT_TIME = DESCENT_DISTANCE / DESCENT_SPEED
-export const FRESH = 120
+export const FRESH = 180
 export const AIRPORT_RADIUS = 10 * NM
 export const ON_SCHEDULE_MINUTES = 5
 export const UNSEEN_GAP = 10 * 60
@@ -19,6 +19,9 @@ export const WINDOW_OPENS_BEFORE = 30 * 60
 export const WINDOW_CLOSES_AFTER = 2 * 3600
 export const WINDOW_KEEPS_FOR = 30 * 60
 export const WINDOW_ENDS_AFTER = 12 * 3600
+export const OWN_SPEED_LEAST = 10 * 60
+export const OWN_SPEED_LEAST_SHARE = 0.7
+export const OWN_SPEED_MOST_SHARE = 1.5
 
 const rad = (d) => d * Math.PI / 180
 const deg = (r) => r * 180 / Math.PI
@@ -114,10 +117,10 @@ export function makePath(origin, destination, flight) {
     along += length
   }
   add(origin, seen[0].at, distance(origin, seen[0].at) > FIRST_POINT_RADIUS ? 'unseen' : 'seen')
-  knots.push({ time: seen[0].time, along })
+  knots.push({ time: seen[0].time, along, at: seen[0].at })
   for (let i = 1; i < seen.length; i++) {
     add(seen[i - 1].at, seen[i].at, seen[i].time - seen[i - 1].time > UNSEEN_GAP ? 'unseen' : 'seen')
-    knots.push({ time: seen[i].time, along })
+    knots.push({ time: seen[i].time, along, at: seen[i].at })
   }
   const flownBeforeLanding = along
   const final = seen[seen.length - 1]
@@ -125,7 +128,7 @@ export function makePath(origin, destination, flight) {
   if (landed) {
     const landedAt = Math.max(flight.landedAt ?? flight.fix?.seenAt ?? final.time, final.time)
     add(final.at, destination, landedAt - final.time > UNSEEN_GAP ? 'unseen' : 'seen')
-    knots.push({ time: landedAt, along })
+    knots.push({ time: landedAt, along, at: destination })
   } else {
     add(final.at, destination, 'planned')
   }
@@ -143,16 +146,48 @@ export function pointAt(path, far) {
   return path.destination
 }
 
+// MARK: The plan as the plane flies it (spec §4)
+
+/// The plane's own speed over its cruise so far: the distance it flew along its path over the time it took, counted
+/// over each stretch between two neighbouring places that were both seen in its cruise, when those stretches come to
+/// ten minutes or more. A place is in the cruise when it's the descent's distance or more from both airports, in a
+/// straight line. That never changes, so a hold or a pattern near the arrival airport can't bring its places into the
+/// cruise, and neither can a return to the departure airport and the wait there.
+export function ownSpeed(path) {
+  if (!path.isReal) return null
+  const isInCruise = (k) =>
+    distance(path.origin, k.at) >= DESCENT_DISTANCE && distance(k.at, path.destination) >= DESCENT_DISTANCE
+  let time = 0, length = 0
+  for (let i = 1; i < path.knots.length; i++) {
+    const earlier = path.knots[i - 1], later = path.knots[i]
+    if (isInCruise(earlier) && isInCruise(later)) {
+      time += later.time - earlier.time
+      length += later.along - earlier.along
+    }
+  }
+  return time >= OWN_SPEED_LEAST ? length / time : null
+}
+
+/// The schedule's plan with the plane's own speed for its cruise, once that's known and could be right: from 0.7 of
+/// the plan's cruise speed to 1.5 of it. Its takeoff and touchdown are still the schedule's.
+export function flownPlan(plan, path) {
+  if (plan.cruise === null) return plan
+  const own = ownSpeed(path)
+  if (own === null || !(own >= plan.cruise * OWN_SPEED_LEAST_SHARE && own <= plan.cruise * OWN_SPEED_MOST_SHARE)) return plan
+  return { ...plan, cruise: own }
+}
+
 // MARK: The record (spec §7.2)
 
 export function makeRecord(path, plan) {
   if (!path.isReal) return null
   const knots = path.knots
   const first = knots[0], last = knots[knots.length - 1]
-  const touchdown = path.landed ? last.time : last.time + timeToFly(plan, path.length - last.along)
+  const flown = flownPlan(plan, path)
+  const touchdown = path.landed ? last.time : last.time + timeToFly(flown, path.length - last.along)
   // The takeoff, when the first point was seen close enough to the airport to tell (spec §7.1).
   const takeoff = first.along <= FIRST_POINT_RADIUS ? first.time : null
-  return { path, plan, knots, touchdown, takeoff }
+  return { path, plan, flown, knots, touchdown, takeoff }
 }
 
 export function alongAt(record, time) {
@@ -161,7 +196,7 @@ export function alongAt(record, time) {
   if (time <= first.time) return Math.max(0, first.along - (first.time - time) * planSpeed(plan))
   if (time >= last.time) {
     if (path.landed) return path.length
-    return Math.min(Math.max(path.length - distanceLeft(plan, record.touchdown - time), last.along), path.length)
+    return Math.min(Math.max(path.length - distanceLeft(record.flown, record.touchdown - time), last.along), path.length)
   }
   for (let i = 1; i < knots.length; i++) {
     if (time < knots[i].time) {
@@ -177,7 +212,7 @@ export function timeAt(record, far) {
   const d = Math.min(Math.max(far, 0), path.length)
   const first = knots[0], last = knots[knots.length - 1]
   if (d <= first.along) return first.time - (first.along - d) / planSpeed(plan)
-  if (d >= last.along) return path.landed ? last.time : record.touchdown - timeToFly(plan, path.length - d)
+  if (d >= last.along) return path.landed ? last.time : record.touchdown - timeToFly(record.flown, path.length - d)
   for (let i = 1; i < knots.length; i++) {
     if (d <= knots[i].along) {
       const a = knots[i - 1], b = knots[i]
@@ -222,8 +257,10 @@ export function progress(plan, path, record, flight, now) {
       phase = distance(fix.at, path.origin) <= AIRPORT_RADIUS ? 'onGround' : 'elsewhere'
     }
   }
+  // The plane's own speed stands in for the plan's cruise, for the estimate, the estimated plane and the ghost alike.
+  const flown = flownPlan(plan, path)
   let touchdown = null
-  if (phase === 'inAir' || phase === 'estimated') touchdown = fix.seenAt + timeToFly(plan, distance(fix.at, path.destination))
+  if (phase === 'inAir' || phase === 'estimated') touchdown = fix.seenAt + timeToFly(flown, distance(fix.at, path.destination))
   if (phase === 'onGround' && now >= plan.takeoff) touchdown = now + (plan.touchdown - plan.takeoff)
   // A landed flight's touchdown is its record's, where it has one, so the two can't disagree.
   if (phase === 'landed') touchdown = record ? record.touchdown : (flight.landedAt ?? fix.seenAt)
@@ -233,7 +270,7 @@ export function progress(plan, path, record, flight, now) {
   let planeAlong = null, plane = null
   if (phase === 'inAir') { planeAlong = path.flown; plane = fix.at }
   if (phase === 'estimated') {
-    planeAlong = Math.min(Math.max(path.length - distanceLeft(plan, touchdown - now), path.flown), path.length)
+    planeAlong = Math.min(Math.max(path.length - distanceLeft(flown, touchdown - now), path.flown), path.length)
     plane = pointAt(path, planeAlong)
   }
   if (phase === 'landed') { planeAlong = path.length; plane = path.destination }
@@ -243,7 +280,7 @@ export function progress(plan, path, record, flight, now) {
   let ghostAlong = null
   if (phase === 'inAir' || phase === 'estimated' || phase === 'onGround') {
     if (now < plan.takeoff) ghostAlong = 0
-    else ghostAlong = Math.max(0, path.length - distanceLeft(plan, plan.touchdown - now))
+    else ghostAlong = Math.max(0, path.length - distanceLeft(flown, plan.touchdown - now))
   }
 
   // The leg's real times (spec §7.1).

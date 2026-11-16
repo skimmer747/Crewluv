@@ -3,8 +3,8 @@
 //  CrewLuve
 //
 //  The schedule's flight plan (Stage 3 spec §4): when an on-schedule plane takes off and touches down, and how fast
-//  it flies in between. The real plane is measured against it. The constants are written down in
-//  CrewluvTests/Fixtures/TripMap/live-cases.json, which the website shares.
+//  it flies in between. The real plane is measured against it, flown at the plane's own speed once that's known.
+//  The constants are written down in CrewluvTests/Fixtures/TripMap/live-cases.json, which the website shares.
 //
 
 import Foundation
@@ -20,6 +20,10 @@ nonisolated struct FlightPlan: Equatable, Sendable {
     /// How long the descent takes: 25.7 minutes.
     static let descentTime: TimeInterval = descentDistance / descentSpeed
 
+    /// A plane's own speed is believed from 0.7 of the plan's speed to 1.5 of it, which the strongest winds stay
+    /// inside. Outside that, the places it was seen can't be right.
+    static let ownSpeedShares: ClosedRange<Double> = 0.7...1.5
+
     /// Leaving the gate and reaching it, both moved by any reported delay.
     let departure: Date
     let arrival: Date
@@ -28,7 +32,8 @@ nonisolated struct FlightPlan: Equatable, Sendable {
     let touchdown: Date
     /// The great-circle distance between the leg's airports, in meters.
     let distance: Double
-    /// The speed before the descent, in meters a second: the cruise, or a short leg's one speed.
+    /// The speed before the descent, in meters a second: the cruise, or a short leg's one speed. It's the schedule's,
+    /// or the plane's own in a plan made by `flown(along:)`.
     let speed: Double
     /// Whether the whole leg is flown at `speed`, with no faster cruise before a descent: a short leg, or a slow one.
     let isSteady: Bool
@@ -55,6 +60,28 @@ nonisolated struct FlightPlan: Equatable, Sendable {
         }
     }
 
+    /// `plan` with another speed before its descent.
+    private init(_ plan: FlightPlan, speed: Double) {
+        departure = plan.departure
+        arrival = plan.arrival
+        takeoff = plan.takeoff
+        touchdown = plan.touchdown
+        distance = plan.distance
+        self.speed = speed
+        isSteady = plan.isSteady
+    }
+
+    /// This plan as the plane flies it: with the plane's own speed over its cruise so far in place of the schedule's,
+    /// once `path` has one that could be right. The takeoff and the touchdown stay the schedule's, and a leg flown at
+    /// one steady speed keeps it. The landing estimate, the estimated plane and the ghost all fly this plan, so the
+    /// gap between the two planes is still the label.
+    func flown(along path: FlightPath) -> FlightPlan {
+        guard !isSteady, let own = path.ownSpeed else { return self }
+        let believed = speed * Self.ownSpeedShares.lowerBound...speed * Self.ownSpeedShares.upperBound
+        guard believed.contains(own) else { return self }
+        return FlightPlan(self, speed: own)
+    }
+
     /// The plan's time in the air.
     var timeInAir: TimeInterval { touchdown.timeIntervalSince(takeoff) }
 
@@ -64,7 +91,7 @@ nonisolated struct FlightPlan: Equatable, Sendable {
     /// From wheels down to the gate.
     var taxiIn: TimeInterval { arrival.timeIntervalSince(touchdown) }
 
-    /// How long an on-schedule plane needs to fly `distance` meters to touchdown. Further than the whole leg, the
+    /// How long a plane flying this plan needs to fly `distance` meters to touchdown. Further than the whole leg, the
     /// extra is flown at `speed`.
     func timeToFly(_ distance: Double) -> TimeInterval {
         let far = max(distance, 0)
@@ -73,7 +100,7 @@ nonisolated struct FlightPlan: Equatable, Sendable {
         return Self.descentTime + (far - Self.descentDistance) / speed
     }
 
-    /// How far from touchdown an on-schedule plane is, `time` seconds before it: `timeToFly`'s inverse.
+    /// How far from touchdown a plane flying this plan is, `time` seconds before it: `timeToFly`'s inverse.
     func distanceLeft(_ time: TimeInterval) -> Double {
         let left = max(time, 0)
         if isSteady { return left * speed }

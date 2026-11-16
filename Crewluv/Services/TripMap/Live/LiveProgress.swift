@@ -16,15 +16,17 @@ nonisolated struct LiveProgress: Sendable {
         /// Seen on the ground at the departure airport.
         case onGround
         case inAir
-        /// Last seen in the air too long ago: the real plane flies the plan from there.
+        /// Last seen in the air too long ago: the real plane flies the plan on from there, at the plane's own speed
+        /// once that's known.
         case estimated
         case landed
         /// On the ground anywhere else: a diversion.
         case elsewhere
     }
 
-    /// A fix this old or newer is live, by Crewlu Cloud's clock.
-    static let freshFor: TimeInterval = 120
+    /// A fix this old or newer is live, by Crewlu Cloud's clock: 3 minutes. Crewlu Cloud asks for one a minute, so
+    /// this outlasts a single answer that didn't come.
+    static let freshFor: TimeInterval = 180
 
     /// On the ground this close to the departure airport is at it: 10 nautical miles, in meters.
     static let airportRadius: Double = 10 * GreatCircle.metersPerNauticalMile
@@ -41,7 +43,8 @@ nonisolated struct LiveProgress: Sendable {
     let planeDistance: Double?
     /// Where the real plane is. Nil when it isn't shown.
     let plane: CLLocationCoordinate2D?
-    /// How far along the path an on-schedule plane would be. Nil when the ghost isn't shown.
+    /// How far along the path a plane that lands on schedule would be, flying as this one does. Nil when the ghost
+    /// isn't shown.
     let ghostDistance: Double?
     /// The leg's real times (spec §7.1): its start, moved earlier by an early takeoff, and its end, the live arrival
     /// where there is one. Otherwise they're the plan's.
@@ -56,8 +59,10 @@ nonisolated struct LiveProgress: Sendable {
     ///   - now: the moment, by Crewlu Cloud's clock.
     init(plan: FlightPlan, path: FlightPath, record: FlightRecord?, flight: LiveFlight?, at now: Date) {
         let phase = Self.phase(of: flight, origin: path.origin, at: now)
-        let touchdown = Self.touchdown(in: phase, plan: plan, path: path, record: record, flight: flight, at: now)
-        let plane = Self.plane(in: phase, plan: plan, path: path, fix: flight?.fix, touchdown: touchdown, at: now)
+        // The plane's own speed stands in for the plan's, for the estimate, the estimated plane and the ghost alike.
+        let flown = plan.flown(along: path)
+        let touchdown = Self.touchdown(in: phase, plan: flown, path: path, record: record, flight: flight, at: now)
+        let plane = Self.plane(in: phase, plan: flown, path: path, fix: flight?.fix, touchdown: touchdown, at: now)
         self.phase = phase
         self.touchdown = touchdown
         liveArrival = touchdown?.addingTimeInterval(plan.taxiIn)
@@ -65,7 +70,7 @@ nonisolated struct LiveProgress: Sendable {
         label = LiveLabel(phase: phase, gapMinutes: gapMinutes)
         planeDistance = plane.distance
         self.plane = plane.coordinate
-        ghostDistance = Self.ghostDistance(in: phase, plan: plan, path: path, at: now)
+        ghostDistance = Self.ghostDistance(in: phase, plan: flown, path: path, at: now)
         let earlyStart = record?.takeoff?.addingTimeInterval(-plan.taxiOut)
         start = earlyStart.map { min($0, plan.departure) } ?? plan.departure
         end = liveArrival ?? plan.arrival
@@ -84,13 +89,14 @@ nonisolated struct LiveProgress: Sendable {
 
     // MARK: - Private
 
-    /// When the real plane touches down, or did (spec §5.2). Nil where there's no estimate.
+    /// When the real plane touches down, or did (spec §5.2). Nil where there's no estimate. `plan` is the plan as the
+    /// plane flies it.
     private static func touchdown(
         in phase: Phase, plan: FlightPlan, path: FlightPath, record: FlightRecord?, flight: LiveFlight?, at now: Date
     ) -> Date? {
         switch phase {
         case .inAir, .estimated:
-            // The last fix, plus the plan's time for the straight distance left.
+            // The last fix, plus the time for the straight distance left at the plane's own speed.
             return flight?.fix.map {
                 $0.seenAt.addingTimeInterval(plan.timeToFly(GreatCircle.distance(from: $0.coordinate, to: path.destination)))
             }
@@ -114,7 +120,8 @@ nonisolated struct LiveProgress: Sendable {
         case .inAir:
             return (path.flownLength, fix?.coordinate)
         case .estimated:
-            // It flies the plan from its last fix, and stays at the arrival airport once it's there (spec §5.5).
+            // It flies on from its last fix as the plan has it, and stays at the arrival airport once it's there
+            // (spec §5.5).
             guard let touchdown else { return (nil, nil) }
             let left = plan.distanceLeft(touchdown.timeIntervalSince(now))
             let distance = min(max(path.length - left, path.flownLength), path.length)
@@ -130,7 +137,8 @@ nonisolated struct LiveProgress: Sendable {
         }
     }
 
-    /// How far along the path an on-schedule plane would be (spec §5.4). Nil when the ghost isn't shown.
+    /// How far along the path a plane landing on schedule would be, flying `plan` (spec §5.4). Nil when the ghost
+    /// isn't shown.
     private static func ghostDistance(in phase: Phase, plan: FlightPlan, path: FlightPath, at now: Date) -> Double? {
         switch phase {
         case .inAir, .estimated, .onGround:

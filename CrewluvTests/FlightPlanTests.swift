@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import CoreLocation
 @testable import Crewluv
 
 final class FlightPlanTests: XCTestCase {
@@ -19,6 +20,32 @@ final class FlightPlanTests: XCTestCase {
         XCTAssertEqual(FlightProgress.shortestCruise, constants.shortestCruiseMinutes * 60)
         XCTAssertEqual(FlightPlan.descentDistance, constants.descentDistanceNm * nauticalMile)
         XCTAssertEqual(FlightPlan.descentSpeed, constants.descentSpeedKt * nauticalMile / 3600, accuracy: 1e-9)
+        XCTAssertEqual(FlightPlan.ownSpeedShares, constants.ownSpeedLeastShare...constants.ownSpeedMostShare)
+    }
+
+    func test_flown_everySharedCase_fliesItsSpeed_andKeepsTheSchedulesTimes() throws {
+        let cases = try TripMapFixtures.liveCases()
+        var ownSpeeds = 0
+        for flightCase in cases.flights {
+            let made = try cases.made(flightCase)
+            let flown = made.plan.flown(along: made.path)
+            XCTAssertEqual(flown.speed * 3600 / nauticalMile, flightCase.flownSpeedKt, accuracy: 0.01, flightCase.name)
+            XCTAssertEqual([flown.departure, flown.takeoff, flown.touchdown, flown.arrival],
+                           [made.plan.departure, made.plan.takeoff, made.plan.touchdown, made.plan.arrival], flightCase.name)
+            XCTAssertEqual(flown.distance, made.plan.distance, flightCase.name)
+            XCTAssertEqual(flown.isSteady, made.plan.isSteady, flightCase.name)
+            if flown != made.plan { ownSpeeds += 1 }
+        }
+        XCTAssertGreaterThan(ownSpeeds, 0)
+    }
+
+    func test_flown_alongAPathNobodySaw_isThePlan() throws {
+        let origin = CLLocationCoordinate2D(latitude: 38.1744, longitude: -85.736)
+        let destination = CLLocationCoordinate2D(latitude: 39.8719, longitude: -75.2411)
+        let path = FlightPath(from: origin, to: destination)
+        let departure = Date(timeIntervalSince1970: 1_800_000_000)
+        let plan = try XCTUnwrap(FlightPlan(departure: departure, arrival: departure.addingTimeInterval(6300), distance: path.length))
+        XCTAssertEqual(plan.flown(along: path), plan)
     }
 
     func test_plans_everySharedCase_matches() throws {

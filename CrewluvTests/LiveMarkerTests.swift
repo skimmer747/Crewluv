@@ -47,7 +47,7 @@ final class LiveMarkerTests: XCTestCase {
         let (map, moment) = try map(of: "ahead, in the air", at: "13T12:45:00")
         let placements = TripMapMarker.placements(for: TripMapDrawing(tripMap: map, at: moment.at), palette: .onDarkMap)
         guard case .realPlane(_, isEstimated: true)? = placements["real-plane"]?.marker else {
-            return XCTFail("the plane hasn't been seen for over two minutes")
+            return XCTFail("the plane hasn't been seen for over three minutes")
         }
     }
 

@@ -43,6 +43,9 @@ nonisolated struct FlightPath: Sendable {
     /// takeoff's time: 30 nautical miles, in meters.
     static let firstPointRadius: Double = 30 * GreatCircle.metersPerNauticalMile
 
+    /// A plane has a speed of its own once this much of its cruise has been seen: 10 minutes.
+    static let ownSpeedLeastTime: TimeInterval = 10 * 60
+
     let origin: CLLocationCoordinate2D
     let destination: CLLocationCoordinate2D
     /// Never empty, from the departure airport to the arrival airport.
@@ -57,6 +60,11 @@ nonisolated struct FlightPath: Sendable {
     /// Whether the path ends with a landing: the flight has landed, and was seen in the air before it. A landed
     /// flight never seen in the air has the great circle, and this is false: `LiveProgress.phase` says it landed.
     let hasLanded: Bool
+    /// The plane's own speed over its cruise so far, in meters a second (spec §4): the distance it flew along the
+    /// path over the time it took, counted over each stretch between two neighbouring places both seen in its cruise,
+    /// the descent's distance or more from both airports. Nil until those stretches come to `ownSpeedLeastTime`. A
+    /// stretch nobody saw counts, as the straight join, when both its ends are in the cruise.
+    let ownSpeed: Double?
 
     /// Whether it's a real path, from places the plane was seen.
     var isReal: Bool { !knots.isEmpty }
@@ -73,6 +81,7 @@ nonisolated struct FlightPath: Sendable {
             self.length = length
             flownLength = 0
             hasLanded = false
+            ownSpeed = nil
             return
         }
         var stretches: [Stretch] = []
@@ -107,6 +116,25 @@ nonisolated struct FlightPath: Sendable {
         self.stretches = stretches
         self.knots = knots
         length = distance
+        ownSpeed = Self.cruiseSpeed(of: seen, at: knots, from: origin, to: destination)
+    }
+
+    /// The speed over the cruise: the distance between `knots` over the time between them, counted over each stretch
+    /// between two neighbours of `seen` that are both the descent's distance or more from both airports, in a
+    /// straight line. Nil when those stretches come to under `ownSpeedLeastTime`. A place's distance from an airport
+    /// never changes, so a hold or a pattern near the arrival airport can't bring its places into the cruise, and
+    /// neither can a return to the departure airport and the wait there.
+    private static func cruiseSpeed(
+        of seen: [Sighting], at knots: [Knot], from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D
+    ) -> Double? {
+        let isInCruise = seen.map {
+            GreatCircle.distance(from: origin, to: $0.coordinate) >= FlightPlan.descentDistance
+                && GreatCircle.distance(from: $0.coordinate, to: destination) >= FlightPlan.descentDistance
+        }
+        let cruise = zip(seen.indices, seen.indices.dropFirst()).filter { isInCruise[$0] && isInCruise[$1] }
+        let time = cruise.reduce(0) { $0 + knots[$1.1].time.timeIntervalSince(knots[$1.0].time) }
+        guard time >= ownSpeedLeastTime else { return nil }
+        return cruise.reduce(0) { $0 + knots[$1.1].distance - knots[$1.0].distance } / time
     }
 
     /// A place the plane was seen in the air, and when.
