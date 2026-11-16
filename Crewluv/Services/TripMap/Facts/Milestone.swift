@@ -26,9 +26,12 @@ nonisolated struct Milestone: Equatable, Sendable {
     /// How long a milestone leads the headline.
     static let headlineDuration: TimeInterval = 5 * 60
 
-    /// A flight's milestones in time order, from its story and its delay-shifted times.
+    /// A flight's milestones in time order, from its story and the leg's own times: the real plane's along a real
+    /// path, else the schedule's. On a real path a crossing, or the closest point to home, counts only where the
+    /// plane was seen (Stage 3 spec §8): where nobody saw it the straight join is a guess, and a crossing is a
+    /// claim. Halfway is half the path's whole length, flown and ahead.
     static func milestones(on leg: MapLeg, story: LegStory) -> [Milestone] {
-        var found: [(kind: Kind, fraction: Double)] = []
+        var found: [(kind: Kind, distance: Double, time: Date?)] = []
         // The state or province the plane is in, kept across a stretch where only the country is known.
         var region = story.stretches.first.flatMap { isRegion($0.place) ? $0.place.name : nil }
         for (previous, next) in zip(story.stretches, story.stretches.dropFirst()) {
@@ -42,19 +45,21 @@ nonisolated struct Milestone: Equatable, Sendable {
             }
             // Back into the state it was already in, after such a gap, is no crossing.
             if isRegion(next.place), isSameCountry, next.place.name == region { continue }
-            if let kind = crossingKind(from: previous.place, to: next.place) {
-                found.append((kind, next.start))
+            let distance = next.start * story.length
+            if let kind = crossingKind(from: previous.place, to: next.place), leg.isSeen(atDistance: distance) {
+                found.append((kind, distance, leg.time(atDistance: distance)))
             }
         }
-        found.append((.halfway, 0.5))
+        found.append((.halfway, leg.pathLength / 2, leg.halfwayTime))
         if let closest = story.closestToHome {
-            found.append((.closestToHome(miles: roundedMiles(closest.meters)), closest.fraction))
+            let distance = closest.fraction * story.length
+            if leg.isSeen(atDistance: distance) {
+                found.append((.closestToHome(miles: roundedMiles(closest.meters)), distance, leg.time(atDistance: distance)))
+            }
         }
         return found.enumerated()
-            .sorted { ($0.element.fraction, $0.offset) < ($1.element.fraction, $1.offset) }
-            .compactMap { item in
-                leg.time(atFraction: item.element.fraction).map { Milestone(kind: item.element.kind, time: $0) }
-            }
+            .sorted { ($0.element.distance, $0.offset) < ($1.element.distance, $1.offset) }
+            .compactMap { item in item.element.time.map { Milestone(kind: item.element.kind, time: $0) } }
     }
 
     /// To the nearest 5 mi, and never under 5.
