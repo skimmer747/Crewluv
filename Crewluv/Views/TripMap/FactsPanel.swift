@@ -69,7 +69,8 @@ struct FactsPanel: View {
     }
 
     private var factsBody: some View {
-        FactsBody(rows: facts.rows(at: time, now: now), tripSoFar: facts.tripSoFar(at: time))
+        FactsBody(rows: facts.rows(at: time, now: now), tripSoFar: facts.tripSoFar(at: time),
+                  showsLiveCredit: facts.showsLiveData)
     }
 
     private var timelineControl: some View {

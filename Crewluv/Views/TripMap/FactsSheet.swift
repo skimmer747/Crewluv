@@ -54,7 +54,8 @@ struct FactsSheet: View {
                                 activity: facts.tripMap.activity(at: time), clock: $clock,
                                 isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
                         .onGeometryChange(for: CGFloat.self) { Self.headerExtent($0) } action: { headerHeight = $0 }
-                    FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time))
+                    FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time),
+                              showsLiveCredit: facts.showsLiveData)
                 }
                 .padding()
                 .coordinateSpace(Self.content)

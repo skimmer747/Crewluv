@@ -126,8 +126,11 @@ struct TripMapScreen: View {
         tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
     }
 
+    /// The facts at the clock's moments. They're a replay's while the clock isn't live: a real plane is then where
+    /// its record has it, with no height or speed (Stage 3 spec §7.3).
     private var facts: TripFacts {
-        storyStore.facts(for: tripMap, forecasts: weather.forecasts, dayNumber: dayNumber, totalDays: totalDays)
+        storyStore.facts(for: tripMap, forecasts: weather.forecasts, dayNumber: dayNumber, totalDays: totalDays,
+                         isReplay: !clock.isLive)
     }
 
     @ViewBuilder
