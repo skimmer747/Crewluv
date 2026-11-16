@@ -4,7 +4,8 @@
 //
 //  Everything the facts say about a trip at a moment (Stage 2 spec §3.1, §4.4, §5): the headline, the rows
 //  (TripFacts+Rows.swift), the trip so far and the recap's numbers. Each answer is a lookup in the flights' stories and
-//  sun events, so replay and scrubbing need nothing extra (§4.10).
+//  sun events, so replay and scrubbing need nothing extra (§4.10). A flight with a real plane is read where the real
+//  plane is, along the path it really flew (Stage 3 spec §8).
 //
 
 import Foundation
@@ -24,6 +25,9 @@ nonisolated struct TripFacts {
     var totalDays: Int?
     var calendar: Calendar = .current
     var locale: Locale = .current
+    /// The moments asked about are a replay's, not now: the full-screen map's clock isn't live. A real plane is
+    /// then where its record has it, and what only its newest fix tells is left out (Stage 3 spec §7.3).
+    var isReplay = false
 
     /// Weather shows for a flight landing within this of now (§7.2).
     static let weatherHorizon: TimeInterval = 48 * 3600
@@ -39,7 +43,8 @@ nonisolated struct TripFacts {
     // MARK: - The headline (§4.4)
 
     /// In flight: a milestone from the last 5 minutes, else a cockpit sunrise or sunset in the next 30, else the place
-    /// below, else the landing countdown. Nil on the ground and on a drive, where Stage 1's words stay.
+    /// below, else the landing countdown. While the real plane is an estimate, where it was last seen takes the
+    /// place below's turn (Stage 3 spec §9). Nil on the ground and on a drive, where Stage 1's words stay.
     func headline(at date: Date) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
         let recent = milestones(on: leg).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
@@ -60,10 +65,28 @@ nonisolated struct TripFacts {
         return TripMapWording.panelHeadline(for: tripMap, at: date, calendar: calendar, locale: locale)
     }
 
-    /// "Over Kansas", "Over Québec, near Montréal", from the flight's story.
+    /// "Over Kansas", "Over Québec, near Montréal", from the flight's story, read where the plane is. While the
+    /// real plane is an estimate, "Estimated · last seen near Montréal" (Stage 3 spec §8).
     func belowText(on leg: MapLeg, at date: Date) -> String? {
-        guard let place = stories[leg.id]?.place(atFraction: leg.progress(at: date)) else { return nil }
-        return FactsWording.below(place, near: geography?.city(near: leg.position(at: date)))
+        let plane = leg.plane(at: date, isReplay: isReplay)
+        if let unseenFor = plane.unseenFor {
+            return FactsWording.estimated(lastSeen: lastSeen(on: leg, ago: unseenFor))
+        }
+        guard let place = stories[leg.id]?.place(atDistance: plane.distance) else { return nil }
+        return FactsWording.below(place, near: geography?.city(near: plane.coordinate))
+    }
+
+    /// Where an estimated plane was last seen: the city by it, else the place under it, else how long ago.
+    func lastSeen(on leg: MapLeg, ago: TimeInterval, isSpoken: Bool = false) -> String {
+        let path = leg.path
+        return FactsWording.lastSeen(stories[leg.id]?.place(atDistance: path.flownLength),
+                                     near: geography?.city(near: path.point(atDistance: path.flownLength)),
+                                     ago: ago, isSpoken: isSpoken)
+    }
+
+    /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
+    var showsLiveData: Bool {
+        tripMap.legs.contains(where: \.hasLiveData)
     }
 
     // MARK: - Weather (§7.3)
@@ -87,7 +110,7 @@ nonisolated struct TripFacts {
             return TripSoFar(flights: flights, totalsTitle: "Trip recap",
                              totals: FactsWording.soFar(totals, dayNumber: nil, totalDays: nil, locale: locale))
         }
-        let totals = TripTotals.soFar(on: tripMap, at: date, sunEvents: sunEvents)
+        let totals = TripTotals.soFar(on: tripMap, at: date, sunEvents: sunEvents, isReplay: isReplay)
         return TripSoFar(flights: flights, totalsTitle: "Trip so far",
                          totals: FactsWording.soFar(totals, dayNumber: dayNumber, totalDays: totalDays, locale: locale))
     }
@@ -104,9 +127,13 @@ nonisolated struct TripFacts {
         switch tripMap.mode {
         case .inFlight:
             if let leg = tripMap.currentLeg {
-                let below = stories[leg.id]?.place(atFraction: leg.progress(at: now))?.name
-                // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9).
-                if let live = TripMapWording.liveSummary(for: leg, over: below, now: now, calendar: calendar, locale: locale) {
+                let plane = leg.plane(at: now, isReplay: isReplay)
+                let below = stories[leg.id]?.place(atDistance: plane.distance)?.name
+                // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and
+                // while it's an estimate, where it was last seen (§15).
+                let lastSeen = plane.unseenFor.map { lastSeen(on: leg, ago: $0, isSpoken: true) }
+                if let live = TripMapWording.liveSummary(for: leg, over: below, lastSeen: lastSeen, now: now,
+                                                         calendar: calendar, locale: locale) {
                     return live
                 }
                 let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"

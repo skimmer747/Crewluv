@@ -4,7 +4,7 @@
 //
 //  The facts sheet's rows (Stage 2 spec §5): in flight, "now, then where to"; on a layover, where they are, the next
 //  flight and the trip so far; at home, the trip ahead and its forecast; after a recap's trip, the trip. A row with
-//  nothing to say is left out.
+//  nothing to say is left out. A flight with live data has the plane's row second (Stage 3 spec §8).
 //
 
 import Foundation
@@ -24,20 +24,44 @@ nonisolated extension TripFacts {
     // MARK: - In flight (§5.1)
 
     private func flightRows(on leg: MapLeg, at date: Date, now: Date) -> [FactRow] {
-        [belowRow(on: leg, at: date), skyRow(on: leg, at: date), distanceRow(on: leg, at: date), headedRow(on: leg, now: now)]
+        let plane = leg.plane(at: date, isReplay: isReplay)
+        return [belowRow(on: leg, at: date), planeRow(on: leg, plane: plane), skyRow(on: leg, at: date),
+                distanceRow(on: leg, plane: plane, at: date), headedRow(on: leg, now: now)]
             .compactMap { $0 }
     }
 
     private func belowRow(on leg: MapLeg, at date: Date) -> FactRow? {
-        let closest = stories[leg.id]?.closestToHome.flatMap { closest in
-            leg.time(atFraction: closest.fraction).map {
-                FactsWording.closestToHome(miles: Milestone.roundedMiles(closest.meters), at: $0, now: date, calendar: calendar, locale: locale)
-            }
-        }
+        let closest = closestToHomeLine(on: leg, at: date)
         if let place = belowText(on: leg, at: date) {
             return FactRow(.below, symbol: "mappin.and.ellipse", title: place, details: [closest])
         }
         return closest.map { FactRow(.below, symbol: "mappin.and.ellipse", title: $0) }
+    }
+
+    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. On a real
+    /// path it's told only where the plane was seen, or as what's still ahead of it, with "about": where nobody saw
+    /// the plane, the join is a guess (Stage 3 spec §8).
+    private func closestToHomeLine(on leg: MapLeg, at date: Date) -> String? {
+        guard let story = stories[leg.id], let closest = story.closestToHome else { return nil }
+        let distance = closest.fraction * story.length
+        guard let time = leg.time(atDistance: distance) else { return nil }
+        let isAhead = leg.isTimeEstimated(atDistance: distance)
+        guard leg.isSeen(atDistance: distance) || (isAhead && time > date) else { return nil }
+        return FactsWording.closestToHome(miles: Milestone.roundedMiles(closest.meters), at: time, now: date,
+                                          isEstimate: isAhead, calendar: calendar, locale: locale)
+    }
+
+    /// The plane's row, for a flight Crewlu Cloud has seen (Stage 3 spec §8): "Boeing 767-300 · N370UP", then
+    /// "35,000 ft · 540 mph" while the plane is seen in the air. Its height and speed are for now only, so a
+    /// replay and an estimated plane have the first line alone.
+    private func planeRow(on leg: MapLeg, plane: PlanePosition) -> FactRow? {
+        guard let fix = leg.flight?.live?.fix else { return nil }
+        let flying = plane.isSeenInAir
+            ? FactsWording.heightAndSpeed(altitudeFeet: fix.altitudeFeet, groundSpeedKnots: fix.groundSpeedKnots, locale: locale)
+            : nil
+        let parts = [FactsWording.aircraft(typeCode: fix.typeCode, registration: fix.registration), flying].compactMap { $0 }
+        guard let title = parts.first else { return nil }
+        return FactRow(.plane, symbol: "airplane", title: title, details: Array(parts.dropFirst()))
     }
 
     private func skyRow(on leg: MapLeg, at date: Date) -> FactRow? {
@@ -53,16 +77,22 @@ nonisolated extension TripFacts {
         if let next {
             symbol = next.kind == .sunset ? "sunset.fill" : "sunrise.fill"
         } else {
-            symbol = SkyFacts.sunAltitude(on: leg, at: date) > SkyFacts.cockpitHorizon ? "sun.max.fill" : "moon.stars.fill"
+            symbol = SkyFacts.sunAltitude(on: leg, at: date) > SkyFacts.cockpitHorizon(for: leg) ? "sun.max.fill" : "moon.stars.fill"
         }
         return FactRow(.sky, symbol: symbol, title: title, details: Array(parts.dropFirst()))
     }
 
-    private func distanceRow(on leg: MapLeg, at date: Date) -> FactRow {
-        let totalMiles = leg.distance / GreatCircle.metersPerMile
-        let flown = Int((totalMiles * leg.progress(at: date)).rounded())
-        let halfway = leg.time(atFraction: 0.5).flatMap { $0 > date ? FactsWording.halfway(at: $0, calendar: calendar, locale: locale) : nil }
-        let speed = FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)
+    /// "1,140 mi flown · 3,010 to go": flown along the path so far, and to go along the rest of it, which for a
+    /// real plane is the great circle from where it is to the arrival airport (Stage 3 spec §8).
+    private func distanceRow(on leg: MapLeg, plane: PlanePosition, at date: Date) -> FactRow {
+        let totalMiles = leg.pathLength / GreatCircle.metersPerMile
+        let flown = Int((plane.distance / GreatCircle.metersPerMile).rounded())
+        let halfway = leg.halfwayTime.flatMap {
+            $0 > date ? FactsWording.halfway(at: $0, isEstimate: leg.isTimeEstimated(atDistance: leg.pathLength / 2),
+                                             calendar: calendar, locale: locale) : nil
+        }
+        // The schedule's speed is told only of a flight with no live data: a real plane's row has its own.
+        let speed = leg.hasLiveData ? nil : FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)
             .map { FactsWording.averageSpeed(milesPerHour: totalMiles / ($0.duration / 3600)) }
         return FactRow(.distance, symbol: "point.topleft.down.to.point.bottomright.curvepath",
                        title: FactsWording.distance(flownMiles: flown, toGoMiles: Int(totalMiles.rounded()) - flown, locale: locale),
@@ -110,7 +140,7 @@ nonisolated extension TripFacts {
     }
 
     private func tripSoFarRow(at date: Date) -> FactRow? {
-        let totals = TripTotals.soFar(on: tripMap, at: date, sunEvents: sunEvents)
+        let totals = TripTotals.soFar(on: tripMap, at: date, sunEvents: sunEvents, isReplay: isReplay)
         guard let line = FactsWording.soFar(totals, dayNumber: dayNumber, totalDays: totalDays, locale: locale) else { return nil }
         return FactRow(.tripSoFar, symbol: "chart.bar.fill", title: "Trip so far", details: [line])
     }
