@@ -97,6 +97,6 @@ nonisolated extension FactsWording {
     // MARK: - Private
 
     private static func miles(of leg: MapLeg) -> Int {
-        Int((leg.distance / GreatCircle.metersPerMile).rounded())
+        Int((leg.pathLength / GreatCircle.metersPerMile).rounded())
     }
 }

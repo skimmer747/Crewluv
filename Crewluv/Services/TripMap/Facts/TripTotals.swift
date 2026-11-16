@@ -15,11 +15,13 @@ nonisolated struct TripTotals: Equatable, Sendable {
     let cockpitSunsets: Int
 
     /// Up to `date`: finished flights, and the miles of the one in the air.
-    static func soFar(on tripMap: TripMap, at date: Date, sunEvents: [String: [SkyFacts.SunEvent]]) -> TripTotals {
+    /// - Parameter isReplay: `date` is a moment of the replay, not now.
+    static func soFar(on tripMap: TripMap, at date: Date, sunEvents: [String: [SkyFacts.SunEvent]],
+                      isReplay: Bool = false) -> TripTotals {
         let finished = tripMap.legs.filter { $0.kind == .flight && $0.end <= date }
         return TripTotals(
             cities: TripMapWording.destinations(of: finished, leavingOut: homeCodes(of: tripMap)).count,
-            miles: TripMapWording.milesFlown(by: date, on: tripMap.legs),
+            miles: TripMapWording.milesFlown(by: date, on: tripMap.legs, isReplay: isReplay),
             timeZones: timeZonesCrossed(by: finished),
             cockpitSunsets: sunsets(on: tripMap.legs, by: date, in: sunEvents)
         )
@@ -46,8 +48,9 @@ nonisolated struct TripTotals: Equatable, Sendable {
         return Int((Double(seconds) / 3600).rounded())
     }
 
+    /// The flight with the most miles, along its real path where it has one.
     static func longestFlight(of legs: [MapLeg]) -> MapLeg? {
-        legs.filter { $0.kind == .flight }.max { $0.distance < $1.distance }
+        legs.filter { $0.kind == .flight }.max { $0.pathLength < $1.pathLength }
     }
 
     // MARK: - Private

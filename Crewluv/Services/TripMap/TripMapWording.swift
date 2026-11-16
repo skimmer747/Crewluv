@@ -175,14 +175,21 @@ nonisolated enum TripMapWording {
         }
     }
 
-    /// Miles flown by `date`, counting the part of a flight that's in the air.
-    static func milesFlown(by date: Date, on legs: [MapLeg]) -> Int {
-        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.distance * $1.progress(at: date) }
+    /// Miles flown by `date`, counting the part of a flight that's in the air. A flight with a real path counts
+    /// the miles along it (Stage 3 spec §8).
+    /// - Parameter isReplay: `date` is a moment of the replay, not now.
+    static func milesFlown(by date: Date, on legs: [MapLeg], isReplay: Bool = false) -> Int {
+        let meters = legs.filter { $0.kind == .flight }.reduce(0) { total, leg in
+            if date >= leg.end { return total + leg.pathLength }
+            if date < leg.start { return total }
+            return total + leg.plane(at: date, isReplay: isReplay).distance
+        }
         return Int((meters / GreatCircle.metersPerMile).rounded())
     }
 
+    /// The trip's miles, along each flight's real path where it has one.
     static func totalMiles(of legs: [MapLeg]) -> Int {
-        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.distance }
+        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.pathLength }
         return Int((meters / GreatCircle.metersPerMile).rounded())
     }
 

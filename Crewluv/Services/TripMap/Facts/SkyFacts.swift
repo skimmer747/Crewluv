@@ -34,8 +34,12 @@ nonisolated enum SkyFacts {
 
     /// The sun's centre at sunrise and sunset on the ground, after refraction.
     static let groundHorizon = SolarPosition.sunriseAltitude
-    /// The schedule's height in the air. Stage 3 uses the live altitude.
+    /// The schedule's height in the air. It also stands in for a real plane that's climbing or coming down.
     static let cruiseAltitudeFeet: Double = 35_000
+    /// A real plane's own height counts while it's at its cruise: between these, in feet. Lower, it's on its way
+    /// up or down, and the sunrises and sunsets ahead are seen from the cruise it's climbing to. Higher can't be
+    /// right.
+    static let cruiseAltitudesFeet: ClosedRange<Double> = 25_000...60_000
     /// The sun's altitude at a cockpit sunrise or sunset at cruise: about −3.86°.
     static let cockpitHorizon = groundHorizon - horizonDip(feet: cruiseAltitudeFeet)
     /// Under this, the cockpit and the people below see it at about the same time.
@@ -52,19 +56,28 @@ nonisolated enum SkyFacts {
         1.76 / 60 * (max(feet, 0) * 0.3048).squareRoot()
     }
 
-    /// The sun's altitude at the schedule's plane, in degrees.
+    /// The sun's altitude at a cockpit sunrise or sunset on `leg` (Stage 3 spec §8): from the height the real
+    /// plane was last seen at, while it's in the air at its cruise, and from 35,000 ft otherwise.
+    static func cockpitHorizon(for leg: MapLeg) -> Double {
+        guard let live = leg.flight?.live, live.state == .airborne, let fix = live.fix, !fix.isOnGround,
+              let feet = fix.altitudeFeet, cruiseAltitudesFeet.contains(feet) else { return cockpitHorizon }
+        return groundHorizon - horizonDip(feet: feet)
+    }
+
+    /// The sun's altitude at the plane, in degrees: where its record has it, else where the schedule does.
     static func sunAltitude(on leg: MapLeg, at date: Date) -> Double {
-        let here = leg.position(at: date)
+        let here = leg.coursePosition(at: date)
         return SolarPosition.altitude(latitude: here.latitude, longitude: here.longitude, at: date)
     }
 
     // MARK: - Sunrise and sunset from the cockpit
 
-    /// The sunrises and sunsets the cockpit sees while the schedule has the flight in the air, in order: sampled every
-    /// 2 minutes and narrowed to 5 seconds.
+    /// The sunrises and sunsets the cockpit sees while the flight is in the air, in order: sampled every 2 minutes
+    /// and narrowed to 5 seconds. A flight with a record is followed along its real path, at its real times.
     static func sunEvents(on leg: MapLeg) -> [SunEvent] {
-        guard leg.kind == .flight, let window = FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end) else { return [] }
-        let height: (Date) -> Double = { sunAltitude(on: leg, at: $0) - cockpitHorizon }
+        guard leg.kind == .flight, let window = leg.airborne else { return [] }
+        let horizon = cockpitHorizon(for: leg)
+        let height: (Date) -> Double = { sunAltitude(on: leg, at: $0) - horizon }
         var times: [Date] = []
         var time = window.start
         while time < window.end {
@@ -79,7 +92,7 @@ nonisolated enum SkyFacts {
             guard isRising || isSetting else { return nil }
             let eventTime = crossing(of: height, from: times[index - 1], to: times[index], isRising: isRising, precision: 5)
             return SunEvent(kind: isRising ? .sunrise : .sunset, time: eventTime,
-                            peopleBelowGap: peopleBelowGap(at: leg.position(at: eventTime), cockpitTime: eventTime, isSunrise: isRising))
+                            peopleBelowGap: peopleBelowGap(at: leg.coursePosition(at: eventTime), cockpitTime: eventTime, isSunrise: isRising))
         }
     }
 
@@ -88,10 +101,10 @@ nonisolated enum SkyFacts {
     /// While the sun's up at the plane and its hour angle there changes at under 7.5° an hour: the afternoon, or the
     /// morning while the sun is east of the plane's meridian.
     static func chase(on leg: MapLeg, at date: Date) -> Chase? {
-        guard leg.kind == .flight, let window = FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end),
-              window.contains(date), sunAltitude(on: leg, at: date) > cockpitHorizon else { return nil }
-        let here = leg.position(at: date)
-        let soon = leg.position(at: date.addingTimeInterval(60))
+        guard leg.kind == .flight, let window = leg.airborne,
+              window.contains(date), sunAltitude(on: leg, at: date) > cockpitHorizon(for: leg) else { return nil }
+        let here = leg.coursePosition(at: date)
+        let soon = leg.coursePosition(at: date.addingTimeInterval(60))
         let degreesPerHour = 15 + wrapped(soon.longitude - here.longitude) * 60
         guard abs(degreesPerHour) < chaseRate else { return nil }
         let hourAngle = wrapped(here.longitude - SolarPosition.subsolarPoint(at: date).longitude)
@@ -102,8 +115,8 @@ nonisolated enum SkyFacts {
 
     /// The moon while the sun is below the cockpit's horizon, or nil in daylight.
     static func moon(on leg: MapLeg, at date: Date) -> Moon? {
-        guard leg.kind == .flight, sunAltitude(on: leg, at: date) <= cockpitHorizon else { return nil }
-        let here = leg.position(at: date)
+        guard leg.kind == .flight, sunAltitude(on: leg, at: date) <= cockpitHorizon(for: leg) else { return nil }
+        let here = leg.coursePosition(at: date)
         return Moon(phase: MoonPosition.phase(at: date),
                     isUp: MoonPosition.altitude(latitude: here.latitude, longitude: here.longitude, at: date) > 0)
     }
