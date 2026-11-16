@@ -136,13 +136,14 @@ nonisolated enum TripMapWording {
     /// Reaches the gate at 3:18 PM your time." Nil when the plane has no label, and the schedule's sentence stands.
     /// - Parameters:
     ///   - place: what's below the plane, when the facts know.
-    ///   - lastSeen: where an estimated plane was last seen, as `FactsWording.lastSeen` words it: "near Montréal",
-    ///     "over Québec" or "2 hours ago". It takes the place of what's below (Stage 3 spec §15).
+    ///   - lastSeen: where a plane that's out of sight was last seen, as `FactsWording.lastSeen` words it: "near
+    ///     Montréal", "over Québec" or "2 hours ago". It follows what's below, which is then a best guess
+    ///     (Stage 3 spec §15, best guesses design §2).
     static func liveSummary(for leg: MapLeg, over place: String? = nil, lastSeen: String? = nil, now: Date,
                             calendar: Calendar = .current, locale: Locale = .current) -> String? {
         guard let label = leg.flight?.progress(at: now).label else { return nil }
         let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
-        let over = lastSeen.map { ", last seen \($0)" } ?? place.map { ", over \($0)" } ?? ""
+        let over = (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last seen \($0)" } ?? "")
         let time = clockTime(leg.end, in: calendar.timeZone, locale: locale)
         let arrival: String
         switch label {

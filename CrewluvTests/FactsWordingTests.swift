@@ -61,31 +61,48 @@ final class FactsWordingTests: XCTestCase {
         XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: later, now: now, isEstimate: true, calendar: calendar, locale: locale)),
                        "Passes 40 mi from home at about 4:14 PM")
         XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: now, now: later, isEstimate: true, calendar: calendar, locale: locale)),
-                       "Closest to home was 40 mi at 3:14 PM")
+                       "Closest to home was 40 mi at about 3:14 PM", "where nobody saw the plane pass, it's still a best guess")
     }
 
-    // MARK: - The real plane (Stage 3 spec §8)
+    func test_listLine_aBestGuess_saysAboutBeforeItsTime() {
+        let seen = Milestone(kind: .outOver("the Pacific"), time: now)
+        let guessed = Milestone(kind: .outOver("the Pacific"), time: now, isEstimate: true)
+        XCTAssertEqual(plain(FactsWording.listLine(for: seen, calendar: calendar, locale: locale)), "Out over the Pacific · 3:14 PM")
+        XCTAssertEqual(plain(FactsWording.listLine(for: guessed, calendar: calendar, locale: locale)), "Out over the Pacific · about 3:14 PM")
+        let halfway = Milestone(kind: .halfway, time: now, isEstimate: true)
+        XCTAssertEqual(plain(FactsWording.listLine(for: halfway, calendar: calendar, locale: locale)), "Halfway · about 3:14 PM")
+    }
 
-    func test_lastSeen_theCityByIt_elseThePlaceUnderIt_elseHowLongAgo() {
+    // MARK: - The real plane (Stage 3 spec §8, best guesses design §2)
+
+    func test_lastSeenLine_theCityByIt_elseThePlaceUnderIt_andHowLongAgo() {
+        let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
+        let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: city, ago: 600), "Last seen near Montréal · 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: nil, ago: 7_800), "Last seen over Québec · 2 h 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 7_200), "Last seen 2 h ago")
+    }
+
+    func test_lastSeen_forVoiceOver_theCityByIt_elseThePlaceUnderIt_elseHowLongAgo() {
         let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
         let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
         XCTAssertEqual(FactsWording.lastSeen(place, near: city, ago: 600), "near Montréal")
         XCTAssertEqual(FactsWording.lastSeen(place, near: nil, ago: 600), "over Québec")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 600), "10 min ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_200), "2 h ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800), "2 h 10 min ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800, isSpoken: true), "2 hours 10 minutes ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 600), "10 minutes ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800), "2 hours 10 minutes ago")
     }
 
     func test_lastSeen_aTimeThatCantBeRight_isHeldFromAMinuteToAYear() {
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 20), "1 min ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: -500), "1 min ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .infinity), "8760 h ago")
-        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 20), "Last seen 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: -500), "Last seen 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .infinity), "Last seen 8760 h ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .nan), "Last seen 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 minute ago")
     }
 
-    func test_estimated_saysSoFirst() {
-        XCTAssertEqual(FactsWording.estimated(lastSeen: "near Montréal"), "Estimated · last seen near Montréal")
+    func test_inTheAir_saysNow_butNotInAReplay() {
+        XCTAssertEqual(FactsWording.inTheAir(isReplay: false), "In the air now")
+        XCTAssertEqual(FactsWording.inTheAir(isReplay: true), "In the air")
     }
 
     func test_aircraft_itsTypeAndRegistration_eachWhereItsKnown() {

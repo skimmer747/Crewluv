@@ -43,8 +43,8 @@ nonisolated struct TripFacts {
     // MARK: - The headline (§4.4)
 
     /// In flight: a milestone from the last 5 minutes, else a cockpit sunrise or sunset in the next 30, else the place
-    /// below, else the landing countdown. While the real plane is an estimate, where it was last seen takes the
-    /// place below's turn (Stage 3 spec §9). Nil on the ground and on a drive, where Stage 1's words stay.
+    /// below, else the landing countdown. While the real plane is out of sight they're its best guesses, in the same
+    /// plain words (best guesses design §2). Nil on the ground and on a drive, where Stage 1's words stay.
     func headline(at date: Date) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
         let recent = milestones(on: leg).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
@@ -65,23 +65,26 @@ nonisolated struct TripFacts {
         return TripMapWording.panelHeadline(for: tripMap, at: date, calendar: calendar, locale: locale)
     }
 
-    /// "Over Kansas", "Over Québec, near Montréal", from the flight's story, read where the plane is. While the
-    /// real plane is an estimate, "Estimated · last seen near Montréal" (Stage 3 spec §8).
+    /// "Over Kansas", "Over Québec, near Montréal", from the flight's story, read where the plane is. A real plane
+    /// that's out of sight is where the plan has it, flying on from the last place it was seen, and reads the same.
     func belowText(on leg: MapLeg, at date: Date) -> String? {
         let plane = leg.plane(at: date, isReplay: isReplay)
-        if let unseenFor = plane.unseenFor {
-            return FactsWording.estimated(lastSeen: lastSeen(on: leg, ago: unseenFor))
-        }
         guard let place = stories[leg.id]?.place(atDistance: plane.distance) else { return nil }
         return FactsWording.below(place, near: geography?.city(near: plane.coordinate))
     }
 
-    /// Where an estimated plane was last seen: the city by it, else the place under it, else how long ago.
-    func lastSeen(on leg: MapLeg, ago: TimeInterval, isSpoken: Bool = false) -> String {
+    /// "Last seen near Montréal · 12 min ago", while the real plane is out of sight, or nil while it's seen.
+    func lastSeenLine(on leg: MapLeg, at date: Date) -> String? {
+        guard let unseenFor = leg.plane(at: date, isReplay: isReplay).unseenFor else { return nil }
+        let seen = lastSeenPlace(on: leg)
+        return FactsWording.lastSeenLine(seen.place, near: seen.city, ago: unseenFor)
+    }
+
+    /// What was under the real plane where it was last seen, and the city by it.
+    private func lastSeenPlace(on leg: MapLeg) -> (place: Geography.Place?, city: Geography.City?) {
         let path = leg.path
-        return FactsWording.lastSeen(stories[leg.id]?.place(atDistance: path.flownLength),
-                                     near: geography?.city(near: path.point(atDistance: path.flownLength)),
-                                     ago: ago, isSpoken: isSpoken)
+        return (stories[leg.id]?.place(atDistance: path.flownLength),
+                geography?.city(near: path.point(atDistance: path.flownLength)))
     }
 
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
@@ -130,8 +133,11 @@ nonisolated struct TripFacts {
                 let plane = leg.plane(at: now, isReplay: isReplay)
                 let below = stories[leg.id]?.place(atDistance: plane.distance)?.name
                 // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and
-                // while it's an estimate, where it was last seen (§15).
-                let lastSeen = plane.unseenFor.map { lastSeen(on: leg, ago: $0, isSpoken: true) }
+                // while it's out of sight, where it was last seen (§15).
+                let lastSeen = plane.unseenFor.map { ago -> String in
+                    let seen = lastSeenPlace(on: leg)
+                    return FactsWording.lastSeen(seen.place, near: seen.city, ago: ago)
+                }
                 if let live = TripMapWording.liveSummary(for: leg, over: below, lastSeen: lastSeen, now: now,
                                                          calendar: calendar, locale: locale) {
                     return live

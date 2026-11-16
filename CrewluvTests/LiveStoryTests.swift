@@ -97,27 +97,41 @@ final class LiveStoryTests: XCTestCase {
         assertMilestone(found[1], .halfway, at: "2026-03-20T11:35:00Z")
         assertMilestone(found[2], .outOver("the Test Sea"), at: "2026-03-20T11:51:35Z") // 5 mi offshore, by the coast snap
         assertMilestone(found[3], .closestToHome(miles: 35), at: "2026-03-20T12:07:00Z")
+        XCTAssertEqual(found.map(\.isEstimate), [false, false, false, false], "it was seen all the way")
     }
 
-    func test_milestones_aCrossingNobodySaw_isNotTold() throws {
-        // Nobody saw it from 4° E to 6.5° E, where it crossed into Bravo.
+    func test_milestones_aCrossingNobodySaw_isABestGuess() throws {
+        // Nobody saw it from 4° E (10:47) to 6.5° E (11:07), where it crossed into Bravo. On the straight join
+        // between the two it's at 5° E at 10:55.
         let found = milestones(try leg(seenUntil: "12:30", unseen: 4...6.5), home: home)
-        XCTAssertEqual(found.map(\.kind), [.halfway, .outOver("the Test Sea"), .closestToHome(miles: 35)])
+        XCTAssertEqual(found.map(\.kind), [.crossedInto("Bravo"), .halfway, .outOver("the Test Sea"), .closestToHome(miles: 35)])
+        XCTAssertEqual(found.map(\.isEstimate), [true, false, false, false])
+        if let crossing = found.first { assertMilestone(crossing, .crossedInto("Bravo"), at: "2026-03-20T10:55:00Z") }
     }
 
-    func test_milestones_theClosestPointToHome_whereNobodySawIt_isNotTold() throws {
+    func test_milestones_theClosestPointToHome_whereNobodySawIt_isABestGuess() throws {
         // Nobody saw it from 13° E to 15° E, where it passed home.
         let found = milestones(try leg(seenUntil: "12:30", unseen: 13...15), home: home)
-        XCTAssertEqual(found.map(\.kind), [.crossedInto("Bravo"), .halfway, .outOver("the Test Sea")])
+        XCTAssertEqual(found.map(\.kind), [.crossedInto("Bravo"), .halfway, .outOver("the Test Sea"), .closestToHome(miles: 35)])
+        XCTAssertEqual(found.map(\.isEstimate), [false, false, false, true])
     }
 
-    func test_milestones_aheadOfTheRealPlane_onlyHalfwayIsTold_andItsTimeIsAnEstimate() throws {
-        // Last seen at 3.75° E. Every crossing is still ahead: it isn't told until the plane is seen past it.
-        let leg = try leg(seenUntil: "10:45")
-        let found = milestones(leg, home: home)
+    func test_milestones_ofALegThatGoesNowhere_areHalfwayInTheMiddleOfItsTimeInTheAir() {
+        // It has no length, so halfway is timed as it always was: half its time in the air, 10:15 to 13:15.
+        let nowhere = FactsTestData.equatorFlight(from: 0, to: 0)
+        let found = milestones(nowhere)
         XCTAssertEqual(found.map(\.kind), [.halfway])
-        XCTAssertTrue(leg.isTimeEstimated(atDistance: leg.pathLength / 2))
-        XCTAssertGreaterThan(try XCTUnwrap(found.first).time, at("10:45"))
+        if let halfway = found.first { assertMilestone(halfway, .halfway, at: "2026-03-20T11:45:00Z") }
+    }
+
+    func test_milestones_aheadOfWhereThePlaneWasLastSeen_areBestGuesses() throws {
+        // Last seen at 3.75° E at 10:45. Everything is still ahead, where the plan has the plane flying on.
+        let found = milestones(try leg(seenUntil: "10:45"), home: home)
+        XCTAssertEqual(found.map(\.kind), [.crossedInto("Bravo"), .halfway, .outOver("the Test Sea"), .closestToHome(miles: 35)])
+        XCTAssertEqual(found.map(\.isEstimate), [true, true, true, true])
+        XCTAssertTrue(found.allSatisfy { $0.time > at("10:45") })
+        // At its own 450 kt it's at 5° E ten minutes after it was last seen.
+        if let crossing = found.first { assertMilestone(crossing, .crossedInto("Bravo"), at: "2026-03-20T10:55:00Z") }
     }
 
     func test_milestones_halfway_isHalfThePathsWholeLength() throws {
@@ -142,6 +156,7 @@ final class LiveStoryTests: XCTestCase {
             XCTAssertEqual(earlier.time.timeIntervalSince1970, later.time.timeIntervalSince1970, accuracy: 0.001)
         }
         XCTAssertEqual(before.map(\.kind), [.crossedInto("Bravo"), .halfway, .outOver("the Test Sea"), .closestToHome(miles: 35)])
+        XCTAssertEqual(after.map(\.isEstimate), [false, false, false, false], "the schedule is told as it is")
         if let first = before.first { assertMilestone(first, .crossedInto("Bravo"), at: "2026-03-20T11:00:00Z") }
     }
 }

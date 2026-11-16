@@ -30,25 +30,23 @@ nonisolated extension TripFacts {
             .compactMap { $0 }
     }
 
+    /// What's below, then where a plane that's out of sight was last seen, then the closest point to home. The
+    /// first of them that there is leads the row.
     private func belowRow(on leg: MapLeg, at date: Date) -> FactRow? {
-        let closest = closestToHomeLine(on: leg, at: date)
-        if let place = belowText(on: leg, at: date) {
-            return FactRow(.below, symbol: "mappin.and.ellipse", title: place, details: [closest])
-        }
-        return closest.map { FactRow(.below, symbol: "mappin.and.ellipse", title: $0) }
+        let lines = [belowText(on: leg, at: date), lastSeenLine(on: leg, at: date), closestToHomeLine(on: leg, at: date)]
+            .compactMap { $0 }
+        guard let title = lines.first else { return nil }
+        return FactRow(.below, symbol: "mappin.and.ellipse", title: title, details: Array(lines.dropFirst()))
     }
 
-    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. On a real
-    /// path it's told only where the plane was seen, or as what's still ahead of it, with "about": where nobody saw
-    /// the plane, the join is a guess (Stage 3 spec §8).
+    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Where
+    /// nobody saw the real plane it's a best guess, and its time reads "about" (best guesses design §2).
     private func closestToHomeLine(on leg: MapLeg, at date: Date) -> String? {
         guard let story = stories[leg.id], let closest = story.closestToHome else { return nil }
         let distance = closest.fraction * story.length
         guard let time = leg.time(atDistance: distance) else { return nil }
-        let isAhead = leg.isTimeEstimated(atDistance: distance)
-        guard leg.isSeen(atDistance: distance) || (isAhead && time > date) else { return nil }
         return FactsWording.closestToHome(miles: Milestone.roundedMiles(closest.meters), at: time, now: date,
-                                          isEstimate: isAhead, calendar: calendar, locale: locale)
+                                          isEstimate: !leg.isSeen(atDistance: distance), calendar: calendar, locale: locale)
     }
 
     /// The plane's row, for a flight Crewlu Cloud has seen (Stage 3 spec §8): "Boeing 767-300 · N370UP", then
@@ -88,7 +86,7 @@ nonisolated extension TripFacts {
         let totalMiles = leg.pathLength / GreatCircle.metersPerMile
         let flown = Int((plane.distance / GreatCircle.metersPerMile).rounded())
         let halfway = leg.halfwayTime.flatMap {
-            $0 > date ? FactsWording.halfway(at: $0, isEstimate: leg.isTimeEstimated(atDistance: leg.pathLength / 2),
+            $0 > date ? FactsWording.halfway(at: $0, isEstimate: !leg.isSeen(atDistance: leg.pathLength / 2),
                                              calendar: calendar, locale: locale) : nil
         }
         // The schedule's speed is told only of a flight with no live data: a real plane's row has its own.

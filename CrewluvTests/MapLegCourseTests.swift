@@ -102,16 +102,20 @@ final class MapLegCourseTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(leg.halfwayTime).timeIntervalSince1970, at("11:35").timeIntervalSince1970, accuracy: 30)
     }
 
-    func test_isTimeEstimated_aheadOfWhereTheRealPlaneWasLastSeen() throws {
-        let leg = try live(seenUntil: "11:10")
-        XCTAssertFalse(leg.isTimeEstimated(atDistance: meters(5)), "it was seen there")
-        XCTAssertTrue(leg.isTimeEstimated(atDistance: meters(10)), "it isn't there yet")
-        XCTAssertFalse(schedule.isTimeEstimated(atDistance: meters(10)), "the schedule's times aren't the real plane's estimate")
-
+    func test_isSeen_ofAFlightSeenToItsLanding_isTrueAllTheWay() throws {
         let landedAt = FactsTestData.liveTime(atLongitude: 20)
         let landed = try FactsTestData.equatorLiveLeg(
             FactsTestData.equatorLive(seenUntil: FactsTestData.liveTime(atLongitude: 19.75), landedAt: landedAt), at: landedAt)
-        XCTAssertFalse(landed.isTimeEstimated(atDistance: meters(19.9)), "it has landed: every time is real")
+        XCTAssertTrue(landed.isSeen(atDistance: meters(5)))
+        XCTAssertTrue(landed.isSeen(atDistance: meters(19.9)), "it was seen down two minutes after it was last seen in the air")
+    }
+
+    func test_isSeen_overALandingNobodySaw_isFalse() throws {
+        // Last seen at 15.625° E at 12:30, and seen down at 20° E 25 minutes later: nobody saw its approach.
+        let landedAt = FactsTestData.liveTime(atLongitude: 20)
+        let leg = try FactsTestData.equatorLiveLeg(FactsTestData.equatorLive(seenUntil: at("12:30"), landedAt: landedAt), at: landedAt)
+        XCTAssertTrue(leg.isSeen(atDistance: meters(15)))
+        XCTAssertFalse(leg.isSeen(atDistance: meters(18)))
     }
 
     func test_isSeen_onlyWhereTheRealPlaneWasSeen() throws {

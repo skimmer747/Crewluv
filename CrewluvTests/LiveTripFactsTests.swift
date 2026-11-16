@@ -69,35 +69,38 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertEqual(try row(.below, in: rows).title, "Over Bravo")
     }
 
-    func test_headline_whileEstimated_isWhereItWasLastSeen() throws {
-        // Last seen at 6.875° E ten minutes ago: no city within 40 mi.
-        XCTAssertEqual(try facts(seenUntil: "11:10", now: "11:20").headline(at: at("11:20")), "Estimated · last seen over Bravo")
-        // Last seen at 6° E, 21 mi from Testville.
-        XCTAssertEqual(try facts(seenUntil: "11:03", now: "11:13").headline(at: at("11:13")), "Estimated · last seen near Testville")
+    func test_headline_whileOutOfSight_isWhatsBelowWhereThePlanHasThePlane() throws {
+        // Last seen over Alpha, at 4.375° E at 10:50. Eleven minutes on at its own 450 kt it's at 5.75° E: over
+        // Bravo, 25 mi from Testville. The words are as plain as when it's seen.
+        XCTAssertEqual(try facts(seenUntil: "10:50", now: "11:01").headline(at: at("11:01")), "Over Bravo, near Testville")
+        // Last seen at 6.875° E ten minutes ago, it's at 8.125° E by now: no city within 40 mi.
+        XCTAssertEqual(try facts(seenUntil: "11:10", now: "11:20").headline(at: at("11:20")), "Over Bravo")
     }
 
-    func test_headline_whileEstimated_withNoPlaceKnown_isHowLongAgo_neverTheCountdown() throws {
+    func test_headline_whileOutOfSight_withNoPlaceKnown_isTheLandingCountdown() throws {
+        // It lands at 13:11:47 by its estimate: 112 minutes after 11:20.
         let facts = try facts(seenUntil: "11:10", now: "11:20", hasStory: false)
-        XCTAssertEqual(facts.headline(at: at("11:20")), "Estimated · last seen 10 min ago")
+        XCTAssertEqual(facts.headline(at: at("11:20")), "Landing in 1 h 52 min")
     }
 
-    func test_headline_whileEstimated_keepsItsOrder() throws {
-        // Last seen at 9.375° E at 11:30. By its estimate it's halfway at 11:35: a milestone still leads for five
-        // minutes, and then where it was last seen takes what's below's place.
+    func test_headline_whileOutOfSight_keepsItsOrder() throws {
+        // Last seen at 9.375° E at 11:30. By the plan it's halfway at 11:35: that leads for five minutes, and then
+        // what's below does.
         let facts = try facts(seenUntil: "11:30", now: "11:37")
         XCTAssertEqual(facts.headline(at: at("11:37")), "Halfway!")
-        XCTAssertEqual(facts.headline(at: at("11:41")), "Estimated · last seen over Bravo")
+        XCTAssertEqual(facts.headline(at: at("11:41")), "Over Bravo")
     }
 
-    func test_headline_whileEstimated_tellsNoCrossingNobodySaw() throws {
-        // Last seen at 4.375° E at 10:50. By 11:00 its estimate is past the border at 5° E, and nobody saw it cross.
-        XCTAssertEqual(try facts(seenUntil: "10:50", now: "11:00").headline(at: at("11:00")), "Estimated · last seen over Alpha")
+    func test_headline_whileOutOfSight_tellsACrossingAsItsBestGuess() throws {
+        // Last seen at 4.375° E at 10:50. By the plan it crosses the border at 5° E at 10:55, and nobody saw it.
+        XCTAssertEqual(try facts(seenUntil: "10:50", now: "10:58").headline(at: at("10:58")), "Just crossed into Bravo")
+        XCTAssertEqual(try facts(seenUntil: "10:50", now: "10:54").headline(at: at("10:54")), "Over Alpha", "not there yet, by the plan")
     }
 
     func test_headline_inAReplay_isWhereTheRecordHasThePlane() throws {
         let facts = try facts(seenUntil: "11:10", isReplay: true)
         XCTAssertEqual(facts.headline(at: at("10:35")), "Over Alpha", "2.5° E at 10:35")
-        XCTAssertEqual(facts.headline(at: at("11:25")), "Estimated · last seen over Bravo", "past where it was last seen")
+        XCTAssertEqual(facts.headline(at: at("11:25")), "Over Bravo", "past where it was last seen, at 8.75° E by the plan")
     }
 
     // MARK: - The rows (§8)
@@ -125,9 +128,20 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertEqual(plain(try row(.headed, in: rows).title), "Lands E20 about 9:11 AM")
     }
 
-    func test_rows_whileEstimated_sayWhereItWasLastSeen_andLeaveOutItsHeightAndSpeed() throws {
+    func test_rows_whileOutOfSight_sayWhereItWasLastSeenUnderWhatsBelow_andLeaveOutItsHeightAndSpeed() throws {
         let rows = try facts(seenUntil: "11:10", now: "11:20").rows(at: at("11:20"), now: at("11:20"))
-        XCTAssertEqual(try row(.below, in: rows).title, "Estimated · last seen over Bravo")
+        let below = try row(.below, in: rows)
+        XCTAssertEqual(below.title, "Over Bravo")
+        XCTAssertEqual(plain(below.detail), "Last seen over Bravo · 10 min ago · Passes 35 mi from home at about 8:07 AM")
+
+        // Last seen at 6° E, 21 mi from Testville.
+        let byACity = try facts(seenUntil: "11:03", now: "11:13").rows(at: at("11:13"), now: at("11:13"))
+        XCTAssertEqual(plain(try row(.below, in: byACity).detail), "Last seen near Testville · 10 min ago · Passes 35 mi from home at about 8:07 AM")
+
+        // With no place known, when it was last seen leads the row.
+        let noPlace = try facts(seenUntil: "11:10", now: "11:20", hasStory: false).rows(at: at("11:20"), now: at("11:20"))
+        XCTAssertEqual(try row(.below, in: noPlace).title, "Last seen 10 min ago")
+        XCTAssertNil(try row(.below, in: noPlace).detail)
 
         let plane = try row(.plane, in: rows)
         XCTAssertEqual(plane.title, "Boeing 767-300 · N370UP")
@@ -153,10 +167,10 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertEqual(plain(try row(.distance, in: rows).detail), "Halfway at 7:35 AM · like driving the Alaska Highway")
     }
 
-    func test_rows_theClosestPointToHome_whereNobodySawIt_isLeftOut() throws {
+    func test_rows_theClosestPointToHome_whereNobodySawIt_isABestGuess_withAbout() throws {
         // Nobody saw it from 13° E to 15° E, where it passed home.
         let rows = try facts(seenUntil: "12:30", unseen: 13...15).rows(at: at("12:30"), now: at("12:30"))
-        XCTAssertNil(try row(.below, in: rows).detail)
+        XCTAssertEqual(plain(try row(.below, in: rows).detail), "Closest to home was 35 mi at about 8:07 AM")
         // Seen all the way, it's told with its real time.
         let seen = try facts(seenUntil: "12:30").rows(at: at("12:30"), now: at("12:30"))
         XCTAssertEqual(plain(try row(.below, in: seen).detail), "Closest to home was 35 mi at 8:07 AM")
@@ -197,9 +211,9 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertEqual(tripSoFar.totals, "Day 1 of 1 · 173 mi")
     }
 
-    func test_tripSoFar_aCrossingNobodySaw_isNotListed() throws {
+    func test_tripSoFar_aCrossingNobodySaw_isListedWithAbout() throws {
         let tripSoFar = try facts(seenUntil: "11:10", unseen: 4...6.5).tripSoFar(at: at("11:10"))
-        XCTAssertEqual(tripSoFar.flights, [])
+        XCTAssertEqual(tripSoFar.flights.first?.milestones.map { plain($0) }, ["Crossed into Bravo · about 6:55 AM"])
     }
 
     func test_showsLiveData_whenAFlightOfTheTripHasIt() throws {
@@ -216,11 +230,11 @@ final class LiveTripFactsTests: XCTestCase {
                        "TST1 to E20, 10 minutes ahead of schedule, over Bravo. Lands about 9:11 AM your time.")
     }
 
-    func test_cardSummary_whileEstimated_saysAbout_andWhereItWasLastSeen() throws {
-        XCTAssertEqual(plain(try facts(seenUntil: "11:10", now: "11:20").cardSummary(now: at("11:20"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, last seen over Bravo. Lands about 9:11 AM your time.")
+    func test_cardSummary_whileOutOfSight_saysAbout_whatsBelowByThePlan_andWhereItWasLastSeen() throws {
+        XCTAssertEqual(plain(try facts(seenUntil: "10:50", now: "11:01").cardSummary(now: at("11:01"), pilotName: "Alex")),
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen over Alpha. Lands about 9:11 AM your time.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:03", now: "11:13").cardSummary(now: at("11:13"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, last seen near Testville. Lands about 9:11 AM your time.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen near Testville. Lands about 9:11 AM your time.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:10", now: "11:20", hasStory: false).cardSummary(now: at("11:20"), pilotName: "Alex")),
                        "TST1 to E20, about 10 minutes ahead of schedule, last seen 10 minutes ago. Lands about 9:11 AM your time.")
     }

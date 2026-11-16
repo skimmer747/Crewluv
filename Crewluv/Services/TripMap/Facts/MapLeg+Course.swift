@@ -47,16 +47,9 @@ nonisolated extension MapLeg {
         return time(atFraction: 0.5)
     }
 
-    /// Whether the time the plane reaches `distance` meters along its path is an estimate, which the words mark
-    /// with "about" (spec §9): it's ahead of where the real plane was last seen.
-    func isTimeEstimated(atDistance distance: Double) -> Bool {
-        guard let path = flight?.path, path.isReal else { return false }
-        return !path.hasLanded && distance > path.flownLength
-    }
-
-    /// Whether the plane was seen `distance` meters along its path, so a crossing there can be told. Where nobody
-    /// saw it the straight join is a guess, and a crossing is a claim. A flight with no real path flies the
-    /// schedule, which tells every one.
+    /// Whether the plane was seen `distance` meters along its path. Where nobody saw it, on a stretch with no
+    /// coverage or past the last place it was seen, what happens there is a best guess, and its time reads
+    /// "about" (best guesses design §1). A flight with no real path flies the schedule, which is told as it is.
     func isSeen(atDistance distance: Double) -> Bool {
         guard let path = flight?.path, path.isReal else { return true }
         return path.kind(atDistance: distance) == .seen

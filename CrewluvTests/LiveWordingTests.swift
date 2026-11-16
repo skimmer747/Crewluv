@@ -165,11 +165,14 @@ final class LiveWordingTests: XCTestCase {
                        "UPS207 to Philadelphia, about 14 minutes ahead of schedule. Lands about 8:30 AM your time.")
     }
 
-    func test_liveSummary_whileEstimated_saysWhereItWasLastSeen_inPlaceOfWhatsBelow() throws {
+    func test_liveSummary_whileOutOfSight_saysWhatsBelowByThePlan_andWhereItWasLastSeen() throws {
         let (leg, at) = try leg(of: "ahead, in the air", at: "13T12:45:00")
         let summary = TripMapWording.liveSummary(for: leg, over: "Ohio", lastSeen: "near Columbus", now: at, calendar: calendar, locale: locale)
         XCTAssertEqual(plain(try XCTUnwrap(summary)),
-                       "UPS207 to Philadelphia, about 14 minutes ahead of schedule, last seen near Columbus. Lands about 8:30 AM your time.")
+                       "UPS207 to Philadelphia, about 14 minutes ahead of schedule, over Ohio, last seen near Columbus. Lands about 8:30 AM your time.")
+        let noPlace = TripMapWording.liveSummary(for: leg, lastSeen: "12 minutes ago", now: at, calendar: calendar, locale: locale)
+        XCTAssertEqual(plain(try XCTUnwrap(noPlace)),
+                       "UPS207 to Philadelphia, about 14 minutes ahead of schedule, last seen 12 minutes ago. Lands about 8:30 AM your time.")
     }
 
     func test_liveSummary_stillOnTheGround_saysSo_andWhenItWillLand() throws {

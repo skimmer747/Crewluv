@@ -23,9 +23,10 @@ nonisolated enum FactsWording {
         }
     }
 
-    /// The tall stop's list: "Crossed into Kansas · 1:12 PM".
+    /// The tall stop's list: "Crossed into Kansas · 1:12 PM". A best guess reads "about": "Out over the Pacific ·
+    /// about 4:05 PM" (best guesses design §2).
     static func listLine(for milestone: Milestone, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let time = TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+        let time = (milestone.isEstimate ? "about " : "") + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
         switch milestone.kind {
         case .crossedInto(let name): return "Crossed into \(name) · \(time)"
         case .outOver(let name): return "Out over \(name) · \(time)"
@@ -47,31 +48,38 @@ nonisolated enum FactsWording {
         city.map { "Over \(place.name), near \($0.name)" } ?? "Over \(place.name)"
     }
 
-    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Ahead of a
-    /// real plane the time is its estimate: "Passes 40 mi from home at about 1:05 PM" (Stage 3 spec §9).
+    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Where
+    /// nobody saw the real plane the time is a best guess: "Passes 40 mi from home at about 1:05 PM".
     static func closestToHome(miles: Int, at time: Date, now: Date, isEstimate: Bool = false,
                               calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let clock = TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
-        guard time > now else { return "Closest to home was \(miles) mi at \(clock)" }
-        return "Passes \(miles) mi from home at \(isEstimate ? "about " : "")\(clock)"
+        let clock = (isEstimate ? "about " : "") + TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
+        return time > now ? "Passes \(miles) mi from home at \(clock)" : "Closest to home was \(miles) mi at \(clock)"
     }
 
     // MARK: - The real plane (Stage 3 spec §8)
 
-    /// The headline and the "below" row while the real plane is an estimate: "Estimated · last seen near Montréal".
-    static func estimated(lastSeen: String) -> String {
-        "Estimated · last seen \(lastSeen)"
+    /// Under what's below, while the real plane is out of sight: "Last seen near Montréal · 12 min ago", by a
+    /// city of a million or more, else "Last seen over Québec · 12 min ago", else "Last seen 12 min ago". It's the
+    /// one line that says the place above it is worked out, not seen (best guesses design §2).
+    static func lastSeenLine(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval) -> String {
+        let time = "\(TripMapWording.minutesText(minutes(ago: ago))) ago"
+        if let city { return "Last seen near \(city.name) · \(time)" }
+        if let place { return "Last seen over \(place.name) · \(time)" }
+        return "Last seen \(time)"
     }
 
-    /// Where an estimated plane was last seen: "near Montréal" by a city of a million or more, else "over Québec",
-    /// else how long ago, "2 h ago". `isSpoken` writes that out for VoiceOver: "2 hours ago".
-    static func lastSeen(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval, isSpoken: Bool = false) -> String {
+    /// Where a plane that's out of sight was last seen, for VoiceOver's sentence: "near Montréal" by a city of a
+    /// million or more, else "over Québec", else how long ago, "2 hours ago".
+    static func lastSeen(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval) -> String {
         if let city { return "near \(city.name)" }
         if let place { return "over \(place.name)" }
-        // Held from a minute to a year, so a time that can't be right never overflows.
-        let asked = (ago / 60).rounded()
-        let minutes = asked.isNaN ? 1 : Int(min(max(asked, 1), 365 * 24 * 60))
-        return "\(isSpoken ? TripMapWording.spokenMinutes(minutes) : TripMapWording.minutesText(minutes)) ago"
+        return "\(TripMapWording.spokenMinutes(minutes(ago: ago))) ago"
+    }
+
+    /// The tag on the flight between its gates, in the list: "In the air now", or "In the air" at a moment of
+    /// the replay (best guesses design §4).
+    static func inTheAir(isReplay: Bool) -> String {
+        isReplay ? "In the air" : "In the air now"
     }
 
     /// The plane's row: "Boeing 767-300 · N370UP". An unknown type code shows as itself, and a missing type or
@@ -221,6 +229,13 @@ nonisolated enum FactsWording {
 
     private static func name(of kind: SkyFacts.SunEvent.Kind) -> String {
         kind == .sunrise ? "Sunrise" : "Sunset"
+    }
+
+    /// Whole minutes for a length of time, held from a minute to a year, so one that can't be right never
+    /// overflows.
+    private static func minutes(ago: TimeInterval) -> Int {
+        let asked = (ago / 60).rounded()
+        return asked.isNaN ? 1 : Int(min(max(asked, 1), 365 * 24 * 60))
     }
 
     /// `text` without the spaces around it, or nil when nothing is left.

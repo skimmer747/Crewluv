@@ -22,16 +22,25 @@ nonisolated struct Milestone: Equatable, Sendable {
 
     let kind: Kind
     let time: Date
+    /// Nobody saw the plane where this happened, so it's a best guess from where the plan has the plane, and its
+    /// time reads "about" (best guesses design §2).
+    let isEstimate: Bool
+
+    init(kind: Kind, time: Date, isEstimate: Bool = false) {
+        self.kind = kind
+        self.time = time
+        self.isEstimate = isEstimate
+    }
 
     /// How long a milestone leads the headline.
     static let headlineDuration: TimeInterval = 5 * 60
 
     /// A flight's milestones in time order, from its story and the leg's own times: the real plane's along a real
-    /// path, else the schedule's. On a real path a crossing, or the closest point to home, counts only where the
-    /// plane was seen (Stage 3 spec §8): where nobody saw it the straight join is a guess, and a crossing is a
-    /// claim. Halfway is half the path's whole length, flown and ahead.
+    /// path, else the schedule's. Where nobody saw the real plane, on a stretch with no coverage or past the last
+    /// place it was seen, a milestone is a best guess from where the plan has the plane, and says so
+    /// (`isEstimate`). Halfway is half the path's whole length, flown and ahead.
     static func milestones(on leg: MapLeg, story: LegStory) -> [Milestone] {
-        var found: [(kind: Kind, distance: Double, time: Date?)] = []
+        var found: [(kind: Kind, distance: Double)] = []
         // The state or province the plane is in, kept across a stretch where only the country is known.
         var region = story.stretches.first.flatMap { isRegion($0.place) ? $0.place.name : nil }
         for (previous, next) in zip(story.stretches, story.stretches.dropFirst()) {
@@ -45,21 +54,22 @@ nonisolated struct Milestone: Equatable, Sendable {
             }
             // Back into the state it was already in, after such a gap, is no crossing.
             if isRegion(next.place), isSameCountry, next.place.name == region { continue }
-            let distance = next.start * story.length
-            if let kind = crossingKind(from: previous.place, to: next.place), leg.isSeen(atDistance: distance) {
-                found.append((kind, distance, leg.time(atDistance: distance)))
+            if let kind = crossingKind(from: previous.place, to: next.place) {
+                found.append((kind, next.start * story.length))
             }
         }
-        found.append((.halfway, leg.pathLength / 2, leg.halfwayTime))
+        found.append((.halfway, leg.pathLength / 2))
         if let closest = story.closestToHome {
-            let distance = closest.fraction * story.length
-            if leg.isSeen(atDistance: distance) {
-                found.append((.closestToHome(miles: roundedMiles(closest.meters)), distance, leg.time(atDistance: distance)))
-            }
+            found.append((.closestToHome(miles: roundedMiles(closest.meters)), closest.fraction * story.length))
         }
         return found.enumerated()
             .sorted { ($0.element.distance, $0.offset) < ($1.element.distance, $1.offset) }
-            .compactMap { item in item.element.time.map { Milestone(kind: item.element.kind, time: $0) } }
+            .compactMap { item in
+                let time = item.element.kind == .halfway ? leg.halfwayTime : leg.time(atDistance: item.element.distance)
+                return time.map {
+                    Milestone(kind: item.element.kind, time: $0, isEstimate: !leg.isSeen(atDistance: item.element.distance))
+                }
+            }
     }
 
     /// To the nearest 5 mi, and never under 5.
