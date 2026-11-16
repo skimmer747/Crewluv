@@ -201,19 +201,39 @@ final class LiveTripFactsTests: XCTestCase {
 
     func test_tripSoFar_countsTheMilesAlongTheRealPath_andListsRealTimes() throws {
         let tripSoFar = try facts(seenUntil: "11:10").tripSoFar(at: at("11:10"))
-        XCTAssertEqual(tripSoFar.flights.first?.milestones.map { plain($0) }, ["Crossed into Bravo · 6:55 AM"])
+        XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, ["Crossed into Bravo · 6:55 AM"])
+        XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [false])
         XCTAssertEqual(tripSoFar.totals, "Day 1 of 1 · 475 mi")
     }
 
-    func test_tripSoFar_inAReplay_countsAsFarAsTheRecordHasThePlane() throws {
-        let tripSoFar = try facts(seenUntil: "11:10", isReplay: true).tripSoFar(at: at("10:35"))
-        XCTAssertEqual(tripSoFar.flights, [], "at 10:35 it hadn't crossed into Bravo yet")
-        XCTAssertEqual(tripSoFar.totals, "Day 1 of 1 · 173 mi")
+    func test_tripSoFar_theFlightInTheAir_isSetApart_evenBeforeItsFirstEvent() throws {
+        let now = try facts(seenUntil: "10:35").tripSoFar(at: at("10:35"))
+        XCTAssertEqual(now.flights.map(\.tag), ["In the air now"])
+        XCTAssertEqual(now.flights.first?.events, [], "at 10:35 it hasn't crossed into Bravo yet")
+
+        let replayed = try facts(seenUntil: "11:10", isReplay: true).tripSoFar(at: at("10:35"))
+        XCTAssertEqual(replayed.flights.map(\.tag), ["In the air"], "a replay's moment isn't now")
+        XCTAssertEqual(replayed.totals, "Day 1 of 1 · 173 mi")
     }
 
-    func test_tripSoFar_aCrossingNobodySaw_isListedWithAbout() throws {
+    func test_tripSoFar_listsTheNewestEventFirst() throws {
+        let tripSoFar = try facts(seenUntil: "12:30").tripSoFar(at: at("12:30"))
+        XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, [
+            "Closest to home, 35 mi · 8:07 AM", "Out over the Test Sea · 7:51 AM", "Halfway · 7:35 AM", "Crossed into Bravo · 6:55 AM",
+        ])
+    }
+
+    func test_tripSoFar_aCrossingNobodySaw_isListedAsABestGuess() throws {
+        // Nobody saw it from 4° E to 6.5° E. On the straight join it crossed into Bravo at 10:55.
         let tripSoFar = try facts(seenUntil: "11:10", unseen: 4...6.5).tripSoFar(at: at("11:10"))
-        XCTAssertEqual(tripSoFar.flights.first?.milestones.map { plain($0) }, ["Crossed into Bravo · about 6:55 AM"])
+        XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, ["Crossed into Bravo · about 6:55 AM"])
+        XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [true])
+    }
+
+    func test_tripSoFar_whileOutOfSight_listsWhatThePlanHasHappened() throws {
+        // Last seen at 4.375° E at 10:50. By the plan it crossed into Bravo at 10:55.
+        let tripSoFar = try facts(seenUntil: "10:50", now: "11:01").tripSoFar(at: at("11:01"))
+        XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, ["Crossed into Bravo · about 6:55 AM"])
     }
 
     func test_showsLiveData_whenAFlightOfTheTripHasIt() throws {

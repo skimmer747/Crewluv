@@ -21,6 +21,13 @@ nonisolated extension TripFacts {
         return layoverRows(at: date, now: now)
     }
 
+    /// Whether the rows at `date` have a "Trip so far" row: on a drive, and on a layover.
+    func hasTripSoFarRow(at date: Date) -> Bool {
+        if let leg = tripMap.legInMotion(at: date) { return leg.kind == .drive }
+        if isRecapOver(at: date) { return false }
+        return !(tripMap.mode == .nextTrip && date < tripMap.span.start)
+    }
+
     // MARK: - In flight (§5.1)
 
     private func flightRows(on leg: MapLeg, at date: Date, now: Date) -> [FactRow] {
