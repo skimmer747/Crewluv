@@ -164,9 +164,59 @@ final class TripFactsTests: XCTestCase {
 
     // MARK: - The card (§6.4, §6.5)
 
-    func test_cardSummary_inFlight_addsThePlaceBelow() {
+    func test_cardSummary_inFlight_addsThePlaceBelow_andTheLatestEvent() {
         XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Estimated from the schedule.")
+                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Estimated from the schedule. Latest: crossed into Bravo, 10 minutes ago.")
+        XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("10:50"), pilotName: "Alex")),
+                       "TST1 to E20, over Alpha. Lands at 9:22 AM your time. Estimated from the schedule.", "before its first event")
+    }
+
+    // MARK: - The latest event (latest event design §1)
+
+    func test_latestEvent_isTheNewest_untilTheNext() throws {
+        let facts = equatorFacts()
+        XCTAssertNil(facts.latestEvent(at: at("10:59")), "before the first event")
+        let crossed = try XCTUnwrap(facts.latestEvent(at: FactsTestData.date("2026-03-20T11:00:30Z")))
+        XCTAssertEqual(crossed, LatestEvent(title: "Crossed into Bravo", when: "Just now", sentence: "Latest: crossed into Bravo, just now."))
+        XCTAssertEqual(facts.latestEvent(at: at("11:12"))?.when, "12 min ago")
+        XCTAssertEqual(facts.latestEvent(at: at("11:44"))?.title, "Crossed into Bravo", "it stays until the next")
+        XCTAssertEqual(facts.latestEvent(at: at("11:46"))?.title, "Halfway")
+        XCTAssertEqual(facts.latestEvent(at: at("12:10"))?.title, "Out over the Test Sea")
+        let closest = try XCTUnwrap(facts.latestEvent(at: at("12:40")))
+        XCTAssertEqual(closest.title, "Closest to home, 35 mi")
+        XCTAssertEqual(closest.when, "19 min ago")
+        XCTAssertEqual(closest.sentence, "Latest: closest to home, 35 miles, 19 minutes ago.")
+        XCTAssertNil(facts.latestEvent(at: at("13:30")), "it has reached the gate")
+    }
+
+    func test_latestEvent_beforeTheStoryIsReady_isNil_andTheCardSaysNothingOfIt() {
+        let facts = equatorFacts(hasStory: false)
+        XCTAssertNil(facts.latestEvent(at: at("11:10")))
+        XCTAssertEqual(plain(facts.cardSummary(now: at("11:10"), pilotName: "Alex")),
+                       "TST1 to E20. Lands at 9:22 AM your time. Estimated from the schedule.")
+    }
+
+    func test_latestEvent_inAReplay_saysItsClockTime() {
+        var facts = equatorFacts()
+        facts.isReplay = true
+        XCTAssertEqual(plain(facts.latestEvent(at: at("11:12"))?.when), "7:00 AM")
+    }
+
+    func test_latestEvent_onTheGround_isNil() throws {
+        let at = TripMapTestLegs.tripStart.addingTimeInterval(12 * 3600)
+        let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: at))
+        let facts = TripFacts(tripMap: map, geography: FactsTestData.equator, comparisons: nil,
+                              stories: Dictionary(uniqueKeysWithValues: map.legs.map { ($0.id, LegStory(leg: $0, geography: FactsTestData.equator, home: nil)) }),
+                              sunEvents: [:])
+        XCTAssertNil(facts.latestEvent(at: at))
+    }
+
+    func test_headline_besideTheBanner_leavesEventsOut() {
+        let facts = equatorFacts()
+        XCTAssertEqual(facts.headline(at: at("11:02")), "Just crossed into Bravo", "as before, where the shared cases read it")
+        XCTAssertEqual(facts.headline(at: at("11:02"), includesEvents: false), "Over Bravo")
+        XCTAssertEqual(facts.headline(at: at("11:46"), includesEvents: false), "Over Bravo")
+        XCTAssertEqual(facts.sheetHeadline(at: at("11:02")), "Over Bravo", "the banner is on the map above the sheet")
     }
 
     func test_recap_tilesLongestAndSummary() throws {

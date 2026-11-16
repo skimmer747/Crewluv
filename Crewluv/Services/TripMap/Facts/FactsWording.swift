@@ -26,13 +26,54 @@ nonisolated enum FactsWording {
     /// The tall stop's list: "Crossed into Kansas · 1:12 PM". A best guess reads "about": "Out over the Pacific ·
     /// about 4:05 PM" (best guesses design §2).
     static func listLine(for milestone: Milestone, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let time = (milestone.isEstimate ? "about " : "") + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
-        switch milestone.kind {
-        case .crossedInto(let name): return "Crossed into \(name) · \(time)"
-        case .outOver(let name): return "Out over \(name) · \(time)"
-        case .halfway: return "Halfway · \(time)"
-        case .closestToHome(let miles): return "Closest to home, \(miles) mi · \(time)"
+        "\(eventTitle(for: milestone.kind)) · \(clock(of: milestone, calendar: calendar, locale: locale))"
+    }
+
+    /// What an event was, on its own: "Crossed into Kansas", "Out over the Atlantic", "Halfway", "Closest to home,
+    /// 40 mi". The latest event's banner shows it large (latest event design §1).
+    static func eventTitle(for kind: Milestone.Kind) -> String {
+        switch kind {
+        case .crossedInto(let name): "Crossed into \(name)"
+        case .outOver(let name): "Out over \(name)"
+        case .halfway: "Halfway"
+        case .closestToHome(let miles): "Closest to home, \(miles) mi"
         }
+    }
+
+    /// When an event was, under it in the banner: "Just now" in its first minute, then "12 min ago". A best guess
+    /// says so: "About now", "About 12 min ago". At a moment of the replay, where "ago" means nothing, its clock
+    /// time: "10:37 AM", "About 10:37 AM".
+    static func eventWhen(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
+                          calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let about = milestone.isEstimate ? "About " : ""
+        if isReplay {
+            return about + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+        }
+        guard let minutes = minutesSince(milestone.time, at: date) else { return milestone.isEstimate ? "About now" : "Just now" }
+        return "\(about)\(TripMapWording.minutesText(minutes)) ago"
+    }
+
+    /// The banner as VoiceOver reads it: "Latest: crossed into Canada, 12 minutes ago.", "Latest: halfway, about
+    /// 40 minutes ago.", or at a moment of the replay "Latest: crossed into Canada, at 10:37 AM."
+    static func spokenLatestEvent(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
+                                  calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let what: String
+        switch milestone.kind {
+        case .closestToHome(let miles): what = "closest to home, \(miles) miles"
+        default:
+            let title = eventTitle(for: milestone.kind)
+            what = title.prefix(1).lowercased() + title.dropFirst()
+        }
+        let about = milestone.isEstimate ? "about " : ""
+        let when: String
+        if isReplay {
+            when = "at \(about)\(TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale))"
+        } else if let minutes = minutesSince(milestone.time, at: date) {
+            when = "\(about)\(TripMapWording.spokenMinutes(minutes)) ago"
+        } else {
+            when = milestone.isEstimate ? "about now" : "just now"
+        }
+        return "Latest: \(what), \(when)."
     }
 
     /// "UPS207 · Louisville → Cologne", or the cities alone without a flight number.
@@ -229,6 +270,18 @@ nonisolated enum FactsWording {
 
     private static func name(of kind: SkyFacts.SunEvent.Kind) -> String {
         kind == .sunrise ? "Sunrise" : "Sunset"
+    }
+
+    /// "1:12 PM", or "about 1:12 PM" for a best guess.
+    private static func clock(of milestone: Milestone, calendar: Calendar, locale: Locale) -> String {
+        (milestone.isEstimate ? "about " : "") + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+    }
+
+    /// The minutes from `time` to `date`, to the nearest, held to a year. Nil under a minute.
+    private static func minutesSince(_ time: Date, at date: Date) -> Int? {
+        let seconds = date.timeIntervalSince(time)
+        guard seconds >= 60 else { return nil }
+        return Int(min((seconds / 60).rounded(), 365 * 24 * 60))
     }
 
     /// Whole minutes for a length of time, held from a minute to a year, so one that can't be right never

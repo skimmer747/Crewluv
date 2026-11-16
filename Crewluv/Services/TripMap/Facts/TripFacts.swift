@@ -45,10 +45,12 @@ nonisolated struct TripFacts {
     /// In flight: a milestone from the last 5 minutes, else a cockpit sunrise or sunset in the next 30, else the place
     /// below, else the landing countdown. While the real plane is out of sight they're its best guesses, in the same
     /// plain words (best guesses design §2). Nil on the ground and on a drive, where Stage 1's words stay.
-    func headline(at date: Date) -> String? {
+    /// - Parameter includesEvents: false beside the latest event's banner, which shows the milestone already
+    ///   (latest event design §2).
+    func headline(at date: Date, includesEvents: Bool = true) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
         let recent = milestones(on: leg).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
-        if let recent {
+        if includesEvents, let recent {
             return FactsWording.headline(for: recent.kind)
         }
         let soon = sunEvents[leg.id]?.first { $0.time > date && $0.time.timeIntervalSince(date) <= Self.sunHeadlineWindow }
@@ -59,8 +61,9 @@ nonisolated struct TripFacts {
     }
 
     /// The sheet's first line: the headline in flight, "Home from 4 days away" after a recap's trip, else Stage 1's.
+    /// The latest event's banner is on the map above it, so the headline here leaves events out.
     func sheetHeadline(at date: Date) -> String {
-        if let headline = headline(at: date) { return headline }
+        if let headline = headline(at: date, includesEvents: false) { return headline }
         if isRecapOver(at: date) { return FactsWording.recapChip(days: tripMap.dayCount(in: calendar)) }
         return TripMapWording.panelHeadline(for: tripMap, at: date, calendar: calendar, locale: locale)
     }
@@ -85,6 +88,18 @@ nonisolated struct TripFacts {
         let path = leg.path
         return (stories[leg.id]?.place(atDistance: path.flownLength),
                 geography?.city(near: path.point(atDistance: path.flownLength)))
+    }
+
+    /// The newest event of the flight between its gates at `date`, for the banner (latest event design §1). Nil on
+    /// the ground, on a drive, and before the flight's first event.
+    func latestEvent(at date: Date) -> LatestEvent? {
+        guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
+        // By time, not by the way along: a best guess and a sighting can disagree a little.
+        guard let newest = milestones(on: leg).filter({ $0.time <= date }).max(by: { $0.time < $1.time }) else { return nil }
+        return LatestEvent(
+            title: FactsWording.eventTitle(for: newest.kind),
+            when: FactsWording.eventWhen(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale),
+            sentence: FactsWording.spokenLatestEvent(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale))
     }
 
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
@@ -133,27 +148,12 @@ nonisolated struct TripFacts {
 
     // MARK: - The card (§6.4, §6.5)
 
-    /// The card as one sentence for VoiceOver.
+    /// The card as one sentence for VoiceOver, and in flight the latest event's banner after it.
     func cardSummary(now: Date, pilotName: String) -> String {
         switch tripMap.mode {
         case .inFlight:
             if let leg = tripMap.currentLeg {
-                let plane = leg.plane(at: now, isReplay: isReplay)
-                let below = stories[leg.id]?.place(atDistance: plane.distance)?.name
-                // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and
-                // while it's out of sight, where it was last seen (§15).
-                let lastSeen = plane.unseenFor.map { ago -> String in
-                    let seen = lastSeenPlace(on: leg)
-                    return FactsWording.lastSeen(seen.place, near: seen.city, ago: ago)
-                }
-                if let live = TripMapWording.liveSummary(for: leg, over: below, lastSeen: lastSeen, now: now,
-                                                         calendar: calendar, locale: locale) {
-                    return live
-                }
-                let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
-                let over = below.map { ", over \($0)" } ?? ""
-                let landing = TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale)
-                return "\(lead) \(leg.destination.name)\(over). Lands at \(landing) your time. Estimated from the schedule."
+                return [flightSummary(of: leg, now: now), latestEvent(at: now)?.sentence].compactMap { $0 }.joined(separator: " ")
             }
         case .recap:
             return FactsWording.recapSummary(days: tripMap.dayCount(in: calendar), totals: TripTotals.whole(tripMap, sunEvents: sunEvents),
@@ -162,6 +162,26 @@ nonisolated struct TripFacts {
             break
         }
         return TripMapWording.cardSummary(for: tripMap, now: now, pilotName: pilotName, calendar: calendar, locale: locale)
+    }
+
+    /// The flight in the air as one sentence: where it is and when it lands.
+    private func flightSummary(of leg: MapLeg, now: Date) -> String {
+        let plane = leg.plane(at: now, isReplay: isReplay)
+        let below = stories[leg.id]?.place(atDistance: plane.distance)?.name
+        // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and while
+        // it's out of sight, where it was last seen (§15).
+        let lastSeen = plane.unseenFor.map { ago -> String in
+            let seen = lastSeenPlace(on: leg)
+            return FactsWording.lastSeen(seen.place, near: seen.city, ago: ago)
+        }
+        if let live = TripMapWording.liveSummary(for: leg, over: below, lastSeen: lastSeen, now: now,
+                                                 calendar: calendar, locale: locale) {
+            return live
+        }
+        let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
+        let over = below.map { ", over \($0)" } ?? ""
+        let landing = TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale)
+        return "\(lead) \(leg.destination.name)\(over). Lands at \(landing) your time. Estimated from the schedule."
     }
 
     var recapTiles: [RecapTile] {

@@ -100,6 +100,53 @@ final class FactsWordingTests: XCTestCase {
         XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 minute ago")
     }
 
+    // MARK: - The latest event (latest event design §1)
+
+    func test_eventTitle_eachKind() {
+        XCTAssertEqual(FactsWording.eventTitle(for: .crossedInto("Canada")), "Crossed into Canada")
+        XCTAssertEqual(FactsWording.eventTitle(for: .outOver("the Pacific")), "Out over the Pacific")
+        XCTAssertEqual(FactsWording.eventTitle(for: .halfway), "Halfway")
+        XCTAssertEqual(FactsWording.eventTitle(for: .closestToHome(miles: 35)), "Closest to home, 35 mi")
+    }
+
+    func test_eventWhen_justNow_thenMinutesAgo_toTheNearest() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now), "Just now")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(59)), "Just now")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(60)), "1 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(12 * 60 - 1)), "12 min ago", "to the nearest minute")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(89)), "1 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(90)), "2 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(130 * 60)), "2 h 10 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(2 * 365 * 86_400)), "8760 h ago", "held to a year")
+    }
+
+    func test_eventWhen_aBestGuess_saysAbout() {
+        let guessed = Milestone(kind: .outOver("the Pacific"), time: now, isEstimate: true)
+        XCTAssertEqual(FactsWording.eventWhen(guessed, at: now.addingTimeInterval(20)), "About now")
+        XCTAssertEqual(FactsWording.eventWhen(guessed, at: now.addingTimeInterval(40 * 60)), "About 40 min ago")
+    }
+
+    func test_eventWhen_inAReplay_isTheClockTime() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        let guessed = Milestone(kind: .crossedInto("Canada"), time: now, isEstimate: true)
+        let later = now.addingTimeInterval(600)
+        XCTAssertEqual(plain(FactsWording.eventWhen(crossed, at: later, isReplay: true, calendar: calendar, locale: locale)), "3:14 PM")
+        XCTAssertEqual(plain(FactsWording.eventWhen(guessed, at: later, isReplay: true, calendar: calendar, locale: locale)), "About 3:14 PM")
+    }
+
+    func test_spokenLatestEvent_isASentence() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        XCTAssertEqual(FactsWording.spokenLatestEvent(crossed, at: now.addingTimeInterval(12 * 60)), "Latest: crossed into Canada, 12 minutes ago.")
+        XCTAssertEqual(FactsWording.spokenLatestEvent(crossed, at: now), "Latest: crossed into Canada, just now.")
+        let closest = Milestone(kind: .closestToHome(miles: 35), time: now, isEstimate: true)
+        XCTAssertEqual(FactsWording.spokenLatestEvent(closest, at: now.addingTimeInterval(3600)), "Latest: closest to home, 35 miles, about 1 hour ago.")
+        XCTAssertEqual(FactsWording.spokenLatestEvent(closest, at: now), "Latest: closest to home, 35 miles, about now.")
+        let halfway = Milestone(kind: .halfway, time: now)
+        XCTAssertEqual(plain(FactsWording.spokenLatestEvent(halfway, at: now.addingTimeInterval(600), isReplay: true, calendar: calendar, locale: locale)),
+                       "Latest: halfway, at 3:14 PM.")
+    }
+
     func test_inTheAir_saysNow_butNotInAReplay() {
         XCTAssertEqual(FactsWording.inTheAir(isReplay: false), "In the air now")
         XCTAssertEqual(FactsWording.inTheAir(isReplay: true), "In the air")

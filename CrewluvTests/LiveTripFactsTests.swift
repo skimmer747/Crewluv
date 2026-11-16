@@ -247,14 +247,36 @@ final class LiveTripFactsTests: XCTestCase {
     func test_cardSummary_inTheAir_saysWhatsBelowTheRealPlane() throws {
         // It lands at 13:05 by its estimate, where the plan has 13:15.
         XCTAssertEqual(plain(try facts(seenUntil: "11:10").cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20, 10 minutes ahead of schedule, over Bravo. Lands about 9:11 AM your time.")
+                       "TST1 to E20, 10 minutes ahead of schedule, over Bravo. Lands about 9:11 AM your time. Latest: crossed into Bravo, 15 minutes ago.")
+    }
+
+    func test_latestEvent_whileOutOfSight_isABestGuess_withAbout() throws {
+        // Last seen at 4.375° E at 10:50. By the plan it crossed into Bravo at 10:55.
+        let event = try XCTUnwrap(try facts(seenUntil: "10:50", now: "11:01").latestEvent(at: at("11:01")))
+        XCTAssertEqual(event, LatestEvent(title: "Crossed into Bravo", when: "About 6 min ago",
+                                          sentence: "Latest: crossed into Bravo, about 6 minutes ago."))
+    }
+
+    func test_latestEvent_ofAFlightThatLandedEarly_goesAtItsRealGateArrival() throws {
+        // Seen down at 20° E at 12:55, ten minutes ahead of the plan: it reaches the gate at 13:02.
+        let facts = try facts(seenUntil: "12:53", now: "13:05", landed: true)
+        XCTAssertEqual(facts.latestEvent(at: at("12:58"))?.title, "Closest to home, 35 mi")
+        XCTAssertNil(facts.latestEvent(at: at("13:03")), "at the gate")
+    }
+
+    func test_latestEvent_inAReplay_isTheRecordsNewest_atItsClockTime() throws {
+        let seen = try facts(seenUntil: "11:10", isReplay: true)
+        XCTAssertEqual(plain(seen.latestEvent(at: at("11:25"))?.when), "6:55 AM")
+        XCTAssertNil(seen.latestEvent(at: at("10:50")), "before it crossed")
+        let guessed = try facts(seenUntil: "10:50", isReplay: true)
+        XCTAssertEqual(plain(guessed.latestEvent(at: at("11:01"))?.when), "About 6:55 AM")
     }
 
     func test_cardSummary_whileOutOfSight_saysAbout_whatsBelowByThePlan_andWhereItWasLastSeen() throws {
         XCTAssertEqual(plain(try facts(seenUntil: "10:50", now: "11:01").cardSummary(now: at("11:01"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen over Alpha. Lands about 9:11 AM your time.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen over Alpha. Lands about 9:11 AM your time. Latest: crossed into Bravo, about 6 minutes ago.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:03", now: "11:13").cardSummary(now: at("11:13"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen near Testville. Lands about 9:11 AM your time.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen near Testville. Lands about 9:11 AM your time. Latest: crossed into Bravo, 18 minutes ago.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:10", now: "11:20", hasStory: false).cardSummary(now: at("11:20"), pilotName: "Alex")),
                        "TST1 to E20, about 10 minutes ahead of schedule, last seen 10 minutes ago. Lands about 9:11 AM your time.")
     }
