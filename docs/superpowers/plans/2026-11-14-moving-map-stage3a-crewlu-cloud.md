@@ -4004,7 +4004,7 @@ Commit this plan and any spec change in `~/Dev/Crewluv`, on `feature/trip-map-li
 
 ## Changes made during execution
 
-Tasks 0 to 13, on 15 Nov 2026. How `feature/flight-live` is merged is Todd's to say.
+Tasks 0 to 13, on 15 Nov 2026. `feature/flight-live` was merged into `feature/supabase-account-backend` by fast-forward and pushed that day (`235f7ef6`), on Todd's words, and its worktree and branch were removed.
 
 - **Where it is.** `feature/flight-live` in `~/Dev/Duty-flight-live`: eleven commits, `ffa2e8df` to `91c60200`, not pushed. `npm test` passes 432 of 432, and `tsc --strict` passes on the function.
 - **This plan was rewritten after the reviews.** Its code blocks are what the branch holds now, not what was first planned. They were put together stage by stage in a copy of `supabase/`, tested after each task, and the result compared byte for byte with the worktree.

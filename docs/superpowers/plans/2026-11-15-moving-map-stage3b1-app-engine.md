@@ -3727,6 +3727,22 @@ with:
 - **None of it changes what the spec says.**
 - **Todd's last run (15 Nov 2026):** the plan's ten test classes once more, after the review's changes. All 130 tests passed on the iPhone 17 Pro simulator, iOS 26.5.
 
+### After the first real flight (15 Nov 2026)
+
+Two changes to the engine, made after this plan was finished and after plan 3B-2's code was in. Todd's words: "yes to both engine changes". The tasks above are the record of what was first built, so their code doesn't show these. The spec does (§3, §4, §5.1, §5.2, §5.4, §5.5, §7.3).
+
+- **A fix is live for 3 minutes, where it was 2.** Crewlu Cloud now asks adsb.lol once a minute, so one answer that doesn't come leaves a fix 2 minutes old, and that shouldn't fade the plane. `LiveProgress.freshFor` is 180, and the reference's `FRESH`.
+- **The landing estimate uses the plane's own speed.** The first real flight (UPS82, Louisville to Anchorage) left about 35 minutes late and landed on time: its schedule's flight time comes to 423 kt, and it flew 450 to over 500. The estimate ran 37 minutes late at the start and 20 in the middle. With the plane's own speed it's 16 minutes late when the speed is first known, 6 by the middle, and within 5 from there to its descent.
+  - `FlightPath.ownSpeed` is the distance flown over the time it took, counted over the cruise: each stretch between two neighbouring places both seen 120 nm or more from both airports, in a straight line. It's known once those stretches come to 10 minutes.
+  - `FlightPlan.flown(along:)` is the plan as the plane flies it: the plane's own speed in place of the cruise speed, when it's from 0.7 to 1.5 of the plan's. The takeoff and touchdown stay the schedule's. A plan with one steady speed keeps it.
+  - `FlightRecord.flownPlan` holds it. The record after the last place seen, the landing estimate, the estimated plane and the ghost all fly it, so the gap between the two planes is still the label.
+- **The shared cases** went from 18 flights to 29, and each now carries `path.ownSpeedKt` and `flownSpeedKt`. The new ones: ten minutes of its cruise seen, and a second under; in its descent with the ghost still in the cruise; out and back before it leaves; a return, a wait and a second start; a hold inside the last 120 nm; much faster and much slower than the plan, each believed and each not; a slow leg that keeps its one speed. The moments at the 2-minute edge moved to the 3-minute edge.
+- **The review** (three looks) ran 4,000 random flights through the reference. It found two things, both mended before this went in: a hold or an approach pattern brought descent places back into the cruise when the cut was by distance along the path, so the cut is by straight line; and a return to the departure airport with a wait there dragged the speed down, so the speed is counted stretch by stretch. The believed range was half to twice at first, and was narrowed to 0.7 to 1.5.
+- **Plan 3B-2's tests** held 16 expected values from the cases' flights (`LiveWordingTests`, and one moment in `FlightDrawingTests`). They were mended with this change, and three comments.
+- **Before it went in:** 25 deliberate breaks, each caught by a test. The engine's scratch package passed 45 XCTest and 53 Swift Testing tests.
+- **Todd's run (15 Nov 2026):** every test of the app with the change in, 970 of 970 on the iPhone 17 Pro simulator, iOS 26.5. That's the 966 of his run before it, and the 4 this change adds.
+  - His first tries never started a test. The Mac was out of memory, with nine simulators on, five of them test simulators left from runs the day before, and the test simulator took minutes to open the app. With the test simulators and the Simulator app shut, the run took 4 minutes.
+
 ## Self-review
 
 - **Spec coverage.**
@@ -3740,6 +3756,9 @@ with:
 
 ## Left for later
 
+- **An approach's pattern makes the label read ahead near the landing.** The first real flight's last half hour was about 25 nm longer than the straight line, and its label read "7 min ahead" to "9 min ahead" for a plane that landed on time. It's the same with either speed.
+- **Whether 3 minutes is long enough** before a plane fades to an estimate: watch it on the next real flight.
+- **The speed in a stretch where two cruise places share one time** would come out too high. The believed range is what stops it.
 - **A flight back on the ground after a return to its departure airport** keeps its first attempt's trail, and its record flies the plan on from there until it's seen in the air again. The real plane itself shows at the gate.
 - **Legs of a summary that are one flight** are answered once, under the first of their ids. The other leg shows the schedule.
 - **A flight leg Crewlu Cloud has no flight for still opens a window,** so the source asks every 30 seconds while its screen is in front, and gets nothing for it. That's a leg with no callsign (a van, or an airline Crewlu Cloud doesn't know), and every leg of a pilot the switch doesn't cover: all but the listed pilots, until it's turned to `all`. Each call is small. The source could ask less often after an answer with none of its open legs.

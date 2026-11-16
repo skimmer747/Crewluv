@@ -42,8 +42,10 @@ Families on iCloud, and flights adsb.lol can't see, keep today's map from the sc
 
 1. **The picture is the moving map spec's:** two planes, the path flown, a label and one landing time.
 2. **The real path replaces the great circle** for a flight with live data: on the map, in the facts and under the ghost. Real routes can be hundreds of miles from the great circle, so the facts would otherwise name places the plane never crossed.
-3. **The landing estimate is anchored on the takeoff,** not on the plane's speed. The takeoff time is what moves a landing most. Winds, routing and air traffic control are small adjustments, and the schedule's flight time already has the usual ones built in.
-4. **The ghost flies the same plan,** so the gap between the planes, the label and the landing time always agree. The words stay "12 min ahead", "20 min behind" and "On schedule".
+3. **The landing estimate is anchored on the takeoff,** and flies the rest at the plane's own speed once that's known. The takeoff time is what moves a landing most.
+   - The brainstorm had it fly the schedule's speed throughout, taking the schedule's flight time to have the usual winds built in. The first real flight (15 Nov 2026) left about 35 minutes late and landed on time: its schedule's flight time comes to 423 kt, and it flew 450 to over 500. The estimate ran 37 minutes late at the start and 20 in the middle.
+   - With the plane's own speed over its cruise so far, the same flight's estimate is 16 minutes late when the speed is first known, half an hour after it was first seen, 6 by the middle, and within 5 from there to its descent. Todd chose this on 15 Nov 2026.
+4. **The ghost flies the same plan,** at the plane's own speed too, so the gap between the planes, the label and the landing time always agree. The words stay "12 min ahead", "20 min behind" and "On schedule".
 5. **The real path is kept for the whole trip and its recap,** so the replay, "Trip so far" and the recap show where the plane really went.
 6. **One landing time moves the whole status screen.** It stays "in flight" until the real plane arrives, and arrives early when it does.
 7. **One request per run** covers every pilot's flight.
@@ -62,9 +64,16 @@ Everything in §5 measures the real plane against one plan, made from the leg's 
   - `timeToFly(distance)`: how long an on-schedule plane needs to fly `distance` to touchdown;
   - `distanceLeft(time)`: how far from touchdown an on-schedule plane is, `time` before it. It's the first one's inverse.
   - Both work for a distance greater than `L`: the extra is flown at the cruise speed, or at a short leg's steady speed.
+- **The plan as the plane flies it** has the plane's own speed in place of the cruise speed, once that's known. Its takeoff and touchdown stay the schedule's, and so does the descent.
+  - **The plane's own speed** is the distance it flew along its path (§6) over the time it took, counted over its cruise: each stretch between two neighbouring places that were both seen 120 nm or more from both airports, in a straight line. That leaves out the climb and the descent. A hold or a pattern near the arrival airport can't bring its places in, and neither can a return to the departure airport and the wait there.
+  - It's known once those stretches come to 10 minutes or more. A stretch nobody saw counts, as its straight join, when both its ends are in the cruise.
+  - `timeToFly` and `distanceLeft` answer for a plane flying this plan, as they do for an on-schedule plane flying the schedule's.
+  - It's believed from 0.7 of the plan's cruise speed to 1.5 of it, which the strongest winds stay inside. Outside that the places can't be right, and the plan's speed stands.
+  - A short leg keeps its one steady speed.
+  - The landing estimate (§5.2), the ghost (§5.4), the estimated plane (§5.5) and the record after the last place seen (§7.2) all fly this plan.
 - **Stage 1's lone schedule plane doesn't change.** It keeps one steady speed, and `progress-cases.json` stays as it is. Only a flight with live data uses the plan.
 
-All five constants are written in the shared cases (§16.1).
+All of its constants are written in the shared cases (§16.1).
 
 ## 5. The real plane
 
@@ -74,19 +83,23 @@ All five constants are written in the shared cases (§16.1).
 
 | The flight is | When | What shows |
 |---|---|---|
-| **Not live** | No flight in the answer; never seen; or a fix on the ground that's over 2 minutes old | The schedule's plane alone, as today |
-| **On the ground** | Seen on the ground within 10 nm of the departure airport, under 2 minutes ago | The real plane at the gate, and the ghost |
-| **In the air** | Seen in the air under 2 minutes ago | The real plane, and the ghost |
-| **Estimated** | Last seen in the air over 2 minutes ago | The real plane faded, flying the plan from its last fix, and the ghost |
+| **Not live** | No flight in the answer; never seen; or a fix on the ground that's over 3 minutes old | The schedule's plane alone, as today |
+| **On the ground** | Seen on the ground within 10 nm of the departure airport, under 3 minutes ago | The real plane at the gate, and the ghost |
+| **In the air** | Seen in the air under 3 minutes ago | The real plane, and the ghost |
+| **Estimated** | Last seen in the air over 3 minutes ago | The real plane faded, flying the plan from its last fix, and the ghost |
 | **Landed** | Seen on the ground within 10 nm of the arrival airport, after being in the air | The real plane at the arrival airport |
 | **Elsewhere** | On the ground anywhere else: a diversion | The real plane where it is. The label and the times are the schedule's |
 
+Three minutes, because CrewLu Cloud asks adsb.lol once a minute (§10.3): one answer that doesn't come leaves a fix 2 minutes old, and that shouldn't fade the plane. It was 2 minutes while CrewLu Cloud asked every 30 seconds.
+
 ### 5.2 The landing estimate
 
-- **In the air or estimated:** touchdown is the last fix's time plus `timeToFly` of the great-circle distance from that fix to the arrival airport.
+- **In the air or estimated:** touchdown is the last fix's time plus `timeToFly` of the great-circle distance from that fix to the arrival airport, by the plan as the plane flies it (§4).
   - At the first fix after takeoff, that's the real takeoff plus the plan's time in the air.
   - After that, a plane further along than planned lands sooner, and one less far along lands later.
-  - The plane's ground speed isn't used. Between fixes, and while estimated, the estimate holds still.
+  - Once the plane's own speed is known, about ten minutes into its cruise, the estimate moves to it in one step. Before that it flies the schedule's.
+  - The speed in a single fix isn't used. Between fixes, and while estimated, the estimate holds still.
+  - The winds ahead aren't known, and neither is the approach's pattern: the first real flight's estimate ran up to 9 minutes early over its last half hour, on an approach about 25 nm longer than the straight line.
 - **On the ground after the plan's takeoff:** touchdown is now plus the plan's time in the air, as if it took off this moment. It slides later until the plane is seen in the air.
 - **On the ground before the plan's takeoff:** there's no estimate. The schedule stands.
 - **Landed:** touchdown is when it was first seen on the ground at the arrival airport.
@@ -110,17 +123,18 @@ The gap is the plan's touchdown minus the estimated touchdown, rounded to the ne
 
 ### 5.4 The ghost
 
-- **It's where an on-schedule plane would be right now,** on the real plane's path (§6): as far from the arrival airport, measured along the path, as `distanceLeft` of the time until the plan's touchdown.
+- **It's where a plane that lands on schedule would be right now,** flying as the real one does, on the real plane's path (§6): as far from the arrival airport, measured along the path, as `distanceLeft` of the time until the plan's touchdown, by the plan as the plane flies it (§4).
   - Before the plan's takeoff it's at the departure airport, and after the plan's touchdown at the arrival airport.
   - It's behind the real plane on the path flown when the flight is ahead, and in front of it on the path ahead when the flight is behind.
-  - A real path is longer than the planned distance, so just after the plan's takeoff the ghost is that much along it.
-- **The gap between the planes is the label.** It's the distance the plan flies in that many minutes.
+  - A real path is longer than the planned distance, so just after the plan's takeoff the ghost is that much along it, while the schedule's speed stands.
+  - When the plane's own speed becomes known, the ghost moves in one step with the estimate: back when the plane is faster than the schedule, since a plane that fast could have left later, and on when it's slower.
+- **The gap between the planes is the label.** It's the distance the plan, as the plane flies it, flies in that many minutes.
 - **It's always shown with a real plane,** in the air, estimated or on the ground. It isn't shown once the flight has landed, or elsewhere.
 - **It looks as the moving map spec has it** (§7.2 there): a dashed white outline with a faint white plane. The real plane is a filled blue circle with a white border and a white plane, drawn on top, at 60% opacity while estimated.
 
 ### 5.5 The estimated plane
 
-- **It flies the plan from its last fix:** along the great circle from that fix to the arrival airport, as far from the airport as `distanceLeft` of the time until the estimated touchdown. The moving map spec carried it on at its last ground speed, which would disagree with the landing estimate.
+- **It flies the plan from its last fix,** as the plane flies it (§4): along the great circle from that fix to the arrival airport, as far from the airport as `distanceLeft` of the time until the estimated touchdown. The moving map spec carried it on at its last ground speed, which would disagree with the landing estimate.
 - **It reaches the arrival airport at the estimated touchdown,** and stays there.
 - **A new fix** makes it live again, and corrects the estimate.
 
@@ -185,7 +199,7 @@ The same record answers the other way round: when the plane was a given distance
 - **The ghost and the label are for now only.** A moment in the replay shows the real plane alone, and the pill reads "In flight".
 - **Every other flight** replays the schedule, as today.
 - **The timeline's blocks** use each flight's real times.
-- **Ahead of now,** the current flight flies the plan from its last fix, and later flights fly the schedule.
+- **Ahead of now,** the current flight flies the plan from its last fix, as the plane flies it (§4), and later flights fly the schedule.
 
 A flight's record is kept for 16 days (§10.5). After that it replays the schedule.
 
@@ -445,6 +459,7 @@ The same design in TypeScript, held to the same answers by the shared cases.
 A new `CrewluvTests/Fixtures/TripMap/live-cases.json`, copied to the website's `tests/fixtures/trip-map/`. Both suites run every case. It holds:
 
 - the constants, and the plan: `timeToFly` and `distanceLeft` for a long leg, a short leg and a leg under both allowances;
+- the plane's own speed (§4): known and a second short of known, believed and not at both ends of its range, with a hold near the arrival airport, with a return and a wait at the departure airport, and on a slow leg that keeps its one speed;
 - the landing estimate in the air, on the ground before and after the plan's takeoff, estimated, and landed;
 - every label in §5.3, with the ±5 edges;
 - the ghost's distance from the arrival airport, ahead of and behind the real plane;
