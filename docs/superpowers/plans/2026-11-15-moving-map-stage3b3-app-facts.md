@@ -798,7 +798,7 @@ nonisolated extension FlightPath {
 }
 ```
 
-- [ ] **Step 5: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): where the facts have the plane, the real one wherever the map draws it, and a leg's path and times as the facts follow them (Stage 3 spec §8)`.
+- [x] **Step 5: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): where the facts have the plane, the real one wherever the map draws it, and a leg's path and times as the facts follow them (Stage 3 spec §8)`.
 
 ---
 
@@ -1203,7 +1203,7 @@ with:
     }
 ```
 
-- [ ] **Step 4: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): a flight's story follows the path it really flew, with the real plane's times, and tells a crossing only where the plane was seen (Stage 3 spec §8)`.
+- [x] **Step 4: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): a flight's story follows the path it really flew, with the real plane's times, and tells a crossing only where the plane was seen (Stage 3 spec §8)`.
 
 ---
 
@@ -1628,7 +1628,7 @@ with:
         Int((leg.pathLength / GreatCircle.metersPerMile).rounded())
 ```
 
-- [ ] **Step 4: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): the sun's times follow the real plane's record, seen from its own height at its cruise, and the trip's miles count along real paths (Stage 3 spec §8)`.
+- [x] **Step 4: Ask to commit,** after batch A's checkpoint (Task 5). Suggested message: `feat(crewluv): the sun's times follow the real plane's record, seen from its own height at its cruise, and the trip's miles count along real paths (Stage 3 spec §8)`.
 
 ---
 
@@ -2038,7 +2038,7 @@ xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platfor
 
 Expected: every test passes.
 
-- [ ] **Step 7: Ask to commit Tasks 2 to 5,** one commit each, each with its own files. Suggested message for this task: `feat(crewluv): the words for a plane that's out of sight, the plane's own row and the credit to adsb.lol, and an aircraft's name from its type code (Stage 3 spec §8, §9)`.
+- [x] **Step 7: Ask to commit Tasks 2 to 5,** one commit each, each with its own files. Suggested message for this task: `feat(crewluv): the words for a plane that's out of sight, the plane's own row and the credit to adsb.lol, and an aircraft's name from its type code (Stage 3 spec §8, §9)`.
 
 ---
 
@@ -2557,7 +2557,7 @@ with:
         guard let line = FactsWording.soFar(totals, dayNumber: dayNumber, totalDays: totalDays, locale: locale) else { return nil }
 ```
 
-- [ ] **Step 4: Ask to commit,** after batch B's checkpoint (Task 7). Suggested message: `feat(crewluv): the facts read where the real plane is: what's below it, where it was last seen while it's out of sight, its own row, and the miles along its path (Stage 3 spec §8, §9, §15)`.
+- [x] **Step 4: Ask to commit,** after batch B's checkpoint (Task 7). Suggested message: `feat(crewluv): the facts read where the real plane is: what's below it, where it was last seen while it's out of sight, its own row, and the miles along its path (Stage 3 spec §8, §9, §15)`.
 
 ---
 
@@ -3029,7 +3029,7 @@ xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platfor
 
 Expected: every test passes.
 
-- [ ] **Step 5: Ask to commit Tasks 6 and 7,** one commit each. Suggested message for this task: `feat(crewluv): a real path's story is made again as the path grows, at most once a minute, and a flight's sun events show until the next are ready, so the sky row doesn't blink (Stage 3 spec §8)`.
+- [x] **Step 5: Ask to commit Tasks 6 and 7,** one commit each. Suggested message for this task: `feat(crewluv): a real path's story is made again as the path grows, at most once a minute, and a flight's sun events show until the next are ready, so the sky row doesn't blink (Stage 3 spec §8)`.
 
 ---
 
@@ -3190,7 +3190,7 @@ xcodebuild test -project Crewluv.xcodeproj -scheme Crewluv -destination 'platfor
 
 Expected: every test passes. Todd's last whole run was 970 tests, and this plan adds 95: 1,065 in all. The count is in the result bundle, read with `xcrun xcresulttool get test-results summary --path <bundle>`.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): adsb.lol is credited under the facts whenever a flight with live data shows, and a replay's facts are the replay's (Stage 3 spec §7.3, §8)`.
+- [x] **Step 5: Ask to commit.** Suggested message: `feat(crewluv): adsb.lol is credited under the facts whenever a flight with live data shows, and a replay's facts are the replay's (Stage 3 spec §7.3, §8)`.
 
 ---
 
@@ -3265,6 +3265,7 @@ The facts still follow the great circle, and adsb.lol isn't credited yet: both a
   - One thing it noted is in "Left for later": a flight whose live data goes and comes back within a minute has its story made again at once.
   - That stands for the reviews of batches A, B and C. The review of the whole branch (Task 10) is still to come.
 - **Todd's run (15 Nov 2026, 9:28 pm EST):** every test of the app, with all of Tasks 2 to 8 in. All 1,065 passed on the iPhone 17 Pro simulator, iOS 26.5: the 970 of the run before this plan, and its 95. The count is from the result bundle, `Test-Crewluv-2026.11.15_21-28-40--0500.xcresult`. The run started after the last file was put in, and the files were compared with the tested ones again after it.
+- **Committed on Todd's "yes, commit" (15 Nov 2026), not pushed:** `8774c6a` Task 2, `071c5a6` Task 3, `10f82a3` Task 4, `b99956f` Task 5, `5c901bc` Task 6, `14b77bf` Task 7, `f7df490` Task 8, and `59c998e` this plan. Each commit holds its own task's files as they stand after that task, so `TripMapWording.swift` went in twice: its miles with Task 4, and the card's sentence with Task 5. After the last, the working tree was compared with the tested files once more: all the same.
 
 ## What the website's plan takes from this one
 
