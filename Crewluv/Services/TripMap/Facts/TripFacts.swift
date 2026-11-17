@@ -40,6 +40,16 @@ nonisolated struct TripFacts {
         stories[leg.id].map { Milestone.milestones(on: leg, story: $0) } ?? []
     }
 
+    /// The flight's milestones as they're told at `date`. While the flight is in the air, one guessed more than 2
+    /// hours after the plane was last seen waits until it's tracked again, as it can be hundreds of miles out. Once
+    /// the flight is over they're all told, as best guesses (long gap design §3). Everything up to the last place the
+    /// plane was seen happened before it, so only a guess ahead can be held.
+    func milestones(on leg: MapLeg, at date: Date) -> [Milestone] {
+        let all = milestones(on: leg)
+        guard date < leg.end, let lastSeen = leg.flight?.path.knots.last?.time else { return all }
+        return all.filter { $0.time.timeIntervalSince(lastSeen) <= PlanePosition.guessHorizon }
+    }
+
     // MARK: - The headline (§4.4)
 
     /// In flight: a milestone from the last 5 minutes, else a cockpit sunrise or sunset in the next 30, else the place
@@ -56,7 +66,7 @@ nonisolated struct TripFacts {
         if isStillOnGround(leg, at: date) {
             return FactsWording.stillOnGround(in: leg.origin)
         }
-        let recent = milestones(on: leg).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
+        let recent = milestones(on: leg, at: date).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
         if includesEvents, let recent {
             return FactsWording.headline(for: recent.kind)
         }
@@ -76,11 +86,20 @@ nonisolated struct TripFacts {
     }
 
     /// "Over Kansas", "Over Québec, near Montréal", from the flight's story, read where the plane is. A real plane
-    /// that's out of sight is where the plan has it, flying on from the last place it was seen, and reads the same.
+    /// that's out of sight is where the plan has it, flying on from the last place it was seen, and reads the same,
+    /// but for one out of tracking range for more than 2 hours: only an ocean, with no city (long gap design §3).
     func belowText(on leg: MapLeg, at date: Date) -> String? {
         let plane = leg.plane(at: date, isReplay: isReplay)
+        guard let place = placeBelow(plane, on: leg) else { return nil }
+        let city = plane.isPastGuessHorizon ? nil : geography?.city(near: plane.coordinate)
+        return FactsWording.below(place, near: city)
+    }
+
+    /// What's under `plane`. Past `PlanePosition.guessHorizon` out of tracking range, the guess can be hundreds of
+    /// miles from the plane, and only an ocean is wide enough to be right (long gap design §3).
+    private func placeBelow(_ plane: PlanePosition, on leg: MapLeg) -> Geography.Place? {
         guard let place = stories[leg.id]?.place(atDistance: plane.distance) else { return nil }
-        return FactsWording.below(place, near: geography?.city(near: plane.coordinate))
+        return !plane.isPastGuessHorizon || place.isOcean ? place : nil
     }
 
     /// "Last tracked near Montréal · 12 min ago", while the real plane is out of tracking range, or nil while it's seen.
@@ -103,7 +122,7 @@ nonisolated struct TripFacts {
     func latestEvent(at date: Date) -> LatestEvent? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight, !isStillOnGround(leg, at: date) else { return nil }
         // By time, not by the way along: a best guess and a sighting can disagree a little.
-        guard let newest = milestones(on: leg).filter({ $0.time <= date }).max(by: { $0.time < $1.time }) else { return nil }
+        guard let newest = milestones(on: leg, at: date).filter({ $0.time <= date }).max(by: { $0.time < $1.time }) else { return nil }
         return LatestEvent(
             title: FactsWording.eventTitle(for: newest.kind),
             when: FactsWording.eventWhen(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale),
@@ -146,7 +165,7 @@ nonisolated struct TripFacts {
         let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date && !isStillOnGround($0, at: date) }.reversed()
         let flights = started.compactMap { leg -> TripSoFar.Flight? in
             // Newest first, so the latest is at the top (best guesses design §3).
-            let events = milestones(on: leg).filter { $0.time <= date }.enumerated().reversed().map { place, milestone in
+            let events = milestones(on: leg, at: date).filter { $0.time <= date }.enumerated().reversed().map { place, milestone in
                 TripSoFar.Event(id: place, text: FactsWording.listLine(for: milestone, calendar: calendar, locale: locale),
                                 isEstimate: milestone.isEstimate)
             }
@@ -193,7 +212,7 @@ nonisolated struct TripFacts {
     /// The flight in the air as one sentence: where it is and when it lands.
     private func flightSummary(of leg: MapLeg, now: Date) -> String {
         let plane = leg.plane(at: now, isReplay: isReplay)
-        let belowPlace = stories[leg.id]?.place(atDistance: plane.distance)
+        let belowPlace = placeBelow(plane, on: leg)
         let below = belowPlace?.name
         // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and while
         // it's out of sight, where it was last seen (§15).

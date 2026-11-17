@@ -9,6 +9,12 @@
 import CoreLocation
 
 nonisolated struct PlanePosition: Sendable {
+    /// How long out of tracking range the facts tell the plane's best guesses in full: the 2 hours its own speed is
+    /// trusted for, deliberately the same. Past them, where it's guessed to be can be hundreds of miles from where it
+    /// is, so the facts name only an ocean under it, and hold their events until it's tracked again or the flight is
+    /// over (long gap design §3).
+    static let guessHorizon: TimeInterval = FlightPlan.ownSpeedAhead
+
     /// How far along the leg's path, in meters.
     let distance: Double
     let coordinate: CLLocationCoordinate2D
@@ -19,6 +25,9 @@ nonisolated struct PlanePosition: Sendable {
     let isSeenInAir: Bool
 
     var isEstimated: Bool { unseenFor != nil }
+
+    /// Whether the real plane has been out of tracking range for longer than `guessHorizon`.
+    var isPastGuessHorizon: Bool { unseenFor.map { $0 > Self.guessHorizon } ?? false }
 }
 
 nonisolated extension MapFlight {

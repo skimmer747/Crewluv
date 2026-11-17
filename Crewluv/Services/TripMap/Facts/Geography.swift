@@ -24,6 +24,13 @@ nonisolated struct Geography: Decodable, Sendable {
         let country: String?
 
         var isWater: Bool { kind == .water }
+
+        /// One of the five oceans: past 2 hours out of tracking range, the only places wide enough to be named under
+        /// a guessed plane (long gap design §3).
+        var isOcean: Bool { isWater && Self.oceanNames.contains(name) }
+
+        /// The five oceans, by the names geography.json gives them.
+        static let oceanNames: Set<String> = ["the Pacific", "the Atlantic", "the Indian Ocean", "the Arctic Ocean", "the Southern Ocean"]
     }
 
     nonisolated struct Area: Decodable, Sendable {
