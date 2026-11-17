@@ -108,6 +108,14 @@ nonisolated enum FactsWording {
         "Still on the ground in \(airport.name)"
     }
 
+    /// "Landed in Anchorage": the real plane is down, and not yet at the gate (landed before the gate design §3).
+    static func landed(in airport: AirportMark) -> String {
+        "Landed in \(airport.name)"
+    }
+
+    /// The list's tag on the flight between its gates once its real plane is down.
+    static let landedTag = "Landed"
+
     // MARK: - The real plane (Stage 3 spec §8)
 
     /// Under what's below, while the real plane is out of tracking range: "Last tracked near Montréal · 12 min ago",
@@ -228,6 +236,11 @@ nonisolated enum FactsWording {
     /// "2,788 mi to go": a real plane still at its departure airport has flown nothing yet (which plane design §4).
     static func toGo(miles: Int, locale: Locale = .current) -> String {
         "\(number(miles, locale: locale)) mi to go"
+    }
+
+    /// "2,788 mi flown": the whole of it, once the real plane is down (landed before the gate design §3).
+    static func flown(miles: Int, locale: Locale = .current) -> String {
+        "\(number(miles, locale: locale)) mi flown"
     }
 
     /// "Halfway at 4:12 PM", or with the real plane's estimate "Halfway at about 12:05 PM" (Stage 3 spec §8).

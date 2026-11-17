@@ -29,7 +29,8 @@ nonisolated struct TripSoFar: Equatable, Sendable {
         let id: String
         /// "UPS207 · Louisville → Cologne".
         let title: String
-        /// "In the air now" for the flight between its gates, which the list sets apart. Nil for any other.
+        /// "In the air now" for the flight between its gates, which the list sets apart, or "Landed" once its real
+        /// plane is down (landed before the gate design §3). Nil for any other.
         let tag: String?
         /// What has happened so far, newest first.
         let events: [Event]

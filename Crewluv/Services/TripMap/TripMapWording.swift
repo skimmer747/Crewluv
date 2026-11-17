@@ -69,6 +69,18 @@ nonisolated enum TripMapWording {
         return "Lands \(leg.destination.name) \(about(leg))\(there) · \(yours) your time"
     }
 
+    /// "Reaches the gate at 3:52 PM · 7:52 PM your time", or one time where the destination keeps the family's: the
+    /// facts' landing row once the real plane is down (landed before the gate design §3). "at", as the card's sentence
+    /// and the plane's popup say it, unless the time is the real plane's estimate.
+    static func gateLine(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let when = about(leg).isEmpty ? "at " : about(leg)
+        let yours = clockTime(leg.end, in: calendar.timeZone, locale: locale)
+        guard let there = arrivalLocalClock(for: leg, calendar: calendar, locale: locale) else {
+            return "Reaches the gate \(when)\(yours)"
+        }
+        return "Reaches the gate \(when)\(there) · \(yours) your time"
+    }
+
     /// "Lands 3:30 PM", for the card's bar. With the real plane's estimate, "Lands about 3:18 PM".
     static func landsAt(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
         "Lands \(about(leg))\(clockTime(leg.end, in: calendar.timeZone, locale: locale))"

@@ -33,14 +33,18 @@ nonisolated extension TripFacts {
     private func flightRows(on leg: MapLeg, at date: Date, now: Date) -> [FactRow] {
         let plane = leg.plane(at: date, isReplay: isReplay)
         return [belowRow(on: leg, at: date), planeRow(on: leg, plane: plane), skyRow(on: leg, at: date),
-                distanceRow(on: leg, plane: plane, at: date), headedRow(on: leg, now: now)]
+                distanceRow(on: leg, plane: plane, at: date), headedRow(on: leg, at: date, now: now)]
             .compactMap { $0 }
     }
 
     /// What's below, then where a plane that's out of sight was last seen, then the closest point to home. The
     /// first of them that there is leads the row. A real plane still at its departure airport says so in place of
-    /// what's below (which plane design §4).
+    /// what's below (which plane design §4). A real plane down at the arrival airport before the gate says that alone
+    /// (landed before the gate design §3).
     private func belowRow(on leg: MapLeg, at date: Date) -> FactRow? {
+        if isLandedBeforeGate(leg, at: date) {
+            return FactRow(.below, symbol: "mappin.and.ellipse", title: FactsWording.landed(in: leg.destination))
+        }
         let place = isStillOnGround(leg, at: date) ? FactsWording.stillOnGround(in: leg.origin) : belowText(on: leg, at: date)
         let lines = [place, lastSeenLine(on: leg, at: date), closestToHomeLine(on: leg, at: date)]
             .compactMap { $0 }
@@ -80,9 +84,10 @@ nonisolated extension TripFacts {
 
     /// The sky from the cockpit: the next sunrise or sunset, chasing the sun, the moon. Left out while the real plane
     /// is still at its departure airport after the plan's takeoff time, as nothing says "flying" then: its times would
-    /// be the schedule's, for a plane that hasn't left (which plane design §4).
+    /// be the schedule's, for a plane that hasn't left (which plane design §4). Left out too once the real plane is
+    /// down, before the gate (landed before the gate design §3).
     private func skyRow(on leg: MapLeg, at date: Date) -> FactRow? {
-        guard !isStillOnGround(leg, at: date) else { return nil }
+        guard !isStillOnGround(leg, at: date), !isLandedBeforeGate(leg, at: date) else { return nil }
         let next = sunEvents[leg.id]?.first { $0.time > date }
         let parts = [
             next.map { FactsWording.flyingInto($0.kind) },
@@ -103,7 +108,8 @@ nonisolated extension TripFacts {
     /// "1,140 mi flown · 3,010 to go": flown along the path so far, and to go along the rest of it, which for a
     /// real plane is the great circle from where it is to the arrival airport (Stage 3 spec §8). A real plane still
     /// at its departure airport has flown nothing yet: "2,788 mi to go", and its halfway time is a guess from a
-    /// takeoff that hasn't happened, "about" (which plane design §4).
+    /// takeoff that hasn't happened, "about" (which plane design §4). Once it's down, before the gate, "2,788 mi
+    /// flown", with nothing to go (landed before the gate design §3).
     private func distanceRow(on leg: MapLeg, plane: PlanePosition, at date: Date) -> FactRow {
         let totalMiles = leg.pathLength / GreatCircle.metersPerMile
         let flown = Int((plane.distance / GreatCircle.metersPerMile).rounded())
@@ -115,17 +121,26 @@ nonisolated extension TripFacts {
         // The schedule's speed is told only of a flight with no live data: a real plane's row has its own.
         let speed = leg.hasLiveData ? nil : FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)
             .map { FactsWording.averageSpeed(milesPerHour: totalMiles / ($0.duration / 3600)) }
-        let title = isOnGround
-            ? FactsWording.toGo(miles: Int(totalMiles.rounded()), locale: locale)
-            : FactsWording.distance(flownMiles: flown, toGoMiles: Int(totalMiles.rounded()) - flown, locale: locale)
+        let title = if isOnGround {
+            FactsWording.toGo(miles: Int(totalMiles.rounded()), locale: locale)
+        } else if isLandedBeforeGate(leg, at: date) {
+            FactsWording.flown(miles: flown, locale: locale)
+        } else {
+            FactsWording.distance(flownMiles: flown, toGoMiles: Int(totalMiles.rounded()) - flown, locale: locale)
+        }
         return FactRow(.distance, symbol: "point.topleft.down.to.point.bottomright.curvepath", title: title,
                        details: [halfway, speed, comparisons?.phrase(forMiles: totalMiles).map(FactsWording.midLine)])
     }
 
-    private func headedRow(on leg: MapLeg, now: Date) -> FactRow {
+    /// "Lands Cologne 9:30 PM · 3:30 PM your time", or once the real plane is down, before the gate, "Reaches the gate
+    /// at 9:30 PM · 3:30 PM your time" (landed before the gate design §3).
+    private func headedRow(on leg: MapLeg, at date: Date, now: Date) -> FactRow {
         let landingWeather = forecast(for: leg, now: now)
+        let title = isLandedBeforeGate(leg, at: date)
+            ? TripMapWording.gateLine(for: leg, calendar: calendar, locale: locale)
+            : TripMapWording.landingLine(for: leg, calendar: calendar, locale: locale)
         return FactRow(.headed, symbol: "airplane.arrival",
-                       title: TripMapWording.landingLine(for: leg, calendar: calendar, locale: locale),
+                       title: title,
                        details: [landingWeather.map(FactsWording.weather),
                                  leg.destination.timeZone.flatMap { FactsWording.timeDifference(from: $0, to: calendar.timeZone, at: leg.end) }],
                        hasWeather: landingWeather != nil)

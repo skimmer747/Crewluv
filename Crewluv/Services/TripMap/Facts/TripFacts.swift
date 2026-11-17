@@ -58,13 +58,17 @@ nonisolated struct TripFacts {
     ///
     /// A real plane still on the ground at its departure airport after the plan's takeoff time is "Still on the ground
     /// in Rockford", ahead of all of them: it has crossed nothing yet, whatever the schedule's times say (which plane
-    /// design §4).
+    /// design §4). Once it's down at the arrival airport, before the gate, "Landed in Anchorage" leads in the same way
+    /// (landed before the gate design §3).
     /// - Parameter includesEvents: false beside the latest event's banner, which shows the milestone already
     ///   (latest event design §2).
     func headline(at date: Date, includesEvents: Bool = true) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
         if isStillOnGround(leg, at: date) {
             return FactsWording.stillOnGround(in: leg.origin)
+        }
+        if isLandedBeforeGate(leg, at: date) {
+            return FactsWording.landed(in: leg.destination)
         }
         let recent = milestones(on: leg, at: date).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
         if includesEvents, let recent {
@@ -143,6 +147,19 @@ nonisolated struct TripFacts {
         isReplay ? nil : tripMap.stillOnGroundAirport(at: date)
     }
 
+    /// Whether the real plane of `leg`, the leg between its gates at `date`, has landed and isn't at the gate yet
+    /// (landed before the gate design §2). The facts then say "Landed in Anchorage" in place of what's below, and the
+    /// list's tag says "Landed". Now only: a replay reads where the map has the plane.
+    func isLandedBeforeGate(_ leg: MapLeg, at date: Date) -> Bool {
+        !isReplay && leg.isLandedBeforeGate(at: date)
+    }
+
+    /// The arrival airport where the flight between its gates at `date` has landed, before the gate: the line under
+    /// the timeline names it (landed before the gate design §3). Nil in a replay.
+    func landedAirport(at date: Date) -> AirportMark? {
+        isReplay ? nil : tripMap.landedAirport(at: date)
+    }
+
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
     var showsLiveData: Bool {
         tripMap.legs.contains(where: \.hasLiveData)
@@ -170,7 +187,9 @@ nonisolated struct TripFacts {
                                 isEstimate: milestone.isEstimate)
             }
             // The flight between its gates is always listed, and set apart (§4).
-            let tag = leg.isMoving(at: date) ? FactsWording.inTheAir(isReplay: isReplay) : nil
+            let tag = leg.isMoving(at: date)
+                ? (isLandedBeforeGate(leg, at: date) ? FactsWording.landedTag : FactsWording.inTheAir(isReplay: isReplay))
+                : nil
             guard tag != nil || !events.isEmpty else { return nil }
             return TripSoFar.Flight(id: leg.id, title: FactsWording.flightTitle(leg), tag: tag, events: Array(events))
         }
