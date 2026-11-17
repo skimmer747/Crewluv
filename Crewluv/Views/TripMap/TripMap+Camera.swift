@@ -13,6 +13,14 @@ nonisolated extension TripMap {
         MapFit.rect(enclosing: framingCoordinates(focusingOn: leg))
     }
 
+    /// The frame at `date`: following the plane when `followsPlane` and `leg` is a flight between its gates whose
+    /// plane has left (follow the plane design §3), else `framingRect(focusingOn:)` as before.
+    /// - Parameter isReplay: `date` is a moment of the replay.
+    func framingRect(focusingOn leg: MapLeg?, at date: Date, followsPlane: Bool, isReplay: Bool) -> MKMapRect? {
+        if followsPlane, let leg, let rect = TripMapFollow.rect(for: leg, at: date, isReplay: isReplay) { return rect }
+        return framingRect(focusingOn: leg)
+    }
+
     /// `framingRect` as numbers a view can compare, so the card frames the trip again when a real path grows past
     /// what it showed (Stage 3 spec §6.2). Empty when there's nothing to frame.
     func framingKey(focusingOn leg: MapLeg?) -> [Double] {
