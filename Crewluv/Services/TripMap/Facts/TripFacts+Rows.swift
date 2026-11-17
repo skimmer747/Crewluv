@@ -38,9 +38,11 @@ nonisolated extension TripFacts {
     }
 
     /// What's below, then where a plane that's out of sight was last seen, then the closest point to home. The
-    /// first of them that there is leads the row.
+    /// first of them that there is leads the row. A real plane still at its departure airport says so in place of
+    /// what's below (which plane design §4).
     private func belowRow(on leg: MapLeg, at date: Date) -> FactRow? {
-        let lines = [belowText(on: leg, at: date), lastSeenLine(on: leg, at: date), closestToHomeLine(on: leg, at: date)]
+        let place = isStillOnGround(leg, at: date) ? FactsWording.stillOnGround(in: leg.origin) : belowText(on: leg, at: date)
+        let lines = [place, lastSeenLine(on: leg, at: date), closestToHomeLine(on: leg, at: date)]
             .compactMap { $0 }
         guard let title = lines.first else { return nil }
         return FactRow(.below, symbol: "mappin.and.ellipse", title: title, details: Array(lines.dropFirst()))
@@ -48,12 +50,19 @@ nonisolated extension TripFacts {
 
     /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Where
     /// nobody saw the real plane it's a best guess, and its time reads "about" (best guesses design §2).
+    ///
+    /// A real plane still on the ground at its departure airport has passed nothing, and its time is a guess from a
+    /// takeoff that hasn't happened: "about", and left out once that guess has gone by, as halfway's is (which plane
+    /// design §4).
     private func closestToHomeLine(on leg: MapLeg, at date: Date) -> String? {
         guard let story = stories[leg.id], let closest = story.closestToHome else { return nil }
         let distance = closest.fraction * story.length
         guard let time = leg.time(atDistance: distance) else { return nil }
+        let isOnGround = isStillOnGround(leg, at: date)
+        if isOnGround, time <= date { return nil }
         return FactsWording.closestToHome(miles: Milestone.roundedMiles(closest.meters), at: time, now: date,
-                                          isEstimate: !leg.isSeen(atDistance: distance), calendar: calendar, locale: locale)
+                                          isEstimate: isOnGround || !leg.isSeen(atDistance: distance),
+                                          calendar: calendar, locale: locale)
     }
 
     /// The plane's row, for a flight Crewlu Cloud has seen (Stage 3 spec §8): "Boeing 767-300 · N370UP", then
@@ -69,7 +78,11 @@ nonisolated extension TripFacts {
         return FactRow(.plane, symbol: "airplane", title: title, details: Array(parts.dropFirst()))
     }
 
+    /// The sky from the cockpit: the next sunrise or sunset, chasing the sun, the moon. Left out while the real plane
+    /// is still at its departure airport after the plan's takeoff time, as nothing says "flying" then: its times would
+    /// be the schedule's, for a plane that hasn't left (which plane design §4).
     private func skyRow(on leg: MapLeg, at date: Date) -> FactRow? {
+        guard !isStillOnGround(leg, at: date) else { return nil }
         let next = sunEvents[leg.id]?.first { $0.time > date }
         let parts = [
             next.map { FactsWording.flyingInto($0.kind) },
@@ -88,19 +101,24 @@ nonisolated extension TripFacts {
     }
 
     /// "1,140 mi flown · 3,010 to go": flown along the path so far, and to go along the rest of it, which for a
-    /// real plane is the great circle from where it is to the arrival airport (Stage 3 spec §8).
+    /// real plane is the great circle from where it is to the arrival airport (Stage 3 spec §8). A real plane still
+    /// at its departure airport has flown nothing yet: "2,788 mi to go", and its halfway time is a guess from a
+    /// takeoff that hasn't happened, "about" (which plane design §4).
     private func distanceRow(on leg: MapLeg, plane: PlanePosition, at date: Date) -> FactRow {
         let totalMiles = leg.pathLength / GreatCircle.metersPerMile
         let flown = Int((plane.distance / GreatCircle.metersPerMile).rounded())
+        let isOnGround = isStillOnGround(leg, at: date)
         let halfway = leg.halfwayTime.flatMap {
-            $0 > date ? FactsWording.halfway(at: $0, isEstimate: !leg.isSeen(atDistance: leg.pathLength / 2),
+            $0 > date ? FactsWording.halfway(at: $0, isEstimate: isOnGround || !leg.isSeen(atDistance: leg.pathLength / 2),
                                              calendar: calendar, locale: locale) : nil
         }
         // The schedule's speed is told only of a flight with no live data: a real plane's row has its own.
         let speed = leg.hasLiveData ? nil : FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)
             .map { FactsWording.averageSpeed(milesPerHour: totalMiles / ($0.duration / 3600)) }
-        return FactRow(.distance, symbol: "point.topleft.down.to.point.bottomright.curvepath",
-                       title: FactsWording.distance(flownMiles: flown, toGoMiles: Int(totalMiles.rounded()) - flown, locale: locale),
+        let title = isOnGround
+            ? FactsWording.toGo(miles: Int(totalMiles.rounded()), locale: locale)
+            : FactsWording.distance(flownMiles: flown, toGoMiles: Int(totalMiles.rounded()) - flown, locale: locale)
+        return FactRow(.distance, symbol: "point.topleft.down.to.point.bottomright.curvepath", title: title,
                        details: [halfway, speed, comparisons?.phrase(forMiles: totalMiles).map(FactsWording.midLine)])
     }
 

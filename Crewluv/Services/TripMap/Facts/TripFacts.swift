@@ -45,10 +45,17 @@ nonisolated struct TripFacts {
     /// In flight: a milestone from the last 5 minutes, else a cockpit sunrise or sunset in the next 30, else the place
     /// below, else the landing countdown. While the real plane is out of sight they're its best guesses, in the same
     /// plain words (best guesses design §2). Nil on the ground and on a drive, where Stage 1's words stay.
+    ///
+    /// A real plane still on the ground at its departure airport after the plan's takeoff time is "Still on the ground
+    /// in Rockford", ahead of all of them: it has crossed nothing yet, whatever the schedule's times say (which plane
+    /// design §4).
     /// - Parameter includesEvents: false beside the latest event's banner, which shows the milestone already
     ///   (latest event design §2).
     func headline(at date: Date, includesEvents: Bool = true) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
+        if isStillOnGround(leg, at: date) {
+            return FactsWording.stillOnGround(in: leg.origin)
+        }
         let recent = milestones(on: leg).last { $0.time <= date && date.timeIntervalSince($0.time) < Milestone.headlineDuration }
         if includesEvents, let recent {
             return FactsWording.headline(for: recent.kind)
@@ -91,15 +98,30 @@ nonisolated struct TripFacts {
     }
 
     /// The newest event of the flight between its gates at `date`, for the banner (latest event design §1). Nil on
-    /// the ground, on a drive, and before the flight's first event.
+    /// the ground, on a drive, and before the flight's first event, and for a real plane still on the ground at its
+    /// departure airport after the plan's takeoff time, which has passed nothing yet (which plane design §4).
     func latestEvent(at date: Date) -> LatestEvent? {
-        guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
+        guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight, !isStillOnGround(leg, at: date) else { return nil }
         // By time, not by the way along: a best guess and a sighting can disagree a little.
         guard let newest = milestones(on: leg).filter({ $0.time <= date }).max(by: { $0.time < $1.time }) else { return nil }
         return LatestEvent(
             title: FactsWording.eventTitle(for: newest.kind),
             when: FactsWording.eventWhen(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale),
             sentence: FactsWording.spokenLatestEvent(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale))
+    }
+
+    /// Whether the real plane of `leg`, the leg between its gates at `date`, is still on the ground at its departure
+    /// airport after the plan's takeoff time (which plane design §4). The facts then say so in place of what's below,
+    /// and count nothing of the flight as passed. Now only: a replay reads where the map has the plane.
+    func isStillOnGround(_ leg: MapLeg, at date: Date) -> Bool {
+        !isReplay && leg.isStillOnGround(at: date)
+    }
+
+    /// The airport where the flight between its gates at `date` waits, while its real plane is still on the ground
+    /// there after the plan's takeoff time: the line under the timeline names it (which plane design §4). Nil in a
+    /// replay, whose moment is flying, as the map has the plane.
+    func stillOnGroundAirport(at date: Date) -> AirportMark? {
+        isReplay ? nil : tripMap.stillOnGroundAirport(at: date)
     }
 
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
@@ -117,8 +139,11 @@ nonisolated struct TripFacts {
 
     // MARK: - The tall stop (§5.2, §5.5)
 
+    /// A real plane still on the ground at its departure airport after the plan's takeoff time has passed none of its
+    /// flight's events, and its flight is left out until it takes off, with no "In the air now" (which plane design
+    /// §4).
     func tripSoFar(at date: Date) -> TripSoFar {
-        let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date }.reversed()
+        let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date && !isStillOnGround($0, at: date) }.reversed()
         let flights = started.compactMap { leg -> TripSoFar.Flight? in
             // Newest first, so the latest is at the top (best guesses design §3).
             let events = milestones(on: leg).filter { $0.time <= date }.reversed().map {
