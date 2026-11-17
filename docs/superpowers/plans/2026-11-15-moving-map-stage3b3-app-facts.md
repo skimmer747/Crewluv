@@ -3230,7 +3230,7 @@ Nothing but a look can check these. Todd has said no TestFlight or App Store bui
 
 - [ ] **Step 2: Todd runs every test once more,** with the command of Task 8's checkpoint, if the review changed any code.
 
-- [ ] **Step 3: Update `CLAUDE.md`.** Plan 3B-2's last task writes there too, so read the "#### Trip Map" section first and work from what it holds.
+- [x] **Step 3: Update `CLAUDE.md`.** Plan 3B-2's last task writes there too, so read the "#### Trip Map" section first and work from what it holds.
 
   - If the bullet that begins "The real plane on the map" ends with this sentence, take the sentence out:
 
@@ -3266,6 +3266,10 @@ The facts still follow the great circle, and adsb.lol isn't credited yet: both a
   - That stands for the reviews of batches A, B and C. The review of the whole branch (Task 10) is still to come.
 - **Todd's run (15 Nov 2026, 9:28 pm EST):** every test of the app, with all of Tasks 2 to 8 in. All 1,065 passed on the iPhone 17 Pro simulator, iOS 26.5: the 970 of the run before this plan, and its 95. The count is from the result bundle, `Test-Crewluv-2026.11.15_21-28-40--0500.xcresult`. The run started after the last file was put in, and the files were compared with the tested ones again after it.
 - **Committed on Todd's "yes, commit" (15 Nov 2026), not pushed:** `8774c6a` Task 2, `071c5a6` Task 3, `10f82a3` Task 4, `b99956f` Task 5, `5c901bc` Task 6, `14b77bf` Task 7, `f7df490` Task 8, and `59c998e` this plan. Each commit holds its own task's files as they stand after that task, so `TripMapWording.swift` went in twice: its miles with Task 4, and the card's sentence with Task 5. After the last, the working tree was compared with the tested files once more: all the same.
+
+- **After it (16 Nov 2026):** the best guesses design (`6d3e74e`, `5ad717f`) changed this plan's rules for a plane out of sight: what's below is now read where the map has the faded plane, in plain words with "Last seen near …" under it, and a crossing nobody saw is told as a best guess with "about". The latest event (`a78e841`, `a94ed20`) and the which plane design (`6b90829` to `6110892`) followed. The Stage 3 spec's §8, §9 and §15 were mended to say what the app does now (uncommitted, with Task 10's docs).
+- **Task 10 Step 3, `CLAUDE.md` (16 Nov 2026):** plan 3B-2's bullet isn't written yet, and its edit is to the engine's bullet, apart from this one. So this plan's bullet went in after "The facts (Stage 2 spec", in words that say what the app does now: every event told, a best guess with "about", and a plane out of sight read where the map flies it on. A second bullet covers the list, the latest event, the key, the popup and a plane still at its gate. The sentence Step 3 says to take out was never written.
+- **Task 10 Step 1, the review of the whole branch, hasn't run yet:** on 16 Nov the call to the reviewer was stopped twice before it started, as a plugin's hook rewrote it after auto mode had checked it.
 
 ## What the website's plan takes from this one
 

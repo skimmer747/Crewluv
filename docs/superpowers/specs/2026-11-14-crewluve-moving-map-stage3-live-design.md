@@ -208,13 +208,16 @@ A flight's record is kept for 16 days (§10.5). After that it replays the schedu
 The facts engine keeps its shape: a story per flight, and answers looked up in it. A flight with live data gets its story from its real path.
 
 - **The story is made along the path,** sampled as today, and made again as the path grows: at most once a minute for a flight.
+*Mended 16 Nov 2026: the best guesses design (`2026-11-15-crewluve-facts-best-guesses-design.md`) changed what's below an estimated plane and the crossings nobody saw, after plan 3B-3 had built them as first written here; the which plane design (`2026-11-16-crewluve-which-plane-design.md`) added a plane still at its gate. This section says what the app does now.*
+
 - **What's below:**
   - in the air: looked up at the real plane's position, "Over Québec, near Montréal";
-  - estimated: "Estimated · last seen near Gander", with the place under the last fix. Where no place is found, "Estimated · last seen 2 h ago".
-- **Crossings** ("Just crossed into Germany", "Out over the Atlantic") come only from stretches that were seen.
-  - Each fires when the real plane crosses, and is listed with the real time.
-  - A crossing on an unseen stretch isn't announced or listed. The straight join is a guess, and a crossing is a claim.
-- **Closest to home** is measured along the path, and fires when the real plane passes that point. Like a crossing, it isn't announced on an unseen stretch.
+  - estimated: looked up where the map draws the faded plane, flown on from the last place it was seen along the great circle, in the same plain words. Under it, "Last seen near Gander · 2 h 10 min ago", by the place under the last fix, else "Last seen over Newfoundland · …", else "Last seen 2 h 10 min ago" (best guesses design §2);
+  - still at its departure airport after the plan's takeoff time: "Still on the ground in Rockford", ahead of any event or sun countdown, with no sky row and "2,788 mi to go" (which plane design §4).
+- **Crossings** ("Just crossed into Germany", "Out over the Atlantic") are told when the real plane crosses, and listed with the real time.
+  - A crossing on a stretch nobody saw, or past the last place the plane was seen, is a best guess: it's told at the time the plan has the plane there, and its time reads "about", drawn lighter in the list (best guesses design §3).
+  - A plane still at its gate has passed none: its flight is left out of the list until it takes off (which plane design §4).
+- **Closest to home** is measured along the path, and fires when the real plane passes that point. Where nobody saw it there, its time reads "about", as a crossing's does.
 - **Halfway** is half the path's whole length, flown and ahead. Before it's reached the row reads "Halfway at about 12:05 PM", timed by the plan.
 - **Distance:** "1,140 mi flown · 3,010 to go". Flown is along the path so far. To go is the great circle from the plane to the arrival airport.
 - **The plane's row,** second, with live data only:
@@ -239,7 +242,7 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
 | The countdown and narrative cards | The effective arrival | The live arrival, read as "about 3:18 PM" |
 
 - **"About"** marks every time that comes from the live estimate. A landed flight's times have no "about".
-- **The headline chip** keeps its order: a milestone from the last 5 minutes, a cockpit sunrise or sunset within 30, what's below, then the landing countdown. The estimated line takes what's below's place.
+- **The headline chip** keeps its order: a milestone from the last 5 minutes, a cockpit sunrise or sunset within 30, what's below, then the landing countdown. While the plane is out of sight, what's below is read where the map has it, in the same words (best guesses design §2). Beside the latest event's banner the card's chip and the sheet's first line leave events out (latest event design §2).
 
 ## 10. CrewLu Cloud (`Duty/supabase`)
 
@@ -444,7 +447,7 @@ The same design in TypeScript, held to the same answers by the shared cases.
 
 ## 15. Accessibility
 
-- **The card** is one VoiceOver element with §9's sentence. While estimated it says "about" and "last seen near Gander".
+- **The card** is one VoiceOver element with §9's sentence. While estimated it says "about" and "last seen near Gander". What's below and where it was last seen are said only while the plane flies, not at its gate nor once it's down (which plane design §4), and the sentence ends with the latest event: "Latest: crossed into Canada, 12 minutes ago." (latest event design §3).
 - **The plane's row and the credit** are sentences, like the other rows.
 - **The two planes** aren't separate VoiceOver elements: the card's sentence and the rows describe them, as the moving map spec has it.
 - **The label doesn't rely on color.** Its words carry it.
