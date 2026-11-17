@@ -1,6 +1,6 @@
 # Crewluve Facts: Best Guesses Over the Ocean, and the Newest First
 
-Status: approved by Todd on 15 Nov 2026, from a sketch of the facts sheet during an ocean flight, the night before a flight from Anchorage across the Pacific. It refines the Stage 3 spec (`2026-11-14-crewluve-moving-map-stage3-live-design.md`) §8, §9 and §15, as plan 3B-3 built them. Where they differ, this wins.
+Status: approved by Todd on 15 Nov 2026, from a sketch of the facts sheet during an ocean flight, the night before a flight from Anchorage across the Pacific. It refines the Stage 3 spec (`2026-11-14-crewluve-moving-map-stage3-live-design.md`) §8, §9 and §15, as plan 3B-3 built them. Where they differ, this wins. For a plane out of tracking range more than 2 hours, the best guesses after a long gap design (`2026-11-17-crewluve-best-guesses-after-a-long-gap-design.md`) refines §2 and §3.
 
 ## 1. Why
 

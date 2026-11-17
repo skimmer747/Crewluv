@@ -64,7 +64,7 @@ Everything in §5 measures the real plane against one plan, made from the leg's 
   - `timeToFly(distance)`: how long an on-schedule plane needs to fly `distance` to touchdown;
   - `distanceLeft(time)`: how far from touchdown an on-schedule plane is, `time` before it. It's the first one's inverse.
   - Both work for a distance greater than `L`: the extra is flown at the cruise speed, or at a short leg's steady speed.
-- **The plan as the plane flies it** has the plane's own speed in place of the cruise speed, once that's known. Its takeoff and touchdown stay the schedule's, and so does the descent.
+- **The plan as the plane flies it** has the plane's own speed in place of the cruise speed, once that's known: for the next 2 hours of the cruise left from the last place it was seen, and the schedule's after that, made into the one speed that flies it all in the same time (amended 2026-11-17, best guesses after a long gap design §2). Its takeoff and touchdown stay the schedule's, and so does the descent.
   - **The plane's own speed** is the distance it flew along its path (§6) over the time it took, counted over its cruise: each stretch between two neighbouring places that were both seen 120 nm or more from both airports, in a straight line. That leaves out the climb and the descent. A hold or a pattern near the arrival airport can't bring its places in, and neither can a return to the departure airport and the wait there.
   - It's known once those stretches come to 10 minutes or more. A stretch nobody saw counts, as its straight join, when both its ends are in the cruise.
   - `timeToFly` and `distanceLeft` answer for a plane flying this plan, as they do for an on-schedule plane flying the schedule's.
