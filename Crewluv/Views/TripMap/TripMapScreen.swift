@@ -6,6 +6,7 @@
 //  read its facts. On iPhone the facts are a sheet you drag up; on iPad and in landscape, a panel down the leading
 //  edge. A recap opens paused at its trip's start. Weather on landing is fetched while the screen is open. Quick
 //  layovers, remembered for every trip, hurries a replay through the waits on the ground (activity markers design §3).
+//  Follow the plane, remembered too, eases the map in on the plane as a flight goes on (follow the plane design).
 //
 
 import SwiftUI
@@ -13,6 +14,9 @@ import SwiftUI
 struct TripMapScreen: View {
     /// Where Quick layovers is remembered. It's on until the family turns it off (activity markers design §3.1).
     static let quickLayoversKey = "tripMapQuickLayovers"
+    /// Where Follow the plane is remembered, for this map and the card. It's off until the family turns it on (follow
+    /// the plane design §2).
+    static let followsPlaneKey = "tripMapFollowsPlane"
 
     let tripMap: TripMap
     let storyStore: LegStoryStore
@@ -25,6 +29,7 @@ struct TripMapScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.layoutDirection) private var layoutDirection
     @AppStorage(TripMapScreen.quickLayoversKey) private var isQuickLayovers = true
+    @AppStorage(TripMapScreen.followsPlaneKey) private var followsPlane = false
     @State private var clock: TripReplayClock
     @State private var style: TripMapStyle = .hybrid
     @State private var camera: TripMapCamera
@@ -54,8 +59,11 @@ struct TripMapScreen: View {
         let rememberedQuickLayovers = UserDefaults.standard.object(forKey: Self.quickLayoversKey) as? Bool ?? true
         let clock = Self.clock(for: tripMap, isQuickLayovers: rememberedQuickLayovers)
         _clock = State(initialValue: clock)
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
-                                                    keeping: tripMap.pilotLocation(at: clock.time(at: .now))?.coordinate))
+        let time = clock.time(at: .now)
+        let framing = tripMap.framingRect(focusingOn: tripMap.currentLeg, at: time,
+                                          followsPlane: UserDefaults.standard.bool(forKey: Self.followsPlaneKey),
+                                          isReplay: !clock.isLive)
+        _camera = State(initialValue: TripMapCamera(framing: framing, keeping: tripMap.pilotLocation(at: time)?.coordinate))
     }
 
     var body: some View {
@@ -99,6 +107,11 @@ struct TripMapScreen: View {
             screen(time: time, now: context.date, facts: facts, timeline: timeline)
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
                     refit(legID: legID, at: time)
+                }
+                .onChange(of: context.date) { follow(at: time, now: context.date) }
+                // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
+                .onChange(of: followsPlane, initial: true) {
+                    refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true)
                 }
                 .onChange(of: clock.hasFinished(at: context.date)) { _, hasFinished in
                     // A finished replay holds its end, paused, so the map stops updating with nothing moving. Play
@@ -189,8 +202,10 @@ struct TripMapScreen: View {
                                          isReplay: !clock.isLive),
             style: style,
             isShowingRecenter: camera.isPositionedByUser,
+            isFollowingPlane: followsPlane,
             onClose: close,
             onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true) },
+            onToggleFollow: { followsPlane.toggle() },
             onNextStyle: { style = style.next }
         )
     }
@@ -236,12 +251,24 @@ struct TripMapScreen: View {
         if isClosing { dismiss() }
     }
 
-    /// Frames the leg in motion, or the whole trip, keeping the pilot's ground marker at `time` in view. Leaves a
-    /// camera the family moved alone, unless they asked.
+    /// Frames the leg in motion, following its plane when the family has asked, or the whole trip, keeping the pilot's
+    /// ground marker at `time` in view. Leaves a camera the family moved alone, unless they asked.
     private func refit(legID: String?, at time: Date, force: Bool = false) {
         guard force || !camera.isPositionedByUser else { return }
         let leg = legID.flatMap { id in tripMap.legs.first { $0.id == id } }
-        camera.frame(tripMap.framingRect(focusingOn: leg), keeping: tripMap.pilotLocation(at: time)?.coordinate,
-                     animated: !reduceMotion)
+        camera.frame(tripMap.framingRect(focusingOn: leg, at: time, followsPlane: followsPlane, isReplay: !clock.isLive),
+                     keeping: tripMap.pilotLocation(at: time)?.coordinate, animated: !reduceMotion)
+    }
+
+    /// Eases the camera in on the flight's plane at `time` while the family follows it, in steps spaced by the real
+    /// time `now` (follow the plane design §4). It runs on every tick, up to 60 a second in a replay, so it makes the
+    /// frame only when a move could be due, and writes the camera back only when it moves: a write redraws the screen.
+    private func follow(at time: Date, now: Date) {
+        guard followsPlane, let leg = tripMap.legInMotion(at: time), leg.kind == .flight else { return }
+        let plane = leg.plane(at: time, isReplay: !clock.isLive)
+        let places = [plane.coordinate, leg.destination.coordinate]
+        guard camera.mayFollow(keeping: places, at: now), let wanted = TripMapFollow.rect(for: leg, plane: plane) else { return }
+        var moved = camera
+        if moved.follow(wanted, keeping: places, at: now, animated: !reduceMotion) { camera = moved }
     }
 }

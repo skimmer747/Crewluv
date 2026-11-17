@@ -5,7 +5,8 @@
 //  The trip map on the status screen (moving map spec §5, Stage 2 spec §6.4, §6.5). In flight it follows the plane,
 //  with the headline fact on its chip; on the ground it shows the whole trip with a marker for what the pilot is doing
 //  where they are (activity markers design §2); at home, the next trip, or for a day after a trip, its recap. Tapping
-//  the map opens it full screen.
+//  the map opens it full screen. With Follow the plane on, it eases in on the plane as the flight goes on (follow the
+//  plane design).
 //
 
 import SwiftUI
@@ -16,6 +17,8 @@ struct TripMapCard: View {
     let storyStore: LegStoryStore
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(TripMapScreen.followsPlaneKey) private var followsPlane = false
     @State private var camera: TripMapCamera
     @State private var isShowingFullScreen = false
     /// The chips' heights as last measured, for the band the trip is framed in (base waits and card framing design
@@ -31,8 +34,10 @@ struct TripMapCard: View {
         self.tripMap = tripMap
         self.status = status
         self.storyStore = storyStore
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
-                                                    keeping: tripMap.pilotLocation(at: .now)?.coordinate))
+        let framing = tripMap.framingRect(focusingOn: tripMap.currentLeg, at: .now,
+                                          followsPlane: UserDefaults.standard.bool(forKey: TripMapScreen.followsPlaneKey),
+                                          isReplay: false)
+        _camera = State(initialValue: TripMapCamera(framing: framing, keeping: tripMap.pilotLocation(at: .now)?.coordinate))
     }
 
     var body: some View {
@@ -53,6 +58,7 @@ struct TripMapCard: View {
                 }
                 bar(facts: facts, at: context.date)
             }
+            .onChange(of: context.date) { follow(at: context.date) }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .task(id: LegStoryStore.preparationKey(for: tripMap)) {
@@ -60,18 +66,42 @@ struct TripMapCard: View {
         }
         .onChange(of: tripMap.mode) { refit() }
         .onChange(of: tripMap.legs.map(\.id)) { refit() }
-        // A real path can grow past what the card framed (Stage 3 spec §6.2).
-        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) { refit() }
+        // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
+        .onChange(of: followsPlane, initial: true) { refit() }
+        // A real path can grow past what the card framed (Stage 3 spec §6.2). While the card follows the plane,
+        // following keeps it in view.
+        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) {
+            if !isFollowingPlane(at: .now) { refit() }
+        }
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
     }
 
-    /// Frames the leg in the air, or the whole trip, afresh when the trip's state or legs change, keeping the pilot's
-    /// ground marker in view.
+    /// Frames the leg in the air, following its plane when the family has asked, or the whole trip, afresh when the
+    /// trip's state or legs change, keeping the pilot's ground marker in view.
     private func refit() {
-        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg),
+        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg, at: .now, followsPlane: followsPlane, isReplay: false),
                      keeping: tripMap.pilotLocation(at: .now)?.coordinate, animated: false)
+    }
+
+    /// Whether the card follows the flight's plane at `date`: the family asked, and it has left (follow the plane
+    /// design §3).
+    private func isFollowingPlane(at date: Date) -> Bool {
+        guard followsPlane, let leg = tripMap.currentLeg else { return false }
+        return TripMapFollow.rect(for: leg, at: date, isReplay: false) != nil
+    }
+
+    /// Eases the card in on the flight's plane at `date`, every tick, while the family follows it (follow the plane
+    /// design §4).
+    private func follow(at date: Date) {
+        guard followsPlane, let leg = tripMap.currentLeg,
+              let wanted = TripMapFollow.rect(for: leg, at: date, isReplay: false) else { return }
+        var moved = camera
+        if moved.follow(wanted, keeping: TripMapFollow.places(for: leg, at: date, isReplay: false), at: date,
+                        animated: !reduceMotion) {
+            camera = moved
+        }
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight. The latest event's banner is at the top,

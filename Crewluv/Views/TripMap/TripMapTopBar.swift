@@ -2,7 +2,8 @@
 //  TripMapTopBar.swift
 //  CrewLuve
 //
-//  Close, what's happening, recenter and map style, along the top of the full-screen map (moving map spec §6).
+//  Close, what's happening, recenter, follow the plane and map style, along the top of the full-screen map (moving map
+//  spec §6, follow the plane design §2).
 //
 
 import SwiftUI
@@ -11,8 +12,10 @@ struct TripMapTopBar: View {
     let pill: String
     let style: TripMapStyle
     let isShowingRecenter: Bool
+    let isFollowingPlane: Bool
     let onClose: () -> Void
     let onRecenter: () -> Void
+    let onToggleFollow: () -> Void
     let onNextStyle: () -> Void
 
     var body: some View {
@@ -40,6 +43,14 @@ struct TripMapTopBar: View {
                     .buttonStyle(.glass)
                     .accessibilityLabel("Recenter map")
                 }
+                Button(action: onToggleFollow) {
+                    Image(systemName: "airplane.circle")
+                        .symbolVariant(isFollowingPlane ? .fill : .none)
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Follow the plane")
+                .accessibilityValue(isFollowingPlane ? "On" : "Off")
+                .accessibilityAddTraits(.isToggle)
                 Button(action: onNextStyle) {
                     Image(systemName: "map")
                 }

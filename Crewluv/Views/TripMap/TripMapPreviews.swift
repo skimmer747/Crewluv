@@ -192,9 +192,10 @@ private enum TripMapPreviewData {
     }
 
     /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
-    static func storage(quickLayovers isOn: Bool) -> UserDefaults {
-        let defaults = UserDefaults(suiteName: "TripMapPreviews.quickLayovers.\(isOn)") ?? .standard
+    static func storage(quickLayovers isOn: Bool, followsPlane: Bool = false) -> UserDefaults {
+        let defaults = UserDefaults(suiteName: "TripMapPreviews.quickLayovers.\(isOn).follows.\(followsPlane)") ?? .standard
         defaults.set(isOn, forKey: TripMapScreen.quickLayoversKey)
+        defaults.set(followsPlane, forKey: TripMapScreen.followsPlaneKey)
         return defaults
     }
 }
@@ -244,6 +245,20 @@ private enum TripMapPreviewData {
 #Preview("Across the date line") {
     if let map = TripMapPreviewData.pacific {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Following the plane") {
+    if let map = TripMapPreviewData.europeLive(hoursIn: 6, lastSeenMinutesAgo: 0.5) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true, followsPlane: true))
+    }
+}
+
+#Preview("Full screen, following the plane") {
+    if let map = TripMapPreviewData.europeLive(hoursIn: 6, lastSeenMinutesAgo: 0.5) {
+        TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: 1, totalDays: 4)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true, followsPlane: true))
     }
 }
 
