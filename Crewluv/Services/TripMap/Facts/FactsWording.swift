@@ -53,6 +53,11 @@ nonisolated enum FactsWording {
         return "\(about)\(TripMapWording.minutesText(minutes)) ago"
     }
 
+    /// The widest "when" the banner shows: a best guess more than ten hours ago. A replay's clock time, "About 10:37
+    /// AM", is narrower. The key to the two planes goes by it, so it doesn't move while the same event shows (which
+    /// plane design §2).
+    static let widestEventWhen = "About 88 h 88 min ago"
+
     /// The banner as VoiceOver reads it: "Latest: crossed into Canada, 12 minutes ago.", "Latest: halfway, about
     /// 40 minutes ago.", or at a moment of the replay "Latest: crossed into Canada, at 10:37 AM."
     static func spokenLatestEvent(_ milestone: Milestone, at date: Date, isReplay: Bool = false,

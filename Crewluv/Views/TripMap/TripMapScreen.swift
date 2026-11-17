@@ -138,15 +138,17 @@ struct TripMapScreen: View {
     @ViewBuilder
     private func screen(time: Date, now: Date, facts: TripFacts, timeline: TripTimeline) -> some View {
         let latest = facts.latestEvent(at: time)
+        let showsKey = TripMapDrawing.showsPlaneKey(on: tripMap, at: time, isReplay: !clock.isLive)
         let base = ZStack(alignment: .top) {
-            // The camera frames the trip in what the sheet or the panel leaves clear, and under the latest event.
+            // The camera frames the trip in what the sheet or the panel leaves clear, and under the latest event and
+            // the key.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
-                        clearance: TripMapClearance(top: latest == nil ? 0 : mapTopClearance, leading: mapLeadingClearance,
-                                                    bottom: mapBottomClearance),
+                        clearance: TripMapClearance(top: latest == nil && !showsKey ? 0 : mapTopClearance,
+                                                    leading: mapLeadingClearance, bottom: mapBottomClearance),
                         isFullScreen: true, isReplay: !clock.isLive)
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
-            topChrome(time: time, latest: latest)
+            topChrome(time: time, latest: latest, showsKey: showsKey)
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { topChromeBottom = $0 }
         }
         if usesSidePanel {
@@ -163,14 +165,15 @@ struct TripMapScreen: View {
         }
     }
 
-    /// The top bar, and in flight the latest event's banner under its pill (latest event design §1). Only the bar
-    /// pads the side panel: the banner is centred, clear of it.
-    private func topChrome(time: Date, latest: LatestEvent?) -> some View {
+    /// The top bar, and in flight the latest event's banner under its pill (latest event design §1) with the key to
+    /// the two planes under the buttons (which plane design §2). Only the bar pads the side panel: the banner is
+    /// centred and the key at the trailing edge, clear of it.
+    private func topChrome(time: Date, latest: LatestEvent?, showsKey: Bool) -> some View {
         VStack(spacing: 8) {
             topBar(time: time)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
-            if let latest {
-                LatestEventBanner(event: latest, alignment: .center)
+            if latest != nil || showsKey {
+                TripMapCorner(latest: latest, showsKey: showsKey, isCentered: true)
                     .padding(.horizontal)
             }
         }
@@ -198,7 +201,7 @@ struct TripMapScreen: View {
         usesSidePanel ? 0 : min(sheetHeight, screenFrame.height / 2)
     }
 
-    /// From the screen's top edge to a little below the latest event's banner.
+    /// From the screen's top edge to a little below the latest event's banner and the key.
     private var mapTopClearance: CGFloat {
         max(0, topChromeBottom - screenFrame.minY) + 8
     }

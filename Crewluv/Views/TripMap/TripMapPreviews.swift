@@ -143,6 +143,24 @@ private enum TripMapPreviewData {
                             coordinate: { coordinate($0) })
     }
 
+    /// The Europe trip `minutesLate` minutes after its first flight's takeoff time, with its real plane still at the
+    /// gate in Louisville (which plane design §4).
+    static func europeAtTheGate(minutesLate: Double) -> TripMap? {
+        let now = Date()
+        let start = now.addingTimeInterval(-minutesLate * 60 - FlightProgress.taxiOutAllowance)
+        let legs = europeLegs(from: start)
+        guard let origin = coordinate("SDF") else { return nil }
+        let fix = LiveFlight.Fix(latitude: origin.latitude, longitude: origin.longitude, altitudeFeet: nil, groundSpeedKnots: 0,
+                                 trackDegrees: nil, isOnGround: true, registration: "N605UP", typeCode: "B748",
+                                 seenAt: now.addingTimeInterval(-30))
+        let live = LiveFlight(legID: "UPS207", callsign: "UPS207", state: .ground, fix: fix, landedAt: nil, trail: [])
+        let flights = LiveLegs.flights(for: legs, legacyDelayMinutes: nil, answered: ["UPS207": live], clockOffset: 0,
+                                       coordinate: { coordinate($0) })
+        return TripMap.make(tripLegs: LiveLegs.replacingTimes(in: legs, with: flights, at: now), isNextTrip: false,
+                            homeAirportCode: "SDF", legacyDelayMinutes: nil, flights: flights, at: now,
+                            coordinate: { coordinate($0) })
+    }
+
     /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
     static func storage(quickLayovers isOn: Bool) -> UserDefaults {
         let defaults = UserDefaults(suiteName: "TripMapPreviews.quickLayovers.\(isOn)") ?? .standard
@@ -209,6 +227,19 @@ private enum TripMapPreviewData {
     // Last seen long enough ago that the dotted line to the plane reaches out from under the ghost.
     if let map = TripMapPreviewData.europeLive(hoursIn: 4, lastSeenMinutesAgo: 75, hasUnseenOcean: true) {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Real plane, still at the gate") {
+    if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 25) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Full screen, real plane still at the gate") {
+    if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 25) {
+        TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: 1, totalDays: 4)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true))
     }
 }
 
