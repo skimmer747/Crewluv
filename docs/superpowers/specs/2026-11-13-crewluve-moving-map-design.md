@@ -160,7 +160,7 @@ Stage 3's design (`2026-11-14-crewluve-moving-map-stage3-live-design.md`) refine
   - Its part still to come is dashed light blue.
   - With no live data, the part already flown is solid light blue.
 - **The actual path** (live trail, §9.4) is solid white.
-- **Legs flown earlier in the trip** are solid grey along their planned route.
+- **Legs flown earlier in the trip** are solid grey along their planned route: light grey on Satellite and Hybrid and in dark mode, and near-black (`#2c2c2e`) on the standard map in light mode, as are its drives, since the grey all but vanished there under the night (amended 2026-11-17, as the website draws them).
 - **Drives** are a dotted line, with a small car on it while the pilot drives (amended 2026-11-14, tidy markers design §1), and never get live data.
 - **Drawn by the app,** over Apple's map and under the planes, the heart, the cars and the airports, as the night is (§10). Dashes and dots are laid from each line's far end, so they stay put on the map while the plane eats into the line still to fly, and while the map pans.
 

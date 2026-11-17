@@ -4,7 +4,7 @@
 //
 //  The trip map's line colours and strokes, and its airport codes' colours (moving map spec §7.1). Satellite and
 //  hybrid maps are dark in both light and dark mode, so their lines and codes are light; the standard map gets the
-//  system blue and dark codes in light mode.
+//  system blue, near-black flown legs and drives, and dark codes in light mode.
 //
 
 import SwiftUI
@@ -35,11 +35,15 @@ nonisolated struct TripMapPalette: Equatable {
         labelHalo: .black.opacity(0.75)
     )
 
+    /// Flown legs and drives on the standard map in light mode, as the website draws them. The system gray all but
+    /// vanished under the night shading, about 1.1:1 against the map; this is about 3.5:1 there and 8–12:1 by day.
+    private static let nearBlack = Color(red: 44 / 255, green: 44 / 255, blue: 46 / 255)
+
     static let onLightMap = TripMapPalette(
         upcoming: .blue.opacity(0.6),
         flying: .blue,
-        flown: .gray,
-        drive: .gray,
+        flown: nearBlack,
+        drive: nearBlack,
         seen: .blue,
         unseen: .blue,
         label: Color(white: 0.12),
