@@ -18,9 +18,23 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
     private weak var container: TripMapContainerView?
     private var shapes: TripMapShapesController?
     private var cameraController: TripMapCameraController?
+    private var popup: TripMapPopupController?
     /// The markers on the map, by `TripMapMarker.placements`' names.
     private var annotations: [String: TripMapAnnotation] = [:]
     private var appliedStyle: TripMapStyle?
+    /// The plane whose popup is open (which plane design §3).
+    private var openPopup: OpenPopup?
+
+    private struct OpenPopup {
+        /// The plane's marker's name in `TripMapMarker.placements`.
+        let id: String
+        /// The flight it's on. It closes when the next flight's planes take its plane's name.
+        let legID: String
+        let plane: PlaneKind
+        /// Whether the map was replaying when it opened. It closes when a replay starts or stops, since what it says
+        /// changes.
+        let isReplay: Bool
+    }
 
     private var mapView: MKMapView? { container?.mapView }
 
@@ -49,6 +63,7 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         cameraController.onUserMoved = { [weak self] in self?.cameraWasMovedByUser() }
         cameraController.onFramedWithoutAnimation = { [weak self] in self?.shapes?.draw() }
         self.cameraController = cameraController
+        popup = TripMapPopupController(container: container, mapView: mapView)
         container.onLayoutChange = { [weak self] in self?.layoutDidChange() }
     }
 
@@ -59,6 +74,8 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         shapes?.tearDown()
         shapes = nil
         cameraController = nil
+        popup?.tearDown()
+        popup = nil
     }
 
     // MARK: - Updates
@@ -83,12 +100,15 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         shapes?.setLines(drawing.segments.map(TripMapLine.init(segment:)))
         cameraController?.update(camera: parent.camera, clearance: parent.clearance, respectsSafeArea: isFullScreen)
         shapes?.draw()
+        popup?.controlsHeight = parent.controlsHeight
+        updatePopup(on: mapView)
     }
 
     /// The map's size or safe area has changed.
     private func layoutDidChange() {
         cameraController?.layoutDidChange(camera: parent.camera)
         shapes?.draw()
+        popup?.reposition()
     }
 
     /// The family moved the map: the recenter button shows, and automatic refits leave it alone.
@@ -122,6 +142,29 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         mapView.addAnnotations(added)
     }
 
+    // MARK: - The planes' popups
+
+    /// Keeps the open popup over its plane with the words of the moment, or closes it once its plane isn't drawn, or a
+    /// replay has started or stopped (which plane design §3).
+    private func updatePopup(on mapView: MKMapView) {
+        guard let open = openPopup else { return }
+        guard parent.isFullScreen, open.isReplay == parent.isReplay, let annotation = annotations[open.id],
+              let leg = parent.tripMap.flightInMotion(at: parent.date), leg.id == open.legID else {
+            closePopup(on: mapView)
+            return
+        }
+        popup?.show(PlanePopupWords(leg: leg, plane: open.plane, at: parent.date, isReplay: parent.isReplay),
+                    at: annotation.coordinate)
+    }
+
+    private func closePopup(on mapView: MKMapView) {
+        openPopup = nil
+        popup?.hide()
+        for annotation in mapView.selectedAnnotations {
+            mapView.deselectAnnotation(annotation, animated: false)
+        }
+    }
+
     // MARK: - MKMapViewDelegate
 
     func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
@@ -134,9 +177,29 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         shapes?.noteAnnotationContainer(views.first?.superview)
     }
 
-    /// Called all through a pan, pinch or camera move: our drawing is laid where the map now is.
+    /// Called all through a pan, pinch or camera move: our drawing, and any popup, are laid where the map now is.
     func mapViewDidChangeVisibleRegion(_ mapView: MKMapView) {
         shapes?.draw()
+        popup?.reposition()
+    }
+
+    /// A tap on the real plane or its ghost opens its popup, in place of any other (which plane design §3). Only
+    /// they can be selected: every other marker's view is disabled.
+    func mapView(_ mapView: MKMapView, didSelect annotation: any MKAnnotation) {
+        guard let annotation = annotation as? TripMapAnnotation, let plane = annotation.marker.planeKind else { return }
+        guard let leg = parent.tripMap.flightInMotion(at: parent.date) else {
+            mapView.deselectAnnotation(annotation, animated: false)
+            return
+        }
+        openPopup = OpenPopup(id: annotation.id, legID: leg.id, plane: plane, isReplay: parent.isReplay)
+        updatePopup(on: mapView)
+    }
+
+    /// A tap anywhere else on the map closes the popup. A tap on the other plane closes this one as it opens that one.
+    func mapView(_ mapView: MKMapView, didDeselect annotation: any MKAnnotation) {
+        guard let annotation = annotation as? TripMapAnnotation, annotation.id == openPopup?.id else { return }
+        openPopup = nil
+        popup?.hide()
     }
 
     /// Called once the map has settled after any change in what it shows. When the map itself changes size this is

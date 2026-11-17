@@ -141,11 +141,11 @@ struct TripMapScreen: View {
         let showsKey = TripMapDrawing.showsPlaneKey(on: tripMap, at: time, isReplay: !clock.isLive)
         let base = ZStack(alignment: .top) {
             // The camera frames the trip in what the sheet or the panel leaves clear, and under the latest event and
-            // the key.
+            // the key. A plane's popup stays under the top bar, whatever the camera keeps clear.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
                         clearance: TripMapClearance(top: latest == nil && !showsKey ? 0 : mapTopClearance,
                                                     leading: mapLeadingClearance, bottom: mapBottomClearance),
-                        isFullScreen: true, isReplay: !clock.isLive)
+                        controlsHeight: mapTopClearance, isFullScreen: true, isReplay: !clock.isLive)
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
             topChrome(time: time, latest: latest, showsKey: showsKey)

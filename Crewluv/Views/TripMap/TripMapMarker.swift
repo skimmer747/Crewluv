@@ -30,6 +30,16 @@ nonisolated enum TripMapMarker: Equatable {
         let marker: TripMapMarker
     }
 
+    /// Which of a flight's two planes this is, for the popup a tap opens on the full-screen map (which plane design
+    /// §3): the real plane or its ghost. Nil for every other marker, the schedule's own plane among them.
+    var planeKind: PlaneKind? {
+        switch self {
+        case .realPlane: .realPlane
+        case .ghost: .ghost
+        case .airport, .car, .pilot, .plane: nil
+        }
+    }
+
     /// Markers the same size share a key: a marker's view is measured again only when its key changes. Every kind of
     /// the pilot's marker is the same size.
     var sizeKey: String {

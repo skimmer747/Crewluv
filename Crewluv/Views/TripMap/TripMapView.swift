@@ -18,6 +18,9 @@ struct TripMapView: UIViewRepresentable {
     @Binding var camera: TripMapCamera
     /// What the facts sheet or panel covers: the camera frames the trip clear of it, and Apple's logo sits beside it.
     var clearance: TripMapClearance = .none
+    /// How far down from the map's top edge the full-screen map's own controls reach: its top bar, and the banner and
+    /// the key under it. A plane's popup stays below them (which plane design §3), whatever the camera keeps clear.
+    var controlsHeight: CGFloat = 0
     /// The full-screen map: it pans and zooms, VoiceOver can explore it, and it keeps clear of the safe area. The
     /// card's map does none of these.
     var isFullScreen = false

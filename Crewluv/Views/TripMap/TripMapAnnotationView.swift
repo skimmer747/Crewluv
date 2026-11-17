@@ -23,8 +23,6 @@ final class TripMapAnnotationView: MKAnnotationView {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
         canShowCallout = false
-        // A marker is never selected, so a tap can't lift a car above the plane. Touches go on to the map.
-        isEnabled = false
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: TripMapAnnotationView, _: UITraitCollection) in
             // An airport's code grows and shrinks with the text size. The hosted marker takes the new size before it's
             // measured, or it would be measured at the old one.
@@ -49,7 +47,12 @@ final class TripMapAnnotationView: MKAnnotationView {
     func refresh() {
         guard let marker = (annotation as? TripMapAnnotation)?.marker else { return }
         let host = host(showing: marker)
+        // Only the real plane and its ghost take a tap, which opens their popup on the full-screen map (which plane
+        // design §3). Touches on every other marker go on to the map. A tapped plane keeps its place in the stack, so
+        // the ghost never lifts over the real plane, nor a car over either.
+        isEnabled = marker.planeKind != nil
         zPriority = Self.zPriority(of: marker)
+        selectedZPriority = zPriority
         displayPriority = Self.displayPriority(of: marker)
         collisionMode = Self.collisionMode(of: marker)
         accessibilityLabel = Self.accessibilityLabel(of: marker)
