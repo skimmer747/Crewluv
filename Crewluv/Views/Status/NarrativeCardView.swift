@@ -17,6 +17,9 @@ struct NarrativeCardView: View {
     /// time: "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage", in place of flying, delayed or
     /// not (which plane design §4).
     var isStillOnGround = false
+    /// That real plane at its departure airport is back there after an air return: "Alex has returned to Rockford on
+    /// UPS flight 2963 to Anchorage" (air return design §3).
+    var hasReturned = false
     /// The flight in the air's real plane is down at the arrival airport, before the gate: "Alex has landed in
     /// Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST", delayed or not (landed before the gate
     /// design §3).
@@ -296,7 +299,7 @@ struct NarrativeCardView: View {
                     if isLandedBeforeGate, let dest {
                         landedSentence(in: dest, flight: fltStr, gate: shiftedArr, color: countdownColor)
                     } else if isStillOnGround, let dep, let dest {
-                        Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                        Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else if let dep, let dest {
                         Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else if let dest {
@@ -321,7 +324,7 @@ struct NarrativeCardView: View {
             if isLandedBeforeGate {
                 landedSentence(in: dest, flight: fltStr, gate: arrTime)
             } else if isStillOnGround, let dep {
-                Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+                Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             } else if let dep {
                 Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             } else {
@@ -332,6 +335,11 @@ struct NarrativeCardView: View {
         } else {
             Text("\(name) is in flight")
         }
+    }
+
+    /// "is still on the ground in" Rockford, or "has returned to" it after an air return (air return design §3).
+    private var atDeparturePhrase: String {
+        hasReturned ? "has returned to" : "is still on the ground in"
     }
 
     /// "Alex has landed in Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST.", with the gate's

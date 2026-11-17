@@ -60,6 +60,9 @@ class PartnerStatusReceiver {
     /// Whether the flight between its gates has its real plane still on the ground at its departure airport after the
     /// plan's takeoff time: the narrative says so (which plane design §4).
     private(set) var isStillOnGround = false
+    /// Whether that real plane at its departure airport is back there after an air return: the narrative says
+    /// "has returned to" in place of "is still on the ground in" (air return design §3).
+    private(set) var hasReturned = false
     /// Whether the flight between its gates has its real plane down at the arrival airport, before the gate: the
     /// narrative says so (landed before the gate design §3).
     private(set) var isLandedBeforeGate = false
@@ -432,7 +435,9 @@ class PartnerStatusReceiver {
         let legs = LiveLegs.replacingTimes(in: scheduledLegs, with: flights, at: now)
         self.flights = flights
         estimatedArrival = LiveLegs.estimatedArrival(in: legs, flights: flights, at: now)
-        isStillOnGround = LiveLegs.stillOnGroundFlight(in: legs, flights: flights, at: now) != nil
+        let atDeparture = LiveLegs.stillOnGroundFlight(in: legs, flights: flights, at: now)
+        isStillOnGround = atDeparture != nil
+        hasReturned = atDeparture.flatMap { flights[$0] }?.hasReturned(at: now) ?? false
         isLandedBeforeGate = LiveLegs.landedFlight(in: legs, flights: flights, at: now) != nil
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, \(flights.count) with live data")
 
@@ -655,6 +660,7 @@ class PartnerStatusReceiver {
         flights = [:]
         estimatedArrival = nil
         isStillOnGround = false
+        hasReturned = false
         isLandedBeforeGate = false
     }
 

@@ -144,8 +144,9 @@ private enum TripMapPreviewData {
     }
 
     /// The Europe trip `minutesLate` minutes after its first flight's takeoff time, with its real plane still at the
-    /// gate in Louisville (which plane design §4).
-    static func europeAtTheGate(minutesLate: Double) -> TripMap? {
+    /// gate in Louisville (which plane design §4), or back there after an air return when `hasReturned`: out 30 nm and
+    /// back, up to 9,000 ft (air return design §3).
+    static func europeAtTheGate(minutesLate: Double, hasReturned: Bool = false) -> TripMap? {
         let now = Date()
         let start = now.addingTimeInterval(-minutesLate * 60 - FlightProgress.taxiOutAllowance)
         let legs = europeLegs(from: start)
@@ -153,7 +154,12 @@ private enum TripMapPreviewData {
         let fix = LiveFlight.Fix(latitude: origin.latitude, longitude: origin.longitude, altitudeFeet: nil, groundSpeedKnots: 0,
                                  trackDegrees: nil, isOnGround: true, registration: "N605UP", typeCode: "B748",
                                  seenAt: now.addingTimeInterval(-30))
-        let live = LiveFlight(legID: "UPS207", callsign: "UPS207", state: .ground, fix: fix, landedAt: nil, trail: [])
+        let outAndBack = [(0.1, 2_000.0), (0.4, 7_000.0), (0.6, 9_000.0), (0.4, 6_000.0), (0.1, 1_500.0)]
+        let trail = hasReturned ? outAndBack.enumerated().map { index, step in
+            LiveFlight.TrailPoint(time: start.addingTimeInterval(FlightProgress.taxiOutAllowance + Double(index + 1) * 120),
+                                  latitude: origin.latitude, longitude: origin.longitude + step.0, altitudeFeet: step.1)
+        } : []
+        let live = LiveFlight(legID: "UPS207", callsign: "UPS207", state: .ground, fix: fix, landedAt: nil, trail: trail)
         let flights = LiveLegs.flights(for: legs, legacyDelayMinutes: nil, answered: ["UPS207": live], clockOffset: 0,
                                        coordinate: { coordinate($0) })
         return TripMap.make(tripLegs: LiveLegs.replacingTimes(in: legs, with: flights, at: now), isNextTrip: false,
@@ -257,6 +263,19 @@ private enum TripMapPreviewData {
 #Preview("Real plane, still at the gate") {
     if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 25) {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Real plane, returned to the gate") {
+    if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 40, hasReturned: true) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Full screen, real plane returned to the gate") {
+    if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 40, hasReturned: true) {
+        TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: 1, totalDays: 4)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true))
     }
 }
 

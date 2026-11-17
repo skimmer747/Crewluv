@@ -42,6 +42,8 @@ struct PilotStatusView: View {
     /// Whether the flight in the air's real plane is still on the ground at its departure airport after the plan's
     /// takeoff time, from the screen's model: the narrative says so (which plane design §4).
     var isStillOnGround = false
+    /// Whether that real plane is back at its departure airport after an air return (air return design §3).
+    var hasReturned = false
     /// Whether the flight in the air's real plane is down at the arrival airport, before the gate, from the screen's
     /// model: the narrative says so (landed before the gate design §3).
     var isLandedBeforeGate = false
@@ -113,7 +115,8 @@ struct PilotStatusView: View {
 
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip, isLandingEstimated: estimatedArrival != nil,
-                                      isStillOnGround: isStillOnGround, isLandedBeforeGate: isLandedBeforeGate)
+                                      isStillOnGround: isStillOnGround, hasReturned: hasReturned,
+                                      isLandedBeforeGate: isLandedBeforeGate)
 
                     // Leaving home (if at home) — the commute drive when commuting,
                     // otherwise the flight departure. Taps open schedule.
