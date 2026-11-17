@@ -237,6 +237,14 @@ const returnTrail = returnTimes.map((time) => [Math.round(time * 1000), ...retur
 const returnFix = { ...airFix(toPhiladelphia, phlKnots, offAt, t('2026-11-13T13:41:30Z'), 33000),
                     lat: returnPlace(t('2026-11-13T13:41:30Z'))[0], lon: returnPlace(t('2026-11-13T13:41:30Z'))[1] }
 
+// Louisville to Cologne on time and faster than the plan, seen over land, and then never again over the ocean.
+const gapRoute = [airports.SDF, airports.CGN]
+const gapOffAt = t('2026-11-13T18:15:00Z')
+const gapKnots = 560
+const gapTimes = []
+for (let time = t('2026-11-13T18:19:00Z'); time <= t('2026-11-13T19:39:00Z'); time += 240) gapTimes.push(time)
+const gapTrail = gapTimes.map((time) => trailPoint(gapRoute, gapKnots, gapOffAt, time, 37000))
+
 // A hold inside the last 120 nm: 430 kt to 135 nm short of Philadelphia, then 240 kt out to the north and back.
 const holdEntry = [39.95, -77.3], holdOut = [40.2, -77.7], holdBack = [39.7, -77.45]
 const withAHold = [airports.SDF, [39.6, -81.0], holdEntry, holdOut, holdBack, airports.PHL]
@@ -464,6 +472,19 @@ const flights = [
     flight: null,
     moments: [['2026-11-13T12:30:00Z', 'Not live.']],
   }),
+  flightCase({
+    name: 'faster than the plan, then a long ocean gap', from: 'SDF', to: 'CGN', departure: '2026-11-13T18:00:00Z', arrival: '2026-11-14T02:00:00Z',
+    note: 'Off on time along the great circle at 560 kt, faster than the plan\'s 508.1 kt, seen every 4 minutes until 19:39 and at the fix at 19:39:30, and never again. 2,872 nm of its cruise is left from the fix: the first 1,120 nm, 2 hours of it, are flown at its own 560 kt and the rest at the plan\'s, which is one speed of 527.1 kt over all of it and a touchdown at 01:32, 21 minutes ahead. At its own speed all the way it would be 01:13. The landing estimate, the estimated plane and the ghost all fly the one speed, and the estimate holds still through the gap.',
+    flight: wire('leg-cgn', 'UPS207', 'airborne', airFix(gapRoute, gapKnots, gapOffAt, t('2026-11-13T19:39:30Z'), 37000), null, gapTrail),
+    moments: [
+      ['2026-11-13T19:39:40Z', 'In the air, at the fix.'],
+      ['2026-11-13T19:42:31Z', 'The fix is just over 3 minutes old: estimated, with the same estimate.'],
+      ['2026-11-13T21:39:30Z', 'Two hours on from the fix, far out over the ocean.'],
+      ['2026-11-14T01:00:00Z', 'Nearly there, still unseen: the estimate is the same as at the fix.'],
+    ],
+    places: ['2026-11-13T19:00:00Z', '2026-11-13T21:39:30Z', '2026-11-14T01:00:00Z'],
+    distancesNm: [500, 2000, 3500],
+  }),
 ]
 
 // MARK: The labels, the rounding and the window
@@ -513,12 +534,13 @@ const windows = [
 ]
 
 const cases = {
-  about: 'The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app\'s FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website\'s tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live\'s `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan\'s touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path\'s `ownSpeedKt` is the plane\'s own speed over its cruise so far, or null when too little of it has been seen, and a flight\'s `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at: that one when it\'s from 0.7 of the plan\'s to 1.5 of it, and the plan\'s otherwise. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.',
+  about: 'The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app\'s FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website\'s tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live\'s `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan\'s touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path\'s `ownSpeedKt` is the plane\'s own speed over its cruise so far, or null when too little of it has been seen, and a flight\'s `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at. When its own speed is from 0.7 of the plan\'s to 1.5 of it, the cruise left from the last place it was seen is flown at its own speed for `ownSpeedAheadMinutes`, or all the way when that\'s further, and at the plan\'s after that, and `flownSpeedKt` is the one speed that flies it all in the same time. Otherwise it\'s the plan\'s. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.',
   constants: {
     taxiOutMinutes: 15, taxiInMinutes: 7, shortestCruiseMinutes: 10, descentDistanceNm: 120, descentSpeedKt: 280,
     freshSeconds: live.FRESH, airportRadiusNm: 10, onScheduleMinutes: live.ON_SCHEDULE_MINUTES,
     unseenGapMinutes: 10, firstPointRadiusNm: 30,
     ownSpeedLeastMinutes: live.OWN_SPEED_LEAST / 60, ownSpeedLeastShare: live.OWN_SPEED_LEAST_SHARE, ownSpeedMostShare: live.OWN_SPEED_MOST_SHARE,
+    ownSpeedAheadMinutes: live.OWN_SPEED_AHEAD / 60,
     windowOpensMinutesBefore: 30, windowClosesHoursAfter: 2, windowKeepsMinutes: 30, windowEndsHoursAfter: 12,
   },
   airports,

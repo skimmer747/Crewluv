@@ -107,7 +107,7 @@ final class LiveWordingTests: XCTestCase {
     func test_landingLine_theRealPlanesEstimate_saysAboutOnce() throws {
         let (toCologne, _) = try leg(of: "behind, with a late first point and an unseen ocean", at: "14T00:13:00")
         XCTAssertEqual(plain(TripMapWording.landingLine(for: toCologne, calendar: calendar, locale: locale)),
-                       "Lands Cologne about 3:55 AM · 9:55 PM your time")
+                       "Lands Cologne about 3:54 AM · 9:54 PM your time")
         let (toPhiladelphia, _) = try leg(of: "ahead, in the air", at: "13T12:41:50")
         XCTAssertEqual(plain(TripMapWording.landingLine(for: toPhiladelphia, calendar: calendar, locale: locale)),
                        "Lands Philadelphia about 8:30 AM")
@@ -115,7 +115,7 @@ final class LiveWordingTests: XCTestCase {
 
     func test_factsLands_theRealPlanesEstimate_saysAbout() throws {
         let (toCologne, _) = try leg(of: "behind, with a late first point and an unseen ocean", at: "14T00:13:00")
-        XCTAssertEqual(plain(FactsWording.lands(toCologne, calendar: calendar, locale: locale)), "lands about 3:55 AM there")
+        XCTAssertEqual(plain(FactsWording.lands(toCologne, calendar: calendar, locale: locale)), "lands about 3:54 AM there")
         let (toPhiladelphia, _) = try leg(of: "ahead, in the air", at: "13T12:41:50")
         XCTAssertEqual(plain(FactsWording.lands(toPhiladelphia, calendar: calendar, locale: locale)), "lands about 8:30 AM")
     }
@@ -154,9 +154,9 @@ final class LiveWordingTests: XCTestCase {
     func test_liveSummary_saysHowThePlaneIsDoing_andWhatsBelow() throws {
         let (leg, at) = try leg(of: "behind, with a late first point and an unseen ocean", at: "14T00:13:00")
         XCTAssertEqual(plain(try XCTUnwrap(TripMapWording.liveSummary(for: leg, over: "Québec", now: at, calendar: calendar, locale: locale))),
-                       "UPS207 to Cologne, 55 minutes behind schedule, over Québec. Lands about 9:55 PM your time.")
+                       "UPS207 to Cologne, 55 minutes behind schedule, over Québec. Lands about 9:54 PM your time.")
         XCTAssertEqual(plain(try XCTUnwrap(TripMapWording.liveSummary(for: leg, now: at, calendar: calendar, locale: locale))),
-                       "UPS207 to Cologne, 55 minutes behind schedule. Lands about 9:55 PM your time.")
+                       "UPS207 to Cologne, 55 minutes behind schedule. Lands about 9:54 PM your time.")
     }
 
     func test_liveSummary_whileEstimated_saysAbout() throws {

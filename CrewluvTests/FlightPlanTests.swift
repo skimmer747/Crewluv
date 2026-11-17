@@ -21,6 +21,28 @@ final class FlightPlanTests: XCTestCase {
         XCTAssertEqual(FlightPlan.descentDistance, constants.descentDistanceNm * nauticalMile)
         XCTAssertEqual(FlightPlan.descentSpeed, constants.descentSpeedKt * nauticalMile / 3600, accuracy: 1e-9)
         XCTAssertEqual(FlightPlan.ownSpeedShares, constants.ownSpeedLeastShare...constants.ownSpeedMostShare)
+        XCTAssertEqual(FlightPlan.ownSpeedAhead, constants.ownSpeedAheadMinutes * 60)
+    }
+
+    // MARK: - Its own speed for 2 hours, and the plan's after (long gap design §2)
+
+    private var knot: Double { nauticalMile / 3600 }
+
+    func test_cruiseSpeed_withUnderTwoHoursOfCruiseLeft_isThePlanesOwn() {
+        // 800 nm at its own 450 kt is 1 h 47 min.
+        XCTAssertEqual(FlightPlan.cruiseSpeed(over: 800 * nauticalMile, own: 450 * knot, planned: 500 * knot) / knot, 450, accuracy: 1e-9)
+    }
+
+    func test_cruiseSpeed_pastTwoHours_fliesThePlansSpeedForTheRest() {
+        // 2,000 nm: 900 at its own 450 kt in 2 hours, and 1,100 at the plan's 500 kt in 2.2 hours. 2,000 nm in 4.2 hours.
+        XCTAssertEqual(FlightPlan.cruiseSpeed(over: 2000 * nauticalMile, own: 450 * knot, planned: 500 * knot) / knot, 2000 / 4.2, accuracy: 1e-9)
+        // Faster than the plan: 1,100 at its own 550 kt in 2 hours, and 900 at the plan's 500 in 1.8.
+        XCTAssertEqual(FlightPlan.cruiseSpeed(over: 2000 * nauticalMile, own: 550 * knot, planned: 500 * knot) / knot, 2000 / 3.8, accuracy: 1e-9)
+    }
+
+    func test_cruiseSpeed_withNoCruiseLeft_isThePlanesOwn() {
+        XCTAssertEqual(FlightPlan.cruiseSpeed(over: 0, own: 450 * knot, planned: 500 * knot), 450 * knot)
+        XCTAssertEqual(FlightPlan.cruiseSpeed(over: -10 * nauticalMile, own: 450 * knot, planned: 500 * knot), 450 * knot)
     }
 
     func test_flown_everySharedCase_fliesItsSpeed_andKeepsTheSchedulesTimes() throws {

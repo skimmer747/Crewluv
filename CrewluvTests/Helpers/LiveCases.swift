@@ -27,6 +27,7 @@ extension TripMapFixtures {
             let ownSpeedLeastMinutes: Double
             let ownSpeedLeastShare: Double
             let ownSpeedMostShare: Double
+            let ownSpeedAheadMinutes: Double
             let windowOpensMinutesBefore: Double
             let windowClosesHoursAfter: Double
             let windowKeepsMinutes: Double

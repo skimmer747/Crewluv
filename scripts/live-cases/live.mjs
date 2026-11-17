@@ -22,6 +22,7 @@ export const WINDOW_ENDS_AFTER = 12 * 3600
 export const OWN_SPEED_LEAST = 10 * 60
 export const OWN_SPEED_LEAST_SHARE = 0.7
 export const OWN_SPEED_MOST_SHARE = 1.5
+export const OWN_SPEED_AHEAD = 2 * 3600
 
 const rad = (d) => d * Math.PI / 180
 const deg = (r) => r * 180 / Math.PI
@@ -169,12 +170,17 @@ export function ownSpeed(path) {
 }
 
 /// The schedule's plan with the plane's own speed for its cruise, once that's known and could be right: from 0.7 of
-/// the plan's cruise speed to 1.5 of it. Its takeoff and touchdown are still the schedule's.
+/// the plan's cruise speed to 1.5 of it. The cruise left from the last place the plane was seen is flown at its own
+/// speed for two hours, or all the way when that's further, and at the plan's after that: the plan's cruise is the one
+/// speed that flies it all in the same time (long gap design §2). Its takeoff and touchdown are still the schedule's.
 export function flownPlan(plan, path) {
   if (plan.cruise === null) return plan
   const own = ownSpeed(path)
   if (own === null || !(own >= plan.cruise * OWN_SPEED_LEAST_SHARE && own <= plan.cruise * OWN_SPEED_MOST_SHARE)) return plan
-  return { ...plan, cruise: own }
+  const cruiseLeft = path.length - path.flown - DESCENT_DISTANCE
+  if (!(cruiseLeft > 0)) return { ...plan, cruise: own }
+  const atOwn = Math.min(cruiseLeft, own * OWN_SPEED_AHEAD)
+  return { ...plan, cruise: cruiseLeft / (atOwn / own + (cruiseLeft - atOwn) / plan.cruise) }
 }
 
 // MARK: The record (spec §7.2)

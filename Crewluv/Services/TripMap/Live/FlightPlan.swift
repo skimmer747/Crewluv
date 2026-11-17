@@ -3,7 +3,8 @@
 //  CrewLuve
 //
 //  The schedule's flight plan (Stage 3 spec §4): when an on-schedule plane takes off and touches down, and how fast
-//  it flies in between. The real plane is measured against it, flown at the plane's own speed once that's known.
+//  it flies in between. The real plane is measured against it, flown at the plane's own speed for the next 2 hours
+//  once that's known, and at the schedule's after that.
 //  The constants are written down in CrewluvTests/Fixtures/TripMap/live-cases.json, which the website shares.
 //
 
@@ -23,6 +24,10 @@ nonisolated struct FlightPlan: Equatable, Sendable {
     /// A plane's own speed is believed from 0.7 of the plan's speed to 1.5 of it, which the strongest winds stay
     /// inside. Outside that, the places it was seen can't be right.
     static let ownSpeedShares: ClosedRange<Double> = 0.7...1.5
+
+    /// How far ahead of the last place the plane was seen its own speed is trusted: 2 hours of its cruise. Past that,
+    /// the winds it meets are the schedule's to know, and so is its speed (long gap design §2).
+    static let ownSpeedAhead: TimeInterval = 2 * 60 * 60
 
     /// Leaving the gate and reaching it, both moved by any reported delay.
     let departure: Date
@@ -71,15 +76,27 @@ nonisolated struct FlightPlan: Equatable, Sendable {
         isSteady = plan.isSteady
     }
 
-    /// This plan as the plane flies it: with the plane's own speed over its cruise so far in place of the schedule's,
-    /// once `path` has one that could be right. The takeoff and the touchdown stay the schedule's, and a leg flown at
-    /// one steady speed keeps it. The landing estimate, the estimated plane and the ghost all fly this plan, so the
-    /// gap between the two planes is still the label.
+    /// This plan as the plane flies it, once `path` has an own speed that could be right: that speed for the next
+    /// `ownSpeedAhead` of the cruise left from the last place the plane was seen, and the schedule's after, made into
+    /// the one speed that flies the cruise left in the same time (long gap design §2). The takeoff and the touchdown
+    /// stay the schedule's, and a leg flown at one steady speed keeps it. The landing estimate, the estimated plane
+    /// and the ghost all fly this plan, so the gap between the two planes is still the label. Only the time is meant:
+    /// in its first 2 hours unseen, the estimated plane is a little behind where its own speed would have it.
     func flown(along path: FlightPath) -> FlightPlan {
         guard !isSteady, let own = path.ownSpeed else { return self }
         let believed = speed * Self.ownSpeedShares.lowerBound...speed * Self.ownSpeedShares.upperBound
         guard believed.contains(own) else { return self }
-        return FlightPlan(self, speed: own)
+        // The way left from the last place it was seen is the great circle, and its last 120 nm the descent.
+        let cruiseLeft = path.length - path.flownLength - Self.descentDistance
+        return FlightPlan(self, speed: Self.cruiseSpeed(over: cruiseLeft, own: own, planned: speed))
+    }
+
+    /// The one speed that flies `cruise` meters in the time it takes at `own` for `ownSpeedAhead`, or all the way when
+    /// that's further, and at `planned` for the rest. With no cruise left, `own`.
+    static func cruiseSpeed(over cruise: Double, own: Double, planned: Double) -> Double {
+        guard cruise > 0 else { return own }
+        let atOwnSpeed = min(cruise, own * ownSpeedAhead)
+        return cruise / (atOwnSpeed / own + (cruise - atOwnSpeed) / planned)
     }
 
     /// The plan's time in the air.
