@@ -14,7 +14,7 @@ long flight the arrival is a small corner of it. Todd likes today's view too, so
 - **"Follow the plane",** one setting for the card and the full-screen map, remembered (`@AppStorage`
   `tripMapFollowsPlane`), as Quick layovers is.
 - **Off at first,** so today's whole-flight view stays until the family turns it on.
-- **Switched on the full-screen map** by a button beside recenter: an SF Symbol such as `scope`, filled while it's on,
+- **Switched on the full-screen map** by a button beside recenter: `airplane.circle`, filled while it's on,
   and to VoiceOver "Follow the plane", with the value "on" or "off". The card has no button: it follows the setting.
 
 ## 3. What it frames
