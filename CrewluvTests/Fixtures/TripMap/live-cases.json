@@ -1,5 +1,5 @@
 {
-  "about": "The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app's FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website's tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live's `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan's touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path's `ownSpeedKt` is the plane's own speed over its cruise so far, or null when too little of it has been seen, and a flight's `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at. When its own speed is from 0.7 of the plan's to 1.5 of it, the cruise left from the last place it was seen is flown at its own speed for `ownSpeedAheadMinutes`, or all the way when that's further, and at the plan's after that, and `flownSpeedKt` is the one speed that flies it all in the same time. Otherwise it's the plan's. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.",
+  "about": "The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app's FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website's tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live's `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan's touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path's `ownSpeedKt` is the plane's own speed over its cruise so far, or null when too little of it has been seen, and a flight's `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at. When its own speed is from 0.7 of the plan's to 1.5 of it, the cruise left from the last place it was seen is flown at its own speed for `ownSpeedAheadMinutes`, or all the way when that's further, and at the plan's after that, and `flownSpeedKt` is the one speed that flies it all in the same time. Otherwise it's the plan's. A plane on the ground within 10 nm of its departure airport has returned when its whole trail has climbed `returnClimbFeet` or more, its highest point over its lowest, and its label is \"Returned\". A path, its record and its own speed are made from the trail's latest try, which starts again at a place seen in the air within `firstPointRadiusNm` of the departure airport more than `restartGapMinutes` after the point before it, which was within `airportRadiusNm`, once the try before had climbed `returnClimbFeet`; the fix in the air, when it's newer than the trail, can start one with no trail points yet; while the plane is back there, from no points. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.",
   "constants": {
     "taxiOutMinutes": 15,
     "taxiInMinutes": 7,
@@ -15,6 +15,8 @@
     "ownSpeedLeastShare": 0.7,
     "ownSpeedMostShare": 1.5,
     "ownSpeedAheadMinutes": 120,
+    "returnClimbFeet": 1000,
+    "restartGapMinutes": 10,
     "windowOpensMinutesBefore": 30,
     "windowClosesHoursAfter": 2,
     "windowKeepsMinutes": 30,
@@ -2656,6 +2658,346 @@
       "record": null
     },
     {
+      "name": "an air return, back on the ground",
+      "note": "Off at 12:04:34, out 40 nm and straight back, climbing to 8,500 ft and down again, and on the ground at Louisville at 12:40. Its trail climbed 1,000 ft or more, so it has returned: the label is \"Returned\", the real plane is at its fix with no ghost, and touchdown is now plus the plan's 83 minutes in the air, as for a plane still on the ground. The way out and back isn't its path: the path is the great circle, and there's no record.",
+      "from": "SDF",
+      "to": "PHL",
+      "departure": "2026-11-13T12:00:00.000Z",
+      "arrival": "2026-11-13T13:45:00.000Z",
+      "flight": {
+        "leg_id": "leg-phl",
+        "callsign": "UPS1234",
+        "state": "ground",
+        "fix": {
+          "lat": 38.18,
+          "lon": -85.73,
+          "altitude_ft": null,
+          "ground_speed_kt": 0,
+          "track_deg": null,
+          "on_ground": true,
+          "registration": "N370UP",
+          "type_code": "B763",
+          "seen_at": 1794573600000
+        },
+        "landed_at": null,
+        "trail": [
+          [1794571500000, 38.18596, -85.700683, 861],
+          [1794571620000, 38.239177, -85.537537, 2528],
+          [1794571740000, 38.292168, -85.374152, 4194],
+          [1794571860000, 38.344932, -85.210529, 5861],
+          [1794571980000, 38.397468, -85.046668, 7528],
+          [1794572100000, 38.406202, -85.019335, 7806],
+          [1794572220000, 38.353704, -85.183235, 6139],
+          [1794572340000, 38.300978, -85.346898, 4472],
+          [1794572460000, 38.248025, -85.510323, 2806],
+          [1794572580000, 38.194845, -85.673509, 1139]
+        ],
+        "trail_count": 10
+      },
+      "path": {
+        "isReal": false,
+        "lengthNm": 499.713,
+        "flownNm": 0,
+        "ownSpeedKt": null,
+        "stretchKinds": [
+          "planned"
+        ],
+        "seenNm": 0,
+        "unseenNm": 0,
+        "plannedNm": 499.713
+      },
+      "flownSpeedKt": 397.705,
+      "moments": [
+        {
+          "at": "2026-11-13T12:41:00.000Z",
+          "note": "Back at the airport, 26 minutes after the plan's takeoff.",
+          "phase": "returned",
+          "touchdown": "2026-11-13T14:04:00.000Z",
+          "liveArrival": "2026-11-13T14:11:00.000Z",
+          "gapMinutes": -26,
+          "label": "Returned",
+          "planeAlongNm": 0,
+          "plane": [38.18, -85.73],
+          "ghostAlongNm": null,
+          "ghost": null,
+          "start": "2026-11-13T12:00:00.000Z",
+          "end": "2026-11-13T14:11:00.000Z"
+        },
+        {
+          "at": "2026-11-13T12:43:01.000Z",
+          "note": "The ground fix is just over 3 minutes old: not live.",
+          "phase": "notLive",
+          "touchdown": null,
+          "liveArrival": null,
+          "gapMinutes": null,
+          "label": null,
+          "planeAlongNm": null,
+          "plane": null,
+          "ghostAlongNm": null,
+          "ghost": null,
+          "start": "2026-11-13T12:00:00.000Z",
+          "end": "2026-11-13T13:45:00.000Z"
+        }
+      ],
+      "record": null
+    },
+    {
+      "name": "an air return, then off again",
+      "note": "The same air return, then off again at 13:20. Its first point after the wait is 18 nm from Louisville, within 30 nm, an hour after the last point of the return, which was 3 nm out: the trail starts again there. Its path, record, own speed, landing estimate and ghost are made from the second try alone.",
+      "from": "SDF",
+      "to": "PHL",
+      "departure": "2026-11-13T12:00:00.000Z",
+      "arrival": "2026-11-13T13:45:00.000Z",
+      "flight": {
+        "leg_id": "leg-phl",
+        "callsign": "UPS1234",
+        "state": "airborne",
+        "fix": {
+          "lat": 39.122068,
+          "lon": -82.682039,
+          "altitude_ft": 35000,
+          "ground_speed_kt": 430,
+          "track_deg": 80,
+          "on_ground": false,
+          "registration": "N370UP",
+          "type_code": "B763",
+          "seen_at": 1794577290000
+        },
+        "landed_at": null,
+        "trail": [
+          [1794571500000, 38.18596, -85.700683, 861],
+          [1794571620000, 38.239177, -85.537537, 2528],
+          [1794571740000, 38.292168, -85.374152, 4194],
+          [1794571860000, 38.344932, -85.210529, 5861],
+          [1794571980000, 38.397468, -85.046668, 7528],
+          [1794572100000, 38.406202, -85.019335, 7806],
+          [1794572220000, 38.353704, -85.183235, 6139],
+          [1794572340000, 38.300978, -85.346898, 4472],
+          [1794572460000, 38.248025, -85.510323, 2806],
+          [1794572580000, 38.194845, -85.673509, 1139],
+          [1794576150000, 38.288642, -85.385052, 2000],
+          [1794576270000, 38.379281, -85.1035, 6000],
+          [1794576390000, 38.469246, -84.821244, 10000],
+          [1794576510000, 38.558531, -84.538286, 14000],
+          [1794576630000, 38.647133, -84.254627, 18000],
+          [1794576750000, 38.735049, -83.970268, 22000],
+          [1794576870000, 38.822274, -83.685211, 26000],
+          [1794576990000, 38.908805, -83.399458, 30000],
+          [1794577110000, 38.994637, -83.11301, 34000],
+          [1794577230000, 39.079768, -82.825869, 35000]
+        ],
+        "trail_count": 20
+      },
+      "path": {
+        "isReal": true,
+        "lengthNm": 501.65,
+        "flownNm": 154.083,
+        "ownSpeedKt": null,
+        "stretchKinds": [
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "seen",
+          "planned"
+        ],
+        "seenNm": 154.083,
+        "unseenNm": 0,
+        "plannedNm": 347.567
+      },
+      "flownSpeedKt": 397.705,
+      "moments": [
+        {
+          "at": "2026-11-13T13:41:40.000Z",
+          "note": "In the air again, and very late.",
+          "phase": "inAir",
+          "touchdown": "2026-11-13T14:41:32.780Z",
+          "liveArrival": "2026-11-13T14:48:32.780Z",
+          "gapMinutes": -64,
+          "label": "1 h 4 min behind",
+          "planeAlongNm": 154.083,
+          "plane": [39.12207, -82.68204],
+          "ghostAlongNm": 501.65,
+          "ghost": [39.8719, -75.2411],
+          "start": "2026-11-13T12:00:00.000Z",
+          "end": "2026-11-13T14:48:32.780Z"
+        }
+      ],
+      "record": {
+        "takeoff": "2026-11-13T13:22:30.000Z",
+        "touchdown": "2026-11-13T14:41:32.780Z",
+        "places": [
+          {
+            "at": "2026-11-13T13:25:00.000Z",
+            "alongNm": 35.833,
+            "point": [38.40184, -85.033]
+          },
+          {
+            "at": "2026-11-13T13:41:00.000Z",
+            "alongNm": 150.5,
+            "point": [39.10094, -82.75398]
+          }
+        ],
+        "times": [
+          {
+            "alongNm": 50,
+            "at": "2026-11-13T13:26:58.604Z"
+          },
+          {
+            "alongNm": 150,
+            "at": "2026-11-13T13:40:55.814Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an air return, then off again and seen only at its fix",
+      "note": "The same air return, then off again at 13:20 and seen in the air at 13:21:30, 11 nm out, before its first new trail point. The fix starts the trail again by itself: the path is the fix's alone, with nothing of the way out and back.",
+      "from": "SDF",
+      "to": "PHL",
+      "departure": "2026-11-13T12:00:00.000Z",
+      "arrival": "2026-11-13T13:45:00.000Z",
+      "flight": {
+        "leg_id": "leg-phl",
+        "callsign": "UPS1234",
+        "state": "airborne",
+        "fix": {
+          "lat": 38.243071,
+          "lon": -85.525563,
+          "altitude_ft": 4000,
+          "ground_speed_kt": 430,
+          "track_deg": 80,
+          "on_ground": false,
+          "registration": "N370UP",
+          "type_code": "B763",
+          "seen_at": 1794576090000
+        },
+        "landed_at": null,
+        "trail": [
+          [1794571500000, 38.18596, -85.700683, 861],
+          [1794571620000, 38.239177, -85.537537, 2528],
+          [1794571740000, 38.292168, -85.374152, 4194],
+          [1794571860000, 38.344932, -85.210529, 5861],
+          [1794571980000, 38.397468, -85.046668, 7528],
+          [1794572100000, 38.406202, -85.019335, 7806],
+          [1794572220000, 38.353704, -85.183235, 6139],
+          [1794572340000, 38.300978, -85.346898, 4472],
+          [1794572460000, 38.248025, -85.510323, 2806],
+          [1794572580000, 38.194845, -85.673509, 1139]
+        ],
+        "trail_count": 10
+      },
+      "path": {
+        "isReal": true,
+        "lengthNm": 499.809,
+        "flownNm": 10.75,
+        "ownSpeedKt": null,
+        "stretchKinds": [
+          "seen",
+          "planned"
+        ],
+        "seenNm": 10.75,
+        "unseenNm": 0,
+        "plannedNm": 489.059
+      },
+      "flownSpeedKt": 397.705,
+      "moments": [
+        {
+          "at": "2026-11-13T13:21:40.000Z",
+          "note": "In the air again, an hour late.",
+          "phase": "inAir",
+          "touchdown": "2026-11-13T14:42:53.560Z",
+          "liveArrival": "2026-11-13T14:49:53.560Z",
+          "gapMinutes": -65,
+          "label": "1 h 5 min behind",
+          "planeAlongNm": 10.75,
+          "plane": [38.24307, -85.52556],
+          "ghostAlongNm": 423.587,
+          "ghost": [39.67824, -76.87359],
+          "start": "2026-11-13T12:00:00.000Z",
+          "end": "2026-11-13T14:49:53.560Z"
+        }
+      ],
+      "record": {
+        "takeoff": "2026-11-13T13:21:30.000Z",
+        "touchdown": "2026-11-13T14:42:53.560Z",
+        "places": [],
+        "times": []
+      }
+    },
+    {
+      "name": "a stray point while taxiing",
+      "note": "One point in the air at 500 ft while the plane taxied, and on the ground ever since. One point can't climb, so it hasn't returned: it's still on the ground.",
+      "from": "SDF",
+      "to": "PHL",
+      "departure": "2026-11-13T12:00:00.000Z",
+      "arrival": "2026-11-13T13:45:00.000Z",
+      "flight": {
+        "leg_id": "leg-phl",
+        "callsign": "UPS1234",
+        "state": "ground",
+        "fix": {
+          "lat": 38.18,
+          "lon": -85.73,
+          "altitude_ft": null,
+          "ground_speed_kt": 0,
+          "track_deg": null,
+          "on_ground": true,
+          "registration": "N370UP",
+          "type_code": "B763",
+          "seen_at": 1794572400000
+        },
+        "landed_at": null,
+        "trail": [
+          [1794571800000, 38.176, -85.733, 500]
+        ],
+        "trail_count": 1
+      },
+      "path": {
+        "isReal": true,
+        "lengthNm": 499.723,
+        "flownNm": 0.171,
+        "ownSpeedKt": null,
+        "stretchKinds": [
+          "seen",
+          "planned"
+        ],
+        "seenNm": 0.171,
+        "unseenNm": 0,
+        "plannedNm": 499.552
+      },
+      "flownSpeedKt": 397.705,
+      "moments": [
+        {
+          "at": "2026-11-13T12:20:30.000Z",
+          "note": "Five and a half minutes after the plan's takeoff: still on the ground, 6 minutes behind.",
+          "phase": "onGround",
+          "touchdown": "2026-11-13T13:43:30.000Z",
+          "liveArrival": "2026-11-13T13:50:30.000Z",
+          "gapMinutes": -6,
+          "label": "Still on the ground · 6 min behind",
+          "planeAlongNm": 0,
+          "plane": [38.18, -85.73],
+          "ghostAlongNm": 36.466,
+          "ghost": [38.33042, -84.98875],
+          "start": "2026-11-13T11:55:00.000Z",
+          "end": "2026-11-13T13:50:30.000Z"
+        }
+      ],
+      "record": {
+        "takeoff": "2026-11-13T12:10:00.000Z",
+        "touchdown": "2026-11-13T13:32:58.537Z",
+        "places": [],
+        "times": []
+      }
+    },
+    {
       "name": "landed, seen all the way",
       "note": "The same flight, followed to Philadelphia and seen on the ground there. Its path ends at the airport with nothing planned, the landing is when it was first seen down, and the leg ends 7 minutes after that.",
       "from": "SDF",
@@ -3561,6 +3903,16 @@
       "phase": "landed",
       "gapMinutes": -61,
       "label": "Landed 1 h 1 min late"
+    },
+    {
+      "phase": "returned",
+      "gapMinutes": null,
+      "label": "Returned"
+    },
+    {
+      "phase": "returned",
+      "gapMinutes": -26,
+      "label": "Returned"
     },
     {
       "phase": "elsewhere",

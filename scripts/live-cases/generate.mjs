@@ -258,6 +258,21 @@ const holdTrail = holdTimes.map((time) => [Math.round(time * 1000), ...holdPlace
 const holdFix = { ...airFix(toPhiladelphia, 240, offAt, t('2026-11-13T13:17:40Z'), 12000),
                   lat: holdPlace(t('2026-11-13T13:17:40Z'))[0], lon: holdPlace(t('2026-11-13T13:17:40Z'))[1] }
 
+// An air return (air return design §5): off at 12:04:34, out 40 nm toward Philadelphia at 250 kt and straight back,
+// climbing to 8,500 ft halfway and down again, and back on the ground at 12:23:46.
+const airReturn = [airports.SDF, alongRoute(toPhiladelphia, 40 * NM), airports.SDF]
+const airReturnKnots = 250
+const airReturnFor = routeLength(airReturn) / (airReturnKnots * NM / 3600)
+const airReturnFeet = (time) => Math.round(500 + 16000 * Math.min(time - offAt, offAt + airReturnFor - time) / airReturnFor)
+const airReturnTimes = []
+for (let time = t('2026-11-13T12:05:00Z'); time <= t('2026-11-13T12:23:00Z'); time += 120) airReturnTimes.push(time)
+const airReturnTrail = airReturnTimes.map((time) => trailPoint(airReturn, airReturnKnots, offAt, time, airReturnFeet(time)))
+// Off again at 13:20 toward Philadelphia at 430 kt, climbing, first seen at 13:22:30, 18 nm out, and every 2 minutes on.
+const secondOffAt = t('2026-11-13T13:20:00Z')
+const secondTimes = []
+for (let time = t('2026-11-13T13:22:30Z'); time <= t('2026-11-13T13:40:30Z'); time += 120) secondTimes.push(time)
+const secondTrail = secondTimes.map((time, i) => trailPoint(toPhiladelphia, phlKnots, secondOffAt, time, Math.min(35000, 2000 + i * 4000)))
+
 const flights = [
   flightCase({
     name: 'ahead, in the air', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
@@ -425,6 +440,37 @@ const flights = [
     moments: [['2026-11-13T12:35:00Z', 'Twenty minutes late.']],
   }),
   flightCase({
+    name: 'an air return, back on the ground', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'Off at 12:04:34, out 40 nm and straight back, climbing to 8,500 ft and down again, and on the ground at Louisville at 12:40. Its trail climbed 1,000 ft or more, so it has returned: the label is "Returned", the real plane is at its fix with no ghost, and touchdown is now plus the plan\'s 83 minutes in the air, as for a plane still on the ground. The way out and back isn\'t its path: the path is the great circle, and there\'s no record.',
+    flight: wire('leg-phl', 'UPS1234', 'ground', groundFix([38.18, -85.73], t('2026-11-13T12:40:00Z')), null, airReturnTrail),
+    moments: [
+      ['2026-11-13T12:41:00Z', 'Back at the airport, 26 minutes after the plan\'s takeoff.'],
+      ['2026-11-13T12:43:01Z', 'The ground fix is just over 3 minutes old: not live.'],
+    ],
+  }),
+  flightCase({
+    name: 'an air return, then off again', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'The same air return, then off again at 13:20. Its first point after the wait is 18 nm from Louisville, within 30 nm, an hour after the last point of the return, which was 3 nm out: the trail starts again there. Its path, record, own speed, landing estimate and ghost are made from the second try alone.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, secondOffAt, t('2026-11-13T13:41:30Z'), 35000), null,
+                 [...airReturnTrail, ...secondTrail]),
+    moments: [['2026-11-13T13:41:40Z', 'In the air again, and very late.']],
+    places: ['2026-11-13T13:25:00Z', '2026-11-13T13:41:00Z'],
+    distancesNm: [50, 150],
+  }),
+  flightCase({
+    name: 'an air return, then off again and seen only at its fix', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'The same air return, then off again at 13:20 and seen in the air at 13:21:30, 11 nm out, before its first new trail point. The fix starts the trail again by itself: the path is the fix\'s alone, with nothing of the way out and back.',
+    flight: wire('leg-phl', 'UPS1234', 'airborne', airFix(toPhiladelphia, phlKnots, secondOffAt, t('2026-11-13T13:21:30Z'), 4000), null, airReturnTrail),
+    moments: [['2026-11-13T13:21:40Z', 'In the air again, an hour late.']],
+  }),
+  flightCase({
+    name: 'a stray point while taxiing', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
+    note: 'One point in the air at 500 ft while the plane taxied, and on the ground ever since. One point can\'t climb, so it hasn\'t returned: it\'s still on the ground.',
+    flight: wire('leg-phl', 'UPS1234', 'ground', groundFix([38.18, -85.73], t('2026-11-13T12:20:00Z')), null,
+                 [[Math.round(t('2026-11-13T12:10:00Z') * 1000), 38.176, -85.733, 500]]),
+    moments: [['2026-11-13T12:20:30Z', 'Five and a half minutes after the plan\'s takeoff: still on the ground, 6 minutes behind.']],
+  }),
+  flightCase({
     name: 'landed, seen all the way', from: 'SDF', to: 'PHL', departure: '2026-11-13T12:00:00Z', arrival: '2026-11-13T13:45:00Z',
     note: 'The same flight, followed to Philadelphia and seen on the ground there. Its path ends at the airport with nothing planned, the landing is when it was first seen down, and the leg ends 7 minutes after that.',
     flight: wire('leg-phl', 'UPS1234', 'landed', groundFix([39.87, -75.24], phlLandedAt + 90), phlLandedAt, phlWholeTrail),
@@ -499,6 +545,7 @@ const labels = [
   labelCase('onGround', -20), labelCase('onGround', -95),
   labelCase('landed', 8), labelCase('landed', -15), labelCase('landed', 5), labelCase('landed', -5), labelCase('landed', 6),
   labelCase('landed', -61),
+  labelCase('returned', null), labelCase('returned', -26),
   labelCase('elsewhere', null), labelCase('notLive', null),
 ]
 
@@ -534,13 +581,14 @@ const windows = [
 ]
 
 const cases = {
-  about: 'The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app\'s FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website\'s tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live\'s `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan\'s touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path\'s `ownSpeedKt` is the plane\'s own speed over its cruise so far, or null when too little of it has been seen, and a flight\'s `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at. When its own speed is from 0.7 of the plan\'s to 1.5 of it, the cruise left from the last place it was seen is flown at its own speed for `ownSpeedAheadMinutes`, or all the way when that\'s further, and at the plan\'s after that, and `flownSpeedKt` is the one speed that flies it all in the same time. Otherwise it\'s the plan\'s. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.',
+  about: 'The real plane (Crewluve moving map Stage 3 spec §4 to §7, §10.2). Made by a reference written apart from the app and the website, and run by both: the app\'s FlightPlanTests, FlightPathTests, FlightRecordTests, LiveProgressTests, LiveLabelTests and LiveWindowTests, and the website\'s tests. Change both copies together. Every `at`, and every time in an answer, is an ISO 8601 time with milliseconds. A `flight` is one entry of partner_live\'s `flights`, exactly as the door answers it, with times in milliseconds since 1970, or null where the door answers none. Distances are nautical miles of 1,852 m along a sphere of radius 6,371,008.8 m, to the nearest thousandth; places are [latitude, longitude]. A gap is the plan\'s touchdown minus the estimated one in minutes, rounded to the nearest with halves away from zero; ahead is positive. A path\'s `ownSpeedKt` is the plane\'s own speed over its cruise so far, or null when too little of it has been seen, and a flight\'s `flownSpeedKt` is the speed its estimate, its estimated plane and its ghost fly the cruise at. When its own speed is from 0.7 of the plan\'s to 1.5 of it, the cruise left from the last place it was seen is flown at its own speed for `ownSpeedAheadMinutes`, or all the way when that\'s further, and at the plan\'s after that, and `flownSpeedKt` is the one speed that flies it all in the same time. Otherwise it\'s the plan\'s. A plane on the ground within 10 nm of its departure airport has returned when its whole trail has climbed `returnClimbFeet` or more, its highest point over its lowest, and its label is "Returned". A path, its record and its own speed are made from the trail\'s latest try, which starts again at a place seen in the air within `firstPointRadiusNm` of the departure airport more than `restartGapMinutes` after the point before it, which was within `airportRadiusNm`, once the try before had climbed `returnClimbFeet`; the fix in the air, when it\'s newer than the trail, can start one with no trail points yet; while the plane is back there, from no points. Compare speeds to 0.01 kt. Compare distances to 0.01 nm, times to 0.05 s and places to 0.0001 of a degree.',
   constants: {
     taxiOutMinutes: 15, taxiInMinutes: 7, shortestCruiseMinutes: 10, descentDistanceNm: 120, descentSpeedKt: 280,
     freshSeconds: live.FRESH, airportRadiusNm: 10, onScheduleMinutes: live.ON_SCHEDULE_MINUTES,
     unseenGapMinutes: 10, firstPointRadiusNm: 30,
     ownSpeedLeastMinutes: live.OWN_SPEED_LEAST / 60, ownSpeedLeastShare: live.OWN_SPEED_LEAST_SHARE, ownSpeedMostShare: live.OWN_SPEED_MOST_SHARE,
     ownSpeedAheadMinutes: live.OWN_SPEED_AHEAD / 60,
+    returnClimbFeet: live.RETURN_CLIMB_FEET, restartGapMinutes: live.RESTART_GAP / 60,
     windowOpensMinutesBefore: 30, windowClosesHoursAfter: 2, windowKeepsMinutes: 30, windowEndsHoursAfter: 12,
   },
   airports,

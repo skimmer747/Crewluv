@@ -23,6 +23,8 @@ export const OWN_SPEED_LEAST = 10 * 60
 export const OWN_SPEED_LEAST_SHARE = 0.7
 export const OWN_SPEED_MOST_SHARE = 1.5
 export const OWN_SPEED_AHEAD = 2 * 3600
+export const RETURN_CLIMB_FEET = 1000
+export const RESTART_GAP = 10 * 60
 
 const rad = (d) => d * Math.PI / 180
 const deg = (r) => r * 180 / Math.PI
@@ -90,16 +92,52 @@ export function readFlight(wire) {
   const fix = wire.fix && {
     at: [wire.fix.lat, wire.fix.lon], onGround: wire.fix.on_ground, seenAt: wire.fix.seen_at / 1000,
   }
-  const trail = wire.trail.map((p) => ({ time: p[0] / 1000, at: [p[1], p[2]] }))
+  const trail = wire.trail.map((p) => ({ time: p[0] / 1000, at: [p[1], p[2]], feet: p[3] }))
   // Oldest first, keeping the door's order between points of one time.
   const sorted = trail.map((p, i) => [p, i]).sort((a, b) => a[0].time - b[0].time || a[1] - b[1]).map((e) => e[0])
   return { state: wire.state, fix, landedAt: wire.landed_at === null ? null : wire.landed_at / 1000, trail: sorted }
 }
 
+// MARK: An air return (air return design §2, §4)
+
+/// Whether the highest of `points` is RETURN_CLIMB_FEET or more above the lowest. Points with no height don't count.
+export function hasClimbed(points) {
+  const feet = points.map((p) => p.feet).filter((f) => f !== null && f !== undefined)
+  return feet.length > 0 && Math.max(...feet) - Math.min(...feet) >= RETURN_CLIMB_FEET
+}
+
+/// Whether the plane is back on the ground at its departure airport after flying: on the ground by Crewlu Cloud's
+/// state, its last fix within 10 nm of the airport, and its whole trail climbed RETURN_CLIMB_FEET. How old the fix is
+/// isn't asked: `progress` asks that.
+export function isBack(flight, origin) {
+  return flight?.state === 'ground' && !!flight.fix && distance(flight.fix.at, origin) <= AIRPORT_RADIUS
+    && hasClimbed(flight.trail)
+}
+
+/// The trail points of the flight's latest try. A try starts again at a place seen in the air within FIRST_POINT_RADIUS
+/// of the departure airport more than RESTART_GAP after the point before it, which was within 10 nm of it, once the try
+/// before had climbed. The fix in the air, when it's newer than the trail, can start one too, with no points yet. While
+/// the plane is back on the ground there, none.
+export function latestTry(flight, origin) {
+  if (!flight || isBack(flight, origin)) return []
+  const trail = flight.trail
+  const last = trail[trail.length - 1]
+  const fix = flight.fix
+  const places = fix && !fix.onGround && (!last || fix.seenAt > last.time) ? [...trail, { time: fix.seenAt, at: fix.at }] : trail
+  let start = 0
+  for (let i = 1; i < places.length; i++) {
+    const earlier = places[i - 1], later = places[i]
+    if (later.time - earlier.time > RESTART_GAP && distance(earlier.at, origin) <= AIRPORT_RADIUS
+        && distance(later.at, origin) <= FIRST_POINT_RADIUS && hasClimbed(trail.slice(start, i))) start = i
+  }
+  return trail.slice(start)
+}
+
 // MARK: The path (spec §6.1)
 
 export function makePath(origin, destination, flight) {
-  const seen = flight ? flight.trail.map((p) => ({ at: p.at, time: p.time })) : []
+  // The latest try alone: an air return and the wait after it aren't the flight's path (air return design §4).
+  const seen = latestTry(flight, origin).map((p) => ({ at: p.at, time: p.time }))
   const last = seen[seen.length - 1]
   if (flight?.fix && !flight.fix.onGround && (!last || flight.fix.seenAt > last.time)) {
     seen.push({ at: flight.fix.at, time: flight.fix.seenAt })
@@ -240,6 +278,8 @@ export function minutesText(minutes) {
 }
 
 export function labelFor(phase, gap) {
+  // Back at the departure airport, whatever the gap: the words name the airport (air return design §3).
+  if (phase === 'returned') return 'Returned'
   if (gap === null) return null
   const size = Math.abs(gap)
   const onSchedule = size <= ON_SCHEDULE_MINUTES
@@ -260,14 +300,16 @@ export function progress(plan, path, record, flight, now) {
     if (flight.state === 'landed') phase = 'landed'
     else if (flight.state === 'airborne') phase = isFresh ? 'inAir' : 'estimated'
     else if (flight.state === 'ground' && isFresh) {
-      phase = distance(fix.at, path.origin) <= AIRPORT_RADIUS ? 'onGround' : 'elsewhere'
+      if (distance(fix.at, path.origin) > AIRPORT_RADIUS) phase = 'elsewhere'
+      else phase = isBack(flight, path.origin) ? 'returned' : 'onGround'
     }
   }
   // The plane's own speed stands in for the plan's cruise, for the estimate, the estimated plane and the ghost alike.
   const flown = flownPlan(plan, path)
   let touchdown = null
   if (phase === 'inAir' || phase === 'estimated') touchdown = fix.seenAt + timeToFly(flown, distance(fix.at, path.destination))
-  if (phase === 'onGround' && now >= plan.takeoff) touchdown = now + (plan.touchdown - plan.takeoff)
+  // Past the plan's takeoff, a plane at the departure airport, still or again, takes off this moment.
+  if ((phase === 'onGround' || phase === 'returned') && now >= plan.takeoff) touchdown = now + (plan.touchdown - plan.takeoff)
   // A landed flight's touchdown is its record's, where it has one, so the two can't disagree.
   if (phase === 'landed') touchdown = record ? record.touchdown : (flight.landedAt ?? fix.seenAt)
   const liveArrival = touchdown === null ? null : touchdown + (plan.arrival - plan.touchdown)
@@ -280,7 +322,7 @@ export function progress(plan, path, record, flight, now) {
     plane = pointAt(path, planeAlong)
   }
   if (phase === 'landed') { planeAlong = path.length; plane = path.destination }
-  if (phase === 'onGround') { planeAlong = 0; plane = fix.at }
+  if (phase === 'onGround' || phase === 'returned') { planeAlong = 0; plane = fix.at }
   if (phase === 'elsewhere') plane = fix.at
 
   let ghostAlong = null
