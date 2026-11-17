@@ -65,7 +65,7 @@ nonisolated struct TripFacts {
     func headline(at date: Date, includesEvents: Bool = true) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
         if isStillOnGround(leg, at: date) {
-            return FactsWording.stillOnGround(in: leg.origin)
+            return atDepartureWords(on: leg, at: date)
         }
         if isLandedBeforeGate(leg, at: date) {
             return FactsWording.landed(in: leg.destination)
@@ -140,11 +140,10 @@ nonisolated struct TripFacts {
         !isReplay && leg.isStillOnGround(at: date)
     }
 
-    /// The airport where the flight between its gates at `date` waits, while its real plane is still on the ground
-    /// there after the plan's takeoff time: the line under the timeline names it (which plane design §4). Nil in a
-    /// replay, whose moment is flying, as the map has the plane.
-    func stillOnGroundAirport(at date: Date) -> AirportMark? {
-        isReplay ? nil : tripMap.stillOnGroundAirport(at: date)
+    /// "Still on the ground in Rockford" for the real plane of `leg` at its departure airport at `date` (which plane
+    /// design §4), or "Returned to Rockford" once it's back there after an air return (air return design §3).
+    func atDepartureWords(on leg: MapLeg, at date: Date) -> String {
+        leg.hasReturned(at: date) ? FactsWording.returned(to: leg.origin) : FactsWording.stillOnGround(in: leg.origin)
     }
 
     /// Whether the real plane of `leg`, the leg between its gates at `date`, has landed and isn't at the gate yet
@@ -154,10 +153,11 @@ nonisolated struct TripFacts {
         !isReplay && leg.isLandedBeforeGate(at: date)
     }
 
-    /// The arrival airport where the flight between its gates at `date` has landed, before the gate: the line under
-    /// the timeline names it (landed before the gate design §3). Nil in a replay.
-    func landedAirport(at date: Date) -> AirportMark? {
-        isReplay ? nil : tripMap.landedAirport(at: date)
+    /// Where the flight between its gates at `date` has its real plane on the ground: the line under the timeline names
+    /// it (which plane design §4, landed before the gate design §3, air return design §3). Nil in a replay, whose
+    /// moment is where the map has the plane.
+    func flightOnGround(at date: Date) -> FlightOnGround? {
+        isReplay ? nil : tripMap.flightOnGround(at: date)
     }
 
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).

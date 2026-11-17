@@ -137,9 +137,9 @@ final class StillOnGroundTests: XCTestCase {
         // 5:21 PM UTC is 12:21 PM in Louisville.
         let date = FactsTestData.date("2026-11-13T17:21:00Z")
         let flying = TripActivity(kind: .flying, place: anchorage)
-        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, stillOnGroundIn: rockford, calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .stillIn(rockford), calendar: calendar, locale: locale)),
                        "Fri 12:21 PM · On the ground in Rockford")
-        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, stillOnGroundIn: rockford, calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .stillIn(rockford), calendar: calendar, locale: locale)),
                        "Friday 12:21 PM, on the ground in Rockford")
         // Without it, flying, as before.
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, calendar: calendar, locale: locale)),

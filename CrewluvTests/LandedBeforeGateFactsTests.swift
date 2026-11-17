@@ -71,7 +71,7 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         XCTAssertTrue(rows.contains { $0.kind == .sky }, "the sky row, as before")
         XCTAssertEqual(try row(.distance, in: rows).title, "1,382 mi flown · 0 to go")
         XCTAssertTrue(try XCTUnwrap(plain(try row(.headed, in: rows).title)).hasPrefix("Lands E20"))
-        XCTAssertNil(replay.landedAirport(at: at("12:58")))
+        XCTAssertNil(replay.flightOnGround(at: at("12:58")))
     }
 
     // MARK: - The list
@@ -82,8 +82,10 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         XCTAssertEqual(try facts(landedAt: "13:03").tripSoFar(at: at("13:03")).flights.map(\.tag), [nil], "at the gate")
     }
 
-    func test_landedAirport_isTheArrivalAirport_now() throws {
-        XCTAssertEqual(try facts(landedAt: "12:58").landedAirport(at: at("12:58"))?.code, "E20")
+    func test_flightOnGround_isLandedInTheArrivalAirport_now() throws {
+        let onGround = try facts(landedAt: "12:58").flightOnGround(at: at("12:58"))
+        guard case .landedIn(let airport) = onGround else { return XCTFail("\(String(describing: onGround))") }
+        XCTAssertEqual(airport.code, "E20")
     }
 
     // MARK: - The words

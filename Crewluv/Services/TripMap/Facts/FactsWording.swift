@@ -108,6 +108,12 @@ nonisolated enum FactsWording {
         "Still on the ground in \(airport.name)"
     }
 
+    /// In place of what's below, a real plane back on the ground at its departure airport after an air return:
+    /// "Returned to Rockford" (air return design §3).
+    static func returned(to airport: AirportMark) -> String {
+        "Returned to \(airport.name)"
+    }
+
     /// "Landed in Anchorage": the real plane is down, and not yet at the gate (landed before the gate design §3).
     static func landed(in airport: AirportMark) -> String {
         "Landed in \(airport.name)"

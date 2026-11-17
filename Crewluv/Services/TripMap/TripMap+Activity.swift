@@ -55,6 +55,15 @@ nonisolated extension TripMap {
         return flight.destination
     }
 
+    /// Where the flight between its gates at `date` has its real plane on the ground, as the line under the timeline
+    /// names it in place of "Flying to": still at its departure airport, back there after an air return, or down at
+    /// its arrival airport before the gate. Nil otherwise.
+    func flightOnGround(at date: Date) -> FlightOnGround? {
+        if let arrival = landedAirport(at: date) { return .landedIn(arrival) }
+        guard let flight = flightInMotion(at: date), let departure = stillOnGroundAirport(at: date) else { return nil }
+        return flight.hasReturned(at: date) ? .returnedTo(departure) : .stillIn(departure)
+    }
+
     // MARK: - On the ground
 
     /// Before the first departure, home for a next trip, or base while the pilot waits there, else home or base by

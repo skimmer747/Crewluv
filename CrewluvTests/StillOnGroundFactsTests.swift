@@ -137,9 +137,11 @@ final class StillOnGroundFactsTests: XCTestCase {
                        "TST1 to E20, still on the ground, 1 hour 5 minutes behind schedule. Lands about 10:27 AM your time.")
     }
 
-    func test_stillOnGroundAirport_isTheDepartureAirport_nowOnly() throws {
-        XCTAssertEqual(try facts(atTheGate: "11:20").stillOnGroundAirport(at: at("11:20"))?.code, "E0")
-        XCTAssertNil(try facts(atTheGate: "11:20", isReplay: true).stillOnGroundAirport(at: at("11:20")))
-        XCTAssertNil(try facts(atTheGate: "10:10").stillOnGroundAirport(at: at("10:10")))
+    func test_flightOnGround_isStillInTheDepartureAirport_nowOnly() throws {
+        let onGround = try facts(atTheGate: "11:20").flightOnGround(at: at("11:20"))
+        guard case .stillIn(let airport) = onGround else { return XCTFail("\(String(describing: onGround))") }
+        XCTAssertEqual(airport.code, "E0")
+        XCTAssertNil(try facts(atTheGate: "11:20", isReplay: true).flightOnGround(at: at("11:20")))
+        XCTAssertNil(try facts(atTheGate: "10:10").flightOnGround(at: at("10:10")))
     }
 }

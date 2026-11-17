@@ -38,14 +38,15 @@ nonisolated extension TripFacts {
     }
 
     /// What's below, then where a plane that's out of sight was last seen, then the closest point to home. The
-    /// first of them that there is leads the row. A real plane still at its departure airport says so in place of
-    /// what's below (which plane design §4). A real plane down at the arrival airport before the gate says that alone
+    /// first of them that there is leads the row. A real plane still at its departure airport, or back there after an
+    /// air return, says so in place of what's below (which plane design §4, air return design §3). A real plane down at
+    /// the arrival airport before the gate says that alone
     /// (landed before the gate design §3).
     private func belowRow(on leg: MapLeg, at date: Date) -> FactRow? {
         if isLandedBeforeGate(leg, at: date) {
             return FactRow(.below, symbol: "mappin.and.ellipse", title: FactsWording.landed(in: leg.destination))
         }
-        let place = isStillOnGround(leg, at: date) ? FactsWording.stillOnGround(in: leg.origin) : belowText(on: leg, at: date)
+        let place = isStillOnGround(leg, at: date) ? atDepartureWords(on: leg, at: date) : belowText(on: leg, at: date)
         let lines = [place, lastSeenLine(on: leg, at: date), closestToHomeLine(on: leg, at: date)]
             .compactMap { $0 }
         guard let title = lines.first else { return nil }

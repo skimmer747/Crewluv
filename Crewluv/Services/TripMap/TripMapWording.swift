@@ -101,11 +101,12 @@ nonisolated enum TripMapWording {
     // MARK: - The real plane
 
     /// What the card's bar and the full-screen pill say of a flight between its gates (Stage 3 spec §9): the real
-    /// plane's label, or "In flight" when it has none. A moment of the replay is always "In flight" (§7.3).
+    /// plane's label, or "In flight" when it has none. A moment of the replay is always "In flight" (§7.3). A plane
+    /// back at its departure airport after an air return names it: "Returned to Rockford" (air return design §3).
     /// - Parameter now: the moment, by this device's clock.
     static func flightStatus(for leg: MapLeg, at now: Date, isReplay: Bool = false) -> String {
         guard !isReplay, let label = leg.flight?.progress(at: now).label else { return "In flight" }
-        return liveLabel(label)
+        return label == .returned ? FactsWording.returned(to: leg.origin) : liveLabel(label)
     }
 
     /// "12 min ahead", "About 20 min behind", "Still on the ground · 20 min behind" or "Landed 8 min early": the real
@@ -182,7 +183,9 @@ nonisolated enum TripMapWording {
         case .onSchedule, .ahead, .behind, .stillOnGround, .returned:
             arrival = "Lands \(leg.isArrivalEstimated ? "about" : "at") \(time) your time."
         }
-        return "\(lead) \(leg.destination.name), \(spokenLiveLabel(label))\(over). \(arrival)"
+        // A plane back at its departure airport after an air return names it (air return design §3).
+        let spoken = label == .returned ? "returned to \(leg.origin.name)" : spokenLiveLabel(label)
+        return "\(lead) \(leg.destination.name), \(spoken)\(over). \(arrival)"
     }
 
     // MARK: - The bar under the map
@@ -292,35 +295,35 @@ nonisolated enum TripMapWording {
     }
 
     /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
-    /// While the flight's real plane is still on the ground at its departure airport, `stillOnGroundIn`: "Mon 12:21 PM
-    /// · On the ground in Rockford". Once it's down at the arrival airport, before the gate, `landedIn`: "Mon 7:45 PM ·
-    /// Landed in Anchorage".
-    static func timelineLine(_ date: Date, activity: TripActivity?, stillOnGroundIn airport: AirportMark? = nil,
-                             landedIn arrival: AirportMark? = nil,
+    /// While the flight's real plane is on the ground, `onGround`: "Mon 12:21 PM · On the ground in Rockford", "Mon
+    /// 12:21 PM · Returned to Rockford" or "Mon 7:45 PM · Landed in Anchorage".
+    static func timelineLine(_ date: Date, activity: TripActivity?, onGround: FlightOnGround? = nil,
                              calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = timelineTime(date, calendar: calendar, locale: locale)
-        guard let words = timelineWords(activity, stillOnGroundIn: airport, landedIn: arrival) else { return time }
+        guard let words = timelineWords(activity, onGround: onGround) else { return time }
         return "\(time) · \(words)"
     }
 
     /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3), as the
     /// line under it says.
-    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, stillOnGroundIn airport: AirportMark? = nil,
-                                    landedIn arrival: AirportMark? = nil,
+    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, onGround: FlightOnGround? = nil,
                                     calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = date.formatted(style(calendar: calendar, locale: locale).weekday(.wide).hour().minute())
-        guard let words = timelineWords(activity, stillOnGroundIn: airport, landedIn: arrival) else { return time }
+        guard let words = timelineWords(activity, onGround: onGround) else { return time }
         return "\(time), \(words.prefix(1).lowercased() + words.dropFirst())"
     }
 
-    /// What the pilot is doing, or "On the ground in Rockford" where the flight's real plane is still on the ground at
-    /// its departure airport (which plane design §4), or "Landed in Anchorage" where it's down at the arrival airport,
-    /// before the gate (landed before the gate design §3).
-    private static func timelineWords(_ activity: TripActivity?, stillOnGroundIn airport: AirportMark?,
-                                      landedIn arrival: AirportMark?) -> String? {
-        if let airport { return "On the ground in \(airport.name)" }
-        if let arrival { return FactsWording.landed(in: arrival) }
-        return activity?.words
+    /// What the pilot is doing, or where the flight's real plane is on the ground: "On the ground in Rockford" while
+    /// it's still at its departure airport (which plane design §4), "Returned to Rockford" once it's back there after
+    /// an air return (air return design §3), or "Landed in Anchorage" where it's down at the arrival airport, before the
+    /// gate (landed before the gate design §3).
+    private static func timelineWords(_ activity: TripActivity?, onGround: FlightOnGround?) -> String? {
+        switch onGround {
+        case .stillIn(let airport): "On the ground in \(airport.name)"
+        case .returnedTo(let airport): FactsWording.returned(to: airport)
+        case .landedIn(let airport): FactsWording.landed(in: airport)
+        case nil: activity?.words
+        }
     }
 
     // MARK: - VoiceOver

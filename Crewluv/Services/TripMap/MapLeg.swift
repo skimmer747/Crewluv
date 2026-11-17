@@ -54,6 +54,12 @@ nonisolated struct MapLeg: Identifiable {
         isMoving(at: date) && (flight?.isAtDeparture(at: date) ?? false)
     }
 
+    /// Whether the flight is between its gates at `date` with its real plane back on the ground at its departure
+    /// airport after an air return (`MapFlight.hasReturned`, air return design §2).
+    func hasReturned(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.hasReturned(at: date) ?? false)
+    }
+
     /// Whether the flight is between its gates at `date` with its real plane already down (`MapFlight.hasLanded`):
     /// landed, and not yet at the gate (landed before the gate design §2).
     func isLandedBeforeGate(at date: Date) -> Bool {
