@@ -47,6 +47,14 @@ nonisolated extension TripMap {
         return flight.origin
     }
 
+    /// The arrival airport of the flight between its gates at `date` whose real plane has landed there, before the
+    /// gate: the line under the timeline says "Landed in" it in place of "Flying to" (landed before the gate design §3).
+    /// Nil otherwise. A replay's moment is where the map has the plane, so the facts ask this only of now.
+    func landedAirport(at date: Date) -> AirportMark? {
+        guard let flight = flightInMotion(at: date), flight.isLandedBeforeGate(at: date) else { return nil }
+        return flight.destination
+    }
+
     // MARK: - On the ground
 
     /// Before the first departure, home for a next trip, or base while the pilot waits there, else home or base by

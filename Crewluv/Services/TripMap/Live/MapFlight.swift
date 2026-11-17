@@ -60,4 +60,13 @@ nonisolated struct MapFlight: Sendable {
         guard progress.phase == .onGround, case .stillOnGround = progress.label else { return false }
         return true
     }
+
+    /// Whether the real plane is down at its arrival airport, by Crewlu Cloud's state, when this device's clock says
+    /// `now` (spec §5.1's `landed`). Until the gate, the facts and the status say "Landed in Anchorage" (landed before
+    /// the gate design §2). A plane last seen on the ground away from it landed somewhere else, which nothing names.
+    func hasLanded(at now: Date) -> Bool {
+        guard progress(at: now).phase == .landed else { return false }
+        guard let fix = live?.fix, fix.isOnGround else { return true }
+        return GreatCircle.distance(from: fix.coordinate, to: path.destination) <= LiveProgress.airportRadius
+    }
 }

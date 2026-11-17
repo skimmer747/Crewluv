@@ -54,6 +54,12 @@ nonisolated struct MapLeg: Identifiable {
         isMoving(at: date) && (flight?.isAtDeparture(at: date) ?? false)
     }
 
+    /// Whether the flight is between its gates at `date` with its real plane already down (`MapFlight.hasLanded`):
+    /// landed, and not yet at the gate (landed before the gate design §2).
+    func isLandedBeforeGate(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.hasLanded(at: date) ?? false)
+    }
+
     /// How far along the leg the schedule has the pilot at `date`, 0...1. A flight uses the taxi allowances;
     /// a drive moves steadily.
     func progress(at date: Date) -> Double {

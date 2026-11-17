@@ -129,6 +129,16 @@ nonisolated enum LiveLegs {
         }?.id
     }
 
+    /// The flight between its gates at `now` whose real plane has landed, by its leg's id: the status sentence says so
+    /// (landed before the gate design §3). Nil with no such flight.
+    static func landedFlight(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> String? {
+        guard !flights.isEmpty else { return nil }
+        return legs.first { leg in
+            leg.type == .flight && leg.effectiveStart <= now && now < leg.effectiveEnd
+                && (flights[leg.id]?.hasLanded(at: now) ?? false)
+        }?.id
+    }
+
     /// `legs`, as `replacingTimes` gives them, for the schedule's list, which shows each leg's written times as they
     /// are and adds no delay. A time of a live flight that the real plane has moved is written less the leg's delay,
     /// so the list would show it wrong by that much: here it's the real time. A time the plane hasn't moved stays as
