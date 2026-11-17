@@ -21,7 +21,7 @@ All three, at `now`:
 - **Crewlu Cloud says `ground`,** with a fresh fix (as `onGround` needs today),
 - **within 10 nm of the departure airport** (`LiveProgress.airportRadius`, as `onGround`), and
 - **its trail has climbed 1,000 ft:** the highest trail point is at least 1,000 ft above the lowest
-  (`LiveProgress.returnClimb`, `RETURN_CLIMB`). Points with no height don't count.
+  (`LiveFlight.returnClimbFeet`, `RETURN_CLIMB_FEET`). Points with no height don't count.
 
 Otherwise it's `onGround`, as today. The trail only holds points in the air (Stage 3 spec §10.5), so a plane that never
 left has none. Heights are from sea level and Crewluve knows no airport's elevation, so the rule is a climb, not a height:
@@ -31,8 +31,8 @@ This is a new phase, `returned`, beside `onGround`, `elsewhere` and the rest.
 
 ## 3. While it's back on the ground
 
-- **The real plane** is drawn where its fix is, at the departure airport, as `onGround` draws it. **No ghost**, and no
-  distance along the path.
+- **The real plane** is drawn where its fix is, at the departure airport, at the start of its path, as `onGround` draws
+  it. **No ghost.**
 - **The landing estimate** is as `onGround`'s: past the plan's takeoff, "now plus the plan's time in the air". So the leg
   stays open: the cards don't say the pilot reached the arrival airport at the scheduled time while the plane sits at the
   departure one.
@@ -42,8 +42,9 @@ This is a new phase, `returned`, beside `onGround`, `elsewhere` and the rest.
 |---|---|---|
 | The card's bar, its label | "Still on the ground · 40 min behind" | **Returned to Rockford** |
 | The facts' headline, first row and the card's chip | "Still on the ground in Rockford" | **Returned to Rockford** |
-| The line under the timeline (and the slider's spoken value) | "Mon 12:21 PM · Still on the ground in Rockford" | **Mon 12:21 PM · Returned to Rockford** |
+| The line under the timeline (and the slider's spoken value) | "Mon 12:21 PM · On the ground in Rockford" | **Mon 12:21 PM · Returned to Rockford** |
 | The status page's sentence | "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage — landing in …" | **Alex has returned to Rockford on UPS flight 2963 to Anchorage — landing in … which is about …** (with no flight number, "on the flight") |
+| The plane's popup | "Still on the ground · 40 min behind", "Lands about 9:11 AM" | **Returned to Rockford**, "Lands about 9:11 AM" |
 | VoiceOver's label | "still on the ground" | **returned to Rockford** |
 
 The facts' other rows are as "Still on the ground" has them: nothing of what's below, no sky row, and the plane's row
@@ -55,9 +56,13 @@ with no height or speed.
 
 The trail **restarts** at a point that:
 
-- is within 10 nm of the departure airport,
-- comes more than 10 minutes after the point before it (`FlightPath.restartGap`, `RESTART_GAP`), and
-- comes after the trail had climbed 1,000 ft (§2), with the point before it also within 10 nm.
+- is within 30 nm of the departure airport (`FlightPath.firstPointRadius`, as for a first point that tells the
+  takeoff), since coverage low down can miss the first minutes of the climb,
+- comes more than 10 minutes after the point before it (`LiveFlight.restartGap`, `RESTART_GAP`), and
+- comes after the trail had climbed 1,000 ft (§2), with the point before it within 10 nm.
+
+The plane's fix in the air, when it's newer than the trail, can start one too, so the path is right from the takeoff,
+before its first new point (from the plan's review).
 
 Only the points from the last restart on make the path, the record (its takeoff, touchdown and what it saw) and the
 plane's own speed. The first trip out and back isn't drawn. Points arrive every 110 s in the air, so a plane holding near
