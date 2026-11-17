@@ -106,7 +106,8 @@ struct TripMapCard: View {
     @ViewBuilder
     private func bar(facts: TripFacts, at date: Date) -> some View {
         if let leg = tripMap.currentLeg {
-            TripMapInFlightBar(leg: leg, status: TripMapWording.flightStatus(for: leg, at: date))
+            TripMapInFlightBar(leg: leg, status: TripMapWording.flightStatus(for: leg, at: date),
+                               arrival: TripMapWording.barArrival(for: leg, at: date))
         } else if tripMap.mode == .recap {
             TripRecapBar(tiles: facts.recapTiles, longest: facts.recapLongestLine)
         } else {

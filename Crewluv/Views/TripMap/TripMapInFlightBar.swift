@@ -13,6 +13,8 @@ struct TripMapInFlightBar: View {
     let leg: MapLeg
     /// "In flight", or the real plane against the schedule: "12 min ahead" (`TripMapWording.flightStatus`).
     let status: String
+    /// "Lands 3:30 PM", or "At the gate 3:30 PM" once the real plane is down (`TripMapWording.barArrival`).
+    let arrival: String
 
     @State private var isShowingTracking = false
 
@@ -60,7 +62,7 @@ struct TripMapInFlightBar: View {
 
     private func landingBlock(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 2) {
-            Text(TripMapWording.landsAt(for: leg))
+            Text(arrival)
                 .font(.headline)
                 .monospacedDigit()
             if let local = TripMapWording.arrivalLocalTime(for: leg) {

@@ -52,7 +52,7 @@ struct FactsSheet: View {
                 VStack(alignment: .leading, spacing: 20) {
                     FactsHeader(headline: facts.sheetHeadline(at: time), timeline: timeline,
                                 activity: facts.tripMap.activity(at: time), stillOnGroundIn: facts.stillOnGroundAirport(at: time),
-                                clock: $clock,
+                                landedIn: facts.landedAirport(at: time), clock: $clock,
                                 isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
                         .onGeometryChange(for: CGFloat.self) { Self.headerExtent($0) } action: { headerHeight = $0 }
                     FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time),

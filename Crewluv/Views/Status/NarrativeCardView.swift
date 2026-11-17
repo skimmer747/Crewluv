@@ -17,6 +17,10 @@ struct NarrativeCardView: View {
     /// time: "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage", in place of flying, delayed or
     /// not (which plane design §4).
     var isStillOnGround = false
+    /// The flight in the air's real plane is down at the arrival airport, before the gate: "Alex has landed in
+    /// Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST", delayed or not (landed before the gate
+    /// design §3).
+    var isLandedBeforeGate = false
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var now = Date()
@@ -289,7 +293,9 @@ struct NarrativeCardView: View {
                 } else if let arrTime = status.currentFlightArrivalTime {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
-                    if isStillOnGround, let dep, let dest {
+                    if isLandedBeforeGate, let dest {
+                        landedSentence(in: dest, flight: fltStr, gate: shiftedArr, color: countdownColor)
+                    } else if isStillOnGround, let dep, let dest {
                         Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else if let dep, let dest {
                         Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
@@ -312,7 +318,9 @@ struct NarrativeCardView: View {
             let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
-            if isStillOnGround, let dep {
+            if isLandedBeforeGate {
+                landedSentence(in: dest, flight: fltStr, gate: arrTime)
+            } else if isStillOnGround, let dep {
                 Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             } else if let dep {
                 Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
@@ -324,6 +332,12 @@ struct NarrativeCardView: View {
         } else {
             Text("\(name) is in flight")
         }
+    }
+
+    /// "Alex has landed in Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST.", with the gate's
+    /// countdown in `color`, else the status's (landed before the gate design §3).
+    private func landedSentence(in dest: String, flight fltStr: String, gate: Date, color: Color? = nil) -> Text {
+        Text("\(name) has landed in \(Text(dest).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) — at the gate in \(countdownText(to: gate, color: color)) which is \(Text(formattedLocalTime(gate)).bold()).")
     }
 
     @ViewBuilder

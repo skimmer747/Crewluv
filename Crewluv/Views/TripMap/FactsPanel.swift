@@ -76,7 +76,7 @@ struct FactsPanel: View {
     private var timelineControl: some View {
         TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
                             activity: facts.tripMap.activity(at: time), stillOnGroundIn: facts.stillOnGroundAirport(at: time),
-                            time: time, now: now)
+                            landedIn: facts.landedAirport(at: time), time: time, now: now)
     }
 
     private func toggle() {

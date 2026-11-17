@@ -161,6 +161,30 @@ private enum TripMapPreviewData {
                             coordinate: { coordinate($0) })
     }
 
+    /// The Europe trip with its first flight's real plane down in Cologne `minutesAgo` minutes ago, and not yet at the
+    /// gate, the plan's 7 minutes of taxi in after its touchdown (landed before the gate design §3). It was seen all
+    /// the way, at 560 kt.
+    static func europeLanded(minutesAgo: Double) -> TripMap? {
+        let now = Date()
+        guard let origin = coordinate("SDF"), let destination = coordinate("CGN") else { return nil }
+        let waypoint = CLLocationCoordinate2D(latitude: 58, longitude: -45)
+        let length = GreatCircle.distance(from: origin, to: waypoint) + GreatCircle.distance(from: waypoint, to: destination)
+        let landedAt = now.addingTimeInterval(-minutesAgo * 60)
+        let takeoff = landedAt.addingTimeInterval(-length / (560 * GreatCircle.metersPerNauticalMile / 3600))
+        let legs = europeLegs(from: takeoff.addingTimeInterval(-FlightProgress.taxiOutAllowance))
+        let flown = liveFlight(legID: "UPS207", from: origin, via: waypoint, to: destination, takeoff: takeoff,
+                               lastSeen: landedAt.addingTimeInterval(-120))
+        let fix = LiveFlight.Fix(latitude: destination.latitude, longitude: destination.longitude, altitudeFeet: nil,
+                                 groundSpeedKnots: 20, trackDegrees: nil, isOnGround: true, registration: "N605UP",
+                                 typeCode: "B748", seenAt: landedAt)
+        let live = LiveFlight(legID: "UPS207", callsign: "UPS207", state: .landed, fix: fix, landedAt: landedAt, trail: flown.trail)
+        let flights = LiveLegs.flights(for: legs, legacyDelayMinutes: nil, answered: ["UPS207": live], clockOffset: 0,
+                                       coordinate: { coordinate($0) })
+        return TripMap.make(tripLegs: LiveLegs.replacingTimes(in: legs, with: flights, at: now), isNextTrip: false,
+                            homeAirportCode: "SDF", legacyDelayMinutes: nil, flights: flights, at: now,
+                            coordinate: { coordinate($0) })
+    }
+
     /// A store with Quick layovers set, so each full-screen preview shows its pace whatever the canvas remembered.
     static func storage(quickLayovers isOn: Bool) -> UserDefaults {
         let defaults = UserDefaults(suiteName: "TripMapPreviews.quickLayovers.\(isOn)") ?? .standard
@@ -233,6 +257,19 @@ private enum TripMapPreviewData {
 #Preview("Real plane, still at the gate") {
     if let map = TripMapPreviewData.europeAtTheGate(minutesLate: 25) {
         TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Real plane, landed, not yet at the gate") {
+    if let map = TripMapPreviewData.europeLanded(minutesAgo: 2) {
+        TripMapCard(tripMap: map, status: .demo, storyStore: LegStoryStore()).padding()
+    }
+}
+
+#Preview("Full screen, real plane landed, not yet at the gate") {
+    if let map = TripMapPreviewData.europeLanded(minutesAgo: 2) {
+        TripMapScreen(tripMap: map, storyStore: LegStoryStore(), dayNumber: 1, totalDays: 4)
+            .defaultAppStorage(TripMapPreviewData.storage(quickLayovers: true))
     }
 }
 
