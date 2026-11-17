@@ -15,6 +15,8 @@ nonisolated struct LiveProgress: Sendable {
         case notLive
         /// Seen on the ground at the departure airport.
         case onGround
+        /// Seen on the ground at the departure airport again, after flying: an air return (air return design §2).
+        case returned
         case inAir
         /// Last seen in the air too long ago: the real plane flies the plan on from there, at the plane's own speed
         /// once that's known.
@@ -100,8 +102,9 @@ nonisolated struct LiveProgress: Sendable {
             return flight?.fix.map {
                 $0.seenAt.addingTimeInterval(plan.timeToFly(GreatCircle.distance(from: $0.coordinate, to: path.destination)))
             }
-        case .onGround:
-            // Past the plan's takeoff, it's as if the plane took off this moment.
+        case .onGround, .returned:
+            // Past the plan's takeoff, it's as if the plane, still or again at the departure airport, took off this
+            // moment (air return design §3).
             return now >= plan.takeoff ? now.addingTimeInterval(plan.timeInAir) : nil
         case .landed:
             // The record's landing, where there is one, so the two can't disagree.
@@ -128,7 +131,7 @@ nonisolated struct LiveProgress: Sendable {
             return (distance, path.point(atDistance: distance))
         case .landed:
             return (path.length, path.destination)
-        case .onGround:
+        case .onGround, .returned:
             return (0, fix?.coordinate)
         case .elsewhere:
             return (nil, fix?.coordinate)
@@ -145,7 +148,9 @@ nonisolated struct LiveProgress: Sendable {
             // Until the plan's takeoff it waits at the departure airport, however long the real path is.
             guard now >= plan.takeoff else { return 0 }
             return max(0, path.length - plan.distanceLeft(plan.touchdown.timeIntervalSince(now)))
-        case .landed, .elsewhere, .notLive:
+        case .landed, .returned, .elsewhere, .notLive:
+            // A plane back at its departure airport after an air return has no schedule left to be measured against
+            // (air return design §3).
             return nil
         }
     }
@@ -163,7 +168,8 @@ nonisolated struct LiveProgress: Sendable {
             return isFresh ? .inAir : .estimated
         case .ground:
             guard isFresh else { return .notLive }
-            return GreatCircle.distance(from: fix.coordinate, to: origin) <= airportRadius ? .onGround : .elsewhere
+            guard GreatCircle.distance(from: fix.coordinate, to: origin) <= airportRadius else { return .elsewhere }
+            return flight.isBack(at: origin) ? .returned : .onGround
         }
     }
 }

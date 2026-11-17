@@ -120,6 +120,8 @@ nonisolated enum TripMapWording {
             return "\(isEstimated ? "About " : "")\(minutesText(minutes)) behind"
         case .stillOnGround(let minutesBehind):
             return minutesBehind.map { "Still on the ground · \(minutesText($0)) behind" } ?? "Still on the ground"
+        case .returned:
+            return "Returned"
         case .landedOnTime:
             return "Landed on time"
         case .landedEarly(let minutes):
@@ -141,6 +143,8 @@ nonisolated enum TripMapWording {
             return "\(isEstimated ? "about " : "")\(spokenMinutes(minutes)) behind schedule"
         case .stillOnGround(let minutesBehind):
             return minutesBehind.map { "still on the ground, \(spokenMinutes($0)) behind schedule" } ?? "still on the ground"
+        case .returned:
+            return "returned"
         case .landedOnTime:
             return "landed on time"
         case .landedEarly(let minutes):
@@ -166,7 +170,7 @@ nonisolated enum TripMapWording {
         // nor of one that's down (which plane design §4).
         let isFlying = switch label {
         case .onSchedule, .ahead, .behind: true
-        case .stillOnGround, .landedOnTime, .landedEarly, .landedLate: false
+        case .stillOnGround, .returned, .landedOnTime, .landedEarly, .landedLate: false
         }
         let over = isFlying ? (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last tracked \($0)" } ?? "") : ""
         let time = clockTime(leg.end, in: calendar.timeZone, locale: locale)
@@ -175,7 +179,7 @@ nonisolated enum TripMapWording {
         case .landedOnTime, .landedEarly, .landedLate:
             // It's down and on its way in: "landed 8 minutes early. Lands at 3:18 PM" would say so twice.
             arrival = "Reaches the gate at \(time) your time."
-        case .onSchedule, .ahead, .behind, .stillOnGround:
+        case .onSchedule, .ahead, .behind, .stillOnGround, .returned:
             arrival = "Lands \(leg.isArrivalEstimated ? "about" : "at") \(time) your time."
         }
         return "\(lead) \(leg.destination.name), \(spokenLiveLabel(label))\(over). \(arrival)"

@@ -64,7 +64,9 @@ final class StillOnGroundTests: XCTestCase {
         for flightCase in cases.flights {
             for moment in flightCase.moments {
                 let leg = try cases.mapLeg(flightCase, at: moment)
+                // A plane back at the gate after an air return is at its departure airport too (air return design §3).
                 let expected = moment.phase == "onGround" && (moment.label?.hasPrefix("Still on the ground") ?? false)
+                    || moment.phase == "returned"
                 XCTAssertEqual(leg.isStillOnGround(at: moment.at), expected, "\(flightCase.name) at \(moment.at)")
                 XCTAssertEqual(try cases.mapFlight(flightCase).isAtDeparture(at: moment.at), expected, "\(flightCase.name) at \(moment.at)")
                 if expected { atTheGate += 1 }

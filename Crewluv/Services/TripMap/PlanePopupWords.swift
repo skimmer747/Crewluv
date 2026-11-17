@@ -52,7 +52,7 @@ nonisolated struct PlanePopupWords: Equatable, Sendable {
             let lands = "lands \(about)\(time(leg.end))"
             self.init(title: "\(Self.capitalized(name)) · best guess",
                       lines: [seen, label.map { "\($0) · \(lands)" } ?? Self.capitalized(lands)].compactMap { $0 })
-        case .onGround, .inAir:
+        case .onGround, .returned, .inAir:
             self.init(title: title, lines: [label, TripMapWording.landsAt(for: leg, calendar: calendar, locale: locale)].compactMap { $0 })
         case .landed:
             // "at" the gate, as the card's sentence says once the plane is down, or "about" while that's still an estimate.

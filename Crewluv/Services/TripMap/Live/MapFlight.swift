@@ -54,11 +54,19 @@ nonisolated struct MapFlight: Sendable {
     /// Whether the real plane is still on the ground at its departure airport after the plan's takeoff time, when
     /// this device's clock says `now`: seen there lately, not yet in the air (spec §5.1's `onGround`), and late
     /// leaving, as its bar says "Still on the ground". Before the plan's takeoff it's taxiing as the schedule has it,
-    /// and nothing says so (which plane design §4).
+    /// and nothing says so (which plane design §4). A plane back there after an air return is at it too, at any time
+    /// (air return design §3).
     func isAtDeparture(at now: Date) -> Bool {
         let progress = self.progress(at: now)
+        if progress.phase == .returned { return true }
         guard progress.phase == .onGround, case .stillOnGround = progress.label else { return false }
         return true
+    }
+
+    /// Whether the real plane is back on the ground at its departure airport after flying, when this device's clock
+    /// says `now` (air return design §2): the words say "Returned to Rockford" in place of "Still on the ground".
+    func hasReturned(at now: Date) -> Bool {
+        progress(at: now).phase == .returned
     }
 
     /// Whether the real plane is down at its arrival airport, by Crewlu Cloud's state, when this device's clock says

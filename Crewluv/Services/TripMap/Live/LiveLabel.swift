@@ -14,6 +14,9 @@ nonisolated enum LiveLabel: Equatable, Sendable {
     case behind(minutes: Int, isEstimated: Bool)
     /// Past the plan's takeoff and not off the ground. `minutesBehind` is nil for the first few minutes.
     case stillOnGround(minutesBehind: Int?)
+    /// Back on the ground at the departure airport after an air return, whatever the gap (air return design §3). Its
+    /// words name the airport.
+    case returned
     case landedOnTime
     case landedEarly(minutes: Int)
     case landedLate(minutes: Int)
@@ -24,6 +27,10 @@ nonisolated enum LiveLabel: Equatable, Sendable {
     /// The label for a flight in `phase`, `gapMinutes` ahead of the plan (behind when negative). Nil where there's
     /// no gap to tell, and for a flight that isn't live or is somewhere else.
     init?(phase: LiveProgress.Phase, gapMinutes: Int?) {
+        if phase == .returned {
+            self = .returned
+            return
+        }
         guard let gapMinutes else { return nil }
         let size = abs(gapMinutes)
         let isOnSchedule = size <= Self.onScheduleWithin
@@ -47,7 +54,8 @@ nonisolated enum LiveLabel: Equatable, Sendable {
             } else {
                 self = .landedLate(minutes: size)
             }
-        case .notLive, .elsewhere:
+        case .notLive, .elsewhere, .returned:
+            // `.returned` is answered above.
             return nil
         }
     }

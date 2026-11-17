@@ -69,11 +69,12 @@ nonisolated struct FlightPath: Sendable {
     /// Whether it's a real path, from places the plane was seen.
     var isReal: Bool { !knots.isEmpty }
 
-    /// The path of a flight from `origin` to `destination`: the real one when `flight` has been seen in the air.
+    /// The path of a flight from `origin` to `destination`: the real one when `flight` has been seen in the air on
+    /// its latest try (air return design §4).
     init(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D, flight: LiveFlight? = nil) {
         self.origin = origin
         self.destination = destination
-        let seen = Self.sightings(of: flight)
+        let seen = Self.sightings(of: flight, from: origin)
         guard let first = seen.first, let last = seen.last else {
             let length = GreatCircle.distance(from: origin, to: destination)
             stretches = [Stretch(start: origin, end: destination, kind: .planned, startDistance: 0, length: length)]
@@ -140,12 +141,11 @@ nonisolated struct FlightPath: Sendable {
     /// A place the plane was seen in the air, and when.
     private typealias Sighting = (coordinate: CLLocationCoordinate2D, time: Date)
 
-    /// Each place `flight` was seen in the air, oldest first: its trail's points, with two of one time in the order
-    /// they came, and then its fix, when that's in the air and newer than the last of them.
-    private static func sightings(of flight: LiveFlight?) -> [Sighting] {
-        var seen: [Sighting] = (flight?.trail ?? []).enumerated()
-            .sorted { ($0.element.time, $0.offset) < ($1.element.time, $1.offset) }
-            .map { ($0.element.coordinate, $0.element.time) }
+    /// Each place `flight` from `origin` was seen in the air on its latest try, oldest first: that try's trail points
+    /// (`LiveFlight.latestTry`), and then its fix, when that's in the air and newer than the last of them. An air
+    /// return and the wait after it aren't the flight's path (air return design §4).
+    private static func sightings(of flight: LiveFlight?, from origin: CLLocationCoordinate2D) -> [Sighting] {
+        var seen: [Sighting] = (flight?.latestTry(from: origin) ?? []).map { ($0.coordinate, $0.time) }
         if let fix = flight?.fix, !fix.isOnGround, fix.seenAt > seen.last?.time ?? .distantPast {
             seen.append((fix.coordinate, fix.seenAt))
         }
