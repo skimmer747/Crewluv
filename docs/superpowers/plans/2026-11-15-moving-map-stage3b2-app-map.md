@@ -4251,7 +4251,7 @@ with:
 #Preview("Full screen, in flight, Quick layovers on") {
 ```
 
-- [ ] **Step 5: Todd looks at the three new previews in Xcode's canvas.**
+- [x] **Step 5: Todd looks at the three new previews in Xcode's canvas.**
   - **"Real plane, in the air":** a solid white path from Louisville that bends north of the straight line, the blue plane at its end, a dashed blue line on to Cologne, and the dashed-outline ghost behind it on the path. The bar reads how far ahead the plane is, where it read "In flight", and "Lands about" a time.
   - **"Real plane, estimated past an unseen ocean":** the same, with a dotted stretch in the middle of the path, a dotted stretch from the path's end to the plane, and the plane faded. The bar's label starts with "About".
   - **"Full screen, real plane":** the pill reads the flight and its label. Drag the timeline back: the ghost goes, the pill reads "In flight", and the blue plane flies the path. Play it: it keeps playing.
@@ -4809,7 +4809,7 @@ What nothing but a real flight can show. It needs a flight of Todd's between its
   - Pull to refresh: the spinner ends after the plane has moved, not before.
   - Put the app in the background for five minutes and bring it back: the plane is up to date within a few seconds.
 
-- [ ] **Step 4: Out of sight.** Over the ocean, or anywhere adsb.lol loses the plane for more than two minutes:
+- [ ] **Step 4: Out of sight.** Over the ocean, or anywhere adsb.lol loses the plane for more than three minutes:
   - The plane fades. A dotted line runs from the end of the solid path to it. The label starts with "About".
   - When it's seen again, it's solid again, and the stretch nobody saw stays dotted if it was more than ten minutes.
 
@@ -4829,7 +4829,7 @@ What nothing but a real flight can show. It needs a flight of Todd's between its
   - VoiceOver on the card reads one sentence: the flight, its label in full ("12 minutes ahead of schedule"), and "Lands about" a time.
   - At the largest text sizes the bar's label wraps under the flight number and nothing is cut off.
 
-- [ ] **Step 8: Write down what was wrong.** Anything that needs a change goes in "Changes made during execution", is fixed in its own task's files, and has Todd run that task's tests again. A change to an answer the website shares (a label, a phase, a time) starts in the reference, `scripts/live-cases/live.mjs`, then the cases, then the Swift, as in plan 3B-1: never in the JSON alone.
+- [x] **Step 8: Write down what was wrong.** Anything that needs a change goes in "Changes made during execution", is fixed in its own task's files, and has Todd run that task's tests again. A change to an answer the website shares (a label, a phase, a time) starts in the reference, `scripts/live-cases/live.mjs`, then the cases, then the Swift, as in plan 3B-1: never in the JSON alone.
 
 ---
 
@@ -4843,7 +4843,7 @@ What nothing but a real flight can show. It needs a flight of Todd's between its
 
 - [x] **Step 2: Todd runs every test once more,** with the command of Task 9's checkpoint.
 
-- [ ] **Step 3: Update `CLAUDE.md`.** Under "#### Trip Map", in the bullet that begins "The real plane's engine", replace:
+- [x] **Step 3: Update `CLAUDE.md`.** Under "#### Trip Map", in the bullet that begins "The real plane's engine", replace:
 
 ```markdown
 is in `Services/TripMap/Live/`, and nothing shows it yet. `FlightPlan` is
@@ -4855,10 +4855,10 @@ with:
 is in `Services/TripMap/Live/`. `FlightPlan` is
 ```
 
-After that bullet, add:
+After that bullet and the one about `live-cases.json`, add:
 
 ```markdown
-- The real plane on the map (plan `docs/superpowers/plans/2026-11-15-moving-map-stage3b2-app-map.md`). `PartnerStatusReceiver` owns the `LiveFlightSource`, tells it when the screen comes to the front and leaves it, and resolves again at each of its answers. One landing time: before anything reads the legs, `LiveLegs` gives each flight with live data the real plane's times in place of the schedule's, and moves the waits either side to meet them, so the status, the map and every card agree. A leg keeps its delay, and its times are written so the delay moves them to the real ones. Alerts read the status source, so they stay on the schedule. `MapFlight` is a flight's plan, path and record made together, on `MapLeg.flight`. `FlightDrawing` draws a flight by `LiveProgress.phase`: the real path, solid where the plane was seen and dotted where it wasn't, the real plane (faded while it's an estimate) and the schedule's ghost. A moment of the replay shows the real plane alone, where its record has it. A landing time that's the real plane's estimate reads "about" (`MapLeg.isArrivalEstimated`). The facts still follow the great circle, and adsb.lol isn't credited yet: both are plan 3B-3's
+- The real plane on the map (plan `docs/superpowers/plans/2026-11-15-moving-map-stage3b2-app-map.md`, Stage 3 spec §5 to §7). `PartnerStatusReceiver` owns the `LiveFlightSource`, tells it when the screen comes to the front and leaves it, and resolves again at each of its answers. One landing time: before anything reads the legs, `LiveLegs` gives each flight with live data the real plane's times in place of the schedule's, and moves the waits either side to meet them, so the status, the map and every card agree. A leg keeps its delay, and its times are written so the delay moves them to the real ones. Legs that are one flight (the same number, departure airport and scheduled departure) share its one answer, which Crewlu Cloud gives under the first of their ids. Alerts read the status source, so they stay on the schedule. `MapFlight` is a flight's plan, path and record made together, on `MapLeg.flight`. `FlightDrawing` draws a flight from its `LiveProgress`: the real path, solid where the plane was seen and dotted where it wasn't, the real plane (faded while it's an estimate) and the schedule's ghost. A dotted line is written from the plane's side back: the map lays dots from a line's last place, so that place mustn't move. A moment of the replay shows the real plane alone, where its record has it, and the replay's clock keeps its moment through each new answer (`TripReplayClock.carried`). A landing time that's the real plane's estimate reads "about" (`MapLeg.isArrivalEstimated`, and `LiveLegs.estimatedArrival` for the status screen's cards). The Schedule tab's list takes the flights too: `LiveLegs.forTheSchedule` shows a live flight's real times where the real plane has moved them, and `LiveLegs.estimatedArrivals` says which rows read "about"
 ```
 
 Under "#### Status Management", replace:
@@ -4873,11 +4873,11 @@ with:
 - `PartnerStatusReceiver` is the screen's model: it shows how every read went, and hands on the legs with the real plane's times where Crewlu Cloud has seen a flight (`LiveLegs`)
 ```
 
-- [ ] **Step 4: Record what changed.** Add "## Changes made during execution" to the end of this plan: each review's changes, what Task 10 turned up, and anything a step did differently. If any of it changes what the spec says, change the spec to match, and say so in the list.
+- [x] **Step 4: Record what changed.** Add "## Changes made during execution" to the end of this plan: each review's changes, what Task 10 turned up, and anything a step did differently. If any of it changes what the spec says, change the spec to match, and say so in the list.
 
-- [ ] **Step 5: Ask to commit.** Suggested message: `docs(crewluv): the real plane on the map in CLAUDE.md, and the Stage 3B-2 plan as it was built`.
+- [x] **Step 5: Ask to commit.** Suggested message: `docs(crewluv): the real plane on the map in CLAUDE.md, and the Stage 3B-2 plan as it was built`.
 
-- [ ] **Step 6: The release note.** Draft one entry for the Apple Note "Crewluve revisions", in plain words for a pilot's family, under the version and build Todd names. A draft to start from: "When your pilot's flight can be seen from the ground, the map now shows the real plane and the path it really flew, with a faint second plane where the schedule says it should be. The card tells you how far ahead or behind the flight is, and every landing time on the screen follows the real plane." Show Todd the draft and ask before writing it to the note.
+- [x] **Step 6: The release note.** Draft one entry for the Apple Note "Crewluve revisions", in plain words for a pilot's family, under the version and build Todd names. A draft to start from: "When your pilot's flight can be seen from the ground, the map now shows the real plane and the path it really flew, with a faint second plane where the schedule says it should be. The card tells you how far ahead or behind the flight is, and every landing time on the screen follows the real plane." Show Todd the draft and ask before writing it to the note.
 
 ---
 
@@ -4940,6 +4940,22 @@ with:
 - **Todd's answer on asking with nothing to hear (15 Nov 2026):** leave it.
 - **Todd's answer on who watches the flight (15 Nov 2026):** he does, himself. It's a real trip of his, and he isn't flying it. Task 10 says so now.
 - **Todd's answer on the credit (15 Nov 2026):** it stays in 3B-3, with no TestFlight or App Store build of 3B-2 until it's in.
+- **Todd's second look at the second preview (17 Nov 2026):** the dots show now, reaching out from under the ghost to the faded plane.
+- **Since this plan's last code commit (`f93d81d`), the plans that came after have changed 26 of its 42 files.** So each code block here is what this plan built and Todd's runs passed, not what the repo holds now. In the order they went in:
+  - **The engine's two changes** (15 Nov, `220929f`): a fix stays live for 3 minutes, not 2, and the landing estimate flies at the plane's own speed. They moved expected strings and moments in `LiveWordingTests`, `FlightDrawingTests`, `LiveLegsTests` and `LiveMarkerTests`, and no app code of this plan's. Task 10's Step 4 says three minutes for it.
+  - **Plan 3B-3, the facts' best guesses and the latest event** (15 Nov): the facts on the real path, the plane's row and the credit to adsb.lol. `TripMapWording`, `TripFacts`, `FactsWording`, `TripMapCard`, `TripMapScreen` and `LiveWordingTests`.
+  - **Which plane is which, and a plane still at its gate** (16 Nov): the key, the popups, and "Still on the ground" in the facts and the status sentence. `MapFlight`, `MapLeg`, `LiveLegs`, `TripMap`, `TripMapDrawing`, `TripMapMarker`, `TripMapAnnotationView`, `TripMapView`, `TripMapCoordinator`, `TripMapCard`, `TripMapScreen`, `TripMapPreviews`, `TripMapWording`, `TripFacts`, `FactsWording`, `LiveWordingTests`, `PartnerStatusReceiver`, `ContentView`, `PilotStatusView` and `NarrativeCardView`.
+  - **The tracking words, the schedule's "about" and plan 3B-3's review** (17 Nov): "Out of tracking range" and "Last tracked", never "seen", and `LiveLegs.estimatedArrivals` for the schedule's rows. `LiveLegs`, `EventTimelineView`, `TripMapWording`, `TripFacts`, `FactsWording`, `TripMapScreen`, `LiveLegsTests` and `LiveWordingTests`.
+  - **Flown legs near-black on the standard map in light mode** (17 Nov, `edd19b3`): `TripMapPalette`.
+  - **Best guesses after a long gap** (17 Nov): `TripFacts` and `LiveWordingTests`.
+  - **Landed, not yet at the gate** (17 Nov): `MapFlight`, `MapLeg`, `LiveLegs`, `TripMapWording`, `TripFacts`, `FactsWording`, `TripMapCard`, `TripMapInFlightBar`, `TripMapPreviews`, `PartnerStatusReceiver`, `ContentView`, `PilotStatusView` and `NarrativeCardView`.
+- **The real flight (16 to 17 Nov 2026): UPS96, Anchorage to Clark.** It was watched with plan 3B-3, the best guesses, the latest event and the key already in. This plan's session wasn't the one that followed it and didn't go through Task 10's Steps 1 to 7 with Todd, so they stay unticked. What's written here is from the check of the flight against Crewlu Cloud's record of it (the long gap design's §1), and from the designs that followed:
+  - The plane left about 2 hours late, was tracked out of Alaska, was out of tracking range for 4 h 42 min over the Bering Sea and the North Pacific, and was tracked again off Japan. Through that gap the landing estimate ran 42 minutes early and the guessed places were up to a few hundred miles off. Both are the engine's rule for flying a plane on, not the drawing's: the best guesses after a long gap design mended it.
+  - Nobody heard the plane on the ground at Clark: its last fix was at 3,350 ft on approach. So it was a landing never seen, where the plane reaches the airport at its estimate (Step 6's last line).
+  - The words changed after it: "tracked" for "seen" and "Out of tracking range" for "out of sight", so a family doesn't fear the plane is missing, and the schedule's list says "about".
+  - This plan's session changed none of this plan's files on the flight's account. What the later plans changed in them is in the list above.
+- **The release note (17 Nov 2026)** is in the Apple Note "Crewluve revisions" already, so Task 11's Step 6 adds nothing. The session that drafted all of the live plane's entries wrote them, at Todd's choice, at the bottom of 1.4 (49), which hadn't gone out. This plan's is the first of them: "The real plane. When your pilot's flight can be tracked from the ground, the map shows where the plane really is, with a dashed outline where it would be on schedule, and says how far ahead or behind it's running."
+- **`CLAUDE.md` (17 Nov 2026):** Step 3's bullet was written after plan 3B-3 and the rest were in. So it leaves out the sentence about 3B-3, and adds the legs that are one flight, which way a dotted line is written, the replay's clock, `LiveLegs.estimatedArrival` and the schedule's list. It sits after the bullet about `live-cases.json`, so the engine's two bullets stay together. Step 3 above shows it as it went in.
 
 ## Self-review
 
@@ -4983,3 +4999,9 @@ with:
 - **After joining while the pilot is in the air,** the real plane can take up to 30 seconds to show. The ask on coming to the front went out before this device had its key, and the next one is the 30-second check's.
 - **A replay that's open when the map turns to another trip** carries on into the new trip, held to its ends. Before this plan the clock went back to live then.
 - **The engine's own "Left for later"** is otherwise as it was: asks that come back empty until the switch is `all`, a flight back on the ground after a return, and a trail count that stays wrong.
+
+**Since done by the plans that came after** (as of 17 Nov 2026):
+
+- The facts on the real path, the plane's row and the credit: plan 3B-3.
+- The schedule's list says "about" before an arrival that's the real plane's estimate: the tracking words plan (`bde1825`).
+- The facts sheet's sun rows don't blink, and a flight has one set of sun events, which shows until the next is ready: plan 3B-3 (`14b77bf`).
