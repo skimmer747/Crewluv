@@ -111,6 +111,17 @@ nonisolated enum LiveLegs {
         }?.effectiveEnd
     }
 
+    /// The flight between its gates at `now` whose real plane is still on the ground at its departure airport after
+    /// the plan's takeoff time, by its leg's id: the status sentence says so (which plane design §4). Nil with no
+    /// such flight.
+    static func stillOnGroundFlight(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> String? {
+        guard !flights.isEmpty else { return nil }
+        return legs.first { leg in
+            leg.type == .flight && leg.effectiveStart <= now && now < leg.effectiveEnd
+                && (flights[leg.id]?.isAtDeparture(at: now) ?? false)
+        }?.id
+    }
+
     /// `legs`, as `replacingTimes` gives them, for the schedule's list, which shows each leg's written times as they
     /// are and adds no delay. A time of a live flight that the real plane has moved is written less the leg's delay,
     /// so the list would show it wrong by that much: here it's the real time. A time the plane hasn't moved stays as

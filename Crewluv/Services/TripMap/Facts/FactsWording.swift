@@ -97,6 +97,12 @@ nonisolated enum FactsWording {
         return time > now ? "Passes \(miles) mi from home at \(clock)" : "Closest to home was \(miles) mi at \(clock)"
     }
 
+    /// In place of what's below, a real plane still on the ground at its departure airport after the plan's takeoff
+    /// time: "Still on the ground in Rockford" (which plane design §4).
+    static func stillOnGround(in airport: AirportMark) -> String {
+        "Still on the ground in \(airport.name)"
+    }
+
     // MARK: - The real plane (Stage 3 spec §8)
 
     /// Under what's below, while the real plane is out of sight: "Last seen near Montréal · 12 min ago", by a
@@ -210,6 +216,11 @@ nonisolated enum FactsWording {
     /// "2,140 mi flown · 1,960 to go".
     static func distance(flownMiles: Int, toGoMiles: Int, locale: Locale = .current) -> String {
         "\(number(flownMiles, locale: locale)) mi flown · \(number(toGoMiles, locale: locale)) to go"
+    }
+
+    /// "2,788 mi to go": a real plane still at its departure airport has flown nothing yet (which plane design §4).
+    static func toGo(miles: Int, locale: Locale = .current) -> String {
+        "\(number(miles, locale: locale)) mi to go"
     }
 
     /// "Halfway at 4:12 PM", or with the real plane's estimate "Halfway at about 12:05 PM" (Stage 3 spec §8).

@@ -38,6 +38,15 @@ nonisolated extension TripMap {
         return TripActivity(kind: groundKind(at: date, place: place), place: place)
     }
 
+    /// Where the pilot's flight waits at `date`, while it's between its gates and its real plane is still on the
+    /// ground at its departure airport after the plan's takeoff time: that airport, which the line under the timeline
+    /// names in place of "Flying to" (which plane design §4). Nil otherwise. A replay's moment is flying, as the map
+    /// has the plane, so the facts ask this only of now.
+    func stillOnGroundAirport(at date: Date) -> AirportMark? {
+        guard let flight = flightInMotion(at: date), flight.isStillOnGround(at: date) else { return nil }
+        return flight.origin
+    }
+
     // MARK: - On the ground
 
     /// Before the first departure, home for a next trip, or base while the pilot waits there, else home or base by

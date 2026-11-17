@@ -109,4 +109,20 @@ nonisolated struct TripMapDrawing {
         self.ghost = ghost
         self.pilot = tripMap.activity(at: date).flatMap { $0.kind.isMoving ? nil : $0 }
     }
+
+    /// Whether the map shows the key to its two planes: while it draws a real plane and its ghost (which plane
+    /// design §2). That's now, never in a replay, for a flight Crewlu Cloud has seen at its departure airport, in the
+    /// air, or not for a while.
+    var showsPlaneKey: Bool {
+        realPlane != nil && ghost != nil
+    }
+
+    /// `showsPlaneKey` for `tripMap` at `date`, worked out without drawing the rest, for the views that place the key.
+    /// As `FlightDrawing` has it: the flight between its gates draws the real plane where its progress has one, and
+    /// the ghost where its progress has that.
+    static func showsPlaneKey(on tripMap: TripMap, at date: Date, isReplay: Bool) -> Bool {
+        guard !isReplay, let flight = tripMap.flightInMotion(at: date)?.flight else { return false }
+        let progress = flight.progress(at: date)
+        return progress.plane != nil && progress.ghostDistance != nil
+    }
 }

@@ -143,7 +143,13 @@ nonisolated enum TripMapWording {
                             calendar: Calendar = .current, locale: Locale = .current) -> String? {
         guard let label = leg.flight?.progress(at: now).label else { return nil }
         let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
-        let over = (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last seen \($0)" } ?? "")
+        // What's below and where it was last seen are said only of a plane in the air: not of one still at its gate,
+        // nor of one that's down (which plane design §4).
+        let isFlying = switch label {
+        case .onSchedule, .ahead, .behind: true
+        case .stillOnGround, .landedOnTime, .landedEarly, .landedLate: false
+        }
+        let over = isFlying ? (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last seen \($0)" } ?? "") : ""
         let time = clockTime(leg.end, in: calendar.timeZone, locale: locale)
         let arrival: String
         switch label {
@@ -263,20 +269,29 @@ nonisolated enum TripMapWording {
     }
 
     /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
-    static func timelineLine(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
-                             locale: Locale = .current) -> String {
+    /// While the flight's real plane is still on the ground at its departure airport, `stillOnGroundIn`: "Mon 12:21 PM
+    /// · On the ground in Rockford".
+    static func timelineLine(_ date: Date, activity: TripActivity?, stillOnGroundIn airport: AirportMark? = nil,
+                             calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = timelineTime(date, calendar: calendar, locale: locale)
-        guard let activity else { return time }
-        return "\(time) · \(activity.words)"
+        guard let words = timelineWords(activity, stillOnGroundIn: airport) else { return time }
+        return "\(time) · \(words)"
     }
 
-    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3).
-    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
-                                    locale: Locale = .current) -> String {
+    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3), as the
+    /// line under it says.
+    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, stillOnGroundIn airport: AirportMark? = nil,
+                                    calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = date.formatted(style(calendar: calendar, locale: locale).weekday(.wide).hour().minute())
-        guard let activity else { return time }
-        let words = activity.words
+        guard let words = timelineWords(activity, stillOnGroundIn: airport) else { return time }
         return "\(time), \(words.prefix(1).lowercased() + words.dropFirst())"
+    }
+
+    /// What the pilot is doing, or "On the ground in Rockford" where the flight's real plane is still on the ground at
+    /// its departure airport (which plane design §4).
+    private static func timelineWords(_ activity: TripActivity?, stillOnGroundIn airport: AirportMark?) -> String? {
+        if let airport { return "On the ground in \(airport.name)" }
+        return activity?.words
     }
 
     // MARK: - VoiceOver

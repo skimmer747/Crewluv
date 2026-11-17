@@ -48,6 +48,12 @@ nonisolated struct MapLeg: Identifiable {
     /// True from leaving the gate until reaching the other one.
     func isMoving(at date: Date) -> Bool { start <= date && date < end }
 
+    /// Whether the flight is between its gates at `date` while its real plane is still on the ground at its departure
+    /// airport after the plan's takeoff time (`MapFlight.isAtDeparture`, which plane design §4).
+    func isStillOnGround(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.isAtDeparture(at: date) ?? false)
+    }
+
     /// How far along the leg the schedule has the pilot at `date`, 0...1. A flight uses the taxi allowances;
     /// a drive moves steadily.
     func progress(at date: Date) -> Double {

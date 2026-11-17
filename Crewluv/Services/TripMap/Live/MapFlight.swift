@@ -50,4 +50,14 @@ nonisolated struct MapFlight: Sendable {
     func isEstimate(_ arrival: Date) -> Bool {
         live?.state != .landed && abs(arrival.timeIntervalSince(plan.arrival)) >= 1
     }
+
+    /// Whether the real plane is still on the ground at its departure airport after the plan's takeoff time, when
+    /// this device's clock says `now`: seen there lately, not yet in the air (spec §5.1's `onGround`), and late
+    /// leaving, as its bar says "Still on the ground". Before the plan's takeoff it's taxiing as the schedule has it,
+    /// and nothing says so (which plane design §4).
+    func isAtDeparture(at now: Date) -> Bool {
+        let progress = self.progress(at: now)
+        guard progress.phase == .onGround, case .stillOnGround = progress.label else { return false }
+        return true
+    }
 }

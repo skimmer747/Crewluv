@@ -188,6 +188,17 @@ final class LiveWordingTests: XCTestCase {
         XCTAssertFalse(summary.contains("Lands"))
     }
 
+    func test_liveSummary_saysWhatsBelowAndWhereItWasLastSeen_onlyWhileItFlies() throws {
+        let (atTheGate, gateTime) = try leg(of: "still on the ground twenty minutes after", at: "13T12:35:00")
+        XCTAssertEqual(plain(try XCTUnwrap(TripMapWording.liveSummary(for: atTheGate, over: "Kentucky", lastSeen: "near Louisville",
+                                                                      now: gateTime, calendar: calendar, locale: locale))),
+                       "UPS207 to Philadelphia, still on the ground, 20 minutes behind schedule. Lands about 9:05 AM your time.")
+        let (landed, landedTime) = try leg(of: "landed, seen all the way", at: "13T13:30:00")
+        XCTAssertEqual(plain(try XCTUnwrap(TripMapWording.liveSummary(for: landed, over: "Pennsylvania", lastSeen: "near Philadelphia",
+                                                                      now: landedTime, calendar: calendar, locale: locale))),
+                       "UPS207 to Philadelphia, landed 23 minutes early. Reaches the gate at 8:21 AM your time.")
+    }
+
     func test_liveSummary_withNoLabel_isNil() throws {
         for (name, time) in [("no live data", "13T12:30:00"), ("on the ground somewhere else", "13T13:21:00")] {
             let (leg, at) = try leg(of: name, at: time)

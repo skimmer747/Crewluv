@@ -54,6 +54,11 @@ nonisolated struct TripMap {
         legs.first { $0.isMoving(at: date) }
     }
 
+    /// The flight between its gates at `date`: the one the map draws its planes for.
+    func flightInMotion(at date: Date) -> MapLeg? {
+        legs.first { $0.kind == .flight && $0.isMoving(at: date) }
+    }
+
     func nextFlight(after date: Date) -> MapLeg? {
         legs.first { $0.kind == .flight && $0.start > date }
     }
