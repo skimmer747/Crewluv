@@ -3226,7 +3226,7 @@ Nothing but a look can check these. Todd has said no TestFlight or App Store bui
 - Modify: `CLAUDE.md`
 - Modify: this plan
 
-- [ ] **Step 1: Review the whole branch.** Dispatch `superpowers:code-reviewer` (sonnet) on this plan's commits, with the spec's §8, §9, §11, §15 and §16.3, and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back.
+- [x] **Step 1: Review the whole branch.** Dispatch `superpowers:code-reviewer` (sonnet) on this plan's commits, with the spec's §8, §9, §11, §15 and §16.3, and this plan's list of where it differs. Use `superpowers:receiving-code-review` on what comes back.
 
 - [ ] **Step 2: Todd runs every test once more,** with the command of Task 8's checkpoint, if the review changed any code.
 
@@ -3269,7 +3269,7 @@ The facts still follow the great circle, and adsb.lol isn't credited yet: both a
 
 - **After it (16 Nov 2026):** the best guesses design (`6d3e74e`, `5ad717f`) changed this plan's rules for a plane out of sight: what's below is now read where the map has the faded plane, in plain words with "Last seen near …" under it, and a crossing nobody saw is told as a best guess with "about". The latest event (`a78e841`, `a94ed20`) and the which plane design (`6b90829` to `6110892`) followed. The Stage 3 spec's §8, §9 and §15 were mended to say what the app does now (uncommitted, with Task 10's docs).
 - **Task 10 Step 3, `CLAUDE.md` (16 Nov 2026):** plan 3B-2's bullet isn't written yet, and its edit is to the engine's bullet, apart from this one. So this plan's bullet went in after "The facts (Stage 2 spec", in words that say what the app does now: every event told, a best guess with "about", and a plane out of sight read where the map flies it on. A second bullet covers the list, the latest event, the key, the popup and a plane still at its gate. The sentence Step 3 says to take out was never written.
-- **Task 10 Step 1, the review of the whole branch, hasn't run yet:** on 16 Nov the call to the reviewer was stopped twice before it started, as a plugin's hook rewrote it after auto mode had checked it.
+- **Task 10 Step 1, the review of the whole branch (16 Nov 2026, evening),** by `superpowers:code-reviewer` (sonnet) on `295b81f..9f06e71`, this plan with the best guesses and the latest event: nothing critical. Mended in `docs/superpowers/plans/2026-11-16-tracking-words-and-the-schedule.md`, Task 4: the latest event's banner sat partly under the side panel on iPhone in landscape and iPad in portrait; a real path's story wasn't made again for a new home; the list's lines changed identity with each new event. And in its Task 2, the card's sentence no longer says one place twice ("over Québec, last tracked over Québec"). Left, each for its reason: halfway can un-happen after a wide detour, as the path's whole length grows, which is more than "a guessed event can lead the chip twice" says, and a fix needs a choice of rule; at the largest text sizes short of the accessibility ones, the card's banner, key and chip can leave a thin band, for Todd's look; a flight with a real path but no live plane reads its place along the real path and its city on the great circle; and the store keeps a flight's old story when its live data goes, for the screen's life. The first two tries to start it were stopped before they began: a plugin's hook rewrote the call after auto mode had checked it.
 
 ## What the website's plan takes from this one
 
