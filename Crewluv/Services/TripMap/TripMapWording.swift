@@ -149,7 +149,7 @@ nonisolated enum TripMapWording {
         case .onSchedule, .ahead, .behind: true
         case .stillOnGround, .landedOnTime, .landedEarly, .landedLate: false
         }
-        let over = isFlying ? (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last seen \($0)" } ?? "") : ""
+        let over = isFlying ? (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last tracked \($0)" } ?? "") : ""
         let time = clockTime(leg.end, in: calendar.timeZone, locale: locale)
         let arrival: String
         switch label {

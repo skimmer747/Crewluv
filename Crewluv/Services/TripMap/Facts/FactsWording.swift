@@ -110,14 +110,16 @@ nonisolated enum FactsWording {
 
     // MARK: - The real plane (Stage 3 spec §8)
 
-    /// Under what's below, while the real plane is out of sight: "Last seen near Montréal · 12 min ago", by a
-    /// city of a million or more, else "Last seen over Québec · 12 min ago", else "Last seen 12 min ago". It's the
-    /// one line that says the place above it is worked out, not seen (best guesses design §2).
+    /// Under what's below, while the real plane is out of tracking range: "Last tracked near Montréal · 12 min ago",
+    /// by a city of a million or more, else "Last tracked over Québec · 12 min ago", else "Last tracked 12 min ago".
+    /// It's the one line that says the place above it is worked out (best guesses design §2). "Tracked", never
+    /// "seen": it's the receivers that lose the plane, not air traffic control, and a family shouldn't fear it's
+    /// missing.
     static func lastSeenLine(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval) -> String {
         let time = "\(TripMapWording.minutesText(minutes(ago: ago))) ago"
-        if let city { return "Last seen near \(city.name) · \(time)" }
-        if let place { return "Last seen over \(place.name) · \(time)" }
-        return "Last seen \(time)"
+        if let city { return "Last tracked near \(city.name) · \(time)" }
+        if let place { return "Last tracked over \(place.name) · \(time)" }
+        return "Last tracked \(time)"
     }
 
     /// Where a plane that's out of sight was last seen, for VoiceOver's sentence: "near Montréal" by a city of a

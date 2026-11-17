@@ -66,11 +66,11 @@ final class PlanePopupWordsTests: XCTestCase {
                        PlanePopupWords(title: "UPS207 · real plane", lines: ["Lands 8:45 AM"]))
     }
 
-    func test_fadedPlane_isABestGuess_saysWhenItWasLastSeen_andLandsAbout() throws {
+    func test_fadedPlane_isABestGuess_saysWhenItWentOutOfTrackingRange_andLandsAbout() throws {
         // Last seen at 12:41:40 UTC, 7:41 AM in Louisville.
         XCTAssertEqual(try realPlane("ahead, in the air", moment: 2),
                        PlanePopupWords(title: "UPS207 · best guess",
-                                       lines: ["Not seen since 7:41 AM, so it's drawn where it should be by now",
+                                       lines: ["Out of tracking range since 7:41 AM, so it's shown where it should be by now",
                                                "About 14 min ahead · lands about 8:30 AM"]))
     }
 

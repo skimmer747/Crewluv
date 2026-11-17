@@ -11,9 +11,9 @@ The app already knows where the plane most likely is: it flies the plane on from
 ## 2. A plane that's out of sight
 
 - **What's below** is read where the map draws the plane: "Over the Pacific". The words are the same as when the plane is seen. There's no "probably" and no "estimated" in front: plain words, which anyone can read.
-- **One line says it's an estimate:** "Last seen near Anchorage · 2 h 10 min ago", by a city of a million or more, else "Last seen over Alaska · 2 h 10 min ago", else "Last seen 2 h 10 min ago". It's in the first row of the sheet, under what's below.
+- **One line says it's an estimate:** "Last tracked near Anchorage · 2 h 10 min ago", by a city of a million or more, else "Last tracked over Alaska · 2 h 10 min ago", else "Last tracked 2 h 10 min ago". It's in the first row of the sheet, under what's below. ("Last tracked" since 16 Nov 2026, in place of "Last seen", which Todd found could make a family fear the plane was missing. It's the receivers that lose it, not air traffic control.)
 - **The chip** reads what's below, or a new event, in plain words, in its usual order: an event from the last 5 minutes, a cockpit sunrise or sunset in the next 30, what's below, the landing countdown.
-- **VoiceOver:** "UPS207 to Cologne, about 12 minutes ahead of schedule, over the Atlantic, last seen near Montréal. Lands about 3:18 PM your time."
+- **VoiceOver:** "UPS207 to Cologne, about 12 minutes ahead of schedule, over the Atlantic, last tracked near Montréal. Lands about 3:18 PM your time." Where what's below is where it was last tracked, it's said once: "…, last tracked over Québec."
 
 ## 3. Events nobody saw
 

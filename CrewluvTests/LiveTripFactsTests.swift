@@ -132,15 +132,15 @@ final class LiveTripFactsTests: XCTestCase {
         let rows = try facts(seenUntil: "11:10", now: "11:20").rows(at: at("11:20"), now: at("11:20"))
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Over Bravo")
-        XCTAssertEqual(plain(below.detail), "Last seen over Bravo · 10 min ago · Passes 35 mi from home at about 8:07 AM")
+        XCTAssertEqual(plain(below.detail), "Last tracked over Bravo · 10 min ago · Passes 35 mi from home at about 8:07 AM")
 
         // Last seen at 6° E, 21 mi from Testville.
         let byACity = try facts(seenUntil: "11:03", now: "11:13").rows(at: at("11:13"), now: at("11:13"))
-        XCTAssertEqual(plain(try row(.below, in: byACity).detail), "Last seen near Testville · 10 min ago · Passes 35 mi from home at about 8:07 AM")
+        XCTAssertEqual(plain(try row(.below, in: byACity).detail), "Last tracked near Testville · 10 min ago · Passes 35 mi from home at about 8:07 AM")
 
         // With no place known, when it was last seen leads the row.
         let noPlace = try facts(seenUntil: "11:10", now: "11:20", hasStory: false).rows(at: at("11:20"), now: at("11:20"))
-        XCTAssertEqual(try row(.below, in: noPlace).title, "Last seen 10 min ago")
+        XCTAssertEqual(try row(.below, in: noPlace).title, "Last tracked 10 min ago")
         XCTAssertNil(try row(.below, in: noPlace).detail)
 
         let plane = try row(.plane, in: rows)
@@ -274,10 +274,36 @@ final class LiveTripFactsTests: XCTestCase {
 
     func test_cardSummary_whileOutOfSight_saysAbout_whatsBelowByThePlan_andWhereItWasLastSeen() throws {
         XCTAssertEqual(plain(try facts(seenUntil: "10:50", now: "11:01").cardSummary(now: at("11:01"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen over Alpha. Lands about 9:11 AM your time. Latest: crossed into Bravo, about 6 minutes ago.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last tracked over Alpha. Lands about 9:11 AM your time. Latest: crossed into Bravo, about 6 minutes ago.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:03", now: "11:13").cardSummary(now: at("11:13"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last seen near Testville. Lands about 9:11 AM your time. Latest: crossed into Bravo, 18 minutes ago.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last tracked near Testville. Lands about 9:11 AM your time. Latest: crossed into Bravo, 18 minutes ago.")
         XCTAssertEqual(plain(try facts(seenUntil: "11:10", now: "11:20", hasStory: false).cardSummary(now: at("11:20"), pilotName: "Alex")),
-                       "TST1 to E20, about 10 minutes ahead of schedule, last seen 10 minutes ago. Lands about 9:11 AM your time.")
+                       "TST1 to E20, about 10 minutes ahead of schedule, last tracked 10 minutes ago. Lands about 9:11 AM your time.")
+    }
+
+    func test_cardSummary_whileOutOfSightOverWhereItWasLastTracked_saysThePlaceOnce() throws {
+        // Last tracked over Bravo at 11:10, at 6.875° E, and by the plan still over Bravo at 11:20, at 8.125° E, with
+        // no city near either.
+        XCTAssertEqual(plain(try facts(seenUntil: "11:10", now: "11:20").cardSummary(now: at("11:20"), pilotName: "Alex")),
+                       "TST1 to E20, about 10 minutes ahead of schedule, last tracked over Bravo. Lands about 9:11 AM your time. Latest: crossed into Bravo, 25 minutes ago.")
+    }
+
+    func test_cardSummary_whileOutOfSightOverAnotherPlaceOfTheSameName_saysBoth() throws {
+        // A country called Bravo to 7.5° E, and past it a province of another country, also called Bravo. Last
+        // tracked over the country at 6.875° E, the plane is over the province by 11:20, at 8.125° E.
+        let twoBravos = Geography(areas: [FactsTestData.box("Alpha", .country, west: -1, east: 5),
+                                          FactsTestData.box("Bravo", .country, west: 5, east: 7.5),
+                                          FactsTestData.box("Bravo", .province, country: "Charlie", west: 7.5, east: 12),
+                                          FactsTestData.box("the Test Sea", .water, west: 12, east: 21)],
+                                  cities: [])
+        let leg = try FactsTestData.equatorLiveLeg(FactsTestData.equatorLive(seenUntil: at("11:10")), at: at("11:20"))
+        let home = FactsTestData.homeByTheEquator
+        let map = TripMap(mode: .inFlight(legID: leg.id), legs: [leg], home: home,
+                          span: DateInterval(start: leg.start, end: leg.end), tripDays: nil)
+        let facts = TripFacts(tripMap: map, geography: twoBravos, comparisons: nil,
+                              stories: [leg.id: LegStory(leg: leg, geography: twoBravos, home: home)], sunEvents: [:],
+                              calendar: calendar, locale: locale)
+        XCTAssertTrue(try XCTUnwrap(plain(facts.cardSummary(now: at("11:20"), pilotName: "Alex")))
+                        .hasPrefix("TST1 to E20, about 10 minutes ahead of schedule, over Bravo, last tracked over Bravo. "))
     }
 }

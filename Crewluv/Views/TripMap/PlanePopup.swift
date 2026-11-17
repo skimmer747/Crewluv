@@ -36,7 +36,7 @@ struct PlanePopup: View {
 
 #Preview {
     PlanePopup(words: PlanePopupWords(title: "UPS2963 · best guess",
-                                      lines: ["Not seen since 4:05 PM, so it's drawn where it should be by now",
+                                      lines: ["Out of tracking range since 4:05 PM, so it's shown where it should be by now",
                                               "About 14 min ahead · lands about 6:58 PM"]))
         .frame(width: PlanePopup.widest)
         .padding()

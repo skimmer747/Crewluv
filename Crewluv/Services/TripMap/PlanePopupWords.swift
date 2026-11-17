@@ -48,7 +48,7 @@ nonisolated struct PlanePopupWords: Equatable, Sendable {
         let about = TripMapWording.about(leg)
         switch progress.phase {
         case .estimated:
-            let seen = flight.live?.fix.map { "Not seen since \(time($0.seenAt)), so it's drawn where it should be by now" }
+            let seen = flight.live?.fix.map { "Out of tracking range since \(time($0.seenAt)), so it's shown where it should be by now" }
             let lands = "lands \(about)\(time(leg.end))"
             self.init(title: "\(Self.capitalized(name)) · best guess",
                       lines: [seen, label.map { "\($0) · \(lands)" } ?? Self.capitalized(lands)].compactMap { $0 })

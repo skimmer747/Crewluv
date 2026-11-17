@@ -28,7 +28,7 @@ A flight Crewlu Cloud sees draws two planes: the real one, a filled blue circle,
 |---|---|---|
 | The ghost | On schedule | Where {flight} was scheduled to be |
 | The real plane, at its departure airport or in the air | {flight} · real plane | {label} / Lands {about}{landing} |
-| The real plane, estimated (faded) | {flight} · best guess | Not seen since {seen}, so it's drawn where it should be by now / {label} · lands {about}{landing} |
+| The real plane, estimated (faded) | {flight} · best guess | Out of tracking range since {seen}, so it's shown where it should be by now / {label} · lands {about}{landing} |
 | The real plane, landed | {flight} · real plane | {label} / Reaches the gate {at or about}{landing} |
 | The real plane, down somewhere else | {flight} · real plane | nothing more |
 | The real plane in a replay | {flight} · real plane | Where it was at {moment} |

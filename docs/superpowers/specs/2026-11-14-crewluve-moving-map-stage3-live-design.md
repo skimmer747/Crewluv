@@ -212,7 +212,7 @@ The facts engine keeps its shape: a story per flight, and answers looked up in i
 
 - **What's below:**
   - in the air: looked up at the real plane's position, "Over Québec, near Montréal";
-  - estimated: looked up where the map draws the faded plane, flown on from the last place it was seen along the great circle, in the same plain words. Under it, "Last seen near Gander · 2 h 10 min ago", by the place under the last fix, else "Last seen over Newfoundland · …", else "Last seen 2 h 10 min ago" (best guesses design §2);
+  - estimated: looked up where the map draws the faded plane, flown on from the last place it was seen along the great circle, in the same plain words. Under it, "Last tracked near Gander · 2 h 10 min ago", by the place under the last fix, else "Last tracked over Newfoundland · …", else "Last tracked 2 h 10 min ago" (best guesses design §2);
   - still at its departure airport after the plan's takeoff time: "Still on the ground in Rockford", ahead of any event or sun countdown, with no sky row and "2,788 mi to go" (which plane design §4).
 - **Crossings** ("Just crossed into Germany", "Out over the Atlantic") are told when the real plane crosses, and listed with the real time.
   - A crossing on a stretch nobody saw, or past the last place the plane was seen, is a best guess: it's told at the time the plan has the plane there, and its time reads "about", drawn lighter in the list (best guesses design §3).
@@ -447,7 +447,7 @@ The same design in TypeScript, held to the same answers by the shared cases.
 
 ## 15. Accessibility
 
-- **The card** is one VoiceOver element with §9's sentence. While estimated it says "about" and "last seen near Gander". What's below and where it was last seen are said only while the plane flies, not at its gate nor once it's down (which plane design §4), and the sentence ends with the latest event: "Latest: crossed into Canada, 12 minutes ago." (latest event design §3).
+- **The card** is one VoiceOver element with §9's sentence. While estimated it says "about" and "last tracked near Gander". What's below and where it was last seen are said only while the plane flies, not at its gate nor once it's down (which plane design §4), and the sentence ends with the latest event: "Latest: crossed into Canada, 12 minutes ago." (latest event design §3).
 - **The plane's row and the credit** are sentences, like the other rows.
 - **The two planes** aren't separate VoiceOver elements: the card's sentence and the rows describe them, as the moving map spec has it.
 - **The label doesn't rely on color.** Its words carry it.

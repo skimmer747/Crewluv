@@ -83,7 +83,7 @@ nonisolated struct TripFacts {
         return FactsWording.below(place, near: geography?.city(near: plane.coordinate))
     }
 
-    /// "Last seen near Montréal · 12 min ago", while the real plane is out of sight, or nil while it's seen.
+    /// "Last tracked near Montréal · 12 min ago", while the real plane is out of tracking range, or nil while it's seen.
     func lastSeenLine(on leg: MapLeg, at date: Date) -> String? {
         guard let unseenFor = leg.plane(at: date, isReplay: isReplay).unseenFor else { return nil }
         let seen = lastSeenPlace(on: leg)
@@ -192,15 +192,16 @@ nonisolated struct TripFacts {
     /// The flight in the air as one sentence: where it is and when it lands.
     private func flightSummary(of leg: MapLeg, now: Date) -> String {
         let plane = leg.plane(at: now, isReplay: isReplay)
-        let below = stories[leg.id]?.place(atDistance: plane.distance)?.name
+        let belowPlace = stories[leg.id]?.place(atDistance: plane.distance)
+        let below = belowPlace?.name
         // With a real plane the sentence says how it's doing against the schedule (Stage 3 spec §9), and while
         // it's out of sight, where it was last seen (§15).
-        let lastSeen = plane.unseenFor.map { ago -> String in
-            let seen = lastSeenPlace(on: leg)
-            return FactsWording.lastSeen(seen.place, near: seen.city, ago: ago)
-        }
-        if let live = TripMapWording.liveSummary(for: leg, over: below, lastSeen: lastSeen, now: now,
-                                                 calendar: calendar, locale: locale) {
+        let unseen = plane.unseenFor.map { (seen: lastSeenPlace(on: leg), ago: $0) }
+        let lastSeen = unseen.map { FactsWording.lastSeen($0.seen.place, near: $0.seen.city, ago: $0.ago) }
+        // "Over Québec, last tracked over Québec" says one place twice: the second says it all.
+        let isOverWhereLastTracked = unseen.map { $0.seen.city == nil && $0.seen.place.map { $0 == belowPlace } == true } ?? false
+        if let live = TripMapWording.liveSummary(for: leg, over: isOverWhereLastTracked ? nil : below, lastSeen: lastSeen,
+                                                 now: now, calendar: calendar, locale: locale) {
             return live
         }
         let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"

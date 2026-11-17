@@ -78,9 +78,9 @@ final class FactsWordingTests: XCTestCase {
     func test_lastSeenLine_theCityByIt_elseThePlaceUnderIt_andHowLongAgo() {
         let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
         let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
-        XCTAssertEqual(FactsWording.lastSeenLine(place, near: city, ago: 600), "Last seen near Montréal · 10 min ago")
-        XCTAssertEqual(FactsWording.lastSeenLine(place, near: nil, ago: 7_800), "Last seen over Québec · 2 h 10 min ago")
-        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 7_200), "Last seen 2 h ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: city, ago: 600), "Last tracked near Montréal · 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: nil, ago: 7_800), "Last tracked over Québec · 2 h 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 7_200), "Last tracked 2 h ago")
     }
 
     func test_lastSeen_forVoiceOver_theCityByIt_elseThePlaceUnderIt_elseHowLongAgo() {
@@ -93,10 +93,10 @@ final class FactsWordingTests: XCTestCase {
     }
 
     func test_lastSeen_aTimeThatCantBeRight_isHeldFromAMinuteToAYear() {
-        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 20), "Last seen 1 min ago")
-        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: -500), "Last seen 1 min ago")
-        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .infinity), "Last seen 8760 h ago")
-        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .nan), "Last seen 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 20), "Last tracked 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: -500), "Last tracked 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .infinity), "Last tracked 8760 h ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .nan), "Last tracked 1 min ago")
         XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 minute ago")
     }
 
