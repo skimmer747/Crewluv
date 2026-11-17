@@ -236,6 +236,16 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, ["Crossed into Bravo · about 6:55 AM"])
     }
 
+    func test_tripSoFar_eachEventKeepsItsPlace_asNewerOnesComeInAboveIt() throws {
+        let earlier = try XCTUnwrap(try facts(seenUntil: "11:20").tripSoFar(at: at("11:20")).flights.first).events
+        let later = try XCTUnwrap(try facts(seenUntil: "12:30").tripSoFar(at: at("12:30")).flights.first).events
+        XCTAssertGreaterThan(later.count, earlier.count)
+        // Newest first: the earlier ones are at the foot, as they were.
+        XCTAssertEqual(later.suffix(earlier.count).map(\.id), earlier.map(\.id))
+        XCTAssertEqual(later.suffix(earlier.count).map(\.text), earlier.map(\.text))
+        XCTAssertEqual(Set(later.map(\.id)).count, later.count, "each line its own")
+    }
+
     func test_showsLiveData_whenAFlightOfTheTripHasIt() throws {
         XCTAssertTrue(try facts(seenUntil: "11:10").showsLiveData)
         XCTAssertFalse(try facts(of: FactsTestData.equatorFlight(from: 0, to: 20)).showsLiveData)

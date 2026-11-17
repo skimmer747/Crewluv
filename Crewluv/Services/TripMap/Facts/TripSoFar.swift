@@ -10,10 +10,19 @@
 nonisolated struct TripSoFar: Equatable, Sendable {
 
     /// One line of a flight's list: "Crossed into Canada · 1:12 PM".
-    nonisolated struct Event: Equatable, Sendable {
+    nonisolated struct Event: Identifiable, Equatable, Sendable {
+        /// Its place among its flight's events, oldest first, so it keeps it as newer ones come in above it. Two
+        /// lines can read the same: a coast crossed twice in a minute.
+        let id: Int
         let text: String
         /// A best guess, where nobody saw the plane. Its time reads "about", and it's drawn lighter.
         let isEstimate: Bool
+
+        init(id: Int = 0, text: String, isEstimate: Bool) {
+            self.id = id
+            self.text = text
+            self.isEstimate = isEstimate
+        }
     }
 
     nonisolated struct Flight: Identifiable, Equatable, Sendable {

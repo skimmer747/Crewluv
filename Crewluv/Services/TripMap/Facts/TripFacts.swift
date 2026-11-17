@@ -146,8 +146,9 @@ nonisolated struct TripFacts {
         let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date && !isStillOnGround($0, at: date) }.reversed()
         let flights = started.compactMap { leg -> TripSoFar.Flight? in
             // Newest first, so the latest is at the top (best guesses design §3).
-            let events = milestones(on: leg).filter { $0.time <= date }.reversed().map {
-                TripSoFar.Event(text: FactsWording.listLine(for: $0, calendar: calendar, locale: locale), isEstimate: $0.isEstimate)
+            let events = milestones(on: leg).filter { $0.time <= date }.enumerated().reversed().map { place, milestone in
+                TripSoFar.Event(id: place, text: FactsWording.listLine(for: milestone, calendar: calendar, locale: locale),
+                                isEstimate: milestone.isEstimate)
             }
             // The flight between its gates is always listed, and set apart (§4).
             let tag = leg.isMoving(at: date) ? FactsWording.inTheAir(isReplay: isReplay) : nil

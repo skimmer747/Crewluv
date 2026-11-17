@@ -119,6 +119,19 @@ final class LegStoryStoreTests: XCTestCase {
         XCTAssertEqual(store.facts(for: grown).stories["eq"]?.length, grown.legs[0].pathLength)
     }
 
+    func test_prepare_anotherHome_makesARealPathsStoryAgain_withItsClosestPoint() async throws {
+        let clock = TestClock()
+        let store = liveStore(clock)
+        let map = try liveMap(seenUntil: 8)
+        await store.prepare(map)
+        XCTAssertNil(store.facts(for: map).stories["eq"]?.closestToHome)
+
+        clock.now = clock.now.addingTimeInterval(60)
+        let withHome = TripMap(mode: map.mode, legs: map.legs, home: FactsTestData.homeByTheEquator, span: map.span, tripDays: nil)
+        await store.prepare(withHome)
+        XCTAssertNotNil(store.facts(for: withHome).stories["eq"]?.closestToHome, "the same path, made again for the new home")
+    }
+
     func test_prepare_whenThePathGrowsAMinuteLater_makesTheStoryAtOnce() async throws {
         let clock = TestClock()
         let store = liveStore(clock)

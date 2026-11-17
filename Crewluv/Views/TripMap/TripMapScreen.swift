@@ -23,6 +23,7 @@ struct TripMapScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
     @AppStorage(TripMapScreen.quickLayoversKey) private var isQuickLayovers = true
     @State private var clock: TripReplayClock
     @State private var style: TripMapStyle = .hybrid
@@ -33,8 +34,8 @@ struct TripMapScreen: View {
     @State private var sheetHeight: CGFloat = 0
     /// The map's frame, the whole screen, in window coordinates.
     @State private var screenFrame: CGRect = .zero
-    /// The side panel's trailing edge, in window coordinates.
-    @State private var panelTrailingEdge: CGFloat = 0
+    /// The side panel's frame with its padding, in window coordinates.
+    @State private var panelFrame: CGRect = .zero
     @State private var topBarHeight: CGFloat = 0
     /// The bottom of the top bar and the latest event's banner under it, in window coordinates.
     @State private var topChromeBottom: CGFloat = 0
@@ -158,7 +159,7 @@ struct TripMapScreen: View {
                     .frame(width: Self.panelWidth)
                     .padding([.horizontal, .bottom])
                     .padding(.top, topBarHeight + 8)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxX } action: { panelTrailingEdge = $0 }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { panelFrame = $0 }
             }
         } else {
             base
@@ -166,8 +167,10 @@ struct TripMapScreen: View {
     }
 
     /// The top bar, and in flight the latest event's banner under its pill (latest event design §1) with the key to
-    /// the two planes under the buttons (which plane design §2). Only the bar pads the side panel: the banner is
-    /// centred and the key at the trailing edge, clear of it.
+    /// the two planes under the buttons (which plane design §2). Only the bar pads the side panel. Beside the panel
+    /// the banner is centred over the open map, clear of it, as the website's is, and the key keeps to the trailing
+    /// edge. The panel and the top bar share a leading edge, so the panel's width with its padding is how far in the
+    /// corner starts, whichever way the screen reads.
     private func topChrome(time: Date, latest: LatestEvent?, showsKey: Bool) -> some View {
         VStack(spacing: 8) {
             topBar(time: time)
@@ -175,6 +178,7 @@ struct TripMapScreen: View {
             if latest != nil || showsKey {
                 TripMapCorner(latest: latest, showsKey: showsKey, isCentered: true)
                     .padding(.horizontal)
+                    .padding(.leading, usesSidePanel ? panelFrame.width : 0)
             }
         }
     }
@@ -206,9 +210,12 @@ struct TripMapScreen: View {
         max(0, topChromeBottom - screenFrame.minY) + 8
     }
 
-    /// From the screen's leading edge to the panel's trailing edge, open or folded, with its padding.
+    /// From the screen's leading edge to the panel's trailing edge, open or folded, with its padding. Leading is the
+    /// right in a right-to-left language, where the panel sits at the right.
     private var mapLeadingClearance: CGFloat {
-        usesSidePanel ? max(0, panelTrailingEdge - screenFrame.minX) : 0
+        guard usesSidePanel else { return 0 }
+        let clearance = layoutDirection == .rightToLeft ? screenFrame.maxX - panelFrame.minX : panelFrame.maxX - screenFrame.minX
+        return max(0, clearance)
     }
 
     /// The sheet shows on iPhone in portrait until Close. The family can't dismiss it themselves.

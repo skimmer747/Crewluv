@@ -79,7 +79,9 @@ struct TripSoFarList: View {
     }
 
     private func lines(_ events: [TripSoFar.Event]) -> some View {
-        ForEach(Array(events.enumerated()), id: \.offset) { _, event in
+        // Each line by its place among its flight's events: a new event at the top doesn't make every line below a
+        // new one.
+        ForEach(events) { event in
             Text(event.text)
                 .font(.subheadline)
                 .italic(event.isEstimate)

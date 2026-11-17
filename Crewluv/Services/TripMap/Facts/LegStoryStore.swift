@@ -152,16 +152,18 @@ final class LegStoryStore {
                 }
                 continue
             }
-            guard pathBuilds[leg.id]?.key != pathKey else { continue }
+            // Home is in the story too, as the closest point to it: another home makes the story again.
+            let storyKey = "\(pathKey)|\(Self.routeKey(for: leg, home: home))"
+            guard pathBuilds[leg.id]?.key != storyKey else { continue }
             // A clock that was set back doesn't hold a story up: only a build in the last minute does.
             if let last = pathBuilds[leg.id], (0..<Self.pathStoryInterval).contains(now.timeIntervalSince(last.at)) {
                 let left = Self.pathStoryInterval - now.timeIntervalSince(last.at)
                 work.wait = min(work.wait ?? left, left)
                 continue
             }
-            pathBuilds[leg.id] = (pathKey, now)
-            sunKeys[leg.id] = pathKey
-            work.paths.append((pathKey, leg))
+            pathBuilds[leg.id] = (storyKey, now)
+            sunKeys[leg.id] = storyKey
+            work.paths.append((storyKey, leg))
         }
         return work
     }
