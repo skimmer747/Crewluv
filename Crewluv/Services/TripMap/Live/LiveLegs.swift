@@ -101,6 +101,13 @@ nonisolated enum LiveLegs {
         flights[leg.id]?.isEstimate(leg.effectiveEnd) ?? false
     }
 
+    /// The legs whose gate arrival, as `legs` show it, is the real plane's estimate, by id: the schedule's list says
+    /// "about" before it, "7:00am est – about 9:10am est", as the status screen does (Stage 3 spec §9).
+    static func estimatedArrivals(in legs: [TripLeg], flights: [String: MapFlight]) -> Set<String> {
+        guard !flights.isEmpty else { return [] }
+        return Set(legs.filter { isArrivalEstimated(of: $0, in: flights) }.map(\.id))
+    }
+
     /// When the flight between its gates at `now` reaches its gate, while that time is the real plane's estimate:
     /// the time the cards say "about" of (spec §9). Nil with no such flight.
     static func estimatedArrival(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> Date? {

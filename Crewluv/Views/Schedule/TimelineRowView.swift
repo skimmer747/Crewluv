@@ -12,6 +12,8 @@ struct TimelineRowView: View {
     var homeAirportCode: String?
     var baseAirportCode: String?
     var isUpNext: Bool = false
+    /// The arrival is the real plane's estimate: it reads "about" (Stage 3 spec §9).
+    var isArrivalEstimated = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -278,7 +280,7 @@ struct TimelineRowView: View {
         let tzAbbr = (tz.abbreviation() ?? "").lowercased()
         let start = fmt.string(from: leg.startTime).lowercased()
         let end = fmt.string(from: leg.endTime).lowercased()
-        return "\(start) \(tzAbbr) – \(end) \(tzAbbr)"
+        return "\(start) \(tzAbbr) – \(isArrivalEstimated ? "about " : "")\(end) \(tzAbbr)"
     }
 
 }

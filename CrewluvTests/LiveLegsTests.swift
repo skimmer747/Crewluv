@@ -593,4 +593,23 @@ final class LiveLegsTests: XCTestCase {
         XCTAssertTrue(LiveLegs.isArrivalEstimated(of: read[0], in: made), "it's still marked an estimate after the status carried it")
         XCTAssertEqual(LiveLegs.blob(replaced), blob, "the same legs, the same bytes")
     }
+
+    // MARK: - The schedule's "about"
+
+    @MainActor
+    func test_estimatedArrivals_areTheLegsWhoseArrivalIsTheRealPlanesEstimate_asTheStatusCarriesThem() throws {
+        let cases = try TripMapFixtures.liveCases()
+        func estimated(_ name: String, at time: String) throws -> Set<String> {
+            let flightCase = try cases.flight(named: name)
+            let moment = try cases.moment(time, of: flightCase)
+            let legs = [cases.tripLeg(flightCase)]
+            let made = flights(cases, for: legs, answered: cases.live(flightCase).map { ["f1": $0] } ?? [:])
+            return LiveLegs.estimatedArrivals(in: readBack(LiveLegs.replacingTimes(in: legs, with: made, at: moment.at)), flights: made)
+        }
+        XCTAssertEqual(try estimated("ahead, in the air", at: "13T12:41:50"), ["f1"])
+        XCTAssertEqual(try estimated("still on the ground twenty minutes after", at: "13T12:35:00"), ["f1"])
+        XCTAssertEqual(try estimated("landed, seen all the way", at: "13T13:30:00"), [], "a landed plane's arrival is real")
+        XCTAssertEqual(try estimated("on the ground before the plan's takeoff", at: "13T12:10:00"), [], "still the plan's")
+        XCTAssertEqual(try estimated("no live data", at: "13T12:30:00"), [])
+    }
 }

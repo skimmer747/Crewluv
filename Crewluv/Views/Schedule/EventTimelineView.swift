@@ -22,6 +22,11 @@ struct EventTimelineView: View {
         LiveLegs.forTheSchedule(status.tripLegs, with: flights).sorted { $0.startTime < $1.startTime }
     }
 
+    /// The legs whose arrival is the real plane's estimate, by id: their rows say "about" before it.
+    private var estimatedArrivals: Set<String> {
+        LiveLegs.estimatedArrivals(in: status.tripLegs, flights: flights)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Calendar grid – pinned at top
@@ -170,13 +175,15 @@ struct EventTimelineView: View {
 
     @ViewBuilder
     private func sectionContent(_ section: DateSection, upNextID: String?) -> some View {
+        let estimatedArrivals = self.estimatedArrivals
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(section.legs.enumerated()), id: \.element.id) { index, leg in
                 TimelineRowView(
                     leg: leg,
                     homeAirportCode: status.homeAirportCode,
                     baseAirportCode: status.baseAirportCode,
-                    isUpNext: leg.id == upNextID
+                    isUpNext: leg.id == upNextID,
+                    isArrivalEstimated: estimatedArrivals.contains(leg.id)
                 )
                 .onTapGesture {
                     selectedDate = Calendar.current.startOfDay(for: leg.startTime)
