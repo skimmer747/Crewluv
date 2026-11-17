@@ -39,6 +39,9 @@ struct PilotStatusView: View {
     /// When the flight in the air reaches its gate, while that's the real plane's estimate, from the screen's
     /// model: the narrative and the countdown say "about" of it (Stage 3 spec §9).
     var estimatedArrival: Date? = nil
+    /// Whether the flight in the air's real plane is still on the ground at its departure airport after the plan's
+    /// takeoff time, from the screen's model: the narrative says so (which plane design §4).
+    var isStillOnGround = false
     var onExitDemo: (() -> Void)? = nil
     /// The ••• menu, on Crewlu Cloud outside the demo (spec §7.5).
     var connectionMenu: ConnectionMenu? = nil
@@ -106,7 +109,8 @@ struct PilotStatusView: View {
                     }
 
                     // Narrative Card - "What's happening now"
-                    NarrativeCardView(status: status, upcomingTrip: upcomingTrip, isLandingEstimated: estimatedArrival != nil)
+                    NarrativeCardView(status: status, upcomingTrip: upcomingTrip, isLandingEstimated: estimatedArrival != nil,
+                                      isStillOnGround: isStillOnGround)
 
                     // Leaving home (if at home) — the commute drive when commuting,
                     // otherwise the flight departure. Taps open schedule.

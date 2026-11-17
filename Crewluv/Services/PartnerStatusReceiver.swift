@@ -57,6 +57,9 @@ class PartnerStatusReceiver {
     /// When the flight between its gates reaches its gate, while that time is the real plane's estimate: the cards
     /// say "about" of it (Stage 3 spec §9). Nil with no such flight.
     private(set) var estimatedArrival: Date?
+    /// Whether the flight between its gates has its real plane still on the ground at its departure airport after the
+    /// plan's takeoff time: the narrative says so (which plane design §4).
+    private(set) var isStillOnGround = false
 
     init(shareManager: CloudKitShareManager) {
         statusSource = .shared
@@ -426,6 +429,7 @@ class PartnerStatusReceiver {
         let legs = LiveLegs.replacingTimes(in: scheduledLegs, with: flights, at: now)
         self.flights = flights
         estimatedArrival = LiveLegs.estimatedArrival(in: legs, flights: flights, at: now)
+        isStillOnGround = LiveLegs.stillOnGroundFlight(in: legs, flights: flights, at: now) != nil
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, \(flights.count) with live data")
 
         let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, baseAirportCode: raw.baseAirportCode, at: now)
@@ -646,6 +650,7 @@ class PartnerStatusReceiver {
     private func clearLiveFlights() {
         flights = [:]
         estimatedArrival = nil
+        isStillOnGround = false
     }
 
     private static func airportCoordinate(_ code: String) -> CLLocationCoordinate2D? {

@@ -75,6 +75,7 @@ struct ContentView: View {
                                 isOnCrewluCloud: receiver.isOnCrewluCloud,
                                 flights: receiver.flights,
                                 estimatedArrival: receiver.estimatedArrival,
+                                isStillOnGround: receiver.isStillOnGround,
                                 onExitDemo: { receiver.exitDemoMode() },
                                 connectionMenu: connectionMenu(for: receiver),
                                 onRefresh: { Task { await receiver.refreshByHand() } }
@@ -144,6 +145,7 @@ struct ContentView: View {
                     isOnCrewluCloud: receiver.isOnCrewluCloud,
                     flights: receiver.flights,
                     estimatedArrival: receiver.estimatedArrival,
+                    isStillOnGround: receiver.isStillOnGround,
                     onExitDemo: { receiver.exitDemoMode() },
                     connectionMenu: connectionMenu(for: receiver),
                     onRefresh: { Task { await receiver.refreshByHand() } }

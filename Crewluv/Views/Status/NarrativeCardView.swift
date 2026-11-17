@@ -13,6 +13,10 @@ struct NarrativeCardView: View {
     var upcomingTrip: UpcomingTripInfo? = nil
     /// The flight in the air lands at the real plane's estimate, so its time reads "about 3:18 PM" (Stage 3 spec §9).
     var isLandingEstimated = false
+    /// The flight in the air's real plane is still on the ground at its departure airport after the plan's takeoff
+    /// time: "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage", in place of flying, delayed or
+    /// not (which plane design §4).
+    var isStillOnGround = false
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var now = Date()
@@ -285,7 +289,9 @@ struct NarrativeCardView: View {
                 } else if let arrTime = status.currentFlightArrivalTime {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
-                    if let dep, let dest {
+                    if isStillOnGround, let dep, let dest {
+                        Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                    } else if let dep, let dest {
                         Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else if let dest {
                         Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
@@ -306,7 +312,9 @@ struct NarrativeCardView: View {
             let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
-            if let dep {
+            if isStillOnGround, let dep {
+                Text("\(name) is still on the ground in \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+            } else if let dep {
                 Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             } else {
                 Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
