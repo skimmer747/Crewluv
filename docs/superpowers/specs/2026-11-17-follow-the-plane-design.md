@@ -3,6 +3,12 @@
 Status: approved by Todd on 17 Nov 2026 ("Card and full screen", "Full-screen button, off", "Tail of 20% of the
 flight", then "Yes, write it up"). The app's own camera: the website isn't part of it.
 
+Revised the same day after Todd tried it ("It doesn't zoom in close enough and it zooms and stops and zooms and stops on
+playback", "It still has way more behind the plane than in front. The destination needs to stay in view"): the first
+build's step rule moved only when the frame shrank by 15%, so as the frame slid forward at about the same size the
+camera kept its old middle, and its steps came 5 seconds apart. Now the tail is 10% ("10% of the flight") and the map
+glides continuously toward the frame ("Yes, write it up"): §3 and §4.
+
 ## 1. Why
 
 In flight the map frames the whole flight when the leg begins (`TripMap.framingRect(focusingOn:)`) and keeps that view
@@ -23,9 +29,9 @@ While the setting is on and a flight is between its gates (`TripMap.legInMotion`
 
 - **The plane,** wherever the map draws it: the real plane where there's live data (as `FlightDrawing` places it), the
   schedule's otherwise, and the replay's plane at the replay's moment.
-- **A tail behind it:** the stretch of the flight's path from 20% of the path's whole length behind the plane (or its
+- **A tail behind it:** the stretch of the flight's path from 10% of the path's whole length behind the plane (or its
   start, if that's nearer) up to the plane. The tail is a steady size, so the plane is never hard against the edge.
-- **Everything left,** along the path from the plane to the destination.
+- **Everything left,** along the path from the plane to the destination, which always stays in view.
 - **Room around it,** as the whole-flight framing has: the same margins, and the same clearances for the facts sheet,
   the panel and the card's chips (`TripMapClearance`).
 - **Never narrower than about 300 miles** across, centred on the same middle, so near the end it's a regional view, not
@@ -36,12 +42,14 @@ the whole flight, as today.
 
 ## 4. How it moves
 
-- **In, in gentle steps:** the camera glides to the new frame only once the frame it wants is at least 15% smaller
-  across than the one on screen, and no sooner than 5 seconds after its last move. A long flight live eases in now and
-  then; a fast replay steps more often, never faster than that.
-- **Out, at once:** whenever the plane or the destination would fall outside the frame on screen (dragging the replay
-  back, a new leg, a real plane's path that bends away), it moves straight away, with the same glide.
-- **The glide** is MapKit's own animated move, as every framing has today. With Reduce Motion on it moves without one.
+- **A continuous glide:** SwiftUI hands the map the frame it wants on every tick (up to 60 a second in a replay, once a
+  second live, every 10 seconds on the card), and the map itself eases toward it on every display frame, its middle
+  and its zoom together, catching up in about a second. Nothing steps, so nothing stops and starts. Live, the frame
+  changes so slowly the motion is hardly seen; a replay is tracked smoothly; a replay dragged back glides to its new
+  frame.
+- **No SwiftUI state on each frame:** the frame wanted is a plain value the map is drawn with, not the camera's state,
+  so the glide redraws only the map, not the screen.
+- **With Reduce Motion on** it follows without the glide.
 - **The family's pan or pinch** stops it, as today, until they tap recenter, which frames as the setting says.
 - **Turning the setting on or off** frames at once, the way the setting now says.
 
@@ -52,11 +60,12 @@ place frames the whole flight.
 
 ## 6. Tests
 
-The frame and the step rule are plain logic beside `TripMapCamera`, `nonisolated` and tested:
+The frame and the glide's step are plain logic beside `TripMapCamera`, `nonisolated` and tested:
 
 - a flight's frame at its start, its middle and its last stretch, against expected rectangles, and the 300-mile floor;
 - a frame before takeoff and with no plane, which are the whole flight's;
-- the step rule: no move under 15% or within 5 seconds; a move at once when the plane or the destination would be out;
+- the glide's step: part of the way toward the frame each display frame, more the longer the frame, the middle and the
+  zoom eased together, across the date line the short way, and arriving without overshoot;
 - the setting off, which frames as today.
 
 Previews: the card and the full screen in flight with the setting on.
