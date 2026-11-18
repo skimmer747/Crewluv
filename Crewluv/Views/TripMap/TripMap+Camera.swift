@@ -21,6 +21,22 @@ nonisolated extension TripMap {
         return framingRect(focusingOn: leg)
     }
 
+    /// The frame the camera glides to at `date` while the family follows the plane (follow the plane design §3, §5): the
+    /// flight's plane once it has left, the whole flight while it waits to, the next flight on the ground between two,
+    /// and otherwise what the map frames without the setting, the leg in motion or the whole trip. The glide makes
+    /// every move with this, so no two animations compete as a leg changes.
+    /// - Parameter isReplay: `date` is a moment of the replay.
+    func followingFrame(at date: Date, isReplay: Bool) -> MKMapRect? {
+        if let flight = flightInMotion(at: date) {
+            return TripMapFollow.rect(for: flight, at: date, isReplay: isReplay) ?? framingRect(focusingOn: flight)
+        }
+        let moving = legInMotion(at: date)
+        if moving == nil, legs.contains(where: { $0.kind == .flight && $0.end <= date }), let next = nextFlight(after: date) {
+            return framingRect(focusingOn: next)
+        }
+        return framingRect(focusingOn: moving)
+    }
+
     /// `framingRect` as numbers a view can compare, so the card frames the trip again when a real path grows past
     /// what it showed (Stage 3 spec §6.2). Empty when there's nothing to frame.
     func framingKey(focusingOn leg: MapLeg?) -> [Double] {

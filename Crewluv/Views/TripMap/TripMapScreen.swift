@@ -116,11 +116,6 @@ struct TripMapScreen: View {
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
                     refit(legID: legID, at: time)
                 }
-                // Following starts or stops within a leg, as a replay is dragged back before takeoff: the map
-                // frames as the setting now says.
-                .onChange(of: followFrame(at: time) != nil) {
-                    refit(legID: tripMap.legInMotion(at: time)?.id, at: time)
-                }
                 // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
                 .onChange(of: followsPlane, initial: true) {
                     refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true)
@@ -300,10 +295,11 @@ struct TripMapScreen: View {
                      keeping: tripMap.pilotLocation(at: time)?.coordinate, animated: !reduceMotion)
     }
 
-    /// The frame the map glides toward at `time` while the family follows the plane, or nil (follow the plane design
-    /// §3, §4). It's handed to the map on every tick, up to 60 a second in a replay, as a plain value.
+    /// The frame the map glides toward at `time` while the family follows the plane, between legs too, or nil with
+    /// the setting off (follow the plane design §3 to §5). It's handed to the map on every tick, up to 60 a second in a
+    /// replay, as a plain value, and the glide makes every move with it.
     private func followFrame(at time: Date) -> MKMapRect? {
-        guard followsPlane, let leg = tripMap.legInMotion(at: time) else { return nil }
-        return TripMapFollow.rect(for: leg, at: time, isReplay: !clock.isLive)
+        guard followsPlane else { return nil }
+        return tripMap.followingFrame(at: time, isReplay: !clock.isLive)
     }
 }

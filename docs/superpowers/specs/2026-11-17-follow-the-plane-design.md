@@ -54,14 +54,29 @@ the whole flight, as today.
   frame.
 - **No SwiftUI state on each frame:** the frame wanted is a plain value the map is drawn with, not the camera's state,
   so the glide redraws only the map, not the screen.
+- **New margins glide too.** The frame keeps clear of the latest event's banner, which comes at a takeoff and goes a few
+  minutes on, so the map's margins change then; laid out in them at once the map jumped ("it still does a skip thing
+  everytime the legs starts", found by a log of the camera). While following, new margins ease in by the glide's own
+  share. A glide starts from the frame the map was last asked to show, not an estimate of what it shows, which was
+  about 88 points off.
 - **With Reduce Motion on** it follows without the glide.
 - **The family's pan or pinch** stops it, as today, until they tap recenter, which frames as the setting says.
 - **Turning the setting on or off** frames at once, the way the setting now says.
 
-## 5. When it stands aside
+## 5. Between legs, and when it stands aside
 
-On the ground, on a drive, before a trip and in the recap the map frames as it does today. A flight with no plane to
-place frames the whole flight.
+While the setting is on, the glide makes every move of the camera, between legs too, so no two animations ever compete
+(after Todd's look: "every time the app starts a new leg. It zooms in and zooms out like its trying to do more things
+than one", then "The next flight"). The first build framed a new leg with MapKit's animation, framed it twice when a
+flight ended (once for the leg, once for following stopping), zoomed out to the whole trip for each short wait, and
+slid the pilot's marker into view on top.
+
+- **A flight that hasn't left** frames the whole flight, as before.
+- **On the ground between two flights** it frames the next flight's whole route, which starts where the pilot is: after
+  landing the map eases out to it, and after takeoff in again.
+- **Otherwise,** before the trip's first flight, after its last, and on a drive, it frames what the map frames without
+  the setting: the leg in motion, or the whole trip.
+- **With the setting off,** the map frames as it did before Follow the plane.
 
 ## 6. Tests
 

@@ -58,8 +58,6 @@ struct TripMapCard: View {
                 }
                 bar(facts: facts, at: context.date)
             }
-            // Following starts or stops within a leg: the card frames as the setting now says.
-            .onChange(of: followFrame(at: context.date) != nil) { refit() }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .task(id: LegStoryStore.preparationKey(for: tripMap)) {
@@ -69,11 +67,9 @@ struct TripMapCard: View {
         .onChange(of: tripMap.legs.map(\.id)) { refit() }
         // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
         .onChange(of: followsPlane, initial: true) { refit() }
-        // A real path can grow past what the card framed (Stage 3 spec §6.2). While the card follows the plane,
-        // following keeps it in view.
-        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) {
-            if !isFollowingPlane(at: .now) { refit() }
-        }
+        // A real path can grow past what the card framed (Stage 3 spec §6.2). While the card follows the plane, the
+        // glide makes every move, and this refit is its to make.
+        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) { refit() }
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
@@ -86,18 +82,11 @@ struct TripMapCard: View {
                      keeping: tripMap.pilotLocation(at: .now)?.coordinate, animated: false)
     }
 
-    /// Whether the card follows the flight's plane at `date`: the family asked, and it has left (follow the plane
-    /// design §3).
-    private func isFollowingPlane(at date: Date) -> Bool {
-        guard followsPlane, let leg = tripMap.currentLeg else { return false }
-        return TripMapFollow.rect(for: leg, at: date, isReplay: false) != nil
-    }
-
-    /// The frame the card's map glides toward at `date` while the family follows the plane, or nil (follow the plane
-    /// design §3, §4).
+    /// The frame the card's map glides toward at `date` while the family follows the plane, between legs too, or nil
+    /// with the setting off (follow the plane design §3 to §5).
     private func followFrame(at date: Date) -> MKMapRect? {
-        guard followsPlane, let leg = tripMap.currentLeg else { return nil }
-        return TripMapFollow.rect(for: leg, at: date, isReplay: false)
+        guard followsPlane else { return nil }
+        return tripMap.followingFrame(at: date, isReplay: false)
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight. The latest event's banner is at the top,

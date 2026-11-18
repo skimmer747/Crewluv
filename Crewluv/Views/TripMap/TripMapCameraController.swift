@@ -38,6 +38,12 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     private var followCurrent: MKMapRect?
     private var displayLink: CADisplayLink?
     private var lastGlide: CFTimeInterval?
+    /// While the map follows the plane, new margins are eased in with the glide, from `appliedMargins` to these, so a
+    /// banner coming or going slides the map instead of jumping it. Nil when the applied margins are the ones wanted.
+    private var marginsTarget: NSDirectionalEdgeInsets?
+    /// The frame the map was last asked to show, by a framing or the glide: where a glide starts from. Nil once the
+    /// family has moved the map, which it no longer shows.
+    private var lastRequested: MKMapRect?
 
     init(mapView: MKMapView) {
         self.mapView = mapView
@@ -55,7 +61,7 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
                 followFrame: MKMapRect?, glides: Bool) {
         clearance = newClearance
         respectsSafeArea = newRespectsSafeArea
-        applyMargins()
+        applyMargins(easing: glides && followCurrent != nil && followFrame != nil && !camera.isPositionedByUser)
         if let followFrame, !camera.isPositionedByUser {
             guard let mapView, mapView.bounds.width > 0, mapView.bounds.height > 0 else { return }
             // The map's first framing goes straight there, as every first framing does.
@@ -88,10 +94,10 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     private func follow(toward target: MKMapRect, glides: Bool) {
         guard let mapView, Self.isFinite(target) else { return }
         pendingKeptInView = nil
-        if let followCurrent, displayLink == nil, MKMapRectEqualToRect(followCurrent, target) { return }
+        if let followCurrent, displayLink == nil, marginsTarget == nil, MKMapRectEqualToRect(followCurrent, target) { return }
         followTarget = target
-        let current = followCurrent ?? shownRect(of: mapView)
-        guard glides, !TripMapGlide.isThere(current, at: target) else {
+        let current = followCurrent ?? lastRequested ?? shownRect(of: mapView)
+        guard glides, marginsTarget != nil || !TripMapGlide.isThere(current, at: target) else {
             followCurrent = target
             show(target)
             pauseGlide()
@@ -111,10 +117,26 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         guard let target = followTarget, let current = followCurrent else { return stopFollowing() }
         let elapsed = lastGlide.map { link.timestamp - $0 } ?? link.duration
         lastGlide = link.timestamp
+        easeMargins(over: elapsed)
         let next = TripMapGlide.step(from: current, toward: target, over: elapsed)
         followCurrent = next
         show(next)
-        if MKMapRectEqualToRect(next, target) { pauseGlide() }
+        if MKMapRectEqualToRect(next, target), marginsTarget == nil { pauseGlide() }
+    }
+
+    /// One display frame of new margins easing in, by the glide's own share, arriving within half a point.
+    private func easeMargins(over elapsed: TimeInterval) {
+        guard let mapView, let target = marginsTarget, let applied = appliedMargins else { return }
+        let share = 1 - exp(-elapsed / TripMapGlide.timeConstant)
+        func eased(_ from: CGFloat, _ to: CGFloat) -> CGFloat {
+            abs(to - from) * (1 - share) < 0.5 ? to : from + (to - from) * share
+        }
+        let next = NSDirectionalEdgeInsets(top: eased(applied.top, target.top), leading: eased(applied.leading, target.leading),
+                                           bottom: eased(applied.bottom, target.bottom),
+                                           trailing: eased(applied.trailing, target.trailing))
+        appliedMargins = next
+        mapView.directionalLayoutMargins = next
+        if next == target { marginsTarget = nil }
     }
 
     /// The glide has got there: the link stops until the frame moves on.
@@ -129,11 +151,18 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         pauseGlide()
         followTarget = nil
         followCurrent = nil
+        // Margins still easing in go on at once.
+        if let marginsTarget {
+            appliedMargins = marginsTarget
+            mapView?.directionalLayoutMargins = marginsTarget
+            self.marginsTarget = nil
+        }
     }
 
     /// Shows `rect` inside the map's margins, as a framing does, at once, and has the drawing and any popup follow,
     /// since MapKit needn't report a move it wasn't asked to animate.
     private func show(_ rect: MKMapRect) {
+        lastRequested = rect
         mapView?.setVisibleMapRect(rect, edgePadding: .zero, animated: false)
         onFramedWithoutAnimation?()
     }
@@ -166,8 +195,10 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         mapView?.effectiveUserInterfaceLayoutDirection == .rightToLeft
     }
 
-    /// UIKit adds the safe area to the margins itself, so only the clearance beyond it goes on.
-    private func applyMargins() {
+    /// UIKit adds the safe area to the margins itself, so only the clearance beyond it goes on. While the map glides
+    /// after the plane (`easing`), new margins are eased in by the glide, so the latest event's banner coming at a
+    /// takeoff, or going, slides the map instead of jumping it.
+    private func applyMargins(easing: Bool = false) {
         guard let mapView else { return }
         if mapView.insetsLayoutMarginsFromSafeArea != respectsSafeArea {
             mapView.insetsLayoutMarginsFromSafeArea = respectsSafeArea
@@ -177,7 +208,12 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
                                               leading: baseMargins.leading + extra.leading,
                                               bottom: baseMargins.bottom + extra.bottom,
                                               trailing: baseMargins.trailing + extra.trailing)
-        guard margins != appliedMargins else { return }
+        guard margins != (marginsTarget ?? appliedMargins) else { return }
+        guard !easing || appliedMargins == nil else {
+            marginsTarget = margins
+            return
+        }
+        marginsTarget = nil
         appliedMargins = margins
         mapView.directionalLayoutMargins = margins
     }
@@ -202,6 +238,7 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         // rectangle already shown.
         pendingKeptInView = nil
         guard let rect = camera.rect else { return }
+        lastRequested = rect
         mapView.setVisibleMapRect(rect, edgePadding: .zero, animated: isAnimated)
         if isAnimated {
             pendingKeptInView = camera.keptInView
@@ -261,6 +298,7 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
         guard recognizer.state == .began || recognizer.state == .ended else { return }
         // The family's move wins over a slide still to come, and over the glide.
         pendingKeptInView = nil
+        lastRequested = nil
         stopFollowing()
         onUserMoved?()
     }

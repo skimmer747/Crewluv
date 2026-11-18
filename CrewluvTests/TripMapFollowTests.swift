@@ -97,6 +97,35 @@ final class TripMapFollowTests: XCTestCase {
         XCTAssertNotNil(TripMapFollow.rect(for: leg, at: at("11:20"), isReplay: true), "the replay's plane, by the schedule")
     }
 
+    // MARK: - Every moment, between legs too
+
+    /// Two flights: E0 to E20 from 10:00 to 13:22, then E20 to E40 from 15:00.
+    private var twoFlights: TripMap {
+        let second = FactsTestData.equatorFlight(from: 20, to: 40, departure: at("15:00"), id: "eq2")
+        return TripMap(mode: .onTrip, legs: [flight, second], home: nil,
+                       span: DateInterval(start: flight.start, end: second.end), tripDays: nil)
+    }
+
+    func test_followingFrame_isThePlane_inTheAir_andTheWholeFlight_beforeItLeaves() {
+        let map = twoFlights
+        XCTAssertEqual(numbers(map.followingFrame(at: at("11:45"), isReplay: false)),
+                       numbers(TripMapFollow.rect(for: flight, at: at("11:45"), isReplay: false)))
+        XCTAssertEqual(numbers(map.followingFrame(at: at("10:10"), isReplay: false)), numbers(map.framingRect(focusingOn: flight)))
+    }
+
+    func test_followingFrame_betweenTwoFlights_isTheNextOne() {
+        let map = twoFlights
+        let second = map.legs[1]
+        XCTAssertEqual(numbers(map.followingFrame(at: at("14:00"), isReplay: false)), numbers(map.framingRect(focusingOn: second)))
+    }
+
+    func test_followingFrame_beforeTheFirstFlight_andAfterTheLast_isTheWholeTrip() {
+        let map = twoFlights
+        let whole = numbers(map.framingRect(focusingOn: nil))
+        XCTAssertEqual(numbers(map.followingFrame(at: at("09:00"), isReplay: false)), whole, "before the trip's first flight")
+        XCTAssertEqual(numbers(map.followingFrame(at: at("23:00"), isReplay: false)), whole, "after its last")
+    }
+
     func test_followCaption_saysWhatTheMapDoesNow() {
         XCTAssertEqual(TripMapWording.followCaption(isOn: true, hasFlightInAir: true), "Following the plane")
         XCTAssertEqual(TripMapWording.followCaption(isOn: false, hasFlightInAir: true), "Showing the whole flight")
