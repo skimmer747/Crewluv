@@ -5,7 +5,8 @@
 //  The trip map's camera (moving map spec §6, Stage 2 spec §6.1, §6.2, base waits and card framing design §4). It
 //  frames each new `TripMapCamera` request, keeps the map's margins (where MapKit puts Apple's logo and Legal link) and
 //  its framing clear of the facts sheet, the panel or the card's chips, slides the pilot's ground marker into view when
-//  a framing leaves it out, and notices when the family moves the map themselves.
+//  a framing leaves it out, and notices when the family moves the map themselves. While the map follows the plane, it
+//  glides toward the frame it's handed on every display frame (follow the plane design §4).
 //
 
 import MapKit
@@ -31,6 +32,12 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     private var framedMargins: UIEdgeInsets = .zero
     /// The marker an animated framing keeps in view, slid in once the framing has finished.
     private var pendingKeptInView: CLLocationCoordinate2D?
+    /// While the map follows the plane: the frame it glides toward, the frame it's at, and the display link that moves
+    /// it, which runs only until it gets there.
+    private var followTarget: MKMapRect?
+    private var followCurrent: MKMapRect?
+    private var displayLink: CADisplayLink?
+    private var lastGlide: CFTimeInterval?
 
     init(mapView: MKMapView) {
         self.mapView = mapView
@@ -41,18 +48,109 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: - Updates
 
-    /// SwiftUI's latest camera, clearance and kind of map.
-    func update(camera: TripMapCamera, clearance newClearance: TripMapClearance, respectsSafeArea newRespectsSafeArea: Bool) {
+    /// SwiftUI's latest camera, clearance and kind of map, and the frame to follow the plane to, if it's following.
+    /// While it follows, the glide moves the map, and a refit's request is the glide's to make: a pan or pinch stops
+    /// it, and recenter starts it again from where the map is.
+    func update(camera: TripMapCamera, clearance newClearance: TripMapClearance, respectsSafeArea newRespectsSafeArea: Bool,
+                followFrame: MKMapRect?, glides: Bool) {
         clearance = newClearance
         respectsSafeArea = newRespectsSafeArea
         applyMargins()
-        frameIfNeeded(camera)
+        if let followFrame, !camera.isPositionedByUser {
+            guard let mapView, mapView.bounds.width > 0, mapView.bounds.height > 0 else { return }
+            // The map's first framing goes straight there, as every first framing does.
+            let isFirstFraming = framedNumber == nil
+            framedNumber = camera.framingNumber
+            framedSize = mapView.bounds.size
+            framedMargins = mapView.layoutMargins
+            follow(toward: followFrame, glides: glides && !isFirstFraming)
+        } else {
+            stopFollowing()
+            frameIfNeeded(camera)
+        }
     }
 
     /// The map's size or safe area has changed.
     func layoutDidChange(camera: TripMapCamera) {
         applyMargins()
-        frameIfNeeded(camera)
+        if let followCurrent {
+            show(followCurrent)
+        } else {
+            frameIfNeeded(camera)
+        }
+    }
+
+    // MARK: - Following the plane
+
+    /// Glides toward `target` from where the map is, on every display frame until it gets there, or goes straight to
+    /// it with Reduce Motion on, or when it's already as good as there, as live it nearly always is. A frame that's
+    /// already shown isn't shown again.
+    private func follow(toward target: MKMapRect, glides: Bool) {
+        guard let mapView, Self.isFinite(target) else { return }
+        pendingKeptInView = nil
+        if let followCurrent, displayLink == nil, MKMapRectEqualToRect(followCurrent, target) { return }
+        followTarget = target
+        let current = followCurrent ?? shownRect(of: mapView)
+        guard glides, !TripMapGlide.isThere(current, at: target) else {
+            followCurrent = target
+            show(target)
+            pauseGlide()
+            return
+        }
+        followCurrent = current
+        guard displayLink == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(glide(_:)))
+        // Smooth enough at 60 a second, and no more on a ProMotion screen.
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    /// One display frame of the glide.
+    @objc private func glide(_ link: CADisplayLink) {
+        guard let target = followTarget, let current = followCurrent else { return stopFollowing() }
+        let elapsed = lastGlide.map { link.timestamp - $0 } ?? link.duration
+        lastGlide = link.timestamp
+        let next = TripMapGlide.step(from: current, toward: target, over: elapsed)
+        followCurrent = next
+        show(next)
+        if MKMapRectEqualToRect(next, target) { pauseGlide() }
+    }
+
+    /// The glide has got there: the link stops until the frame moves on.
+    private func pauseGlide() {
+        displayLink?.invalidate()
+        displayLink = nil
+        lastGlide = nil
+    }
+
+    /// The map isn't following now: nothing glides, and the next follow starts from where the map is.
+    func stopFollowing() {
+        pauseGlide()
+        followTarget = nil
+        followCurrent = nil
+    }
+
+    /// Shows `rect` inside the map's margins, as a framing does, at once, and has the drawing and any popup follow,
+    /// since MapKit needn't report a move it wasn't asked to animate.
+    private func show(_ rect: MKMapRect) {
+        mapView?.setVisibleMapRect(rect, edgePadding: .zero, animated: false)
+        onFramedWithoutAnimation?()
+    }
+
+    /// Whether every number of `rect` is a real one, so a frame worked out from bad data never reaches MapKit.
+    private static func isFinite(_ rect: MKMapRect) -> Bool {
+        [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height].allSatisfy(\.isFinite)
+    }
+
+    /// What the map shows inside its margins, as a frame: where a glide starts from.
+    private func shownRect(of mapView: MKMapView) -> MKMapRect {
+        let visible = mapView.visibleMapRect
+        let scale = visible.size.width / mapView.bounds.width
+        let margins = mapView.layoutMargins
+        return MKMapRect(x: visible.origin.x + margins.left * scale, y: visible.origin.y + margins.top * scale,
+                         width: visible.size.width - (margins.left + margins.right) * scale,
+                         height: visible.size.height - (margins.top + margins.bottom) * scale)
     }
 
     // MARK: - Margins and framing
@@ -161,8 +259,9 @@ final class TripMapCameraController: NSObject, UIGestureRecognizerDelegate {
     /// A pan or pinch says so as it begins, a tap once it's recognized.
     @objc private func mapGestureChanged(_ recognizer: UIGestureRecognizer) {
         guard recognizer.state == .began || recognizer.state == .ended else { return }
-        // The family's move wins over a slide still to come.
+        // The family's move wins over a slide still to come, and over the glide.
         pendingKeptInView = nil
+        stopFollowing()
         onUserMoved?()
     }
 

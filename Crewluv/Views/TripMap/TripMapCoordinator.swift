@@ -61,7 +61,11 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         shapes = TripMapShapesController(mapView: mapView)
         let cameraController = TripMapCameraController(mapView: mapView)
         cameraController.onUserMoved = { [weak self] in self?.cameraWasMovedByUser() }
-        cameraController.onFramedWithoutAnimation = { [weak self] in self?.shapes?.draw() }
+        // A framing or a glide's frame MapKit needn't report: our drawing, and any popup, are laid where the map now is.
+        cameraController.onFramedWithoutAnimation = { [weak self] in
+            self?.shapes?.draw()
+            self?.popup?.reposition()
+        }
         self.cameraController = cameraController
         popup = TripMapPopupController(container: container, mapView: mapView)
         container.onLayoutChange = { [weak self] in self?.layoutDidChange() }
@@ -73,6 +77,7 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         mapView?.delegate = nil
         shapes?.tearDown()
         shapes = nil
+        cameraController?.stopFollowing()
         cameraController = nil
         popup?.tearDown()
         popup = nil
@@ -82,7 +87,7 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
 
     /// Brings the map up to date with SwiftUI's latest: every tick of the screen's or the card's timeline, and every
     /// change of camera, clearance, style or look.
-    func update(colorScheme: ColorScheme) {
+    func update(colorScheme: ColorScheme, reduceMotion: Bool) {
         guard let mapView else { return }
         let isFullScreen = parent.isFullScreen
         mapView.isUserInteractionEnabled = isFullScreen
@@ -98,7 +103,8 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         syncAnnotations(with: TripMapMarker.placements(for: drawing, palette: palette), on: mapView)
         shapes?.setNight(at: parent.date)
         shapes?.setLines(drawing.segments.map(TripMapLine.init(segment:)))
-        cameraController?.update(camera: parent.camera, clearance: parent.clearance, respectsSafeArea: isFullScreen)
+        cameraController?.update(camera: parent.camera, clearance: parent.clearance, respectsSafeArea: isFullScreen,
+                                 followFrame: parent.followFrame, glides: !reduceMotion)
         shapes?.draw()
         popup?.controlsHeight = parent.controlsHeight
         updatePopup(on: mapView)

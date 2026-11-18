@@ -9,6 +9,7 @@
 //  Follow the plane, remembered too, eases the map in on the plane as a flight goes on (follow the plane design).
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapScreen: View {
@@ -108,7 +109,11 @@ struct TripMapScreen: View {
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
                     refit(legID: legID, at: time)
                 }
-                .onChange(of: context.date) { follow(at: time, now: context.date) }
+                // Following starts or stops within a leg, as a replay is dragged back before takeoff: the map
+                // frames as the setting now says.
+                .onChange(of: followFrame(at: time) != nil) {
+                    refit(legID: tripMap.legInMotion(at: time)?.id, at: time)
+                }
                 // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
                 .onChange(of: followsPlane, initial: true) {
                     refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true)
@@ -159,7 +164,8 @@ struct TripMapScreen: View {
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
                         clearance: TripMapClearance(top: latest == nil && !showsKey ? 0 : mapTopClearance,
                                                     leading: mapLeadingClearance, bottom: mapBottomClearance),
-                        controlsHeight: mapTopClearance, isFullScreen: true, isReplay: !clock.isLive)
+                        controlsHeight: mapTopClearance, isFullScreen: true, isReplay: !clock.isLive,
+                        followFrame: followFrame(at: time))
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
             topChrome(time: time, latest: latest, showsKey: showsKey)
@@ -260,15 +266,10 @@ struct TripMapScreen: View {
                      keeping: tripMap.pilotLocation(at: time)?.coordinate, animated: !reduceMotion)
     }
 
-    /// Eases the camera in on the flight's plane at `time` while the family follows it, in steps spaced by the real
-    /// time `now` (follow the plane design §4). It runs on every tick, up to 60 a second in a replay, so it makes the
-    /// frame only when a move could be due, and writes the camera back only when it moves: a write redraws the screen.
-    private func follow(at time: Date, now: Date) {
-        guard followsPlane, let leg = tripMap.legInMotion(at: time), leg.kind == .flight else { return }
-        let plane = leg.plane(at: time, isReplay: !clock.isLive)
-        let places = [plane.coordinate, leg.destination.coordinate]
-        guard camera.mayFollow(keeping: places, at: now), let wanted = TripMapFollow.rect(for: leg, plane: plane) else { return }
-        var moved = camera
-        if moved.follow(wanted, keeping: places, at: now, animated: !reduceMotion) { camera = moved }
+    /// The frame the map glides toward at `time` while the family follows the plane, or nil (follow the plane design
+    /// §3, §4). It's handed to the map on every tick, up to 60 a second in a replay, as a plain value.
+    private func followFrame(at time: Date) -> MKMapRect? {
+        guard followsPlane, let leg = tripMap.legInMotion(at: time) else { return nil }
+        return TripMapFollow.rect(for: leg, at: time, isReplay: !clock.isLive)
     }
 }

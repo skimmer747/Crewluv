@@ -9,6 +9,7 @@
 //  plane design).
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapCard: View {
@@ -17,7 +18,6 @@ struct TripMapCard: View {
     let storyStore: LegStoryStore
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(TripMapScreen.followsPlaneKey) private var followsPlane = false
     @State private var camera: TripMapCamera
     @State private var isShowingFullScreen = false
@@ -58,7 +58,8 @@ struct TripMapCard: View {
                 }
                 bar(facts: facts, at: context.date)
             }
-            .onChange(of: context.date) { follow(at: context.date) }
+            // Following starts or stops within a leg: the card frames as the setting now says.
+            .onChange(of: followFrame(at: context.date) != nil) { refit() }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .task(id: LegStoryStore.preparationKey(for: tripMap)) {
@@ -92,16 +93,11 @@ struct TripMapCard: View {
         return TripMapFollow.rect(for: leg, at: date, isReplay: false) != nil
     }
 
-    /// Eases the card in on the flight's plane at `date`, every tick, while the family follows it (follow the plane
-    /// design §4).
-    private func follow(at date: Date) {
-        guard followsPlane, let leg = tripMap.currentLeg,
-              let wanted = TripMapFollow.rect(for: leg, at: date, isReplay: false) else { return }
-        var moved = camera
-        if moved.follow(wanted, keeping: TripMapFollow.places(for: leg, at: date, isReplay: false), at: date,
-                        animated: !reduceMotion) {
-            camera = moved
-        }
+    /// The frame the card's map glides toward at `date` while the family follows the plane, or nil (follow the plane
+    /// design §3, §4).
+    private func followFrame(at date: Date) -> MKMapRect? {
+        guard followsPlane, let leg = tripMap.currentLeg else { return nil }
+        return TripMapFollow.rect(for: leg, at: date, isReplay: false)
     }
 
     /// Stage 1's chips, with the headline fact on the bottom one in flight. The latest event's banner is at the top,
@@ -118,7 +114,7 @@ struct TripMapCard: View {
             isShowingFullScreen = true
         } label: {
             TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera,
-                        clearance: clearance(for: chips, hasCorner: latest != nil || showsKey))
+                        clearance: clearance(for: chips, hasCorner: latest != nil || showsKey), followFrame: followFrame(at: date))
                 .allowsHitTesting(false)
                 .frame(height: 220)
                 .overlay(alignment: .topLeading) { topOverlay(chips.top, latest: latest, showsKey: showsKey) }

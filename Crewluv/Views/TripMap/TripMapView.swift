@@ -9,6 +9,7 @@
 //  straight above.
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapView: UIViewRepresentable {
@@ -27,6 +28,9 @@ struct TripMapView: UIViewRepresentable {
     /// `date` is a moment of the replay, not now: a flight with a record shows its real plane alone, where the
     /// record has it (Stage 3 spec §7.3).
     var isReplay = false
+    /// The frame the map glides toward while it follows the plane, for this tick (follow the plane design §4), or nil
+    /// when it isn't following. A plain value, not the camera's state, so the glide redraws only the map.
+    var followFrame: MKMapRect? = nil
 
     func makeCoordinator() -> TripMapCoordinator {
         TripMapCoordinator(parent: self)
@@ -40,7 +44,8 @@ struct TripMapView: UIViewRepresentable {
 
     func updateUIView(_ container: TripMapContainerView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.update(colorScheme: context.environment.colorScheme)
+        context.coordinator.update(colorScheme: context.environment.colorScheme,
+                                   reduceMotion: context.environment.accessibilityReduceMotion)
     }
 
     static func dismantleUIView(_ container: TripMapContainerView, coordinator: TripMapCoordinator) {
