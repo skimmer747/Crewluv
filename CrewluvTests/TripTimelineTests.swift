@@ -39,19 +39,19 @@ final class TripTimelineTests: XCTestCase {
 
     func test_blocks_quickLayovers_areTheFlightsAndTwoSmallLayovers() throws {
         let map = try europe()
-        // 16 s, 3 s, 12 s, 3 s and 28 s of a 62 s replay.
+        // 32 s, 3 s, 24 s, 3 s and 56 s of a 118 s replay.
         assertBlocks(TripTimeline(tripMap: map, clock: clock(for: map, isQuickLayovers: true)).blocks, are: [
-            (.flying, 0, 16.0 / 62, nil), (.layover, 16.0 / 62, 19.0 / 62, "24h"), (.flying, 19.0 / 62, 31.0 / 62, nil),
-            (.layover, 31.0 / 62, 34.0 / 62, "20h"), (.flying, 34.0 / 62, 1, nil),
+            (.flying, 0, 32.0 / 118, nil), (.layover, 32.0 / 118, 35.0 / 118, "24h"), (.flying, 35.0 / 118, 59.0 / 118, nil),
+            (.layover, 59.0 / 118, 62.0 / 118, "20h"), (.flying, 62.0 / 118, 1, nil),
         ])
     }
 
     func test_blocks_quickLayoversOff_theLayoversTakeTheirFullShare() throws {
         let map = try europe()
-        // 16 s, 48 s, 12 s, 40 s and 28 s of a 144 s replay.
+        // 32 s, 96 s, 24 s, 80 s and 56 s of a 288 s replay.
         assertBlocks(TripTimeline(tripMap: map, clock: clock(for: map, isQuickLayovers: false)).blocks, are: [
-            (.flying, 0, 16.0 / 144, nil), (.layover, 16.0 / 144, 64.0 / 144, "24h"), (.flying, 64.0 / 144, 76.0 / 144, nil),
-            (.layover, 76.0 / 144, 116.0 / 144, "20h"), (.flying, 116.0 / 144, 1, nil),
+            (.flying, 0, 32.0 / 288, nil), (.layover, 32.0 / 288, 128.0 / 288, "24h"), (.flying, 128.0 / 288, 152.0 / 288, nil),
+            (.layover, 152.0 / 288, 232.0 / 288, "20h"), (.flying, 232.0 / 288, 1, nil),
         ])
     }
 
@@ -61,9 +61,9 @@ final class TripTimelineTests: XCTestCase {
             TripMapTestLegs.leg("f1", from: "SDF", to: "CGN", start: hours(1), hours: 8),
         ]
         let map = try XCTUnwrap(TripMapTestLegs.map(legs, at: hours(1)))
-        // The drive alone for an hour (2 s), then both, then the flight: 18 s in all.
+        // The drive alone for an hour (4 s), then both, then the flight: 36 s in all.
         assertBlocks(TripTimeline(tripMap: map, clock: clock(for: map, isQuickLayovers: true)).blocks, are: [
-            (.driving, 0, 2.0 / 18, nil), (.flying, 2.0 / 18, 1, nil),
+            (.driving, 0, 4.0 / 36, nil), (.flying, 4.0 / 36, 1, nil),
         ])
     }
 

@@ -59,6 +59,12 @@ The marker shows on the card and on the full-screen map.
 
 The replay plays the trip's span, from its first departure to its last arrival, in stretches. At 1x:
 
+> **Halved for flying, 17 Nov 2026** (Todd: "alot of the flights are from SDF to CLE and 1x is just too fast. I would
+> leave the numbers the same but slow each one down by one half", then "The flying only"): the normal rate is a day in
+> 96 s, 900 s of trip a second, and a leg takes at least 6 s. Quick layovers' waits keep their pace, a second a day and
+> never under 3 s, so a 1-hour turn now takes 3 s. The speeds keep their names, 1x to 10x. The numbers below are the
+> first pace's; `replay-cases.json` holds the new ones, and the website follows it.
+
 - **Normal rate:** a day in 48 s, 1,800 s of trip a second.
 - **A leg in motion:** as today. A leg that would take under 3 s slows so it takes 3 s, and where legs overlap the slowest wins.
 - **A wait, with Quick layovers on:** it takes 1 s for each day of the wait, and never less than 3 s.
