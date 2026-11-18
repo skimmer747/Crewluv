@@ -22,6 +22,11 @@ long flight the arrival is a small corner of it. Todd likes today's view too, so
 - **Off at first,** so today's whole-flight view stays until the family turns it on.
 - **Switched on the full-screen map** by a button beside recenter: `airplane.circle`, filled while it's on,
   and to VoiceOver "Follow the plane", with the value "on" or "off". The card has no button: it follows the setting.
+- **What the button says** (after Todd's look: "You tap it and it doesn't look any different. You don't know if its on
+  or off or what it does", then "Tint plus a caption"): while on it's tinted, in the accent colour (iOS 26's prominent
+  glass), and plain glass when off. Each tap shows a short caption under the top bar for about two seconds, "Following
+  the plane" or "Showing the whole flight", or with no flight in the air "Follows the plane when a flight is in the
+  air", which VoiceOver announces. Its VoiceOver hint: "Keeps the map on the plane and where it's headed."
 
 ## 3. What it frames
 

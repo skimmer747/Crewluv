@@ -97,6 +97,14 @@ final class TripMapFollowTests: XCTestCase {
         XCTAssertNotNil(TripMapFollow.rect(for: leg, at: at("11:20"), isReplay: true), "the replay's plane, by the schedule")
     }
 
+    func test_followCaption_saysWhatTheMapDoesNow() {
+        XCTAssertEqual(TripMapWording.followCaption(isOn: true, hasFlightInAir: true), "Following the plane")
+        XCTAssertEqual(TripMapWording.followCaption(isOn: false, hasFlightInAir: true), "Showing the whole flight")
+        XCTAssertEqual(TripMapWording.followCaption(isOn: true, hasFlightInAir: false),
+                       "Follows the plane when a flight is in the air")
+        XCTAssertEqual(TripMapWording.followCaption(isOn: false, hasFlightInAir: false), "Showing the whole flight")
+    }
+
     func test_framingRect_followsOnlyWhenAsked() throws {
         let map = TripMap(mode: .inFlight(legID: flight.id), legs: [flight], home: nil,
                           span: DateInterval(start: flight.start, end: flight.end), tripDays: nil)

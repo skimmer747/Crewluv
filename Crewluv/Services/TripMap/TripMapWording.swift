@@ -326,6 +326,15 @@ nonisolated enum TripMapWording {
         }
     }
 
+    // MARK: - Follow the plane
+
+    /// The caption a tap on Follow the plane shows for a moment, and VoiceOver announces (follow the plane design §2):
+    /// what the map does now. With no flight in the air, turning it on changes nothing yet, so it says when it will.
+    static func followCaption(isOn: Bool, hasFlightInAir: Bool) -> String {
+        guard isOn else { return "Showing the whole flight" }
+        return hasFlightInAir ? "Following the plane" : "Follows the plane when a flight is in the air"
+    }
+
     // MARK: - VoiceOver
 
     /// The card as one sentence (moving map spec §14).

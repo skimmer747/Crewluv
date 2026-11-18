@@ -43,14 +43,7 @@ struct TripMapTopBar: View {
                     .buttonStyle(.glass)
                     .accessibilityLabel("Recenter map")
                 }
-                Button(action: onToggleFollow) {
-                    Image(systemName: "airplane.circle")
-                        .symbolVariant(isFollowingPlane ? .fill : .none)
-                }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Follow the plane")
-                .accessibilityValue(isFollowingPlane ? "On" : "Off")
-                .accessibilityAddTraits(.isToggle)
+                followButton
                 Button(action: onNextStyle) {
                     Image(systemName: "map")
                 }
@@ -63,5 +56,24 @@ struct TripMapTopBar: View {
         }
         .padding(.horizontal)
         .padding(.top, 8)
+    }
+
+    /// Follow the plane: tinted in the accent colour while it's on, plain glass like the others when it's off (follow
+    /// the plane design §2).
+    @ViewBuilder
+    private var followButton: some View {
+        let button = Button(action: onToggleFollow) {
+            Image(systemName: "airplane.circle")
+                .symbolVariant(isFollowingPlane ? .fill : .none)
+        }
+        .accessibilityLabel("Follow the plane")
+        .accessibilityValue(isFollowingPlane ? "On" : "Off")
+        .accessibilityHint("Keeps the map on the plane and where it's headed.")
+        .accessibilityAddTraits(.isToggle)
+        if isFollowingPlane {
+            button.buttonStyle(.glassProminent)
+        } else {
+            button.buttonStyle(.glass)
+        }
     }
 }

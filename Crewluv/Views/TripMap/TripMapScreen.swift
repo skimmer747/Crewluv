@@ -47,6 +47,8 @@ struct TripMapScreen: View {
     @State private var topChromeBottom: CGFloat = 0
     @State private var isPanelExpanded = true
     @State private var isClosing = false
+    /// What a tap on Follow the plane just did, shown under the top bar for a moment (follow the plane design §2).
+    @State private var followCaption: String?
 
     private static let panelWidth: CGFloat = 380
 
@@ -80,6 +82,11 @@ struct TripMapScreen: View {
             // Both start again when a flight's route or times change, so a new delay fetches the new landing hour.
             .task(id: LegStoryStore.preparationKey(for: tripMap)) { await storyStore.prepare(tripMap) }
             .task(id: LegStoryStore.preparationKey(for: tripMap)) { await weather.keepRefreshing(for: tripMap) }
+            .task(id: followCaption) {
+                // The caption says its piece for about two seconds, then goes.
+                guard followCaption != nil, (try? await Task.sleep(for: .seconds(2))) != nil else { return }
+                withAnimation(.snappy) { followCaption = nil }
+            }
             .task(id: isClosing) {
                 // Should the sheet never report going, as when Close comes while it's still sliding up, the map closes anyway.
                 guard isClosing, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
@@ -194,6 +201,8 @@ struct TripMapScreen: View {
         VStack(spacing: 8) {
             topBar(time: time)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
+                // An overlay, so the caption never moves the camera's clearance for the moment it shows.
+                .overlay(alignment: .bottom) { followCaptionView }
             if latest != nil || showsKey {
                 TripMapCorner(latest: latest, showsKey: showsKey, isCentered: true)
                     .padding(.horizontal)
@@ -211,9 +220,34 @@ struct TripMapScreen: View {
             isFollowingPlane: followsPlane,
             onClose: close,
             onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true) },
-            onToggleFollow: { followsPlane.toggle() },
+            onToggleFollow: { toggleFollowing(at: time) },
             onNextStyle: { style = style.next }
         )
+    }
+
+    /// The caption a tap on Follow the plane shows just under the top bar, centred over the open map. VoiceOver hears
+    /// it as an announcement, so it's hidden from VoiceOver here.
+    @ViewBuilder
+    private var followCaptionView: some View {
+        if let followCaption {
+            Text(followCaption)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.leading, usesSidePanel ? panelFrame.width : 0)
+                .alignmentGuide(.bottom) { $0[.top] - 8 }
+                .transition(.opacity)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Turns Follow the plane on or off, and says what the map does now (follow the plane design §2).
+    private func toggleFollowing(at time: Date) {
+        followsPlane.toggle()
+        let caption = TripMapWording.followCaption(isOn: followsPlane, hasFlightInAir: tripMap.flightInMotion(at: time) != nil)
+        withAnimation(.snappy) { followCaption = caption }
+        AccessibilityNotification.Announcement(caption).post()
     }
 
     /// iPad, and iPhone in landscape.
