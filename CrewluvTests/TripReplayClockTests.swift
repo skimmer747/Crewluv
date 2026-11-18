@@ -30,12 +30,12 @@ final class TripReplayClockTests: XCTestCase {
         XCTAssertFalse(clock.isPlaying)
     }
 
-    func test_play_fromLive_startsAtTheTripsStart_atADayIn48Seconds() {
+    func test_play_fromLive_startsAtTheTripsStart_atADayIn96Seconds() {
         var clock = TripReplayClock(span: span)
         clock.play(at: now)
         XCTAssertTrue(clock.isPlaying)
         XCTAssertEqual(clock.time(at: now), span.start)
-        XCTAssertEqual(clock.time(at: now.addingTimeInterval(48)), span.start.addingTimeInterval(86_400))
+        XCTAssertEqual(clock.time(at: now.addingTimeInterval(96)), span.start.addingTimeInterval(86_400))
     }
 
     func test_setSpeed_whilePlaying_keepsThePlaceAndGoesFaster() {
@@ -45,7 +45,7 @@ final class TripReplayClockTests: XCTestCase {
         let before = clock.time(at: later)
         clock.setSpeed(.ten, at: later)
         XCTAssertEqual(clock.time(at: later), before)
-        XCTAssertEqual(clock.time(at: later.addingTimeInterval(1)), before.addingTimeInterval(18_000))
+        XCTAssertEqual(clock.time(at: later.addingTimeInterval(1)), before.addingTimeInterval(9_000))
     }
 
     func test_play_pastTheEnd_stopsThere_andPlayingAgainStartsOver() {
@@ -63,7 +63,7 @@ final class TripReplayClockTests: XCTestCase {
         clock.play(at: now)
         clock.pause(at: now.addingTimeInterval(5))
         XCTAssertFalse(clock.isPlaying)
-        XCTAssertEqual(clock.time(at: now.addingTimeInterval(60)), span.start.addingTimeInterval(5 * 1_800))
+        XCTAssertEqual(clock.time(at: now.addingTimeInterval(60)), span.start.addingTimeInterval(5 * 900))
     }
 
     func test_goLive_returnsToNow() {
@@ -81,7 +81,7 @@ final class TripReplayClockTests: XCTestCase {
         XCTAssertEqual(clock.time(at: now), span.start)
     }
 
-    // MARK: - Short legs take at least 3 s at 1x, as on the website (replay short legs design, 2026-11-13)
+    // MARK: - Short legs take at least 6 s at 1x, as on the website (replay short legs design, 2026-11-13, at half its pace since 17 Nov 2026)
 
     private let tripStart = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -93,8 +93,8 @@ final class TripReplayClockTests: XCTestCase {
         TripReplayClock.Stretch(start: minutes(start), end: minutes(end))
     }
 
-    /// A 25-minute drive, a 30-minute gap, a 50-minute hop, an hour's gap and an 8-hour flight. At 1x: 3 s, 1 s, 3 s,
-    /// 2 s and 16 s, 25 s in all.
+    /// A 25-minute drive, a 30-minute gap, a 50-minute hop, an hour's gap and an 8-hour flight. At 1x: 6 s, 2 s, 6 s,
+    /// 4 s and 32 s, 50 s in all.
     private func playingShortLegs(alsoWith extra: [TripReplayClock.Stretch] = []) -> TripReplayClock {
         var clock = TripReplayClock(span: DateInterval(start: minutes(0), end: minutes(645)),
                                     legs: [leg(0, 25), leg(55, 105), leg(165, 645)] + extra)
@@ -108,67 +108,67 @@ final class TripReplayClockTests: XCTestCase {
                        minutes(minute).timeIntervalSince1970, accuracy: 0.01, file: file, line: line)
     }
 
-    func test_play_aShortDrive_takes3SecondsAt1x_andHalfThatAt2x() {
-        assertTime(playingShortLegs(), after: 1.5, isMinute: 12.5)
-        assertTime(playingShortLegs(), after: 3, isMinute: 25)
+    func test_play_aShortDrive_takes6SecondsAt1x_andHalfThatAt2x() {
+        assertTime(playingShortLegs(), after: 3, isMinute: 12.5)
+        assertTime(playingShortLegs(), after: 6, isMinute: 25)
         var faster = playingShortLegs()
         faster.setSpeed(.two, at: now)
-        assertTime(faster, after: 1.5, isMinute: 25)
+        assertTime(faster, after: 3, isMinute: 25)
     }
 
-    func test_play_aShortFlight_takes3Seconds_andTheGapsPlayAtADayIn48Seconds() {
-        assertTime(playingShortLegs(), after: 4, isMinute: 55)
-        assertTime(playingShortLegs(), after: 7, isMinute: 105)
-        assertTime(playingShortLegs(), after: 9, isMinute: 165)
+    func test_play_aShortFlight_takes6Seconds_andTheGapsPlayAtADayIn96Seconds() {
+        assertTime(playingShortLegs(), after: 8, isMinute: 55)
+        assertTime(playingShortLegs(), after: 14, isMinute: 105)
+        assertTime(playingShortLegs(), after: 18, isMinute: 165)
     }
 
     func test_play_aLegOf90MinutesOrMore_playsAsBefore() {
-        assertTime(playingShortLegs(), after: 17, isMinute: 405)
-        assertTime(playingShortLegs(), after: 25, isMinute: 645)
+        assertTime(playingShortLegs(), after: 34, isMinute: 405)
+        assertTime(playingShortLegs(), after: 50, isMinute: 645)
     }
 
     func test_hasFinished_aSlowedReplay_atItsEnd_atAnySpeed() {
         let clock = playingShortLegs()
-        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(24.9)))
-        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(25.001)))
+        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(49.9)))
+        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(50.001)))
         var faster = playingShortLegs()
         faster.setSpeed(.two, at: now)
-        XCTAssertFalse(faster.hasFinished(at: now.addingTimeInterval(12.4)))
-        XCTAssertTrue(faster.hasFinished(at: now.addingTimeInterval(12.501)))
+        XCTAssertFalse(faster.hasFinished(at: now.addingTimeInterval(24.9)))
+        XCTAssertTrue(faster.hasFinished(at: now.addingTimeInterval(25.001)))
     }
 
     func test_pauseOrSetSpeed_inTheMiddleOfASlowedLeg_keepsTheMoment() {
         var paused = playingShortLegs()
-        paused.pause(at: now.addingTimeInterval(1.5))
+        paused.pause(at: now.addingTimeInterval(3))
         assertTime(paused, after: 60, isMinute: 12.5)
         var faster = playingShortLegs()
-        faster.setSpeed(.five, at: now.addingTimeInterval(1.5))
-        assertTime(faster, after: 1.5, isMinute: 12.5)
-        assertTime(faster, after: 1.8, isMinute: 25)
+        faster.setSpeed(.five, at: now.addingTimeInterval(3))
+        assertTime(faster, after: 3, isMinute: 12.5)
+        assertTime(faster, after: 3.6, isMinute: 25)
     }
 
-    func test_play_fromPartwayThroughASlowedLeg_takesOnlyTheRestOfIts3Seconds() {
+    func test_play_fromPartwayThroughASlowedLeg_takesOnlyTheRestOfIts6Seconds() {
         var clock = TripReplayClock(span: DateInterval(start: minutes(0), end: minutes(645)),
                                     legs: [leg(0, 25), leg(55, 105), leg(165, 645)])
         clock.scrub(to: minutes(12.5))
         clock.play(at: now)
-        assertTime(clock, after: 1.5, isMinute: 25)
+        assertTime(clock, after: 3, isMinute: 25)
     }
 
     func test_play_twoOverlappingLegs_takeTheSlowerRateWhileBothMove() {
-        // An hour's leg (3 s would be 1200x) with a 15-minute one inside it (300x): 1.5 s, then 3 s, then 0.75 s.
+        // An hour's leg (6 s would be 600x) with a 15-minute one inside it (150x): 3 s, then 6 s, then 1.5 s.
         var clock = TripReplayClock(span: DateInterval(start: minutes(0), end: minutes(60)), legs: [leg(0, 60), leg(30, 45)])
         clock.play(at: now)
-        assertTime(clock, after: 1.5, isMinute: 30)
-        assertTime(clock, after: 4.5, isMinute: 45)
-        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(5.2)))
-        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(5.251)))
+        assertTime(clock, after: 3, isMinute: 30)
+        assertTime(clock, after: 9, isMinute: 45)
+        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(10.4)))
+        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(10.501)))
     }
 
     func test_play_aLegWithNoLength_addsNoTime() {
         let clock = playingShortLegs(alsoWith: [leg(40, 40)])
-        assertTime(clock, after: 4, isMinute: 55)
-        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(24.9)))
-        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(25.001)))
+        assertTime(clock, after: 8, isMinute: 55)
+        XCTAssertFalse(clock.hasFinished(at: now.addingTimeInterval(49.9)))
+        XCTAssertTrue(clock.hasFinished(at: now.addingTimeInterval(50.001)))
     }
 }

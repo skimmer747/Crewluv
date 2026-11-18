@@ -38,6 +38,32 @@ nonisolated extension TripMap {
         return TripActivity(kind: groundKind(at: date, place: place), place: place)
     }
 
+    /// Where the pilot's flight waits at `date`, while it's between its gates and its real plane is still on the
+    /// ground at its departure airport after the plan's takeoff time: that airport, which the line under the timeline
+    /// names in place of "Flying to" (which plane design §4). Nil otherwise. A replay's moment is flying, as the map
+    /// has the plane, so the facts ask this only of now.
+    func stillOnGroundAirport(at date: Date) -> AirportMark? {
+        guard let flight = flightInMotion(at: date), flight.isStillOnGround(at: date) else { return nil }
+        return flight.origin
+    }
+
+    /// The arrival airport of the flight between its gates at `date` whose real plane has landed there, before the
+    /// gate: the line under the timeline says "Landed in" it in place of "Flying to" (landed before the gate design §3).
+    /// Nil otherwise. A replay's moment is where the map has the plane, so the facts ask this only of now.
+    func landedAirport(at date: Date) -> AirportMark? {
+        guard let flight = flightInMotion(at: date), flight.isLandedBeforeGate(at: date) else { return nil }
+        return flight.destination
+    }
+
+    /// Where the flight between its gates at `date` has its real plane on the ground, as the line under the timeline
+    /// names it in place of "Flying to": still at its departure airport, back there after an air return, or down at
+    /// its arrival airport before the gate. Nil otherwise.
+    func flightOnGround(at date: Date) -> FlightOnGround? {
+        if let arrival = landedAirport(at: date) { return .landedIn(arrival) }
+        guard let flight = flightInMotion(at: date), let departure = stillOnGroundAirport(at: date) else { return nil }
+        return flight.hasReturned(at: date) ? .returnedTo(departure) : .stillIn(departure)
+    }
+
     // MARK: - On the ground
 
     /// Before the first departure, home for a next trip, or base while the pilot waits there, else home or base by

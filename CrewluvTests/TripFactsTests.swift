@@ -93,15 +93,66 @@ final class TripFactsTests: XCTestCase {
     func test_tripSoFar_listsThisFlightsMilestones_thenTheTotals() {
         let tripSoFar = equatorFacts().tripSoFar(at: at("12:30"))
         XCTAssertEqual(tripSoFar.flights.map(\.title), ["TST1 · E0 → E20"])
-        XCTAssertEqual(tripSoFar.flights.first?.milestones.map { plain($0) }, [
-            "Crossed into Bravo · 7:00 AM", "Halfway · 7:45 AM", "Out over the Test Sea · 8:03 AM", "Closest to home, 35 mi · 8:21 AM",
+        // Newest first (best guesses design §3), and the flight is the one in the air.
+        XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, [
+            "Closest to home, 35 mi · 8:21 AM", "Out over the Test Sea · 8:03 AM", "Halfway · 7:45 AM", "Crossed into Bravo · 7:00 AM",
         ])
+        XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [false, false, false, false], "the schedule is told as it is")
+        XCTAssertEqual(tripSoFar.flights.first?.tag, "In the air now")
         XCTAssertEqual(tripSoFar.totalsTitle, "Trip so far")
         XCTAssertEqual(tripSoFar.totals, "Day 1 of 1 · 1,036 mi")
     }
 
     func test_tripSoFar_onlyMilestonesThatHaveHappened() {
-        XCTAssertEqual(equatorFacts().tripSoFar(at: at("11:50")).flights.first?.milestones.count, 2)
+        XCTAssertEqual(equatorFacts().tripSoFar(at: at("11:50")).flights.first?.events.count, 2)
+    }
+
+    func test_tripSoFar_onALayover_saysTripSoFarOnce_inTheRows() throws {
+        // The rows have "Trip so far" on a layover, so it isn't said again under the list (best guesses design §5).
+        let at = TripMapTestLegs.tripStart.addingTimeInterval(12 * 3600)
+        let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: at))
+        let sunEvents = Dictionary(uniqueKeysWithValues: map.legs.map { ($0.id, SkyFacts.sunEvents(on: $0)) })
+        let facts = TripFacts(tripMap: map, geography: nil, comparisons: nil, stories: [:], sunEvents: sunEvents,
+                              calendar: calendar, locale: locale)
+        XCTAssertTrue(facts.rows(at: at, now: at).contains { $0.kind == .tripSoFar })
+        XCTAssertTrue(facts.hasTripSoFarRow(at: at))
+        XCTAssertNil(facts.tripSoFar(at: at).totals)
+        XCTAssertEqual(facts.tripSoFar(at: at).flights.map(\.tag), [], "a finished flight with no event isn't listed")
+
+        // In flight the rows have none, so it's under the list.
+        let inFlight = TripMapTestLegs.tripStart.addingTimeInterval(4 * 3600)
+        XCTAssertFalse(facts.rows(at: inFlight, now: inFlight).contains { $0.kind == .tripSoFar })
+        XCTAssertNotNil(facts.tripSoFar(at: inFlight).totals)
+    }
+
+    func test_hasTripSoFarRow_isWhetherTheRowsHaveIt_atEveryMoment() throws {
+        let start = TripMapTestLegs.tripStart
+        let trip = TripMapTestLegs.europeTrip()
+        let drive = MapLeg(id: "d", kind: .drive,
+                           origin: FactsTestData.mark("LEX", latitude: 38.04, longitude: -84.61, city: "Lexington"),
+                           destination: FactsTestData.mark("SDF", latitude: 38.17, longitude: -85.74, city: "Louisville"),
+                           start: start, end: start.addingTimeInterval(3600), flightNumber: nil)
+        let maps = [
+            try XCTUnwrap(TripMapTestLegs.map(trip, at: start)),
+            try XCTUnwrap(TripMapTestLegs.map(trip, isNextTrip: true, at: start.addingTimeInterval(-86_400))),
+            try XCTUnwrap(TripMap.make(tripLegs: trip, isNextTrip: false, isRecap: true, homeAirportCode: "SDF",
+                                       legacyDelayMinutes: nil, at: start, coordinate: TripMapTestLegs.coordinate)),
+            TripMap(mode: .onTrip, legs: [drive], home: nil, span: DateInterval(start: drive.start, end: drive.end), tripDays: nil),
+        ]
+        var checked = 0
+        for map in maps {
+            let sunEvents = Dictionary(uniqueKeysWithValues: map.legs.map { ($0.id, SkyFacts.sunEvents(on: $0)) })
+            // With a day to tell, a "Trip so far" row always has something to say where there is one.
+            let facts = TripFacts(tripMap: map, geography: nil, comparisons: nil, stories: [:], sunEvents: sunEvents,
+                                  dayNumber: 1, totalDays: 4, calendar: calendar, locale: locale)
+            for half in stride(from: -60, through: 200, by: 1) {
+                let at = start.addingTimeInterval(Double(half) * 1800)
+                XCTAssertEqual(facts.hasTripSoFarRow(at: at), facts.rows(at: at, now: at).contains { $0.kind == .tripSoFar },
+                               "\(map.mode) at \(half) half hours")
+                checked += 1
+            }
+        }
+        XCTAssertEqual(checked, 4 * 261)
     }
 
     func test_tripSoFar_afterARecapsTrip_isTheRecap() throws {
@@ -113,9 +164,59 @@ final class TripFactsTests: XCTestCase {
 
     // MARK: - The card (§6.4, §6.5)
 
-    func test_cardSummary_inFlight_addsThePlaceBelow() {
+    func test_cardSummary_inFlight_addsThePlaceBelow_andTheLatestEvent() {
         XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Estimated from the schedule.")
+                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Estimated from the schedule. Latest: crossed into Bravo, 10 minutes ago.")
+        XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("10:50"), pilotName: "Alex")),
+                       "TST1 to E20, over Alpha. Lands at 9:22 AM your time. Estimated from the schedule.", "before its first event")
+    }
+
+    // MARK: - The latest event (latest event design §1)
+
+    func test_latestEvent_isTheNewest_untilTheNext() throws {
+        let facts = equatorFacts()
+        XCTAssertNil(facts.latestEvent(at: at("10:59")), "before the first event")
+        let crossed = try XCTUnwrap(facts.latestEvent(at: FactsTestData.date("2026-03-20T11:00:30Z")))
+        XCTAssertEqual(crossed, LatestEvent(title: "Crossed into Bravo", when: "Just now", sentence: "Latest: crossed into Bravo, just now."))
+        XCTAssertEqual(facts.latestEvent(at: at("11:12"))?.when, "12 min ago")
+        XCTAssertEqual(facts.latestEvent(at: at("11:44"))?.title, "Crossed into Bravo", "it stays until the next")
+        XCTAssertEqual(facts.latestEvent(at: at("11:46"))?.title, "Halfway")
+        XCTAssertEqual(facts.latestEvent(at: at("12:10"))?.title, "Out over the Test Sea")
+        let closest = try XCTUnwrap(facts.latestEvent(at: at("12:40")))
+        XCTAssertEqual(closest.title, "Closest to home, 35 mi")
+        XCTAssertEqual(closest.when, "19 min ago")
+        XCTAssertEqual(closest.sentence, "Latest: closest to home, 35 miles, 19 minutes ago.")
+        XCTAssertNil(facts.latestEvent(at: at("13:30")), "it has reached the gate")
+    }
+
+    func test_latestEvent_beforeTheStoryIsReady_isNil_andTheCardSaysNothingOfIt() {
+        let facts = equatorFacts(hasStory: false)
+        XCTAssertNil(facts.latestEvent(at: at("11:10")))
+        XCTAssertEqual(plain(facts.cardSummary(now: at("11:10"), pilotName: "Alex")),
+                       "TST1 to E20. Lands at 9:22 AM your time. Estimated from the schedule.")
+    }
+
+    func test_latestEvent_inAReplay_saysItsClockTime() {
+        var facts = equatorFacts()
+        facts.isReplay = true
+        XCTAssertEqual(plain(facts.latestEvent(at: at("11:12"))?.when), "7:00 AM")
+    }
+
+    func test_latestEvent_onTheGround_isNil() throws {
+        let at = TripMapTestLegs.tripStart.addingTimeInterval(12 * 3600)
+        let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: at))
+        let facts = TripFacts(tripMap: map, geography: FactsTestData.equator, comparisons: nil,
+                              stories: Dictionary(uniqueKeysWithValues: map.legs.map { ($0.id, LegStory(leg: $0, geography: FactsTestData.equator, home: nil)) }),
+                              sunEvents: [:])
+        XCTAssertNil(facts.latestEvent(at: at))
+    }
+
+    func test_headline_besideTheBanner_leavesEventsOut() {
+        let facts = equatorFacts()
+        XCTAssertEqual(facts.headline(at: at("11:02")), "Just crossed into Bravo", "as before, where the shared cases read it")
+        XCTAssertEqual(facts.headline(at: at("11:02"), includesEvents: false), "Over Bravo")
+        XCTAssertEqual(facts.headline(at: at("11:46"), includesEvents: false), "Over Bravo")
+        XCTAssertEqual(facts.sheetHeadline(at: at("11:02")), "Over Bravo", "the banner is on the map above the sheet")
     }
 
     func test_recap_tilesLongestAndSummary() throws {

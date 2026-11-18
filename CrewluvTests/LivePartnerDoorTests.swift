@@ -209,6 +209,120 @@ struct LivePartnerDoorTests {
 
         await #expect(throws: PartnerDoorError.unavailable) { try await network.door.view(key: Self.key, since: nil) }
     }
+
+    // MARK: - The Live Plane
+
+    private static let liveAnswer = #"""
+        {"now": 1794601935000, "cursor": 412, "flights": [
+          {"leg_id": "leg-1", "callsign": "UPS207", "state": "airborne",
+           "fix": {"lat": 46.812345, "lon": -71.5, "altitude_ft": 35000, "ground_speed_kt": 468, "track_deg": 61,
+                   "on_ground": false, "registration": "N370UP", "type_code": "B763", "seen_at": 1794601920000},
+           "landed_at": null,
+           "trail": [[1794601680000, 46.5, -72.25, 34975], [1794601800000, 46.65, -71.9, null]],
+           "trail_count": 9},
+          {"leg_id": "leg-2", "callsign": "UPS208", "state": "waiting", "fix": null, "landed_at": null,
+           "trail": [], "trail_count": 0}
+        ]}
+        """#
+
+    @Test func test_live_postsTheKey_andNoCursorWithoutOne() async throws {
+        let network = StandInNetwork(body: #"{"now": 1794601935000, "cursor": 0, "flights": []}"#)
+        _ = try await network.door.live(key: Self.key, after: nil)
+
+        let request = try #require(network.requests.first)
+        #expect(network.requests.count == 1)
+        #expect(request.url?.absoluteString == "https://corxvurxpnrzekbxdgye.supabase.co/rest/v1/rpc/partner_live")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "apikey") == LivePartnerDoor.publishableKey)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(try network.parameters(request) == ["p_key": Self.key])
+    }
+
+    @Test func test_live_sendsTheCursorBack() async throws {
+        let network = StandInNetwork(body: #"{"now": 1794601935000, "cursor": 412, "flights": []}"#)
+        _ = try await network.door.live(key: Self.key, after: 412)
+
+        let body = try #require(network.requests.first?.httpBody)
+        let parameters = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(parameters["p_key"] as? String == Self.key)
+        #expect(parameters["p_after"] as? Int == 412)
+        #expect(parameters.count == 2)
+    }
+
+    @Test func test_live_readsTheClockTheCursorAndEachFlight() async throws {
+        let answer = try await StandInNetwork(body: Self.liveAnswer).door.live(key: Self.key, after: nil)
+
+        #expect(answer.now == Date(timeIntervalSince1970: 1_794_601_935))
+        #expect(answer.cursor == 412)
+        #expect(answer.flights.map(\.legID) == ["leg-1", "leg-2"])
+        let flight = try #require(answer.flights.first)
+        #expect(flight.callsign == "UPS207")
+        #expect(flight.state == .airborne)
+        #expect(flight.landedAt == nil)
+        #expect(flight.trailCount == 9)
+        #expect(flight.fix == LiveFlight.Fix(
+            latitude: 46.812345, longitude: -71.5, altitudeFeet: 35000, groundSpeedKnots: 468, trackDegrees: 61,
+            isOnGround: false, registration: "N370UP", typeCode: "B763", seenAt: Date(timeIntervalSince1970: 1_794_601_920)
+        ))
+        #expect(flight.trail == [
+            LiveFlight.TrailPoint(time: Date(timeIntervalSince1970: 1_794_601_680), latitude: 46.5, longitude: -72.25, altitudeFeet: 34975),
+            LiveFlight.TrailPoint(time: Date(timeIntervalSince1970: 1_794_601_800), latitude: 46.65, longitude: -71.9, altitudeFeet: nil),
+        ])
+        let waiting = try #require(answer.flights.last)
+        #expect(waiting.state == .waiting)
+        #expect(waiting.fix == nil)
+        #expect(waiting.trail.isEmpty)
+        #expect(waiting.trailCount == 0)
+    }
+
+    @Test func test_live_aLandedFlight_hasItsLandingTime_andAFixOnTheGround() async throws {
+        let body = #"""
+            {"now": 1794601935000, "cursor": 0, "flights": [
+              {"leg_id": "leg-1", "callsign": "UPS207", "state": "landed",
+               "fix": {"lat": 50.87, "lon": 7.14, "altitude_ft": null, "ground_speed_kt": null, "track_deg": null,
+                       "on_ground": true, "registration": null, "type_code": null, "seen_at": 1794601920500},
+               "landed_at": 1794601800250, "trail": [], "trail_count": 0}
+            ]}
+            """#
+        let flight = try #require(try await StandInNetwork(body: body).door.live(key: Self.key, after: nil).flights.first)
+
+        #expect(flight.state == .landed)
+        #expect(flight.landedAt == Date(timeIntervalSince1970: 1_794_601_800.25))
+        #expect(flight.fix == LiveFlight.Fix(
+            latitude: 50.87, longitude: 7.14, altitudeFeet: nil, groundSpeedKnots: nil, trackDegrees: nil,
+            isOnGround: true, registration: nil, typeCode: nil, seenAt: Date(timeIntervalSince1970: 1_794_601_920.5)
+        ))
+    }
+
+    @Test func test_live_aStateThisAppDoesntKnow_readsAsWaiting() async throws {
+        let body = #"""
+            {"now": 1794601935000, "cursor": 0, "flights": [
+              {"leg_id": "leg-1", "callsign": "UPS207", "state": "holding", "fix": null, "landed_at": null,
+               "trail": [], "trail_count": 0}
+            ]}
+            """#
+        let answer = try await StandInNetwork(body: body).door.live(key: Self.key, after: nil)
+
+        #expect(answer.flights.map(\.state) == [.waiting])
+    }
+
+    @Test func test_live_sharingEnded_isRefused() async {
+        let network = StandInNetwork(body: #"{"error": "sharing_ended"}"#)
+
+        await #expect(throws: PartnerDoorError.refused(.sharingEnded)) { try await network.door.live(key: Self.key, after: 412) }
+    }
+
+    @Test(arguments: [
+        "<html>Bad gateway</html>",
+        #"{"cursor": 0, "flights": []}"#,
+        #"{"now": 1794601935000, "cursor": 0, "flights": [{"leg_id": "leg-1", "callsign": "UPS207", "state": "airborne"}]}"#,
+        #"{"now": 1794601935000, "cursor": 0, "flights": [{"leg_id": "leg-1", "callsign": "UPS207", "state": "airborne", "fix": null, "landed_at": null, "trail": [[1794601680000, 46.5]], "trail_count": 1}]}"#,
+    ])
+    func test_live_anAnswerThatDoesntDecode_isUnavailable(body: String) async {
+        let network = StandInNetwork(body: body)
+
+        await #expect(throws: PartnerDoorError.unavailable) { try await network.door.live(key: Self.key, after: nil) }
+    }
 }
 
 // MARK: - A Stand-in for the Network

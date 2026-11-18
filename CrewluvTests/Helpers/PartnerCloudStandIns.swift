@@ -13,7 +13,7 @@ import Testing
 
 /// The partner door, answering from a script and recording each call.
 @MainActor
-final class StandInPartnerDoor: PartnerDoor {
+final class StandInPartnerDoor: PartnerDoor, LiveFlightDoor {
     /// The answers to `view`, in order. With none left, the door can't be reached.
     var viewAnswers: [Result<PartnerViewAnswer, PartnerDoorError>] = []
     /// The answers to `setPush`, in order. With none left, it says ok.
@@ -24,12 +24,16 @@ final class StandInPartnerDoor: PartnerDoor {
     var handOffAnswers: [Result<HandOffCode, PartnerDoorError>] = []
     /// The answers to `leave`, in order. With none left, it says ok.
     var leaveAnswers: [Result<Void, PartnerDoorError>] = []
+    /// The answers to `live`, in order. With none left, the door can't be reached.
+    var liveAnswers: [Result<PartnerLiveAnswer, PartnerDoorError>] = []
     /// While true, each `view` waits for `release()`.
     var holdsViews = false
     /// While true, each `leave` waits for `release()`.
     var holdsLeaves = false
     /// While true, each `makeHandOffCode` waits for `release()`.
     var holdsHandOffs = false
+    /// While true, each `live` waits for `release()`.
+    var holdsLives = false
     /// Runs while `setPush` waits for its answer, as if something happened meanwhile.
     var whileSettingPush: (() -> Void)?
     /// Runs while `join` or `redeem` waits for its answer, as if something happened meanwhile.
@@ -41,6 +45,8 @@ final class StandInPartnerDoor: PartnerDoor {
     private(set) var joins: [(link: PartnerLink, key: String, label: String)] = []
     private(set) var handOffs: [String] = []
     private(set) var leaves: [String] = []
+    /// Each `live`: the key and the cursor it sent.
+    private(set) var lives: [(key: String, after: Int?)] = []
     private var held: [CheckedContinuation<Void, Never>] = []
 
     func view(key: String, since: String?) async throws(PartnerDoorError) -> PartnerViewAnswer {
@@ -85,6 +91,17 @@ final class StandInPartnerDoor: PartnerDoor {
         }
         guard !leaveAnswers.isEmpty else { return }
         try leaveAnswers.removeFirst().get()
+    }
+
+    func live(key: String, after cursor: Int?) async throws(PartnerDoorError) -> PartnerLiveAnswer {
+        lives.append((key, cursor))
+        if holdsLives {
+            await withCheckedContinuation { held.append($0) }
+        }
+        // A call whose task was stopped fails, as URLSession's does.
+        guard !Task.isCancelled else { throw .unavailable }
+        guard !liveAnswers.isEmpty else { throw .unavailable }
+        return try liveAnswers.removeFirst().get()
     }
 
     private func nextJoinAnswer() throws(PartnerDoorError) -> PartnerJoinAnswer {

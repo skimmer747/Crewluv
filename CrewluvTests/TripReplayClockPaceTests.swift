@@ -22,7 +22,7 @@ final class TripReplayClockPaceTests: XCTestCase {
     }
 
     /// Louisville to Cologne (8 h), a day in Cologne, on to Dubai (6 h), 20 hours there, and home (14 h). At 1x with
-    /// Quick layovers on: 16 s, 3 s, 12 s, 3 s and 28 s; off: 16 s, 48 s, 12 s, 40 s and 28 s.
+    /// Quick layovers on: 32 s, 3 s, 24 s, 3 s and 56 s; off: 32 s, 96 s, 24 s, 80 s and 56 s.
     private func europe(isQuickLayovers: Bool) -> TripReplayClock {
         TripReplayClock(span: DateInterval(start: hours(0), end: hours(72)),
                         legs: [stretch(0, 8), stretch(32, 38), stretch(58, 72)],
@@ -45,49 +45,50 @@ final class TripReplayClockPaceTests: XCTestCase {
 
     func test_play_quickLayovers_aDayInCologneTakes3Seconds() {
         let clock = playing(europe(isQuickLayovers: true))
-        assertTime(clock, after: 16, isHour: 8)
-        assertTime(clock, after: 17.5, isHour: 20)
-        assertTime(clock, after: 19, isHour: 32)
+        assertTime(clock, after: 32, isHour: 8)
+        assertTime(clock, after: 33.5, isHour: 20)
+        assertTime(clock, after: 35, isHour: 32)
     }
 
-    func test_play_quickLayoversOff_aDayInCologneTakes48Seconds() {
+    func test_play_quickLayoversOff_aDayInCologneTakes96Seconds() {
         let clock = playing(europe(isQuickLayovers: false))
-        assertTime(clock, after: 17.5, isHour: 8.75)
-        assertTime(clock, after: 64, isHour: 32)
+        assertTime(clock, after: 35, isHour: 8.75)
+        assertTime(clock, after: 128, isHour: 32)
     }
 
     func test_play_quickLayovers_aFourDayLayoverTakes4Seconds() {
         let clock = playing(TripReplayClock(span: DateInterval(start: hours(0), end: hours(100)),
                                             legs: [stretch(0, 2), stretch(98, 100)], waits: [stretch(2, 98)],
                                             isQuickLayovers: true))
-        assertTime(clock, after: 5, isHour: 26)
-        assertTime(clock, after: 8, isHour: 98)
+        assertTime(clock, after: 9, isHour: 26)
+        assertTime(clock, after: 12, isHour: 98)
     }
 
-    func test_play_quickLayovers_anHoursTurnKeepsItsNormal2Seconds_andTwoHoursTake3() {
+    func test_play_quickLayovers_anHoursTurnAndTwoHoursEachTake3Seconds() {
         let clock = playing(TripReplayClock(span: DateInterval(start: hours(0), end: hours(9)),
                                             legs: [stretch(0, 2), stretch(3, 5), stretch(7, 9)],
                                             waits: [stretch(2, 3), stretch(5, 7)], isQuickLayovers: true))
-        assertTime(clock, after: 6, isHour: 3)
-        assertTime(clock, after: 11.5, isHour: 6)
-        assertTime(clock, after: 13, isHour: 7)
+        assertTime(clock, after: 11, isHour: 3)
+        assertTime(clock, after: 20.5, isHour: 6)
+        assertTime(clock, after: 22, isHour: 7)
     }
 
     func test_play_quickLayovers_atTenTimes_everyPartTakesATenth() {
         var clock = playing(europe(isQuickLayovers: true))
         clock.setSpeed(.ten, at: now)
-        assertTime(clock, after: 1.6, isHour: 8)
-        assertTime(clock, after: 1.9, isHour: 32)
+        // Times exact in binary: at 10x a real second is 9,000 trip seconds, which makes any rounding large.
+        assertTime(clock, after: 2, isHour: 5)
+        assertTime(clock, after: 3.5, isHour: 32)
     }
 
     func test_setQuickLayovers_whilePlaying_keepsTheMomentAndChangesThePace() {
         var clock = playing(europe(isQuickLayovers: true))
-        let midLayover = now.addingTimeInterval(17.5)
+        let midLayover = now.addingTimeInterval(33.5)
         clock.setQuickLayovers(false, at: midLayover)
         XCTAssertFalse(clock.isQuickLayovers)
         XCTAssertEqual(clock.time(at: midLayover).timeIntervalSince1970, hours(20).timeIntervalSince1970, accuracy: 0.01)
-        // The rest of the day in Cologne, 12 hours, at a day in 48 s: 24 s.
-        XCTAssertEqual(clock.time(at: midLayover.addingTimeInterval(24)).timeIntervalSince1970,
+        // The rest of the day in Cologne, 12 hours, at a day in 96 s: 48 s.
+        XCTAssertEqual(clock.time(at: midLayover.addingTimeInterval(48)).timeIntervalSince1970,
                        hours(32).timeIntervalSince1970, accuracy: 0.01)
     }
 
@@ -101,7 +102,7 @@ final class TripReplayClockPaceTests: XCTestCase {
 
     func test_pause_afterTheEnd_holdsTheEnd_andPlayStartsOver() {
         var clock = playing(europe(isQuickLayovers: true))
-        let afterTheEnd = now.addingTimeInterval(70)
+        let afterTheEnd = now.addingTimeInterval(125)
         clock.pause(at: afterTheEnd)
         XCTAssertEqual(clock.time(at: afterTheEnd), hours(72))
         XCTAssertFalse(clock.hasFinished(at: afterTheEnd), "paused, the replay isn't running")
@@ -112,23 +113,23 @@ final class TripReplayClockPaceTests: XCTestCase {
     // MARK: - Positions in replay time
 
     func test_replayDuration_isTheWholeReplayAt1x_atEachPace() {
-        XCTAssertEqual(europe(isQuickLayovers: true).replayDuration, 62, accuracy: 1e-9)
-        XCTAssertEqual(europe(isQuickLayovers: false).replayDuration, 144, accuracy: 1e-9)
+        XCTAssertEqual(europe(isQuickLayovers: true).replayDuration, 118, accuracy: 1e-9)
+        XCTAssertEqual(europe(isQuickLayovers: false).replayDuration, 288, accuracy: 1e-9)
     }
 
     func test_replayOffset_andTripTimeAtReplayOffset_areInverses() {
         let clock = europe(isQuickLayovers: true)
-        XCTAssertEqual(clock.replayOffset(of: hours(20)), 17.5, accuracy: 1e-9)
-        XCTAssertEqual(clock.tripTime(atReplayOffset: 17.5).timeIntervalSince1970, hours(20).timeIntervalSince1970, accuracy: 0.001)
-        XCTAssertEqual(clock.tripTime(atReplayOffset: 100), hours(72), "past the whole replay, the end")
+        XCTAssertEqual(clock.replayOffset(of: hours(20)), 33.5, accuracy: 1e-9)
+        XCTAssertEqual(clock.tripTime(atReplayOffset: 33.5).timeIntervalSince1970, hours(20).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(clock.tripTime(atReplayOffset: 200), hours(72), "past the whole replay, the end")
     }
 
     func test_progress_isReplayTimeOverTheWhole_andIsHeldToTheEnds() {
         let clock = europe(isQuickLayovers: true)
-        XCTAssertEqual(clock.progress(at: hours(8)), 16.0 / 62, accuracy: 1e-9)
+        XCTAssertEqual(clock.progress(at: hours(8)), 32.0 / 118, accuracy: 1e-9)
         XCTAssertEqual(clock.progress(at: hours(-5)), 0)
         XCTAssertEqual(clock.progress(at: hours(99)), 1)
-        XCTAssertEqual(clock.tripTime(atProgress: 31.0 / 62).timeIntervalSince1970, hours(38).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(clock.tripTime(atProgress: 59.0 / 118).timeIntervalSince1970, hours(38).timeIntervalSince1970, accuracy: 0.001)
     }
 
     func test_progress_aTripWithNoLength_isZero() {

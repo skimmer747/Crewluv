@@ -73,9 +73,13 @@ struct ContentView: View {
                                 isSyncing: receiver.isSyncing,
                                 isInDemoMode: receiver.isInDemoMode,
                                 isOnCrewluCloud: receiver.isOnCrewluCloud,
+                                flights: receiver.flights,
+                                estimatedArrival: receiver.estimatedArrival,
+                                isStillOnGround: receiver.isStillOnGround, hasReturned: receiver.hasReturned,
+                                isLandedBeforeGate: receiver.isLandedBeforeGate,
                                 onExitDemo: { receiver.exitDemoMode() },
                                 connectionMenu: connectionMenu(for: receiver),
-                                onRefresh: { Task { await receiver.refresh() } }
+                                onRefresh: { Task { await receiver.refreshByHand() } }
                             )
                         }
                     } else if receiver.isWaitingForFirstUpdate {
@@ -105,7 +109,7 @@ struct ContentView: View {
                 }
             }
             .refreshable {
-                await receiver.refresh()
+                await receiver.refreshByHand()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
@@ -140,15 +144,19 @@ struct ContentView: View {
                     isCompanionLayout: true,
                     isInDemoMode: receiver.isInDemoMode,
                     isOnCrewluCloud: receiver.isOnCrewluCloud,
+                    flights: receiver.flights,
+                    estimatedArrival: receiver.estimatedArrival,
+                    isStillOnGround: receiver.isStillOnGround, hasReturned: receiver.hasReturned,
+                    isLandedBeforeGate: receiver.isLandedBeforeGate,
                     onExitDemo: { receiver.exitDemoMode() },
                     connectionMenu: connectionMenu(for: receiver),
-                    onRefresh: { Task { await receiver.refresh() } }
+                    onRefresh: { Task { await receiver.refreshByHand() } }
                 )
                 .frame(width: geometry.size.width * 0.4)
 
                 Divider()
 
-                EventTimelineView(status: status)
+                EventTimelineView(status: status, flights: receiver.flights)
                     .frame(maxWidth: .infinity)
             }
         }

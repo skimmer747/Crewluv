@@ -33,6 +33,20 @@ struct PilotStatusView: View {
     var isInDemoMode: Bool = false
     /// On Crewlu Cloud, the sync line doesn't mention iCloud (partner links piece 4 spec §7.7).
     var isOnCrewluCloud: Bool = false
+    /// Each flight with live data, by its leg's id, from the screen's model (Stage 3 spec §11): the trip map draws
+    /// its real plane.
+    var flights: [String: MapFlight] = [:]
+    /// When the flight in the air reaches its gate, while that's the real plane's estimate, from the screen's
+    /// model: the narrative and the countdown say "about" of it (Stage 3 spec §9).
+    var estimatedArrival: Date? = nil
+    /// Whether the flight in the air's real plane is still on the ground at its departure airport after the plan's
+    /// takeoff time, from the screen's model: the narrative says so (which plane design §4).
+    var isStillOnGround = false
+    /// Whether that real plane is back at its departure airport after an air return (air return design §3).
+    var hasReturned = false
+    /// Whether the flight in the air's real plane is down at the arrival airport, before the gate, from the screen's
+    /// model: the narrative says so (landed before the gate design §3).
+    var isLandedBeforeGate = false
     var onExitDemo: (() -> Void)? = nil
     /// The ••• menu, on Crewlu Cloud outside the demo (spec §7.5).
     var connectionMenu: ConnectionMenu? = nil
@@ -100,7 +114,9 @@ struct PilotStatusView: View {
                     }
 
                     // Narrative Card - "What's happening now"
-                    NarrativeCardView(status: status, upcomingTrip: upcomingTrip)
+                    NarrativeCardView(status: status, upcomingTrip: upcomingTrip, isLandingEstimated: estimatedArrival != nil,
+                                      isStillOnGround: isStillOnGround, hasReturned: hasReturned,
+                                      isLandedBeforeGate: isLandedBeforeGate)
 
                     // Leaving home (if at home) — the commute drive when commuting,
                     // otherwise the flight departure. Taps open schedule.
@@ -138,7 +154,9 @@ struct PilotStatusView: View {
                     if let homeTime = status.homeArrivalTime, status.displayStatus != .home {
                         let label = status.homeArrivalLabel ?? "Back Home In"
                         let isGoingHome = label.contains("Home")
-                        let dateStr = Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
+                        // A time that's the real plane's estimate reads "about" (Stage 3 spec §9).
+                        let isEstimate = estimatedArrival.map { abs($0.timeIntervalSince(homeTime)) < 1 } ?? false
+                        let dateStr = (isEstimate ? "About " : "") + Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
                         let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
                         scheduleLink {
@@ -192,7 +210,7 @@ struct PilotStatusView: View {
 
                     // Trip map (moving map spec §5): in flight it takes the location card's
                     // place; on the ground it sits above it.
-                    let tripMap = TripMap(status: status, at: Date())
+                    let tripMap = TripMap(status: status, flights: flights, at: Date())
                     if let tripMap {
                         TripMapCard(tripMap: tripMap, status: status, storyStore: legStoryStore)
                     }
@@ -263,7 +281,7 @@ struct PilotStatusView: View {
             }
         }
         .navigationDestination(isPresented: $showSchedule) {
-            EventTimelineView(status: status)
+            EventTimelineView(status: status, flights: flights)
         }
         .scrollEdgeEffectStyle(.soft, for: .vertical)
         .overlayPreferenceValue(HomeCardBoundsKey.self) { anchor in

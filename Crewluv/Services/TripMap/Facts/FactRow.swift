@@ -10,8 +10,8 @@ import Foundation
 nonisolated struct FactRow: Identifiable, Equatable, Sendable {
 
     nonisolated enum Kind: String, Sendable {
-        // In flight (§5.1)
-        case below, sky, distance, headed
+        // In flight (§5.1), with the plane's row for a flight with live data (Stage 3 spec §8)
+        case below, plane, sky, distance, headed
         // On a layover (§5.3), at home before a trip (§5.4) and in the recap (§5.5)
         case whereTheyAre, nextFlight, leaves, tripAhead, theTrip, onTheWay, tripSoFar, longestFlight
     }

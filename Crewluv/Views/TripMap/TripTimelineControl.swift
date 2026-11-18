@@ -16,6 +16,8 @@ struct TripTimelineControl: View {
     let timeline: TripTimeline
     /// What the pilot is doing at `time`.
     let activity: TripActivity?
+    /// Where the flight's real plane is on the ground, now: the line under the bar names it in place of flying.
+    let onGround: FlightOnGround?
     /// The trip time on screen.
     let time: Date
     /// The real time of this tick.
@@ -28,7 +30,7 @@ struct TripTimelineControl: View {
             HStack(spacing: 12) {
                 playButton
                 TripTimelineBar(timeline: timeline, progress: clock.progress(at: time),
-                                spokenValue: TripMapWording.timelineSpokenValue(time, activity: activity),
+                                spokenValue: TripMapWording.timelineSpokenValue(time, activity: activity, onGround: onGround),
                                 onScrub: scrub(to:))
                 if !clock.isLive && !dynamicTypeSize.isAccessibilitySize {
                     liveButton
@@ -38,50 +40,17 @@ struct TripTimelineControl: View {
             if !clock.isLive && dynamicTypeSize.isAccessibilitySize {
                 liveButton
             }
-            Text(TripMapWording.timelineLine(time, activity: activity))
+            Text(TripMapWording.timelineLine(time, activity: activity, onGround: onGround))
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 // The bar's VoiceOver value says the same.
                 .accessibilityHidden(true)
-            paceControls
-        }
-    }
-
-    /// Quick layovers beside the speeds, or above them when the two don't fit on one line.
-    private var paceControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                quickLayoversToggle
-                    .fixedSize()
-                Spacer(minLength: 0)
-                speedPicker
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                quickLayoversToggle
-                speedPicker
-            }
-        }
-    }
-
-    private var quickLayoversToggle: some View {
-        Toggle("Quick layovers", isOn: $isQuickLayovers)
-            .font(.subheadline)
-            .accessibilityHint("Plays the time on the ground faster")
-    }
-
-    /// A segmented control, or a menu at the largest text sizes where four segments won't fit.
-    @ViewBuilder
-    private var speedPicker: some View {
-        let picker = Picker("Replay speed", selection: speed) {
-            ForEach(TripReplayClock.Speed.allCases) { speed in
-                Text("\(speed.rawValue)×").tag(speed)
-            }
-        }
-        if dynamicTypeSize.isAccessibilitySize {
-            picker.pickerStyle(.menu)
-        } else {
-            picker.pickerStyle(.segmented).fixedSize()
+            // Apart from the timeline's every tick, so a tap on a speed isn't lost while a replay plays.
+            TripReplayPaceControls(speed: clock.speed, isQuickLayovers: isQuickLayovers,
+                                   onSpeed: { clock.setSpeed($0, at: .now) },
+                                   onQuickLayovers: { isQuickLayovers = $0 })
+                .equatable()
         }
     }
 
@@ -110,9 +79,5 @@ struct TripTimelineControl: View {
     /// Moves the replay to `progress` along the bar, paused there.
     private func scrub(to progress: Double) {
         clock.scrub(to: clock.tripTime(atProgress: progress))
-    }
-
-    private var speed: Binding<TripReplayClock.Speed> {
-        Binding(get: { clock.speed }, set: { clock.setSpeed($0, at: .now) })
     }
 }

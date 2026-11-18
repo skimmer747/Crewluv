@@ -23,8 +23,6 @@ final class TripMapAnnotationView: MKAnnotationView {
         super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
         backgroundColor = .clear
         canShowCallout = false
-        // A marker is never selected, so a tap can't lift a car above the plane. Touches go on to the map.
-        isEnabled = false
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: TripMapAnnotationView, _: UITraitCollection) in
             // An airport's code grows and shrinks with the text size. The hosted marker takes the new size before it's
             // measured, or it would be measured at the old one.
@@ -49,7 +47,12 @@ final class TripMapAnnotationView: MKAnnotationView {
     func refresh() {
         guard let marker = (annotation as? TripMapAnnotation)?.marker else { return }
         let host = host(showing: marker)
+        // Only the real plane and its ghost take a tap, which opens their popup on the full-screen map (which plane
+        // design §3). Touches on every other marker go on to the map. A tapped plane keeps its place in the stack, so
+        // the ghost never lifts over the real plane, nor a car over either.
+        isEnabled = marker.planeKind != nil
         zPriority = Self.zPriority(of: marker)
+        selectedZPriority = zPriority
         displayPriority = Self.displayPriority(of: marker)
         collisionMode = Self.collisionMode(of: marker)
         accessibilityLabel = Self.accessibilityLabel(of: marker)
@@ -90,14 +93,16 @@ final class TripMapAnnotationView: MKAnnotationView {
         switch marker {
         case .airport: CGPoint(x: 0, y: size.height / 2 - TripMapMarkers.Airport.dotDiameter / 2)
         case .pilot: CGPoint(x: 0, y: -size.height / 2)
-        case .car, .plane: .zero
+        case .car, .plane, .realPlane, .ghost: .zero
         }
     }
 
-    /// The plane on top, then the pilot's marker, the cars and the airports.
+    /// The plane on top, real or the schedule's, then the ghost beside the real one, the pilot's marker, the cars
+    /// and the airports.
     private static func zPriority(of marker: TripMapMarker) -> MKAnnotationViewZPriority {
         switch marker {
-        case .plane: .max
+        case .plane, .realPlane: .max
+        case .ghost: MKAnnotationViewZPriority(rawValue: 950)
         case .pilot: MKAnnotationViewZPriority(rawValue: 900)
         case .car: MKAnnotationViewZPriority(rawValue: 700)
         case .airport: .defaultUnselected

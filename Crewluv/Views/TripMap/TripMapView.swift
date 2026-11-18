@@ -9,6 +9,7 @@
 //  straight above.
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapView: UIViewRepresentable {
@@ -18,9 +19,18 @@ struct TripMapView: UIViewRepresentable {
     @Binding var camera: TripMapCamera
     /// What the facts sheet or panel covers: the camera frames the trip clear of it, and Apple's logo sits beside it.
     var clearance: TripMapClearance = .none
+    /// How far down from the map's top edge the full-screen map's own controls reach: its top bar, and the banner and
+    /// the key under it. A plane's popup stays below them (which plane design §3), whatever the camera keeps clear.
+    var controlsHeight: CGFloat = 0
     /// The full-screen map: it pans and zooms, VoiceOver can explore it, and it keeps clear of the safe area. The
     /// card's map does none of these.
     var isFullScreen = false
+    /// `date` is a moment of the replay, not now: a flight with a record shows its real plane alone, where the
+    /// record has it (Stage 3 spec §7.3).
+    var isReplay = false
+    /// The frame the map glides toward while it follows the plane, for this tick (follow the plane design §4), or nil
+    /// when it isn't following. A plain value, not the camera's state, so the glide redraws only the map.
+    var followFrame: MKMapRect? = nil
 
     func makeCoordinator() -> TripMapCoordinator {
         TripMapCoordinator(parent: self)
@@ -34,7 +44,8 @@ struct TripMapView: UIViewRepresentable {
 
     func updateUIView(_ container: TripMapContainerView, context: Context) {
         context.coordinator.parent = self
-        context.coordinator.update(colorScheme: context.environment.colorScheme)
+        context.coordinator.update(colorScheme: context.environment.colorScheme,
+                                   reduceMotion: context.environment.accessibilityReduceMotion)
     }
 
     static func dismantleUIView(_ container: TripMapContainerView, coordinator: TripMapCoordinator) {

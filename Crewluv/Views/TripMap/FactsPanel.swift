@@ -69,12 +69,14 @@ struct FactsPanel: View {
     }
 
     private var factsBody: some View {
-        FactsBody(rows: facts.rows(at: time, now: now), tripSoFar: facts.tripSoFar(at: time))
+        FactsBody(rows: facts.rows(at: time, now: now), tripSoFar: facts.tripSoFar(at: time),
+                  showsLiveCredit: facts.showsLiveData)
     }
 
     private var timelineControl: some View {
         TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
-                            activity: facts.tripMap.activity(at: time), time: time, now: now)
+                            activity: facts.tripMap.activity(at: time), onGround: facts.flightOnGround(at: time),
+                            time: time, now: now)
     }
 
     private func toggle() {

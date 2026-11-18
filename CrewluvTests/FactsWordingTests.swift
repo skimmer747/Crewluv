@@ -56,6 +56,143 @@ final class FactsWordingTests: XCTestCase {
                        "Closest to home was 40 mi at 3:14 PM")
     }
 
+    func test_closestToHome_aheadOfARealPlane_saysAbout() {
+        let later = now.addingTimeInterval(3600)
+        XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: later, now: now, isEstimate: true, calendar: calendar, locale: locale)),
+                       "Passes 40 mi from home at about 4:14 PM")
+        XCTAssertEqual(plain(FactsWording.closestToHome(miles: 40, at: now, now: later, isEstimate: true, calendar: calendar, locale: locale)),
+                       "Closest to home was 40 mi at about 3:14 PM", "where nobody saw the plane pass, it's still a best guess")
+    }
+
+    func test_listLine_aBestGuess_saysAboutBeforeItsTime() {
+        let seen = Milestone(kind: .outOver("the Pacific"), time: now)
+        let guessed = Milestone(kind: .outOver("the Pacific"), time: now, isEstimate: true)
+        XCTAssertEqual(plain(FactsWording.listLine(for: seen, calendar: calendar, locale: locale)), "Out over the Pacific · 3:14 PM")
+        XCTAssertEqual(plain(FactsWording.listLine(for: guessed, calendar: calendar, locale: locale)), "Out over the Pacific · about 3:14 PM")
+        let halfway = Milestone(kind: .halfway, time: now, isEstimate: true)
+        XCTAssertEqual(plain(FactsWording.listLine(for: halfway, calendar: calendar, locale: locale)), "Halfway · about 3:14 PM")
+    }
+
+    // MARK: - The real plane (Stage 3 spec §8, best guesses design §2)
+
+    func test_lastSeenLine_theCityByIt_elseThePlaceUnderIt_andHowLongAgo() {
+        let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
+        let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: city, ago: 600), "Last tracked near Montréal · 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(place, near: nil, ago: 7_800), "Last tracked over Québec · 2 h 10 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 7_200), "Last tracked 2 h ago")
+    }
+
+    func test_lastSeen_forVoiceOver_theCityByIt_elseThePlaceUnderIt_elseHowLongAgo() {
+        let place = Geography.Place(name: "Québec", kind: .province, country: "Canada")
+        let city = Geography.City(name: "Montréal", lat: 45.5, lon: -73.57)
+        XCTAssertEqual(FactsWording.lastSeen(place, near: city, ago: 600), "near Montréal")
+        XCTAssertEqual(FactsWording.lastSeen(place, near: nil, ago: 600), "over Québec")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 600), "10 minutes ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: 7_800), "2 hours 10 minutes ago")
+    }
+
+    func test_lastSeen_aTimeThatCantBeRight_isHeldFromAMinuteToAYear() {
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: 20), "Last tracked 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: -500), "Last tracked 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .infinity), "Last tracked 8760 h ago")
+        XCTAssertEqual(FactsWording.lastSeenLine(nil, near: nil, ago: .nan), "Last tracked 1 min ago")
+        XCTAssertEqual(FactsWording.lastSeen(nil, near: nil, ago: .nan), "1 minute ago")
+    }
+
+    // MARK: - The latest event (latest event design §1)
+
+    func test_eventTitle_eachKind() {
+        XCTAssertEqual(FactsWording.eventTitle(for: .crossedInto("Canada")), "Crossed into Canada")
+        XCTAssertEqual(FactsWording.eventTitle(for: .outOver("the Pacific")), "Out over the Pacific")
+        XCTAssertEqual(FactsWording.eventTitle(for: .halfway), "Halfway")
+        XCTAssertEqual(FactsWording.eventTitle(for: .closestToHome(miles: 35)), "Closest to home, 35 mi")
+    }
+
+    func test_eventWhen_justNow_thenMinutesAgo_toTheNearest() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now), "Just now")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(59)), "Just now")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(60)), "1 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(12 * 60 - 1)), "12 min ago", "to the nearest minute")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(89)), "1 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(90)), "2 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(130 * 60)), "2 h 10 min ago")
+        XCTAssertEqual(FactsWording.eventWhen(crossed, at: now.addingTimeInterval(2 * 365 * 86_400)), "8760 h ago", "held to a year")
+    }
+
+    func test_eventWhen_aBestGuess_saysAbout() {
+        let guessed = Milestone(kind: .outOver("the Pacific"), time: now, isEstimate: true)
+        XCTAssertEqual(FactsWording.eventWhen(guessed, at: now.addingTimeInterval(20)), "About now")
+        XCTAssertEqual(FactsWording.eventWhen(guessed, at: now.addingTimeInterval(40 * 60)), "About 40 min ago")
+    }
+
+    func test_eventWhen_inAReplay_isTheClockTime() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        let guessed = Milestone(kind: .crossedInto("Canada"), time: now, isEstimate: true)
+        let later = now.addingTimeInterval(600)
+        XCTAssertEqual(plain(FactsWording.eventWhen(crossed, at: later, isReplay: true, calendar: calendar, locale: locale)), "3:14 PM")
+        XCTAssertEqual(plain(FactsWording.eventWhen(guessed, at: later, isReplay: true, calendar: calendar, locale: locale)), "About 3:14 PM")
+    }
+
+    func test_spokenLatestEvent_isASentence() {
+        let crossed = Milestone(kind: .crossedInto("Canada"), time: now)
+        XCTAssertEqual(FactsWording.spokenLatestEvent(crossed, at: now.addingTimeInterval(12 * 60)), "Latest: crossed into Canada, 12 minutes ago.")
+        XCTAssertEqual(FactsWording.spokenLatestEvent(crossed, at: now), "Latest: crossed into Canada, just now.")
+        let closest = Milestone(kind: .closestToHome(miles: 35), time: now, isEstimate: true)
+        XCTAssertEqual(FactsWording.spokenLatestEvent(closest, at: now.addingTimeInterval(3600)), "Latest: closest to home, 35 miles, about 1 hour ago.")
+        XCTAssertEqual(FactsWording.spokenLatestEvent(closest, at: now), "Latest: closest to home, 35 miles, about now.")
+        let halfway = Milestone(kind: .halfway, time: now)
+        XCTAssertEqual(plain(FactsWording.spokenLatestEvent(halfway, at: now.addingTimeInterval(600), isReplay: true, calendar: calendar, locale: locale)),
+                       "Latest: halfway, at 3:14 PM.")
+    }
+
+    func test_inTheAir_saysNow_butNotInAReplay() {
+        XCTAssertEqual(FactsWording.inTheAir(isReplay: false), "In the air now")
+        XCTAssertEqual(FactsWording.inTheAir(isReplay: true), "In the air")
+    }
+
+    func test_aircraft_itsTypeAndRegistration_eachWhereItsKnown() {
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "B763", registration: "N370UP"), "Boeing 767-300 · N370UP")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "ZZZZ", registration: "N370UP"), "ZZZZ · N370UP", "an unknown type shows as itself")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: "B763", registration: nil), "Boeing 767-300")
+        XCTAssertEqual(FactsWording.aircraft(typeCode: nil, registration: "N370UP"), "N370UP")
+        XCTAssertNil(FactsWording.aircraft(typeCode: nil, registration: nil))
+        XCTAssertNil(FactsWording.aircraft(typeCode: "  ", registration: ""))
+    }
+
+    func test_heightAndSpeed_toTheNearest100FeetAnd10MilesAnHour() {
+        // 470 kt is 540.9 mph.
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 34_975, groundSpeedKnots: 470, locale: locale), "35,000 ft · 540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 35_000, groundSpeedKnots: nil, locale: locale), "35,000 ft")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: nil, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: nil, groundSpeedKnots: nil, locale: locale))
+    }
+
+    func test_heightAndSpeed_atTheEdgesOfWhatsBelieved_show() {
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 0, groundSpeedKnots: 0, locale: locale), "0 ft · 0 mph")
+        // 800 kt is 920.6 mph.
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 60_000, groundSpeedKnots: 800, locale: locale), "60,000 ft · 920 mph")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: 60_001, groundSpeedKnots: 801, locale: locale))
+    }
+
+    func test_heightAndSpeed_aNumberThatCantBeRight_isLeftOut() {
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 1e12, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: -500, groundSpeedKnots: 470, locale: locale), "540 mph")
+        XCTAssertEqual(FactsWording.heightAndSpeed(altitudeFeet: 35_000, groundSpeedKnots: 5_000, locale: locale), "35,000 ft")
+        XCTAssertNil(FactsWording.heightAndSpeed(altitudeFeet: .nan, groundSpeedKnots: .infinity, locale: locale))
+    }
+
+    func test_halfway_withTheRealPlanesEstimate_saysAbout() {
+        XCTAssertEqual(plain(FactsWording.halfway(at: now, calendar: calendar, locale: locale)), "Halfway at 3:14 PM")
+        XCTAssertEqual(plain(FactsWording.halfway(at: now, isEstimate: true, calendar: calendar, locale: locale)), "Halfway at about 3:14 PM")
+    }
+
+    func test_liveCredit_namesAdsbLol() {
+        XCTAssertEqual(FactsWording.liveCredit, "Live position: adsb.lol")
+        XCTAssertEqual(FactsWording.spokenLiveCredit, "Live position from adsb.lol.")
+    }
+
     // MARK: - The sky
 
     func test_cockpitCountdown_roundsUp() {

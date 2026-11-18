@@ -2,9 +2,11 @@
 //  LegStory.swift
 //  CrewLuve
 //
-//  A flight's story, worked out once (Stage 2 spec §4.2): the places under its route and its closest point to home,
-//  as fractions of the way along, 0 at the departure airport and 1 at the arrival. The schedule turns a fraction into
-//  a time (`MapLeg.time(atFraction:)`), so a new delay moves every time without redoing the geography.
+//  A flight's story (Stage 2 spec §4.2, Stage 3 spec §8): the places under its path and its closest point to home,
+//  as fractions of the way along, 0 at the departure airport and 1 at the arrival. The path is the great circle
+//  until the plane has been seen in the air, and its real path from then on, when the story is made again as the
+//  path grows. The leg turns a distance along its path into a time (`MapLeg.time(atDistance:)`), so a new delay
+//  moves every time without redoing the geography.
 //
 
 import CoreLocation
@@ -36,24 +38,35 @@ nonisolated struct LegStory: Sendable {
     /// In order. The first starts at 0. Empty without geography.
     let stretches: [Stretch]
     let closestToHome: ClosestToHome?
+    /// The length of the path the story was made along, in meters: a fraction of the way is that share of it. A
+    /// real path grows at its far end, and a place this far along it stays this far along it, so the story is
+    /// read by distance.
+    let length: Double
 
-    init(stretches: [Stretch], closestToHome: ClosestToHome?) {
+    init(stretches: [Stretch], closestToHome: ClosestToHome?, length: Double) {
         self.stretches = stretches
         self.closestToHome = closestToHome
+        self.length = length
     }
 
+    /// The story along `path`.
     /// - Parameter home: where home is, or nil for a flight that starts or ends there.
-    init(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D, geography: Geography?, home: CLLocationCoordinate2D?) {
-        let route = Route(origin: origin, destination: destination)
+    init(along path: FlightPath, geography: Geography?, home: CLLocationCoordinate2D?) {
+        let route = Route(path: path)
         stretches = geography.map { Self.stretches(along: route, in: $0) } ?? []
         closestToHome = home.flatMap { Self.closestPoint(of: route, to: $0) }
+        length = path.length
     }
 
-    /// A flight's story. Home counts only when the flight doesn't start or end there.
+    /// The story along the great circle between two places.
+    init(from origin: CLLocationCoordinate2D, to destination: CLLocationCoordinate2D, geography: Geography?, home: CLLocationCoordinate2D?) {
+        self.init(along: FlightPath(from: origin, to: destination), geography: geography, home: home)
+    }
+
+    /// A flight's story, along its path. Home counts only when the flight doesn't start or end there.
     init(leg: MapLeg, geography: Geography?, home: AirportMark?) {
         let isHomeLeg = home.map { $0.code == leg.origin.code || $0.code == leg.destination.code } ?? true
-        self.init(from: leg.origin.coordinate, to: leg.destination.coordinate, geography: geography,
-                  home: isHomeLeg ? nil : home?.coordinate)
+        self.init(along: leg.path, geography: geography, home: isHomeLeg ? nil : home?.coordinate)
     }
 
     /// The place `fraction` of the way along.
@@ -61,25 +74,29 @@ nonisolated struct LegStory: Sendable {
         stretches.last { $0.start <= fraction }?.place
     }
 
+    /// The place `distance` meters along the path.
+    func place(atDistance distance: Double) -> Geography.Place? {
+        place(atFraction: length > 0 ? distance / length : 0)
+    }
+
     // MARK: - Private
 
+    /// A path as the story samples it, by the fraction of the way along.
     private struct Route {
-        let origin: CLLocationCoordinate2D
-        let destination: CLLocationCoordinate2D
+        let path: FlightPath
         let length: Double
         let sampleCount: Int
 
-        init(origin: CLLocationCoordinate2D, destination: CLLocationCoordinate2D) {
-            self.origin = origin
-            self.destination = destination
-            length = GreatCircle.distance(from: origin, to: destination)
+        init(path: FlightPath) {
+            self.path = path
+            length = path.length
             sampleCount = max(LegStory.minimumSamples, Int((length / LegStory.sampleSpacing).rounded(.up)) + 1)
         }
 
         var step: Double { 1 / Double(sampleCount - 1) }
 
         func point(at fraction: Double) -> CLLocationCoordinate2D {
-            GreatCircle.point(from: origin, to: destination, fraction: fraction)
+            path.point(atDistance: fraction * length)
         }
     }
 

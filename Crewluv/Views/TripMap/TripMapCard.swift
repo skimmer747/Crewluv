@@ -5,9 +5,11 @@
 //  The trip map on the status screen (moving map spec §5, Stage 2 spec §6.4, §6.5). In flight it follows the plane,
 //  with the headline fact on its chip; on the ground it shows the whole trip with a marker for what the pilot is doing
 //  where they are (activity markers design §2); at home, the next trip, or for a day after a trip, its recap. Tapping
-//  the map opens it full screen.
+//  the map opens it full screen. With Follow the plane on, it eases in on the plane as the flight goes on (follow the
+//  plane design).
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapCard: View {
@@ -16,6 +18,7 @@ struct TripMapCard: View {
     let storyStore: LegStoryStore
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage(TripMapScreen.followsPlaneKey) private var followsPlane = false
     @State private var camera: TripMapCamera
     @State private var isShowingFullScreen = false
     /// The chips' heights as last measured, for the band the trip is framed in (base waits and card framing design
@@ -31,8 +34,10 @@ struct TripMapCard: View {
         self.tripMap = tripMap
         self.status = status
         self.storyStore = storyStore
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
-                                                    keeping: tripMap.pilotLocation(at: .now)?.coordinate))
+        let framing = tripMap.framingRect(focusingOn: tripMap.currentLeg, at: .now,
+                                          followsPlane: UserDefaults.standard.bool(forKey: TripMapScreen.followsPlaneKey),
+                                          isReplay: false)
+        _camera = State(initialValue: TripMapCamera(framing: framing, keeping: tripMap.pilotLocation(at: .now)?.coordinate))
     }
 
     var body: some View {
@@ -41,10 +46,12 @@ struct TripMapCard: View {
         // The plane moves about a pixel in ten seconds at this size, as today's map refreshed.
         TimelineView(.periodic(from: .now, by: 10)) { context in
             let cardChips = chips(from: facts, at: context.date)
+            let latest = facts.latestEvent(at: context.date)
+            let showsKey = TripMapDrawing.showsPlaneKey(on: tripMap, at: context.date, isReplay: false)
             VStack(spacing: 0) {
-                mapButton(facts: facts, chips: cardChips, at: context.date)
+                mapButton(facts: facts, chips: cardChips, latest: latest, showsKey: showsKey, at: context.date)
                 if dynamicTypeSize.isAccessibilitySize {
-                    stackedChips(cardChips)
+                    stackedChips(cardChips, latest: latest, showsKey: showsKey)
                 }
                 if tripMap.isInFlight, status.hasFlightDelay, let delay = status.effectiveFlightDelayMinutes {
                     FlightDelayBanner(delayMinutes: delay)
@@ -58,33 +65,48 @@ struct TripMapCard: View {
         }
         .onChange(of: tripMap.mode) { refit() }
         .onChange(of: tripMap.legs.map(\.id)) { refit() }
+        // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
+        .onChange(of: followsPlane, initial: true) { refit() }
+        // A real path can grow past what the card framed (Stage 3 spec §6.2). While the card follows the plane, the
+        // glide makes every move, and this refit is its to make.
+        .onChange(of: tripMap.framingKey(focusingOn: tripMap.currentLeg)) { refit() }
         .fullScreenCover(isPresented: $isShowingFullScreen) {
             TripMapScreen(tripMap: tripMap, storyStore: storyStore, dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays)
         }
     }
 
-    /// Frames the leg in the air, or the whole trip, afresh when the trip's state or legs change, keeping the pilot's
-    /// ground marker in view.
+    /// Frames the leg in the air, following its plane when the family has asked, or the whole trip, afresh when the
+    /// trip's state or legs change, keeping the pilot's ground marker in view.
     private func refit() {
-        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg),
+        camera.frame(tripMap.framingRect(focusingOn: tripMap.currentLeg, at: .now, followsPlane: followsPlane, isReplay: false),
                      keeping: tripMap.pilotLocation(at: .now)?.coordinate, animated: false)
     }
 
-    /// Stage 1's chips, with the headline fact on the bottom one in flight.
+    /// The frame the card's map glides toward at `date` while the family follows the plane, between legs too, or nil
+    /// with the setting off (follow the plane design §3 to §5).
+    private func followFrame(at date: Date) -> MKMapRect? {
+        guard followsPlane else { return nil }
+        return tripMap.followingFrame(at: date, isReplay: false)
+    }
+
+    /// Stage 1's chips, with the headline fact on the bottom one in flight. The latest event's banner is at the top,
+    /// so the headline leaves events out (latest event design §2).
     private func chips(from facts: TripFacts, at date: Date) -> (top: String?, bottom: String?) {
         let chips = TripMapWording.cardChips(for: tripMap, at: date)
         guard tripMap.isInFlight else { return chips }
-        return (chips.top, facts.headline(at: date) ?? chips.bottom)
+        return (chips.top, facts.headline(at: date, includesEvents: false) ?? chips.bottom)
     }
 
-    private func mapButton(facts: TripFacts, chips: (top: String?, bottom: String?), at date: Date) -> some View {
+    private func mapButton(facts: TripFacts, chips: (top: String?, bottom: String?), latest: LatestEvent?, showsKey: Bool,
+                           at date: Date) -> some View {
         Button {
             isShowingFullScreen = true
         } label: {
-            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera, clearance: clearance(for: chips))
+            TripMapView(tripMap: tripMap, date: date, style: .hybrid, camera: $camera,
+                        clearance: clearance(for: chips, hasCorner: latest != nil || showsKey), followFrame: followFrame(at: date))
                 .allowsHitTesting(false)
                 .frame(height: 220)
-                .overlay(alignment: .topLeading) { overlayChip(chips.top, height: $topChipHeight) }
+                .overlay(alignment: .topLeading) { topOverlay(chips.top, latest: latest, showsKey: showsKey) }
                 .overlay(alignment: .bottomLeading) {
                     overlayChip(chips.bottom, systemImage: bottomChipSymbol, height: $bottomChipHeight)
                 }
@@ -99,12 +121,26 @@ struct TripMapCard: View {
     @ViewBuilder
     private func bar(facts: TripFacts, at date: Date) -> some View {
         if let leg = tripMap.currentLeg {
-            TripMapInFlightBar(leg: leg)
+            TripMapInFlightBar(leg: leg, status: TripMapWording.flightStatus(for: leg, at: date),
+                               arrival: TripMapWording.barArrival(for: leg, at: date))
         } else if tripMap.mode == .recap {
             TripRecapBar(tiles: facts.recapTiles, longest: facts.recapLongestLine)
         } else {
             TripMapStatsBar(items: TripMapWording.statsItems(for: tripMap, at: date,
                                                              dayNumber: status.tripDayNumber, totalDays: status.tripTotalDays))
+        }
+    }
+
+    /// The top of the map: in flight, the latest event's banner (latest event design §1) and the key to the two planes
+    /// (which plane design §2), else Stage 1's top chip. Its height is measured into `topChipHeight`.
+    @ViewBuilder
+    private func topOverlay(_ chip: String?, latest: LatestEvent?, showsKey: Bool) -> some View {
+        if latest != nil || showsKey, !dynamicTypeSize.isAccessibilitySize {
+            TripMapCorner(latest: latest, showsKey: showsKey)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topChipHeight = $0 }
+                .padding(Self.chipInset)
+        } else {
+            overlayChip(chip, height: $topChipHeight)
         }
     }
 
@@ -119,14 +155,14 @@ struct TripMapCard: View {
     }
 
     /// The band between the chips on the map: from each edge to the far side of its chip, and a gap. With no chip on
-    /// the map at an edge, nothing there.
-    private func clearance(for chips: (top: String?, bottom: String?)) -> TripMapClearance {
+    /// the map at an edge, nothing there. The latest event's banner and the key are the top chip while they show.
+    private func clearance(for chips: (top: String?, bottom: String?), hasCorner: Bool) -> TripMapClearance {
         guard !dynamicTypeSize.isAccessibilitySize else { return .none }
-        func depth(of chip: String?, height: CGFloat) -> CGFloat {
-            chip == nil ? 0 : Self.chipInset + height + Self.chipGap
+        func depth(isShown: Bool, height: CGFloat) -> CGFloat {
+            isShown ? Self.chipInset + height + Self.chipGap : 0
         }
-        return TripMapClearance(top: depth(of: chips.top, height: topChipHeight),
-                                bottom: depth(of: chips.bottom, height: bottomChipHeight))
+        return TripMapClearance(top: depth(isShown: chips.top != nil || hasCorner, height: topChipHeight),
+                                bottom: depth(isShown: chips.bottom != nil, height: bottomChipHeight))
     }
 
     /// The recap's "Replay the trip" plays.
@@ -134,9 +170,17 @@ struct TripMapCard: View {
         tripMap.mode == .recap ? "play.fill" : nil
     }
 
-    /// At the largest text sizes the chips would cover the map, so they move below it (moving map spec §14).
-    private func stackedChips(_ chips: (top: String?, bottom: String?)) -> some View {
+    /// At the largest text sizes the chips would cover the map, so they move below it (moving map spec §14), the
+    /// latest event first, then the key to the two planes.
+    private func stackedChips(_ chips: (top: String?, bottom: String?), latest: LatestEvent?, showsKey: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let latest {
+                Text("\(latest.title) · \(latest.when)")
+                    .font(.headline)
+            }
+            if showsKey {
+                PlaneKey()
+            }
             if let top = chips.top {
                 Text(top)
             }

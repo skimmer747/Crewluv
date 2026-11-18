@@ -2,8 +2,9 @@
 //  TripMapWording.swift
 //  CrewLuve
 //
-//  Every sentence the trip map shows or speaks (moving map spec §5, §6, §14). Times are the family's own, in
-//  `calendar.timeZone`, unless the words say "there".
+//  Every sentence the trip map shows or speaks (moving map spec §5, §6, §14; Stage 3 spec §9). Times are the
+//  family's own, in `calendar.timeZone`, unless the words say "there". A landing time that's the real plane's
+//  estimate is marked "about".
 //
 
 import Foundation
@@ -53,32 +54,138 @@ nonisolated enum TripMapWording {
     static func landingCountdown(for leg: MapLeg, now: Date) -> String {
         let minutes = Int((leg.end.timeIntervalSince(now) / 60).rounded(.up))
         guard minutes > 0 else { return "Landing now" }
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours == 0 { return "Landing in \(rest) min" }
-        if rest == 0 { return "Landing in \(hours) h" }
-        return "Landing in \(hours) h \(rest) min"
+        return "Landing in \(minutesText(minutes))"
     }
 
     // MARK: - Landing
 
-    /// "Lands Cologne 9:30 PM · 3:30 PM your time", or one time when the destination keeps the family's.
+    /// "Lands Cologne 9:30 PM · 3:30 PM your time", or one time when the destination keeps the family's. With the
+    /// real plane's estimate, "Lands Cologne about 9:18 PM · 3:18 PM your time".
     static func landingLine(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
         let yours = clockTime(leg.end, in: calendar.timeZone, locale: locale)
         guard let there = arrivalLocalClock(for: leg, calendar: calendar, locale: locale) else {
-            return "Lands \(leg.destination.name) \(yours)"
+            return "Lands \(leg.destination.name) \(about(leg))\(yours)"
         }
-        return "Lands \(leg.destination.name) \(there) · \(yours) your time"
+        return "Lands \(leg.destination.name) \(about(leg))\(there) · \(yours) your time"
     }
 
-    /// "Lands 3:30 PM", for the card's bar.
+    /// "Reaches the gate at 3:52 PM · 7:52 PM your time", or one time where the destination keeps the family's: the
+    /// facts' landing row once the real plane is down (landed before the gate design §3). "at", as the card's sentence
+    /// and the plane's popup say it, unless the time is the real plane's estimate.
+    static func gateLine(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let when = about(leg).isEmpty ? "at " : about(leg)
+        let yours = clockTime(leg.end, in: calendar.timeZone, locale: locale)
+        guard let there = arrivalLocalClock(for: leg, calendar: calendar, locale: locale) else {
+            return "Reaches the gate \(when)\(yours)"
+        }
+        return "Reaches the gate \(when)\(there) · \(yours) your time"
+    }
+
+    /// "Lands 3:30 PM", for the card's bar. With the real plane's estimate, "Lands about 3:18 PM".
     static func landsAt(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Lands \(clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        "Lands \(about(leg))\(clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+    }
+
+    /// The card's bar's landing time at `now`: "Lands 3:30 PM", or once the real plane is down, before the gate, "At
+    /// the gate 3:30 PM" (landed before the gate design §3).
+    static func barArrival(for leg: MapLeg, at now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        guard leg.isLandedBeforeGate(at: now) else { return landsAt(for: leg, calendar: calendar, locale: locale) }
+        return "At the gate \(clockTime(leg.end, in: calendar.timeZone, locale: locale))"
     }
 
     /// "9:30 PM in Cologne", or nil when the destination keeps the family's time.
     static func arrivalLocalTime(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String? {
         arrivalLocalClock(for: leg, calendar: calendar, locale: locale).map { "\($0) in \(leg.destination.name)" }
+    }
+
+    // MARK: - The real plane
+
+    /// What the card's bar and the full-screen pill say of a flight between its gates (Stage 3 spec §9): the real
+    /// plane's label, or "In flight" when it has none. A moment of the replay is always "In flight" (§7.3). A plane
+    /// back at its departure airport after an air return names it: "Returned to Rockford" (air return design §3).
+    /// - Parameter now: the moment, by this device's clock.
+    static func flightStatus(for leg: MapLeg, at now: Date, isReplay: Bool = false) -> String {
+        guard !isReplay, let label = leg.flight?.progress(at: now).label else { return "In flight" }
+        return label == .returned ? FactsWording.returned(to: leg.origin) : liveLabel(label)
+    }
+
+    /// "12 min ahead", "About 20 min behind", "Still on the ground · 20 min behind" or "Landed 8 min early": the real
+    /// plane against the schedule (Stage 3 spec §5.3).
+    static func liveLabel(_ label: LiveLabel) -> String {
+        switch label {
+        case .onSchedule:
+            return "On schedule"
+        case .ahead(let minutes, let isEstimated):
+            return "\(isEstimated ? "About " : "")\(minutesText(minutes)) ahead"
+        case .behind(let minutes, let isEstimated):
+            return "\(isEstimated ? "About " : "")\(minutesText(minutes)) behind"
+        case .stillOnGround(let minutesBehind):
+            return minutesBehind.map { "Still on the ground · \(minutesText($0)) behind" } ?? "Still on the ground"
+        case .returned:
+            return "Returned"
+        case .landedOnTime:
+            return "Landed on time"
+        case .landedEarly(let minutes):
+            return "Landed \(minutesText(minutes)) early"
+        case .landedLate(let minutes):
+            return "Landed \(minutesText(minutes)) late"
+        }
+    }
+
+    /// The label as VoiceOver says it in the card's sentence: "12 minutes ahead of schedule", "about 20 minutes
+    /// behind schedule", "still on the ground" or "landed 8 minutes early".
+    static func spokenLiveLabel(_ label: LiveLabel) -> String {
+        switch label {
+        case .onSchedule:
+            return "on schedule"
+        case .ahead(let minutes, let isEstimated):
+            return "\(isEstimated ? "about " : "")\(spokenMinutes(minutes)) ahead of schedule"
+        case .behind(let minutes, let isEstimated):
+            return "\(isEstimated ? "about " : "")\(spokenMinutes(minutes)) behind schedule"
+        case .stillOnGround(let minutesBehind):
+            return minutesBehind.map { "still on the ground, \(spokenMinutes($0)) behind schedule" } ?? "still on the ground"
+        case .returned:
+            return "returned"
+        case .landedOnTime:
+            return "landed on time"
+        case .landedEarly(let minutes):
+            return "landed \(spokenMinutes(minutes)) early"
+        case .landedLate(let minutes):
+            return "landed \(spokenMinutes(minutes)) late"
+        }
+    }
+
+    /// The card's sentence for a flight with a real plane (Stage 3 spec §9, §15): "UPS207 to Cologne, 12 minutes
+    /// ahead of schedule, over Québec. Lands about 3:18 PM your time." Once it's down, "…, landed 8 minutes early.
+    /// Reaches the gate at 3:18 PM your time." Nil when the plane has no label, and the schedule's sentence stands.
+    /// - Parameters:
+    ///   - place: what's below the plane, when the facts know.
+    ///   - lastSeen: where a plane that's out of sight was last seen, as `FactsWording.lastSeen` words it: "near
+    ///     Montréal", "over Québec" or "2 hours ago". It follows what's below, which is then a best guess
+    ///     (Stage 3 spec §15, best guesses design §2).
+    static func liveSummary(for leg: MapLeg, over place: String? = nil, lastSeen: String? = nil, now: Date,
+                            calendar: Calendar = .current, locale: Locale = .current) -> String? {
+        guard let label = leg.flight?.progress(at: now).label else { return nil }
+        let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
+        // What's below and where it was last seen are said only of a plane in the air: not of one still at its gate,
+        // nor of one that's down (which plane design §4).
+        let isFlying = switch label {
+        case .onSchedule, .ahead, .behind: true
+        case .stillOnGround, .returned, .landedOnTime, .landedEarly, .landedLate: false
+        }
+        let over = isFlying ? (place.map { ", over \($0)" } ?? "") + (lastSeen.map { ", last tracked \($0)" } ?? "") : ""
+        let time = clockTime(leg.end, in: calendar.timeZone, locale: locale)
+        let arrival: String
+        switch label {
+        case .landedOnTime, .landedEarly, .landedLate:
+            // It's down and on its way in: "landed 8 minutes early. Lands at 3:18 PM" would say so twice.
+            arrival = "Reaches the gate at \(time) your time."
+        case .onSchedule, .ahead, .behind, .stillOnGround, .returned:
+            arrival = "Lands \(leg.isArrivalEstimated ? "about" : "at") \(time) your time."
+        }
+        // A plane back at its departure airport after an air return names it (air return design §3).
+        let spoken = label == .returned ? "returned to \(leg.origin.name)" : spokenLiveLabel(label)
+        return "\(lead) \(leg.destination.name), \(spoken)\(over). \(arrival)"
     }
 
     // MARK: - The bar under the map
@@ -104,14 +211,21 @@ nonisolated enum TripMapWording {
         }
     }
 
-    /// Miles flown by `date`, counting the part of a flight that's in the air.
-    static func milesFlown(by date: Date, on legs: [MapLeg]) -> Int {
-        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.distance * $1.progress(at: date) }
+    /// Miles flown by `date`, counting the part of a flight that's in the air. A flight with a real path counts
+    /// the miles along it (Stage 3 spec §8).
+    /// - Parameter isReplay: `date` is a moment of the replay, not now.
+    static func milesFlown(by date: Date, on legs: [MapLeg], isReplay: Bool = false) -> Int {
+        let meters = legs.filter { $0.kind == .flight }.reduce(0) { total, leg in
+            if date >= leg.end { return total + leg.pathLength }
+            if date < leg.start { return total }
+            return total + leg.plane(at: date, isReplay: isReplay).distance
+        }
         return Int((meters / GreatCircle.metersPerMile).rounded())
     }
 
+    /// The trip's miles, along each flight's real path where it has one.
     static func totalMiles(of legs: [MapLeg]) -> Int {
-        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.distance }
+        let meters = legs.filter { $0.kind == .flight }.reduce(0) { $0 + $1.pathLength }
         return Int((meters / GreatCircle.metersPerMile).rounded())
     }
 
@@ -146,12 +260,15 @@ nonisolated enum TripMapWording {
 
     // MARK: - The full-screen map
 
-    /// The pill at the top: "UPS207 · In flight", "Driving to Louisville", "Day 2 of 4" or "Next trip".
-    static func topPill(for tripMap: TripMap, at date: Date, dayNumber: Int?, totalDays: Int?) -> String {
+    /// The pill at the top: "UPS207 · In flight", "UPS207 · 12 min ahead" with a real plane, "Driving to
+    /// Louisville", "Day 2 of 4" or "Next trip".
+    /// - Parameter isReplay: `date` is a moment of the replay, not now: a flight is "In flight" (Stage 3 spec §7.3).
+    static func topPill(for tripMap: TripMap, at date: Date, dayNumber: Int?, totalDays: Int?, isReplay: Bool = false) -> String {
         if tripMap.mode == .recap, date >= tripMap.span.end { return "Trip recap" }
         if let leg = tripMap.legInMotion(at: date) {
             switch leg.kind {
-            case .flight: return [leg.flightNumber, "In flight"].compactMap { $0 }.joined(separator: " · ")
+            case .flight:
+                return [leg.flightNumber, flightStatus(for: leg, at: date, isReplay: isReplay)].compactMap { $0 }.joined(separator: " · ")
             case .drive: return "Driving to \(leg.destination.name)"
             }
         }
@@ -178,20 +295,44 @@ nonisolated enum TripMapWording {
     }
 
     /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
-    static func timelineLine(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
-                             locale: Locale = .current) -> String {
+    /// While the flight's real plane is on the ground, `onGround`: "Mon 12:21 PM · On the ground in Rockford", "Mon
+    /// 12:21 PM · Returned to Rockford" or "Mon 7:45 PM · Landed in Anchorage".
+    static func timelineLine(_ date: Date, activity: TripActivity?, onGround: FlightOnGround? = nil,
+                             calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = timelineTime(date, calendar: calendar, locale: locale)
-        guard let activity else { return time }
-        return "\(time) · \(activity.words)"
+        guard let words = timelineWords(activity, onGround: onGround) else { return time }
+        return "\(time) · \(words)"
     }
 
-    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3).
-    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, calendar: Calendar = .current,
-                                    locale: Locale = .current) -> String {
+    /// "Saturday 1:40 PM, layover in Denver": the timeline's VoiceOver value (activity markers design §4.3), as the
+    /// line under it says.
+    static func timelineSpokenValue(_ date: Date, activity: TripActivity?, onGround: FlightOnGround? = nil,
+                                    calendar: Calendar = .current, locale: Locale = .current) -> String {
         let time = date.formatted(style(calendar: calendar, locale: locale).weekday(.wide).hour().minute())
-        guard let activity else { return time }
-        let words = activity.words
+        guard let words = timelineWords(activity, onGround: onGround) else { return time }
         return "\(time), \(words.prefix(1).lowercased() + words.dropFirst())"
+    }
+
+    /// What the pilot is doing, or where the flight's real plane is on the ground: "On the ground in Rockford" while
+    /// it's still at its departure airport (which plane design §4), "Returned to Rockford" once it's back there after
+    /// an air return (air return design §3), or "Landed in Anchorage" where it's down at the arrival airport, before the
+    /// gate (landed before the gate design §3).
+    private static func timelineWords(_ activity: TripActivity?, onGround: FlightOnGround?) -> String? {
+        switch onGround {
+        case .stillIn(let airport): "On the ground in \(airport.name)"
+        case .returnedTo(let airport): FactsWording.returned(to: airport)
+        case .landedIn(let airport): FactsWording.landed(in: airport)
+        case nil: activity?.words
+        }
+    }
+
+    // MARK: - Follow the plane
+
+    /// The caption a tap on Follow the plane shows for a moment, and VoiceOver announces (follow the plane design §2):
+    /// what the map does now. With no flight in the air, turning it on changes nothing yet, so it says when it will.
+    static func followCaption(isOn: Bool, hasFlightInAir: Bool) -> String {
+        guard isOn else { return "Showing the whole flight" }
+        return hasFlightInAir ? "Following the plane" : "Follows the plane when a flight is in the air"
     }
 
     // MARK: - VoiceOver
@@ -202,6 +343,7 @@ nonisolated enum TripMapWording {
         switch tripMap.mode {
         case .inFlight:
             guard let leg = tripMap.currentLeg else { return "Trip map" }
+            if let live = liveSummary(for: leg, now: now, calendar: calendar, locale: locale) { return live }
             let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
             return "\(lead) \(leg.destination.name), landing at \(clockTime(leg.end, in: calendar.timeZone, locale: locale)) your time. Estimated from the schedule."
         case .onTrip:
@@ -222,6 +364,31 @@ nonisolated enum TripMapWording {
     }
 
     // MARK: - Helpers, shared with FactsWording
+
+    /// "45 min", "2 h" or "2 h 10 min": the landing countdown's length, and the real plane's gap.
+    static func minutesText(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return "\(rest) min" }
+        if rest == 0 { return "\(hours) h" }
+        return "\(hours) h \(rest) min"
+    }
+
+    /// "1 minute", "45 minutes", "2 hours" or "2 hours 10 minutes": a length as VoiceOver says it.
+    static func spokenMinutes(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        let hoursText = hours == 1 ? "1 hour" : "\(hours) hours"
+        let restText = rest == 1 ? "1 minute" : "\(rest) minutes"
+        if hours == 0 { return restText }
+        if rest == 0 { return hoursText }
+        return "\(hoursText) \(restText)"
+    }
+
+    /// "about " before a landing time that's the real plane's estimate, else nothing (Stage 3 spec §9).
+    static func about(_ leg: MapLeg) -> String {
+        leg.isArrivalEstimated ? "about " : ""
+    }
 
     /// The names of the cities the trip's flights reach, in order, each once, home left out — for VoiceOver.
     static func destinationNames(of legs: [MapLeg], leavingOut homeCodes: Set<String>) -> [String] {

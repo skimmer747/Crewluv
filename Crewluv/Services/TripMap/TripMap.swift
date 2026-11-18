@@ -54,6 +54,11 @@ nonisolated struct TripMap {
         legs.first { $0.isMoving(at: date) }
     }
 
+    /// The flight between its gates at `date`: the one the map draws its planes for.
+    func flightInMotion(at date: Date) -> MapLeg? {
+        legs.first { $0.kind == .flight && $0.isMoving(at: date) }
+    }
+
     func nextFlight(after date: Date) -> MapLeg? {
         legs.first { $0.kind == .flight && $0.start > date }
     }
@@ -74,11 +79,13 @@ nonisolated struct TripMap {
         return legs.last(where: { $0.end <= date })?.destination ?? legs.first?.origin
     }
 
-    /// The places the camera must show: one leg's arc, or every leg's arcs and home.
+    /// The places the camera must show: one leg's path, or every leg's paths and home. A flight's path is its real
+    /// one once the plane has been seen in the air (Stage 3 spec §6.2).
     func framingCoordinates(focusingOn leg: MapLeg?) -> [CLLocationCoordinate2D] {
         let shown = leg.map { [$0] } ?? legs
         var coordinates = shown.flatMap {
-            GreatCircle.points(from: $0.origin.coordinate, to: $0.destination.coordinate, count: 33)
+            $0.flight?.path.framingCoordinates
+                ?? GreatCircle.points(from: $0.origin.coordinate, to: $0.destination.coordinate, count: 33)
         }
         if leg == nil, let home { coordinates.append(home.coordinate) }
         return coordinates
@@ -93,6 +100,8 @@ nonisolated struct TripMap {
     /// - `isWaitingAtBase`: with a trip ahead, the status says the pilot is at base, not home (base waits design §3).
     /// - `legacyDelayMinutes`: the summary-wide delay from a CrewLu that doesn't tag legs. As `TripStateResolver`
     ///   does, it moves only the flight it covers, and only when no leg carries its own.
+    /// - `flights`: each flight with live data, by its leg's id (`LiveLegs.flights`). Such a leg's times in
+    ///   `tripLegs` are already the real plane's (`LiveLegs.replacingTimes`).
     /// - `coordinate`: where an airport is, by code.
     static func make(
         tripLegs: [TripLeg],
@@ -102,6 +111,7 @@ nonisolated struct TripMap {
         baseAirportCode: String? = nil,
         isWaitingAtBase: Bool = false,
         legacyDelayMinutes: Int?,
+        flights: [String: MapFlight] = [:],
         at now: Date,
         coordinate: (String) -> CLLocationCoordinate2D?
     ) -> TripMap? {
@@ -111,6 +121,7 @@ nonisolated struct TripMap {
             mapLeg(for: leg,
                    arrivalZoneFallback: sorted.first(where: { $0.startTime >= leg.endTime && $0.type != .flight })?.timezoneIdentifier,
                    extraDelayMinutes: leg.id == legacyDelay?.legID ? legacyDelay?.minutes : nil,
+                   flights: flights,
                    coordinate: coordinate)
         }
         guard let first = legs.first else { return nil }
@@ -147,6 +158,7 @@ nonisolated struct TripMap {
         for leg: TripLeg,
         arrivalZoneFallback: String?,
         extraDelayMinutes: Int?,
+        flights: [String: MapFlight],
         coordinate: (String) -> CLLocationCoordinate2D?
     ) -> MapLeg? {
         let kind: MapLeg.Kind
@@ -160,14 +172,21 @@ nonisolated struct TripMap {
         let delay = TimeInterval(((leg.delayMinutes ?? 0) + (extraDelayMinutes ?? 0)) * 60)
         let originZone = leg.timezoneIdentifier.flatMap(TimeZone.init(identifier:))
         let destinationZone = (leg.arrivalTimezoneIdentifier ?? arrivalZoneFallback).flatMap(TimeZone.init(identifier:))
+        let start = leg.startTime.addingTimeInterval(delay)
+        let end = leg.endTime.addingTimeInterval(delay)
+        // A flight with no live data has the schedule's plan and the great circle.
+        let flight = kind == .flight
+            ? flights[leg.id] ?? MapFlight(departure: start, arrival: end, from: originCoordinate, to: destinationCoordinate)
+            : nil
         return MapLeg(
             id: leg.id,
             kind: kind,
             origin: AirportMark(code: originCode, city: leg.departureCity, coordinate: originCoordinate, timeZone: originZone),
             destination: AirportMark(code: destinationCode, city: leg.arrivalCity, coordinate: destinationCoordinate, timeZone: destinationZone),
-            start: leg.startTime.addingTimeInterval(delay),
-            end: leg.endTime.addingTimeInterval(delay),
-            flightNumber: leg.flightNumber
+            start: start,
+            end: end,
+            flightNumber: leg.flightNumber,
+            flight: flight
         )
     }
 

@@ -23,15 +23,62 @@ nonisolated enum FactsWording {
         }
     }
 
-    /// The tall stop's list: "Crossed into Kansas · 1:12 PM".
+    /// The tall stop's list: "Crossed into Kansas · 1:12 PM". A best guess reads "about": "Out over the Pacific ·
+    /// about 4:05 PM" (best guesses design §2).
     static func listLine(for milestone: Milestone, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let time = TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
-        switch milestone.kind {
-        case .crossedInto(let name): return "Crossed into \(name) · \(time)"
-        case .outOver(let name): return "Out over \(name) · \(time)"
-        case .halfway: return "Halfway · \(time)"
-        case .closestToHome(let miles): return "Closest to home, \(miles) mi · \(time)"
+        "\(eventTitle(for: milestone.kind)) · \(clock(of: milestone, calendar: calendar, locale: locale))"
+    }
+
+    /// What an event was, on its own: "Crossed into Kansas", "Out over the Atlantic", "Halfway", "Closest to home,
+    /// 40 mi". The latest event's banner shows it large (latest event design §1).
+    static func eventTitle(for kind: Milestone.Kind) -> String {
+        switch kind {
+        case .crossedInto(let name): "Crossed into \(name)"
+        case .outOver(let name): "Out over \(name)"
+        case .halfway: "Halfway"
+        case .closestToHome(let miles): "Closest to home, \(miles) mi"
         }
+    }
+
+    /// When an event was, under it in the banner: "Just now" in its first minute, then "12 min ago". A best guess
+    /// says so: "About now", "About 12 min ago". At a moment of the replay, where "ago" means nothing, its clock
+    /// time: "10:37 AM", "About 10:37 AM".
+    static func eventWhen(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
+                          calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let about = milestone.isEstimate ? "About " : ""
+        if isReplay {
+            return about + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+        }
+        guard let minutes = minutesSince(milestone.time, at: date) else { return milestone.isEstimate ? "About now" : "Just now" }
+        return "\(about)\(TripMapWording.minutesText(minutes)) ago"
+    }
+
+    /// The widest "when" the banner shows: a best guess more than ten hours ago. A replay's clock time, "About 10:37
+    /// AM", is narrower. The key to the two planes goes by it, so it doesn't move while the same event shows (which
+    /// plane design §2).
+    static let widestEventWhen = "About 88 h 88 min ago"
+
+    /// The banner as VoiceOver reads it: "Latest: crossed into Canada, 12 minutes ago.", "Latest: halfway, about
+    /// 40 minutes ago.", or at a moment of the replay "Latest: crossed into Canada, at 10:37 AM."
+    static func spokenLatestEvent(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
+                                  calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let what: String
+        switch milestone.kind {
+        case .closestToHome(let miles): what = "closest to home, \(miles) miles"
+        default:
+            let title = eventTitle(for: milestone.kind)
+            what = title.prefix(1).lowercased() + title.dropFirst()
+        }
+        let about = milestone.isEstimate ? "about " : ""
+        let when: String
+        if isReplay {
+            when = "at \(about)\(TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale))"
+        } else if let minutes = minutesSince(milestone.time, at: date) {
+            when = "\(about)\(TripMapWording.spokenMinutes(minutes)) ago"
+        } else {
+            when = milestone.isEstimate ? "about now" : "just now"
+        }
+        return "Latest: \(what), \(when)."
     }
 
     /// "UPS207 · Louisville → Cologne", or the cities alone without a flight number.
@@ -47,11 +94,93 @@ nonisolated enum FactsWording {
         city.map { "Over \(place.name), near \($0.name)" } ?? "Over \(place.name)"
     }
 
-    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed.
-    static func closestToHome(miles: Int, at time: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let clock = TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
+    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Where
+    /// nobody saw the real plane the time is a best guess: "Passes 40 mi from home at about 1:05 PM".
+    static func closestToHome(miles: Int, at time: Date, now: Date, isEstimate: Bool = false,
+                              calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let clock = (isEstimate ? "about " : "") + TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
         return time > now ? "Passes \(miles) mi from home at \(clock)" : "Closest to home was \(miles) mi at \(clock)"
     }
+
+    /// In place of what's below, a real plane still on the ground at its departure airport after the plan's takeoff
+    /// time: "Still on the ground in Rockford" (which plane design §4).
+    static func stillOnGround(in airport: AirportMark) -> String {
+        "Still on the ground in \(airport.name)"
+    }
+
+    /// In place of what's below, a real plane back on the ground at its departure airport after an air return:
+    /// "Returned to Rockford" (air return design §3).
+    static func returned(to airport: AirportMark) -> String {
+        "Returned to \(airport.name)"
+    }
+
+    /// "Landed in Anchorage": the real plane is down, and not yet at the gate (landed before the gate design §3).
+    static func landed(in airport: AirportMark) -> String {
+        "Landed in \(airport.name)"
+    }
+
+    /// The list's tag on the flight between its gates once its real plane is down.
+    static let landedTag = "Landed"
+
+    // MARK: - The real plane (Stage 3 spec §8)
+
+    /// Under what's below, while the real plane is out of tracking range: "Last tracked near Montréal · 12 min ago",
+    /// by a city of a million or more, else "Last tracked over Québec · 12 min ago", else "Last tracked 12 min ago".
+    /// It's the one line that says the place above it is worked out (best guesses design §2). "Tracked", never
+    /// "seen": it's the receivers that lose the plane, not air traffic control, and a family shouldn't fear it's
+    /// missing.
+    static func lastSeenLine(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval) -> String {
+        let time = "\(TripMapWording.minutesText(minutes(ago: ago))) ago"
+        if let city { return "Last tracked near \(city.name) · \(time)" }
+        if let place { return "Last tracked over \(place.name) · \(time)" }
+        return "Last tracked \(time)"
+    }
+
+    /// Where a plane that's out of sight was last seen, for VoiceOver's sentence: "near Montréal" by a city of a
+    /// million or more, else "over Québec", else how long ago, "2 hours ago".
+    static func lastSeen(_ place: Geography.Place?, near city: Geography.City?, ago: TimeInterval) -> String {
+        if let city { return "near \(city.name)" }
+        if let place { return "over \(place.name)" }
+        return "\(TripMapWording.spokenMinutes(minutes(ago: ago))) ago"
+    }
+
+    /// The tag on the flight between its gates, in the list: "In the air now", or "In the air" at a moment of
+    /// the replay (best guesses design §4).
+    static func inTheAir(isReplay: Bool) -> String {
+        isReplay ? "In the air" : "In the air now"
+    }
+
+    /// The plane's row: "Boeing 767-300 · N370UP". An unknown type code shows as itself, and a missing type or
+    /// registration is left out. Nil with neither.
+    static func aircraft(typeCode: String?, registration: String?) -> String? {
+        let parts = [typeCode.flatMap(nonEmpty).map(AircraftTypeNames.name(for:)), registration.flatMap(nonEmpty)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "35,000 ft · 540 mph": the real plane's height to the nearest 100 ft and its speed over the ground to the
+    /// nearest 10 mph, each where the plane sent one that could be right. Nil with neither.
+    static func heightAndSpeed(altitudeFeet: Double?, groundSpeedKnots: Double?, locale: Locale = .current) -> String? {
+        let height = altitudeFeet.flatMap { feet in
+            believedHeightsFeet.contains(feet) ? "\(number(Int((feet / 100).rounded()) * 100, locale: locale)) ft" : nil
+        }
+        let speed = groundSpeedKnots.flatMap { knots -> String? in
+            guard believedSpeedsKnots.contains(knots) else { return nil }
+            let milesPerHour = knots * GreatCircle.metersPerNauticalMile / GreatCircle.metersPerMile
+            return "\(number(Int((milesPerHour / 10).rounded()) * 10, locale: locale)) mph"
+        }
+        let parts = [height, speed].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// A height or a speed outside these is left out: no airliner sends one, and a number that can't be right
+    /// mustn't reach the screen.
+    static let believedHeightsFeet: ClosedRange<Double> = 0...60_000
+    static let believedSpeedsKnots: ClosedRange<Double> = 0...800
+
+    /// The credit under the facts wherever a flight with live data shows: adsb.lol's data is under the ODbL.
+    static let liveCredit = "Live position: adsb.lol"
+    /// The credit as VoiceOver reads it.
+    static let spokenLiveCredit = "Live position from adsb.lol."
 
     // MARK: - The sky (§4.5)
 
@@ -110,8 +239,19 @@ nonisolated enum FactsWording {
         "\(number(flownMiles, locale: locale)) mi flown · \(number(toGoMiles, locale: locale)) to go"
     }
 
-    static func halfway(at time: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Halfway at \(TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale))"
+    /// "2,788 mi to go": a real plane still at its departure airport has flown nothing yet (which plane design §4).
+    static func toGo(miles: Int, locale: Locale = .current) -> String {
+        "\(number(miles, locale: locale)) mi to go"
+    }
+
+    /// "2,788 mi flown": the whole of it, once the real plane is down (landed before the gate design §3).
+    static func flown(miles: Int, locale: Locale = .current) -> String {
+        "\(number(miles, locale: locale)) mi flown"
+    }
+
+    /// "Halfway at 4:12 PM", or with the real plane's estimate "Halfway at about 12:05 PM" (Stage 3 spec §8).
+    static func halfway(at time: Date, isEstimate: Bool = false, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        "Halfway at \(isEstimate ? "about " : "")\(TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale))"
     }
 
     /// "Averaging about 510 mph", to the nearest 10.
@@ -143,13 +283,15 @@ nonisolated enum FactsWording {
         return "\(amount) \(unit) \(seconds > 0 ? "ahead of" : "behind") you"
     }
 
-    /// "lands 4:05 PM there", or in the family's time when the destination keeps it or its zone isn't known.
+    /// "lands 4:05 PM there", or in the family's time when the destination keeps it or its zone isn't known. With
+    /// the real plane's estimate, "lands about 3:52 PM there" (Stage 3 spec §9).
     static func lands(_ leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        let about = TripMapWording.about(leg)
         if let there = leg.destination.timeZone,
            there.secondsFromGMT(for: leg.end) != calendar.timeZone.secondsFromGMT(for: leg.end) {
-            return "lands \(TripMapWording.clockTime(leg.end, in: there, locale: locale)) there"
+            return "lands \(about)\(TripMapWording.clockTime(leg.end, in: there, locale: locale)) there"
         }
-        return "lands \(TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        return "lands \(about)\(TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale))"
     }
 
     // MARK: - Helpers
@@ -165,5 +307,30 @@ nonisolated enum FactsWording {
 
     private static func name(of kind: SkyFacts.SunEvent.Kind) -> String {
         kind == .sunrise ? "Sunrise" : "Sunset"
+    }
+
+    /// "1:12 PM", or "about 1:12 PM" for a best guess.
+    private static func clock(of milestone: Milestone, calendar: Calendar, locale: Locale) -> String {
+        (milestone.isEstimate ? "about " : "") + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+    }
+
+    /// The minutes from `time` to `date`, to the nearest, held to a year. Nil under a minute.
+    private static func minutesSince(_ time: Date, at date: Date) -> Int? {
+        let seconds = date.timeIntervalSince(time)
+        guard seconds >= 60 else { return nil }
+        return Int(min((seconds / 60).rounded(), 365 * 24 * 60))
+    }
+
+    /// Whole minutes for a length of time, held from a minute to a year, so one that can't be right never
+    /// overflows.
+    private static func minutes(ago: TimeInterval) -> Int {
+        let asked = (ago / 60).rounded()
+        return asked.isNaN ? 1 : Int(min(max(asked, 1), 365 * 24 * 60))
+    }
+
+    /// `text` without the spaces around it, or nil when nothing is left.
+    private static func nonEmpty(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

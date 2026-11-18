@@ -3,7 +3,8 @@
 //  CrewLuve
 //
 //  One drawable leg of the trip map: a flight or a drive between two known airports, at its delay-shifted times
-//  (moving map spec §7.1, §7.3).
+//  (moving map spec §7.1, §7.3). A flight carries its plan, its path and its record (Stage 3 spec §11), and a
+//  flight with a real plane has the real plane's times (Stage 3 spec §7.1).
 //
 
 import CoreLocation
@@ -20,12 +21,50 @@ nonisolated struct MapLeg: Identifiable {
     /// Reaching the gate, moved by any delay.
     let end: Date
     let flightNumber: String?
+    /// A flight's plan, its path and, once it's been seen in the air, its record. Nil for a drive, and for a flight
+    /// that arrives no later than it leaves.
+    let flight: MapFlight?
+
+    init(
+        id: String, kind: Kind, origin: AirportMark, destination: AirportMark, start: Date, end: Date,
+        flightNumber: String?, flight: MapFlight? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.origin = origin
+        self.destination = destination
+        self.start = start
+        self.end = end
+        self.flightNumber = flightNumber
+        self.flight = flight
+    }
+
+    /// Whether `end` is the real plane's estimate, which the words mark with "about" (Stage 3 spec §9).
+    var isArrivalEstimated: Bool { flight?.isEstimate(end) ?? false }
 
     /// The great-circle distance between the two airports, in meters.
     var distance: Double { GreatCircle.distance(from: origin.coordinate, to: destination.coordinate) }
 
     /// True from leaving the gate until reaching the other one.
     func isMoving(at date: Date) -> Bool { start <= date && date < end }
+
+    /// Whether the flight is between its gates at `date` while its real plane is still on the ground at its departure
+    /// airport after the plan's takeoff time (`MapFlight.isAtDeparture`, which plane design §4).
+    func isStillOnGround(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.isAtDeparture(at: date) ?? false)
+    }
+
+    /// Whether the flight is between its gates at `date` with its real plane back on the ground at its departure
+    /// airport after an air return (`MapFlight.hasReturned`, air return design §2).
+    func hasReturned(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.hasReturned(at: date) ?? false)
+    }
+
+    /// Whether the flight is between its gates at `date` with its real plane already down (`MapFlight.hasLanded`):
+    /// landed, and not yet at the gate (landed before the gate design §2).
+    func isLandedBeforeGate(at date: Date) -> Bool {
+        isMoving(at: date) && (flight?.hasLanded(at: date) ?? false)
+    }
 
     /// How far along the leg the schedule has the pilot at `date`, 0...1. A flight uses the taxi allowances;
     /// a drive moves steadily.

@@ -56,6 +56,15 @@ final class LegStoryTests: XCTestCase {
         XCTAssertEqual(equatorStory.place(atFraction: 0.9)?.name, "the Test Sea")
     }
 
+    func test_placeAtDistance_readsTheStretchesByMeters() {
+        let equatorStory = story()
+        XCTAssertEqual(equatorStory.length, GreatCircle.distance(from: at(0, 0), to: at(0, 20)))
+        XCTAssertEqual(equatorStory.place(atDistance: 0.1 * equatorStory.length)?.name, "Alpha")
+        XCTAssertEqual(equatorStory.place(atDistance: 0.46 * equatorStory.length)?.name, "Bravo")
+        XCTAssertEqual(equatorStory.place(atDistance: 0.9 * equatorStory.length)?.name, "the Test Sea")
+        XCTAssertEqual(equatorStory.place(atDistance: 2 * equatorStory.length)?.name, "the Test Sea", "past the arrival airport")
+    }
+
     func test_closestToHome_besideTheRoute_isWhereItPasses() throws {
         let closest = try XCTUnwrap(story(home: at(0.5, 14)).closestToHome)
         XCTAssertEqual(closest.fraction, 0.7, accuracy: 0.001)

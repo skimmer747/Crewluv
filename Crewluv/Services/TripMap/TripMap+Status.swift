@@ -13,8 +13,9 @@ import CoreLocation
 
 extension TripMap {
 
-    /// The status screen's trip map, or nil when there's nothing to draw.
-    init?(status: SharedPilotStatus, at now: Date) {
+    /// The status screen's trip map, or nil when there's nothing to draw. `flights` is each flight with live data,
+    /// by its leg's id, as the screen's model hands them on with the status (Stage 3 spec §11).
+    init?(status: SharedPilotStatus, flights: [String: MapFlight] = [:], at now: Date) {
         let airports = AirportDataProvider.shared
         let coordinate: (String) -> CLLocationCoordinate2D? = { code in
             airports.airportInfo(forIataCode: code).map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
@@ -45,7 +46,8 @@ extension TripMap {
                                      homeAirportCode: status.homeAirportCode ?? status.baseAirportCode,
                                      baseAirportCode: status.baseAirportCode,
                                      isWaitingAtBase: status.displayStatus == .base,
-                                     legacyDelayMinutes: status.flightDelayMinutes, at: now, coordinate: coordinate) else { return nil }
+                                     legacyDelayMinutes: status.flightDelayMinutes, flights: flights, at: now,
+                                     coordinate: coordinate) else { return nil }
         self = map
     }
 

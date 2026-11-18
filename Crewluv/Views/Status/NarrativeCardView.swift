@@ -11,6 +11,19 @@ import Combine
 struct NarrativeCardView: View {
     let status: SharedPilotStatus
     var upcomingTrip: UpcomingTripInfo? = nil
+    /// The flight in the air lands at the real plane's estimate, so its time reads "about 3:18 PM" (Stage 3 spec §9).
+    var isLandingEstimated = false
+    /// The flight in the air's real plane is still on the ground at its departure airport after the plan's takeoff
+    /// time: "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage", in place of flying, delayed or
+    /// not (which plane design §4).
+    var isStillOnGround = false
+    /// That real plane at its departure airport is back there after an air return: "Alex has returned to Rockford on
+    /// UPS flight 2963 to Anchorage" (air return design §3).
+    var hasReturned = false
+    /// The flight in the air's real plane is down at the arrival airport, before the gate: "Alex has landed in
+    /// Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST", delayed or not (landed before the gate
+    /// design §3).
+    var isLandedBeforeGate = false
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var now = Date()
@@ -259,6 +272,7 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var inFlightNarrative: some View {
         let verb = currentFlightIsCommercial ? "riding" : "flying"
+        let about = isLandingEstimated ? "about " : ""
         if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
             // Flight-time-change narrative (delayed or early)
             let isEarly = status.isEarlyDeparture
@@ -282,12 +296,16 @@ struct NarrativeCardView: View {
                 } else if let arrTime = status.currentFlightArrivalTime {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
-                    if let dep, let dest {
-                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(Text(arrTimeStr).bold()).")
+                    if isLandedBeforeGate, let dest {
+                        landedSentence(in: dest, flight: fltStr, gate: shiftedArr, color: countdownColor)
+                    } else if isStillOnGround, let dep, let dest {
+                        Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                    } else if let dep, let dest {
+                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else if let dest {
-                        Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     } else {
-                        Text("\(name)'s flight — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s flight — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
                     }
                 } else if let dest {
                     Text("\(name)'s flight to \(Text(dest).bold())\(fltStr)")
@@ -303,16 +321,31 @@ struct NarrativeCardView: View {
             let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
-            if let dep {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+            if isLandedBeforeGate {
+                landedSentence(in: dest, flight: fltStr, gate: arrTime)
+            } else if isStillOnGround, let dep {
+                Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+            } else if let dep {
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
             Text("\(name) is \(verb) to \(Text(dest).bold())")
         } else {
             Text("\(name) is in flight")
         }
+    }
+
+    /// "is still on the ground in" Rockford, or "has returned to" it after an air return (air return design §3).
+    private var atDeparturePhrase: String {
+        hasReturned ? "has returned to" : "is still on the ground in"
+    }
+
+    /// "Alex has landed in Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST.", with the gate's
+    /// countdown in `color`, else the status's (landed before the gate design §3).
+    private func landedSentence(in dest: String, flight fltStr: String, gate: Date, color: Color? = nil) -> Text {
+        Text("\(name) has landed in \(Text(dest).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) — at the gate in \(countdownText(to: gate, color: color)) which is \(Text(formattedLocalTime(gate)).bold()).")
     }
 
     @ViewBuilder

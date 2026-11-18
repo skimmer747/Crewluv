@@ -6,13 +6,18 @@
 //  read its facts. On iPhone the facts are a sheet you drag up; on iPad and in landscape, a panel down the leading
 //  edge. A recap opens paused at its trip's start. Weather on landing is fetched while the screen is open. Quick
 //  layovers, remembered for every trip, hurries a replay through the waits on the ground (activity markers design §3).
+//  Follow the plane, remembered too, eases the map in on the plane as a flight goes on (follow the plane design).
 //
 
+import MapKit
 import SwiftUI
 
 struct TripMapScreen: View {
     /// Where Quick layovers is remembered. It's on until the family turns it off (activity markers design §3.1).
     static let quickLayoversKey = "tripMapQuickLayovers"
+    /// Where Follow the plane is remembered, for this map and the card. It's off until the family turns it on (follow
+    /// the plane design §2).
+    static let followsPlaneKey = "tripMapFollowsPlane"
 
     let tripMap: TripMap
     let storyStore: LegStoryStore
@@ -23,7 +28,9 @@ struct TripMapScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
     @AppStorage(TripMapScreen.quickLayoversKey) private var isQuickLayovers = true
+    @AppStorage(TripMapScreen.followsPlaneKey) private var followsPlane = false
     @State private var clock: TripReplayClock
     @State private var style: TripMapStyle = .hybrid
     @State private var camera: TripMapCamera
@@ -33,11 +40,15 @@ struct TripMapScreen: View {
     @State private var sheetHeight: CGFloat = 0
     /// The map's frame, the whole screen, in window coordinates.
     @State private var screenFrame: CGRect = .zero
-    /// The side panel's trailing edge, in window coordinates.
-    @State private var panelTrailingEdge: CGFloat = 0
+    /// The side panel's frame with its padding, in window coordinates.
+    @State private var panelFrame: CGRect = .zero
     @State private var topBarHeight: CGFloat = 0
+    /// The bottom of the top bar and the latest event's banner under it, in window coordinates.
+    @State private var topChromeBottom: CGFloat = 0
     @State private var isPanelExpanded = true
     @State private var isClosing = false
+    /// What a tap on Follow the plane just did, shown under the top bar for a moment (follow the plane design §2).
+    @State private var followCaption: String?
 
     private static let panelWidth: CGFloat = 380
 
@@ -51,8 +62,11 @@ struct TripMapScreen: View {
         let rememberedQuickLayovers = UserDefaults.standard.object(forKey: Self.quickLayoversKey) as? Bool ?? true
         let clock = Self.clock(for: tripMap, isQuickLayovers: rememberedQuickLayovers)
         _clock = State(initialValue: clock)
-        _camera = State(initialValue: TripMapCamera(framing: tripMap.framingRect(focusingOn: tripMap.currentLeg),
-                                                    keeping: tripMap.pilotLocation(at: clock.time(at: .now))?.coordinate))
+        let time = clock.time(at: .now)
+        let framing = tripMap.framingRect(focusingOn: tripMap.currentLeg, at: time,
+                                          followsPlane: UserDefaults.standard.bool(forKey: Self.followsPlaneKey),
+                                          isReplay: !clock.isLive)
+        _camera = State(initialValue: TripMapCamera(framing: framing, keeping: tripMap.pilotLocation(at: time)?.coordinate))
     }
 
     var body: some View {
@@ -68,6 +82,11 @@ struct TripMapScreen: View {
             // Both start again when a flight's route or times change, so a new delay fetches the new landing hour.
             .task(id: LegStoryStore.preparationKey(for: tripMap)) { await storyStore.prepare(tripMap) }
             .task(id: LegStoryStore.preparationKey(for: tripMap)) { await weather.keepRefreshing(for: tripMap) }
+            .task(id: followCaption) {
+                // The caption says its piece for about two seconds, then goes.
+                guard followCaption != nil, (try? await Task.sleep(for: .seconds(2))) != nil else { return }
+                withAnimation(.snappy) { followCaption = nil }
+            }
             .task(id: isClosing) {
                 // Should the sheet never report going, as when Close comes while it's still sliding up, the map closes anyway.
                 guard isClosing, (try? await Task.sleep(for: .seconds(1))) != nil else { return }
@@ -77,8 +96,10 @@ struct TripMapScreen: View {
                 if !isSidePanel { sheetStop = .small }
             }
             .onChange(of: Self.replayLegs(of: tripMap)) {
-                // A new schedule, such as a delay, gives the timeline new ends and a new pace.
-                clock = Self.clock(for: tripMap, isQuickLayovers: isQuickLayovers)
+                // New times, such as a delay or the real plane's newest landing estimate, give the timeline new ends
+                // and a new pace. A replay carries on from the moment it was at (Stage 3 spec §7.3).
+                clock = clock.carried(to: tripMap.span, legs: Self.replayLegs(of: tripMap),
+                                      waits: Self.replayWaits(of: tripMap), at: .now)
             }
             .onChange(of: isQuickLayovers, initial: true) { _, isOn in
                 // The replay carries on from the same moment at the new pace.
@@ -95,6 +116,10 @@ struct TripMapScreen: View {
                 .onChange(of: tripMap.legInMotion(at: time)?.id) { _, legID in
                     refit(legID: legID, at: time)
                 }
+                // Initially too, for a store other than the standard one `init` framed from, as the previews' is.
+                .onChange(of: followsPlane, initial: true) {
+                    refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true)
+                }
                 .onChange(of: clock.hasFinished(at: context.date)) { _, hasFinished in
                     // A finished replay holds its end, paused, so the map stops updating with nothing moving. Play
                     // starts it over, as before.
@@ -107,7 +132,7 @@ struct TripMapScreen: View {
     /// layovers on each wait hurries by.
     private static func clock(for tripMap: TripMap, isQuickLayovers: Bool) -> TripReplayClock {
         let legs = replayLegs(of: tripMap)
-        let waits = tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
+        let waits = replayWaits(of: tripMap)
         return tripMap.mode == .recap
             ? TripReplayClock(span: tripMap.span, legs: legs, waits: waits, isQuickLayovers: isQuickLayovers,
                               pausedAt: tripMap.span.start)
@@ -119,21 +144,34 @@ struct TripMapScreen: View {
         tripMap.legs.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
     }
 
+    /// Each wait on the ground, from its start to its end.
+    private static func replayWaits(of tripMap: TripMap) -> [TripReplayClock.Stretch] {
+        tripMap.waits.map { TripReplayClock.Stretch(start: $0.start, end: $0.end) }
+    }
+
+    /// The facts at the clock's moments. They're a replay's while the clock isn't live: a real plane is then where
+    /// its record has it, with no height or speed (Stage 3 spec §7.3).
     private var facts: TripFacts {
-        storyStore.facts(for: tripMap, forecasts: weather.forecasts, dayNumber: dayNumber, totalDays: totalDays)
+        storyStore.facts(for: tripMap, forecasts: weather.forecasts, dayNumber: dayNumber, totalDays: totalDays,
+                         isReplay: !clock.isLive)
     }
 
     @ViewBuilder
     private func screen(time: Date, now: Date, facts: TripFacts, timeline: TripTimeline) -> some View {
+        let latest = facts.latestEvent(at: time)
+        let showsKey = TripMapDrawing.showsPlaneKey(on: tripMap, at: time, isReplay: !clock.isLive)
         let base = ZStack(alignment: .top) {
-            // The camera frames the trip in what the sheet or the panel leaves clear.
+            // The camera frames the trip in what the sheet or the panel leaves clear, and under the latest event and
+            // the key. A plane's popup stays under the top bar, whatever the camera keeps clear.
             TripMapView(tripMap: tripMap, date: time, style: style, camera: $camera,
-                        clearance: TripMapClearance(leading: mapLeadingClearance, bottom: mapBottomClearance),
-                        isFullScreen: true)
+                        clearance: TripMapClearance(top: latest == nil && !showsKey ? 0 : mapTopClearance,
+                                                    leading: mapLeadingClearance, bottom: mapBottomClearance),
+                        controlsHeight: mapTopClearance, isFullScreen: true, isReplay: !clock.isLive,
+                        followFrame: followFrame(at: time))
                 .ignoresSafeArea()
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screenFrame = $0 }
-            topBar(time: time)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
+            topChrome(time: time, latest: latest, showsKey: showsKey)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { topChromeBottom = $0 }
         }
         if usesSidePanel {
             base.overlay(alignment: .bottomLeading) {
@@ -142,22 +180,69 @@ struct TripMapScreen: View {
                     .frame(width: Self.panelWidth)
                     .padding([.horizontal, .bottom])
                     .padding(.top, topBarHeight + 8)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxX } action: { panelTrailingEdge = $0 }
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { panelFrame = $0 }
             }
         } else {
             base
         }
     }
 
+    /// The top bar, and in flight the latest event's banner under its pill (latest event design §1) with the key to
+    /// the two planes under the buttons (which plane design §2). Only the bar pads the side panel. Beside the panel
+    /// the banner is centred over the open map, clear of it, as the website's is, and the key keeps to the trailing
+    /// edge. The panel and the top bar share a leading edge, so the panel's width with its padding is how far in the
+    /// corner starts, whichever way the screen reads.
+    private func topChrome(time: Date, latest: LatestEvent?, showsKey: Bool) -> some View {
+        VStack(spacing: 8) {
+            topBar(time: time)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { topBarHeight = $0 }
+                // An overlay, so the caption never moves the camera's clearance for the moment it shows.
+                .overlay(alignment: .bottom) { followCaptionView }
+            if latest != nil || showsKey {
+                TripMapCorner(latest: latest, showsKey: showsKey, isCentered: true)
+                    .padding(.horizontal)
+                    .padding(.leading, usesSidePanel ? panelFrame.width : 0)
+            }
+        }
+    }
+
     private func topBar(time: Date) -> some View {
         TripMapTopBar(
-            pill: TripMapWording.topPill(for: tripMap, at: time, dayNumber: dayNumber, totalDays: totalDays),
+            pill: TripMapWording.topPill(for: tripMap, at: time, dayNumber: dayNumber, totalDays: totalDays,
+                                         isReplay: !clock.isLive),
             style: style,
             isShowingRecenter: camera.isPositionedByUser,
+            isFollowingPlane: followsPlane,
             onClose: close,
             onRecenter: { refit(legID: tripMap.legInMotion(at: time)?.id, at: time, force: true) },
+            onToggleFollow: { toggleFollowing(at: time) },
             onNextStyle: { style = style.next }
         )
+    }
+
+    /// The caption a tap on Follow the plane shows just under the top bar, centred over the open map. VoiceOver hears
+    /// it as an announcement, so it's hidden from VoiceOver here.
+    @ViewBuilder
+    private var followCaptionView: some View {
+        if let followCaption {
+            Text(followCaption)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.leading, usesSidePanel ? panelFrame.width : 0)
+                .alignmentGuide(.bottom) { $0[.top] - 8 }
+                .transition(.opacity)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Turns Follow the plane on or off, and says what the map does now (follow the plane design §2).
+    private func toggleFollowing(at time: Date) {
+        followsPlane.toggle()
+        let caption = TripMapWording.followCaption(isOn: followsPlane, hasFlightInAir: tripMap.flightInMotion(at: time) != nil)
+        withAnimation(.snappy) { followCaption = caption }
+        AccessibilityNotification.Announcement(caption).post()
     }
 
     /// iPad, and iPhone in landscape.
@@ -170,9 +255,17 @@ struct TripMapScreen: View {
         usesSidePanel ? 0 : min(sheetHeight, screenFrame.height / 2)
     }
 
-    /// From the screen's leading edge to the panel's trailing edge, open or folded, with its padding.
+    /// From the screen's top edge to a little below the latest event's banner and the key.
+    private var mapTopClearance: CGFloat {
+        max(0, topChromeBottom - screenFrame.minY) + 8
+    }
+
+    /// From the screen's leading edge to the panel's trailing edge, open or folded, with its padding. Leading is the
+    /// right in a right-to-left language, where the panel sits at the right.
     private var mapLeadingClearance: CGFloat {
-        usesSidePanel ? max(0, panelTrailingEdge - screenFrame.minX) : 0
+        guard usesSidePanel else { return 0 }
+        let clearance = layoutDirection == .rightToLeft ? screenFrame.maxX - panelFrame.minX : panelFrame.maxX - screenFrame.minX
+        return max(0, clearance)
     }
 
     /// The sheet shows on iPhone in portrait until Close. The family can't dismiss it themselves.
@@ -193,12 +286,20 @@ struct TripMapScreen: View {
         if isClosing { dismiss() }
     }
 
-    /// Frames the leg in motion, or the whole trip, keeping the pilot's ground marker at `time` in view. Leaves a
-    /// camera the family moved alone, unless they asked.
+    /// Frames the leg in motion, following its plane when the family has asked, or the whole trip, keeping the pilot's
+    /// ground marker at `time` in view. Leaves a camera the family moved alone, unless they asked.
     private func refit(legID: String?, at time: Date, force: Bool = false) {
         guard force || !camera.isPositionedByUser else { return }
         let leg = legID.flatMap { id in tripMap.legs.first { $0.id == id } }
-        camera.frame(tripMap.framingRect(focusingOn: leg), keeping: tripMap.pilotLocation(at: time)?.coordinate,
-                     animated: !reduceMotion)
+        camera.frame(tripMap.framingRect(focusingOn: leg, at: time, followsPlane: followsPlane, isReplay: !clock.isLive),
+                     keeping: tripMap.pilotLocation(at: time)?.coordinate, animated: !reduceMotion)
+    }
+
+    /// The frame the map glides toward at `time` while the family follows the plane, between legs too, or nil with
+    /// the setting off (follow the plane design §3 to §5). It's handed to the map on every tick, up to 60 a second in a
+    /// replay, as a plain value, and the glide makes every move with it.
+    private func followFrame(at time: Date) -> MKMapRect? {
+        guard followsPlane else { return nil }
+        return tripMap.followingFrame(at: time, isReplay: !clock.isLive)
     }
 }

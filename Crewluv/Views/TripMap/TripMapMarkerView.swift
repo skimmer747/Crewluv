@@ -20,6 +20,10 @@ struct TripMapMarkerView: View {
             TripMapMarkers.Pilot(kind: kind)
         case .plane(let angle):
             PlaneMarker(angle: angle)
+        case .realPlane(let angle, let isEstimated):
+            PlaneMarker(angle: angle, look: .real(isEstimated: isEstimated))
+        case .ghost(let angle):
+            PlaneMarker(angle: angle, look: .ghost)
         }
     }
 }

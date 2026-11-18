@@ -51,10 +51,12 @@ struct FactsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     FactsHeader(headline: facts.sheetHeadline(at: time), timeline: timeline,
-                                activity: facts.tripMap.activity(at: time), clock: $clock,
+                                activity: facts.tripMap.activity(at: time), onGround: facts.flightOnGround(at: time),
+                                clock: $clock,
                                 isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
                         .onGeometryChange(for: CGFloat.self) { Self.headerExtent($0) } action: { headerHeight = $0 }
-                    FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time))
+                    FactsBody(rows: facts.rows(at: time, now: context.date), tripSoFar: facts.tripSoFar(at: time),
+                              showsLiveCredit: facts.showsLiveData)
                 }
                 .padding()
                 .coordinateSpace(Self.content)

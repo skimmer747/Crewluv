@@ -11,6 +11,8 @@ import SwiftUI
 struct FactsBody: View {
     let rows: [FactRow]
     let tripSoFar: TripSoFar
+    /// A flight with live data shows, which the footer credits adsb.lol for.
+    let showsLiveCredit: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -25,7 +27,7 @@ struct FactsBody: View {
                 }
             }
             TripSoFarList(tripSoFar: tripSoFar)
-            FactsFooter(showsWeather: rows.contains(where: \.hasWeather))
+            FactsFooter(showsWeather: rows.contains(where: \.hasWeather), showsLiveCredit: showsLiveCredit)
         }
     }
 }
