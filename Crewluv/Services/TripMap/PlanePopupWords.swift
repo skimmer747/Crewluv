@@ -3,7 +3,8 @@
 //  CrewLuve
 //
 //  What a plane's popup on the full-screen map says (which plane design §3): which plane it is, then what the card's
-//  bar says of it, with when it lands, in this device's time zone and clock. Nothing else writes them.
+//  bar says of it, with when it lands, in this device's time zone and clock, marked "L" (time labels design §3.2).
+//  Nothing else writes them.
 //
 
 import Foundation
@@ -29,7 +30,7 @@ nonisolated struct PlanePopupWords: Equatable, Sendable {
     init(leg: MapLeg, plane: PlaneKind, at date: Date, isReplay: Bool,
          calendar: Calendar = .current, locale: Locale = .current) {
         let name = leg.flightNumber ?? "the flight"
-        func time(_ date: Date) -> String { TripMapWording.clockTime(date, in: calendar.timeZone, locale: locale) }
+        func time(_ date: Date) -> String { ClockLabel.yours(date, calendar: calendar, locale: locale) }
         guard plane == .realPlane else {
             self.init(title: "On schedule", lines: ["Where \(name) was scheduled to be"])
             return

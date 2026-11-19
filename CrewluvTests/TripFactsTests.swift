@@ -95,7 +95,7 @@ final class TripFactsTests: XCTestCase {
         XCTAssertEqual(tripSoFar.flights.map(\.title), ["TST1 · E0 → E20"])
         // Newest first (best guesses design §3), and the flight is the one in the air.
         XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, [
-            "Closest to home, 35 mi · 8:21 AM", "Out over the Test Sea · 8:03 AM", "Halfway · 7:45 AM", "Crossed into Bravo · 7:00 AM",
+            "Closest to home, 35 mi · 8:21 AM L", "Out over the Test Sea · 8:03 AM L", "Halfway · 7:45 AM L", "Crossed into Bravo · 7:00 AM L",
         ])
         XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [false, false, false, false], "the schedule is told as it is")
         XCTAssertEqual(tripSoFar.flights.first?.tag, "In the air now")
@@ -199,7 +199,7 @@ final class TripFactsTests: XCTestCase {
     func test_latestEvent_inAReplay_saysItsClockTime() {
         var facts = equatorFacts()
         facts.isReplay = true
-        XCTAssertEqual(plain(facts.latestEvent(at: at("11:12"))?.when), "7:00 AM")
+        XCTAssertEqual(plain(facts.latestEvent(at: at("11:12"))?.when), "7:00 AM L")
     }
 
     func test_latestEvent_onTheGround_isNil() throws {

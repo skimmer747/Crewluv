@@ -71,7 +71,8 @@ struct SunCircleDetailView: View {
                             Image(systemName: isDaylight ? "sun.max.fill" : "moon.fill")
                                 .foregroundColor(isDaylight ? .orange : .indigo)
                                 .font(.subheadline)
-                            Text(liveLocalTime)
+                            // The pilot's own time, named by their city (time labels design §3.8).
+                            Text("\(liveLocalTime) \(cityName)")
                                 .font(.system(size: 20, weight: .semibold, design: .rounded))
                                 .monospacedDigit()
                         }

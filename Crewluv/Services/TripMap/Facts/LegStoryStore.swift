@@ -73,7 +73,8 @@ final class LegStoryStore {
 
     /// The facts for `tripMap` from what's built so far.
     /// - Parameter isReplay: the moments asked about are a replay's, not now.
-    func facts(for tripMap: TripMap, forecasts: [String: LandingForecast] = [:], dayNumber: Int? = nil, totalDays: Int? = nil,
+    func facts(for tripMap: TripMap, forecasts: [String: LandingForecast] = [:],
+               takeoffForecasts: [String: LandingForecast] = [:], dayNumber: Int? = nil, totalDays: Int? = nil,
                isReplay: Bool = false) -> TripFacts {
         var stories: [String: LegStory] = [:]
         var sunEvents: [String: [SkyFacts.SunEvent]] = [:]
@@ -85,8 +86,8 @@ final class LegStoryStore {
             sunEvents[leg.id] = sunEventsByLeg[leg.id]
         }
         return TripFacts(tripMap: tripMap, geography: geography, comparisons: comparisons, stories: stories,
-                         sunEvents: sunEvents, forecasts: forecasts, dayNumber: dayNumber, totalDays: totalDays,
-                         isReplay: isReplay)
+                         sunEvents: sunEvents, forecasts: forecasts, takeoffForecasts: takeoffForecasts,
+                         dayNumber: dayNumber, totalDays: totalDays, isReplay: isReplay)
     }
 
     /// The route, and home when the flight passes it by: home changes the closest-point fact.

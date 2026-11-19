@@ -55,12 +55,12 @@ final class LandedBeforeGateFactsTests: XCTestCase {
 
     func test_rows_sayItLanded_howFarItFlew_andWhenItReachesTheGate_withNoSky() throws {
         let rows = try facts(landedAt: "12:58").rows(at: at("12:58"), now: at("12:58"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .plane, .distance, .headed])
+        XCTAssertEqual(rows.map(\.kind), [.below, .plane, .distance, .takeoff, .headed])
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Landed in E20")
         XCTAssertNil(below.detail, "nothing of what's below, or of home")
         XCTAssertEqual(try row(.distance, in: rows).title, "1,382 mi flown")
-        XCTAssertEqual(plain(try row(.headed, in: rows).title), "Reaches the gate at 9:02 AM")
+        XCTAssertEqual(plain(try row(.headed, in: rows).title), "Reaches the gate in E20 at 9:02 AM L")
         XCTAssertEqual(try row(.plane, in: rows).title, "Boeing 767-300 · N370UP")
         XCTAssertNil(try row(.plane, in: rows).detail, "no height or speed on the ground")
     }
@@ -108,9 +108,9 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         let toAnchorage = MapLeg(id: "f1", kind: .flight, origin: louisville, destination: anchorage,
                                  start: end.addingTimeInterval(-6 * 3600), end: end, flightNumber: "UPS2963")
         XCTAssertEqual(plain(TripMapWording.gateLine(for: toAnchorage, calendar: calendar, locale: locale)),
-                       "Reaches the gate at 3:52 PM · 7:52 PM your time")
+                       "Reaches the gate in Anchorage at 3:52 PM · 7:52 PM L")
         let home = MapLeg(id: "f2", kind: .flight, origin: anchorage, destination: louisville,
                           start: end.addingTimeInterval(-6 * 3600), end: end, flightNumber: "UPS2964")
-        XCTAssertEqual(plain(TripMapWording.gateLine(for: home, calendar: calendar, locale: locale)), "Reaches the gate at 7:52 PM")
+        XCTAssertEqual(plain(TripMapWording.gateLine(for: home, calendar: calendar, locale: locale)), "Reaches the gate in Louisville at 7:52 PM L")
     }
 }

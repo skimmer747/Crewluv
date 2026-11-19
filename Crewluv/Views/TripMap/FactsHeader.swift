@@ -26,7 +26,9 @@ struct FactsHeader: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(headline)
                 .font(.headline)
+                .accessibilityLabel(ClockLabel.spoken(headline))
                 .accessibilityAddTraits(.isHeader)
+                .clockLabelHelp(for: headline)
             TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
                                 activity: activity, onGround: onGround, time: time, now: now)
         }

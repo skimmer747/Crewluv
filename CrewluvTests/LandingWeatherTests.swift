@@ -27,6 +27,28 @@ final class LandingWeatherTests: XCTestCase {
         XCTAssertEqual(try ids(at: 12), ["f2"])
     }
 
+    // MARK: - At takeoff (time labels design §3.3)
+
+    private func takeoff(at hours: Double) throws -> (id: String, takeoff: Takeoff)? {
+        let now = start.addingTimeInterval(hours * 3600)
+        let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: now))
+        return LandingWeather.takeoffToFetch(in: map, now: now).map { ($0.leg.id, $0.takeoff) }
+    }
+
+    func test_takeoffToFetch_inTheAir_isThisFlightsTakeoff_theSchedulesWithNoRealPlane() throws {
+        let fetch = try XCTUnwrap(try takeoff(at: 4))
+        XCTAssertEqual(fetch.id, "f1")
+        XCTAssertEqual(fetch.takeoff, Takeoff(time: start.addingTimeInterval(FlightProgress.taxiOutAllowance), isSeen: false))
+    }
+
+    func test_takeoffToFetch_taxiingOut_beforeTheTakeoff_isNil() throws {
+        XCTAssertNil(try takeoff(at: FlightProgress.taxiOutAllowance / 3600 / 2))
+    }
+
+    func test_takeoffToFetch_onALayover_isNil() throws {
+        XCTAssertNil(try takeoff(at: 12))
+    }
+
     func test_flightsToForecast_aFlightLandingMoreThan48HoursOut_isLeftOut() throws {
         XCTAssertEqual(try ids(at: -24), ["f1"], "lands 32 hours out")
         XCTAssertEqual(try ids(at: -48), [], "lands 56 hours out")

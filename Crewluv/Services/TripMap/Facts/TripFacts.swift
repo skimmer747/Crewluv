@@ -20,6 +20,8 @@ nonisolated struct TripFacts {
     let sunEvents: [String: [SkyFacts.SunEvent]]
     /// Landing-hour forecasts, by leg id.
     var forecasts: [String: LandingForecast] = [:]
+    /// The weather in the hour the flight in the air took off, by leg id (time labels design §3.3).
+    var takeoffForecasts: [String: LandingForecast] = [:]
     /// The status's trip day, for "Day 2 of 4".
     var dayNumber: Int?
     var totalDays: Int?
@@ -181,15 +183,18 @@ nonisolated struct TripFacts {
     func tripSoFar(at date: Date) -> TripSoFar {
         let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date && !isStillOnGround($0, at: date) }.reversed()
         let flights = started.compactMap { leg -> TripSoFar.Flight? in
-            // Newest first, so the latest is at the top (best guesses design §3).
-            let events = milestones(on: leg, at: date).filter { $0.time <= date }.enumerated().reversed().map { place, milestone in
-                TripSoFar.Event(id: place, text: FactsWording.listLine(for: milestone, calendar: calendar, locale: locale),
-                                isEstimate: milestone.isEstimate)
-            }
             // The flight between its gates is always listed, and set apart (§4).
             let tag = leg.isMoving(at: date)
                 ? (isLandedBeforeGate(leg, at: date) ? FactsWording.landedTag : FactsWording.inTheAir(isReplay: isReplay))
                 : nil
+            // Newest first, so the latest is at the top (best guesses design §3). While its flight is between its gates,
+            // the newest by time is bold, as the banner has it (time labels design §3.4).
+            let told = milestones(on: leg, at: date).filter { $0.time <= date }
+            let newest = tag == nil ? nil : told.indices.max { told[$0].time < told[$1].time }
+            let events = told.enumerated().reversed().map { place, milestone in
+                TripSoFar.Event(id: place, text: FactsWording.listLine(for: milestone, calendar: calendar, locale: locale),
+                                isEstimate: milestone.isEstimate, isCurrent: place == newest)
+            }
             guard tag != nil || !events.isEmpty else { return nil }
             return TripSoFar.Flight(id: leg.id, title: FactsWording.flightTitle(leg), tag: tag, events: Array(events))
         }

@@ -22,6 +22,7 @@ struct UpcomingTripCard: View {
                     Text(formattedDeparture)
                         .font(.subheadline)
                         .fontWeight(.medium)
+                        .accessibilityLabel(ClockLabel.spoken(formattedDeparture))
                     Text("\(trip.durationDays) \(trip.durationDays == 1 ? "day" : "days")")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -154,14 +155,11 @@ struct UpcomingTripCard: View {
         return trip.departureDate.addingTimeInterval(delay)
     }
 
+    /// "Departs Tue Nov 25 at 6:00 AM L", in the family's time and clock (time labels design §3.7).
     private var formattedDeparture: String {
         let calendar = Calendar.current
         let departure = effectiveDepartureDate
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mma"
-        timeFormatter.amSymbol = "am"
-        timeFormatter.pmSymbol = "pm"
-        let timeStr = timeFormatter.string(from: departure)
+        let timeStr = ClockLabel.yours(departure)
 
         if calendar.isDateInToday(departure) {
             return "Departs today at \(timeStr)"

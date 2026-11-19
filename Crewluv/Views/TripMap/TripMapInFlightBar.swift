@@ -65,6 +65,8 @@ struct TripMapInFlightBar: View {
             Text(arrival)
                 .font(.headline)
                 .monospacedDigit()
+                .accessibilityLabel(ClockLabel.spoken(arrival))
+                .clockLabelHelp(for: arrival)
             if let local = TripMapWording.arrivalLocalTime(for: leg) {
                 Text(local)
                     .font(.caption)

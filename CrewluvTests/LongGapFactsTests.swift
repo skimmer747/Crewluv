@@ -108,8 +108,8 @@ final class LongGapFactsTests: XCTestCase {
         // others were guessed within the 2 hours, and are told with "about".
         let guessed = try facts(now: "13:10")
         XCTAssertEqual(events(guessed, at: "13:10"), [
-            "Closest to home, 35 mi · about 8:05 AM", "Halfway · about 7:49 AM", "Out over the Atlantic · about 7:34 AM",
-            "Crossed into Bravo · about 6:54 AM",
+            "Closest to home, 35 mi · about 8:05 AM L", "Halfway · about 7:49 AM L", "Out over the Atlantic · about 7:34 AM L",
+            "Crossed into Bravo · about 6:54 AM L",
         ])
         XCTAssertEqual(guessed.latestEvent(at: at("13:10"))?.title, "Closest to home, 35 mi")
         XCTAssertNotEqual(guessed.headline(at: at("13:02")), "Just crossed into Delta")
@@ -118,7 +118,7 @@ final class LongGapFactsTests: XCTestCase {
     func test_events_neverTrackedAgain_areAllToldAsBestGuesses_onceTheFlightIsOver() throws {
         // It reaches the gate at 13:40.6 by its estimate. After that the crossing into Delta is told too.
         let over = try facts(now: "13:45")
-        XCTAssertEqual(events(over, at: "13:45")?.first, "Crossed into Delta · about 8:59 AM")
+        XCTAssertEqual(events(over, at: "13:45")?.first, "Crossed into Delta · about 8:59 AM L")
         XCTAssertEqual(over.tripSoFar(at: at("13:45")).flights.first?.events.count, 5)
     }
 
@@ -127,8 +127,8 @@ final class LongGapFactsTests: XCTestCase {
         // 13:03, and what it passed in the gap is told on the straight join between the two, with "about".
         let trackedAgain = try facts(seenUntil: "13:05", now: "13:05", unseen: 3.8...20.5)
         XCTAssertEqual(events(trackedAgain, at: "13:05"), [
-            "Crossed into Delta · 9:02 AM", "Closest to home, 35 mi · about 8:06 AM", "Halfway · about 7:51 AM",
-            "Out over the Atlantic · about 7:35 AM", "Crossed into Bravo · about 6:55 AM",
+            "Crossed into Delta · 9:02 AM L", "Closest to home, 35 mi · about 8:06 AM L", "Halfway · about 7:51 AM L",
+            "Out over the Atlantic · about 7:35 AM L", "Crossed into Bravo · about 6:55 AM L",
         ])
     }
 

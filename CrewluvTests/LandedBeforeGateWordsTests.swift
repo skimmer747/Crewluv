@@ -33,19 +33,19 @@ final class LandedBeforeGateWordsTests: XCTestCase {
         let date = FactsTestData.date("2026-11-14T00:45:00Z")
         let flying = TripActivity(kind: .flying, place: anchorage)
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .landedIn(anchorage), calendar: calendar, locale: locale)),
-                       "Fri 7:45 PM · Landed in Anchorage")
+                       "Fri 7:45 PM L · Landed in Anchorage")
         XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .landedIn(anchorage), calendar: calendar, locale: locale)),
                        "Friday 7:45 PM, landed in Anchorage")
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, calendar: calendar, locale: locale)),
-                       "Fri 7:45 PM · Flying to Anchorage", "without it, flying, as before")
+                       "Fri 7:45 PM L · Flying to Anchorage", "without it, flying, as before")
     }
 
     func test_barArrival_saysAtTheGate_onceTheRealPlaneIsDown_untilTheGate() throws {
         // Down at E20 at 12:55 UTC; at the gate at 13:02, 9:02 AM in Louisville.
         let live = FactsTestData.equatorLive(seenUntil: at("12:53"), landedAt: FactsTestData.liveTime(atLongitude: 20))
         let landed = try FactsTestData.equatorLiveLeg(live, at: at("12:58"))
-        XCTAssertEqual(plain(TripMapWording.barArrival(for: landed, at: at("12:58"), calendar: calendar, locale: locale)), "At the gate 9:02 AM")
-        XCTAssertEqual(plain(TripMapWording.barArrival(for: landed, at: at("13:02"), calendar: calendar, locale: locale)), "Lands 9:02 AM",
+        XCTAssertEqual(plain(TripMapWording.barArrival(for: landed, at: at("12:58"), calendar: calendar, locale: locale)), "At the gate 9:02 AM L")
+        XCTAssertEqual(plain(TripMapWording.barArrival(for: landed, at: at("13:02"), calendar: calendar, locale: locale)), "Lands 9:02 AM L",
                        "at the gate, as before")
         let flying = try FactsTestData.equatorLiveLeg(FactsTestData.equatorLive(seenUntil: at("12:30")), at: at("12:30"))
         XCTAssertEqual(TripMapWording.barArrival(for: flying, at: at("12:30"), calendar: calendar, locale: locale),

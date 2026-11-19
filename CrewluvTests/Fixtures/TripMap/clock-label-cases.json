@@ -1,0 +1,20 @@
+{
+  "about": "Whose time a time is (time labels design §3.1). The app runs every case in ClockLabelTests; the website keeps a copy in tests/fixtures/trip-map/. Change both copies together. Expected words use a plain space where a formatter may put a narrow one before AM or PM.",
+  "cases": [
+    {"name": "yours, 12-hour", "kind": "yours", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "locale": "en_US", "expected": "4:35 PM L"},
+    {"name": "yours, 24-hour", "kind": "yours", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "locale": "en_GB", "expected": "16:35 L"},
+    {"name": "yours, just past midnight", "kind": "yours", "at": "2026-11-20T05:10:00Z", "yourZone": "America/New_York", "locale": "en_US", "expected": "12:10 AM L"},
+    {"name": "a city", "kind": "place", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "zone": "America/Anchorage", "city": "Anchorage", "locale": "en_US", "expected": "12:35 PM Anchorage"},
+    {"name": "a city, 24-hour", "kind": "place", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "zone": "Asia/Taipei", "city": "Taipei", "locale": "en_GB", "expected": "5:35 Taipei"},
+    {"name": "a pair, another clock", "kind": "pair", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "zone": "America/Anchorage", "locale": "en_US", "expected": "12:35 PM · 4:35 PM L"},
+    {"name": "a pair, the same clock", "kind": "pair", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "zone": "America/Detroit", "locale": "en_US", "expected": "4:35 PM L"},
+    {"name": "a pair, no zone known", "kind": "pair", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "locale": "en_US", "expected": "4:35 PM L"},
+    {"name": "a pair, a half-hour zone the next day", "kind": "pair", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "zone": "Asia/Kolkata", "locale": "en_US", "expected": "3:05 AM · 4:35 PM L"},
+    {"name": "a pair, before New York's spring change", "kind": "pair", "at": "2026-03-08T06:30:00Z", "yourZone": "America/New_York", "zone": "America/Chicago", "locale": "en_US", "expected": "12:30 AM · 1:30 AM L"},
+    {"name": "a pair, between New York's change and Chicago's", "kind": "pair", "at": "2026-03-08T07:30:00Z", "yourZone": "America/New_York", "zone": "America/Chicago", "locale": "en_US", "expected": "1:30 AM · 3:30 AM L"},
+    {"name": "a pair, London on New York's clock difference in March", "kind": "pair", "at": "2026-03-10T12:00:00Z", "yourZone": "America/New_York", "zone": "Europe/London", "locale": "en_US", "expected": "12:00 PM · 8:00 AM L"},
+    {"name": "the key in winter", "kind": "key", "at": "2026-11-19T21:35:00Z", "yourZone": "America/New_York", "locale": "en_US", "expected": "L = your time (Eastern Standard Time)"},
+    {"name": "the key in summer", "kind": "key", "at": "2026-07-01T16:00:00Z", "yourZone": "America/New_York", "locale": "en_US", "expected": "L = your time (Eastern Daylight Time)"},
+    {"name": "the key in Alaska", "kind": "key", "at": "2026-11-19T21:35:00Z", "yourZone": "America/Anchorage", "locale": "en_US", "expected": "L = your time (Alaska Standard Time)"}
+  ]
+}

@@ -57,7 +57,9 @@ struct FactsPanel: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(facts.sheetHeadline(at: time))
                 .font(.headline)
+                .accessibilityLabel(ClockLabel.spoken(facts.sheetHeadline(at: time)))
                 .accessibilityAddTraits(.isHeader)
+                .clockLabelHelp(for: facts.sheetHeadline(at: time))
             Spacer(minLength: 0)
             Button(action: toggle) {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.up")

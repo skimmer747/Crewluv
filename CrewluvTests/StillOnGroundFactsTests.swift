@@ -79,11 +79,11 @@ final class StillOnGroundFactsTests: XCTestCase {
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Still on the ground in E0")
         // The plan, run from a takeoff that hasn't happened, has the plane at 14° E at 13:06, 9:06 AM in Louisville.
-        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at about 9:06 AM")
+        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at about 9:06 AM L")
         XCTAssertNil(rows.first { $0.kind == .sky })
         let distance = try row(.distance, in: rows)
         XCTAssertEqual(distance.title, "1,382 mi to go")
-        XCTAssertEqual(plain(distance.detail), "Halfway at about 8:17 AM · like driving the Alaska Highway")
+        XCTAssertEqual(plain(distance.detail), "Halfway at about 8:17 AM L · like driving the Alaska Highway")
         // The plane's row has no height or speed: it isn't in the air.
         XCTAssertEqual(try row(.plane, in: rows).title, "Boeing 767-300 · N370UP")
         XCTAssertNil(try row(.plane, in: rows).detail)
