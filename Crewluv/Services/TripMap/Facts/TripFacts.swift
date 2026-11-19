@@ -20,6 +20,8 @@ nonisolated struct TripFacts {
     let sunEvents: [String: [SkyFacts.SunEvent]]
     /// Landing-hour forecasts, by leg id.
     var forecasts: [String: LandingForecast] = [:]
+    /// The weather in the hour the flight in the air took off, by leg id (time labels design §3.3).
+    var takeoffForecasts: [String: LandingForecast] = [:]
     /// The status's trip day, for "Day 2 of 4".
     var dayNumber: Int?
     var totalDays: Int?

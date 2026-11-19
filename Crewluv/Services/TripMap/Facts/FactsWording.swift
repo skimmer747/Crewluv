@@ -278,6 +278,11 @@ nonisolated enum FactsWording {
         "\(forecast.temperature) and \(forecast.condition) on landing"
     }
 
+    /// "84°F and clear at takeoff": the weather in the hour the flight left (time labels design §3.3).
+    static func takeoffWeather(_ forecast: LandingForecast) -> String {
+        "\(forecast.temperature) and \(forecast.condition) at takeoff"
+    }
+
     /// "6 hours ahead of you", "5½ hours behind you", "½ hour ahead of you", or nil when the clocks match.
     static func timeDifference(from zone: TimeZone, to yours: TimeZone, at date: Date) -> String? {
         let seconds = zone.secondsFromGMT(for: date) - yours.secondsFromGMT(for: date)

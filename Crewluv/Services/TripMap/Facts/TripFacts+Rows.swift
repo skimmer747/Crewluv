@@ -134,20 +134,16 @@ nonisolated extension TripFacts {
                        details: [halfway, speed, comparisons?.phrase(forMiles: totalMiles).map(FactsWording.midLine)])
     }
 
-    /// "Took off Taipei 7:42 PM · 6:42 AM L" once the plane is off the ground (time labels design §3.3): the real
-    /// plane's takeoff where it was seen, else the schedule's, "about". Left out before it, and while a real plane is
-    /// still at its departure airport or back there after an air return. Left out too for a real plane first seen too
-    /// far out to tell when it left: the schedule's time could be an hour off for a late flight.
+    /// "Took off Taipei 7:42 PM · 6:42 AM L" once the plane is off the ground (time labels design §3.3), then the
+    /// weather it took off in, "84°F and clear at takeoff". Left out before it, while a real plane is still at its
+    /// departure airport or back there after an air return, and where the leg has no takeoff to tell (`MapLeg.takeoff`).
     private func takeoffRow(on leg: MapLeg, at date: Date) -> FactRow? {
-        guard !isStillOnGround(leg, at: date) else { return nil }
-        let record = leg.flight?.record
-        if let record, record.takeoff == nil { return nil }
-        let seen = record?.takeoff
-        let schedules = leg.flight?.plan.takeoff ?? FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)?.start
-        guard let takeoff = seen ?? schedules, takeoff <= date else { return nil }
+        guard !isStillOnGround(leg, at: date), let takeoff = leg.takeoff, takeoff.time <= date else { return nil }
+        let weather = takeoffForecasts[leg.id]
         return FactRow(.takeoff, symbol: "airplane.departure",
-                       title: TripMapWording.takeoffLine(for: leg, at: takeoff, isEstimate: seen == nil,
-                                                         calendar: calendar, locale: locale))
+                       title: TripMapWording.takeoffLine(for: leg, at: takeoff.time, isEstimate: !takeoff.isSeen,
+                                                         calendar: calendar, locale: locale),
+                       details: [weather.map(FactsWording.takeoffWeather)], hasWeather: weather != nil)
     }
 
     /// "Lands Cologne 9:30 PM · 3:30 PM L", or once the real plane is down, before the gate, "Reaches the gate at

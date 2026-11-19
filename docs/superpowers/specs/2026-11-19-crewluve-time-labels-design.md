@@ -78,7 +78,8 @@ On the website, the events list in `facts/tripFacts.ts` keeps its long-gap rule 
   - "Took off Taipei about 7:42 PM · 6:42 AM L" from the schedule's takeoff (`FlightPlan.takeoff`) otherwise.
   - Only "Took off Louisville 9:05 AM L" when Louisville keeps the family's clock.
 - **Left out** for a real plane first seen more than 30 nm from its departure airport (`FlightRecord.takeoff` is nil): when it left can't be told, and for a late flight the schedule's time could be an hour off.
-- **Look:** a takeoff symbol, `airplane.departure`, beside the landing row's `airplane.arrival`, with no detail line.
+- **Weather at takeoff** (asked for by Todd after his first look): the row's second line is the weather in the hour it took off, "84°F and clear at takeoff". `LandingWeather` asks WeatherKit for it beside the landing weather, only while the full-screen map is open and only for the flight in the air, at `MapLeg.takeoff`'s time. Apple's Weather attribution shows under the facts, as for landing. With no answer, the row has no second line.
+- **Look:** a takeoff symbol, `airplane.departure`, beside the landing row's `airplane.arrival`.
 - **Replay:** the row follows the replay's clock, like every facts row.
 - **VoiceOver:** "Took off Taipei 7:42 PM, 6:42 AM your time", from the row's sentence.
 
@@ -122,14 +123,14 @@ Today these label times with the zone's abbreviation. After this change, they us
 
 - **Location card:**
   - "Current time: 3:45 PM" becomes "Current time in Taipei: 3:45 PM".
-  - In flight, the clock beside the location icon (the arrival airport's time) becomes "3:45 PM Anchorage".
-  - Code: `PilotStatusView.updateLiveLocalTime`, and `ui/LocationCard.tsx` and `ui/InFlightCard.tsx` on the website.
+  - In flight, the clock beside the location icon (the arrival airport's time) stays as it is: the airport's code is already under it.
+  - Code: `PilotStatusView` in the app; `ui/LocationCard.tsx` on the website.
 - **Sun dial:**
-  - A small "Taipei time" caption goes under the dial. The dial's own labels ("6:41a") stay as they are.
-  - The city comes from the pilot's current airport. With none known, the caption says "Pilot's time".
-  - Code: `SunCircleView`, and `ui/SunDial.tsx` on the website.
-- **Sun detail screen:** the pilot's clock reads "3:45 PM Taipei", and the home clock "3:45 PM Louisville". Sunrise and sunset get the pilot's city too.
-- **Already-formatted times:** when the app only has `localTimeAtPilot`, the string from the pilot's device, the city is added after it.
+  - A small caption, "Taipei time", goes under the dial on the status screen. The dial's own labels ("6:41a") stay as they are.
+  - The city comes from the status's current city. With none known, the caption says "Pilot's time".
+  - Code: `PilotStatusView`, and `ui/SunDial.tsx` on the website.
+- **Sun detail screen:** the pilot's clock reads "3:45 PM Taipei". The home clock keeps its house symbol, which already says whose time it is.
+- **Already-formatted times:** when the app only has `localTimeAtPilot`, the string from the pilot's device, it shows as it is.
 
 ## 4. Data and behaviour
 

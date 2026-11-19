@@ -32,14 +32,15 @@ final class TimeLabelsFactsTests: XCTestCase {
         return try facts(of: try FactsTestData.equatorLiveLeg(live, at: at(now ?? seenUntil)), isReplay: isReplay)
     }
 
-    private func facts(of leg: MapLeg, isReplay: Bool = false) throws -> TripFacts {
+    private func facts(of leg: MapLeg, isReplay: Bool = false,
+                       takeoffForecasts: [String: LandingForecast] = [:]) throws -> TripFacts {
         let home = FactsTestData.homeByTheEquator
         let map = TripMap(mode: .inFlight(legID: leg.id), legs: [leg], home: home,
                           span: DateInterval(start: leg.start, end: leg.end), tripDays: nil)
         return TripFacts(tripMap: map, geography: FactsTestData.equator, comparisons: try FactsTestData.appComparisons(),
                          stories: [leg.id: LegStory(leg: leg, geography: FactsTestData.equator, home: home)],
-                         sunEvents: [leg.id: SkyFacts.sunEvents(on: leg)], dayNumber: 1, totalDays: 1,
-                         calendar: calendar, locale: locale, isReplay: isReplay)
+                         sunEvents: [leg.id: SkyFacts.sunEvents(on: leg)], takeoffForecasts: takeoffForecasts,
+                         dayNumber: 1, totalDays: 1, calendar: calendar, locale: locale, isReplay: isReplay)
     }
 
     // MARK: - The takeoff row (§3.3)
@@ -55,6 +56,22 @@ final class TimeLabelsFactsTests: XCTestCase {
     func test_takeoffRow_withNoRealPlane_isTheSchedules_withAbout() throws {
         let rows = try facts(of: FactsTestData.equatorFlight(from: 0, to: 20)).rows(at: at("11:10"), now: at("11:10"))
         XCTAssertEqual(plain(rows.first { $0.kind == .takeoff }?.title), "Took off E0 about 6:15 AM L")
+    }
+
+    func test_takeoffRow_withTheTakeoffHoursWeather_saysIt_andNeedsApplesCredit() throws {
+        let leg = FactsTestData.equatorFlight(from: 0, to: 20)
+        let weather = LandingForecast(temperature: "84°F", condition: "clear")
+        let rows = try facts(of: leg, takeoffForecasts: [leg.id: weather]).rows(at: at("11:10"), now: at("11:10"))
+        let takeoff = try XCTUnwrap(rows.first { $0.kind == .takeoff })
+        XCTAssertEqual(takeoff.detail, "84°F and clear at takeoff")
+        XCTAssertTrue(takeoff.hasWeather)
+    }
+
+    func test_takeoffRow_withNoWeather_hasNoSecondLine() throws {
+        let rows = try facts(of: FactsTestData.equatorFlight(from: 0, to: 20)).rows(at: at("11:10"), now: at("11:10"))
+        let takeoff = try XCTUnwrap(rows.first { $0.kind == .takeoff })
+        XCTAssertNil(takeoff.detail)
+        XCTAssertFalse(takeoff.hasWeather)
     }
 
     func test_takeoffRow_beforeTheSchedulesTakeoff_isLeftOut() throws {
