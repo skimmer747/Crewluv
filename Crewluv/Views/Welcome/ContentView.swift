@@ -198,9 +198,10 @@ struct SyncDebugView: View {
                     .accessibilityLabel(lastSyncError == nil ? "Sync successful" : "Sync error")
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Last sync: \(lastSyncTime.formatted(date: .omitted, time: .standard))")
+                    Text("Last sync: \(lastSyncTime.formatted(date: .omitted, time: .standard)) \(ClockLabel.mark)")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .accessibilityLabel("Last sync: \(lastSyncTime.formatted(date: .omitted, time: .standard)) your time")
 
                     if let error = lastSyncError {
                         Text(sanitizedErrorMessage(error))

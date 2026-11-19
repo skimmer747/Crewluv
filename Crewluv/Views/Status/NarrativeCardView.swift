@@ -111,8 +111,8 @@ struct NarrativeCardView: View {
         let monthDay = formatter.string(from: arrival)
         let day = Calendar.current.component(.day, from: arrival)
         let suffix = ordinalSuffix(for: day)
-        let timeStr = formattedLocalTime(arrival)
-        let dateText = Text("\(monthDay)\(suffix) at \(timeStr)").bold()
+        let when = "\(monthDay)\(suffix) at \(formattedLocalTime(arrival))"
+        let dateText = timeText(when).bold()
         return Text("Back home in \(countdown) on \(dateText)")
     }
 
@@ -126,7 +126,7 @@ struct NarrativeCardView: View {
                 ?? AirportDataProvider.shared.airportInfo(forIataCode: flight.arrivalAirport ?? "")?.city
                 ?? "work"
             let depTimeStr = formattedLocalTime(flight.startTime)
-            return Text("\(name) is home — heads to base, then on to \(Text(destCity).bold()), departing in \(countdownText(to: flight.startTime)) at \(Text(depTimeStr).bold()).")
+            return Text("\(name) is home — heads to base, then on to \(Text(destCity).bold()), departing in \(countdownText(to: flight.startTime)) at \(timeText(depTimeStr).bold()).")
         }
 
         let hasPrevTrip = status.lastTripDurationDays != nil
@@ -190,7 +190,7 @@ struct NarrativeCardView: View {
             let to = js.arrivalCity ?? "home"
             let depTimeStr = formattedLocalTime(js.startTime)
             let arrTimeStr = formattedLocalTime(js.endTime)
-            Text("\(name) has one more leg home from \(Text(from).bold()) to \(Text(to).bold())! It leaves in \(countdownText(to: js.startTime)) at \(Text(depTimeStr).bold()) and lands at \(Text(arrTimeStr).bold()).")
+            Text("\(name) has one more leg home from \(Text(from).bold()) to \(Text(to).bold())! It leaves in \(countdownText(to: js.startTime)) at \(timeText(depTimeStr).bold()) and lands at \(timeText(arrTimeStr).bold()).")
         } else {
             Text("\(name) is heading home")
         }
@@ -205,9 +205,9 @@ struct NarrativeCardView: View {
         if let arrival = drive?.endTime ?? status.homeArrivalTime {
             let arrTimeStr = formattedLocalTime(arrival)
             if toHome {
-                Text("\(name) is driving home to \(Text(destCity).bold()) — back in \(countdownText(to: arrival, color: .green)) at \(Text(arrTimeStr).bold()).")
+                Text("\(name) is driving home to \(Text(destCity).bold()) — back in \(countdownText(to: arrival, color: .green)) at \(timeText(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is driving to work in \(Text(destCity).bold()) — arrives in \(countdownText(to: arrival)) at \(Text(arrTimeStr).bold()), then the trip starts.")
+                Text("\(name) is driving to work in \(Text(destCity).bold()) — arrives in \(countdownText(to: arrival)) at \(timeText(arrTimeStr).bold()), then the trip starts.")
             }
         } else {
             Text(toHome ? "\(name) is driving home" : "\(name) is driving to work")
@@ -226,36 +226,22 @@ struct NarrativeCardView: View {
 
     // MARK: - Date Formatting Helpers
 
-    /// True when the device is set to a 24-hour clock. Explicit `dateFormat`
-    /// strings must match this preference themselves: leaving it to iOS's
-    /// automatic format rewriting produced artifacts like "14:50pm EDT".
-    private var prefers24HourClock: Bool {
-        switch Locale.current.hourCycle {
-        case .zeroToTwentyThree, .oneToTwentyFour: return true
-        case .oneToTwelve, .zeroToEleven: return false
-        @unknown default: return false
-        }
-    }
-
-    private func formattedDepartureDate(_ date: Date) -> String {
+    /// "tomorrow at 6:00 AM L", "Sunday the 1st at 6:00 AM L", in the family's time (time labels design §3.7).
+    private func formattedDepartureDate(_ date: Date) -> Text {
         let calendar = Calendar.current
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "en_US_POSIX")
-        timeFormatter.dateFormat = prefers24HourClock ? "HH:mm" : "h:mma"
-        timeFormatter.amSymbol = "am"
-        timeFormatter.pmSymbol = "pm"
-        let timeStr = timeFormatter.string(from: date)
-
+        let timeStr = formattedLocalTime(date)
+        let words: String
         if calendar.isDateInToday(date) {
-            return "today at \(timeStr)"
+            words = "today at \(timeStr)"
         } else if calendar.isDateInTomorrow(date) {
-            return "tomorrow at \(timeStr)"
+            words = "tomorrow at \(timeStr)"
         } else {
             let weekday = date.formatted(.dateTime.weekday(.wide))
             let day = calendar.component(.day, from: date)
             let suffix = ordinalSuffix(for: day)
-            return "\(weekday) the \(day)\(suffix) at \(timeStr)"
+            words = "\(weekday) the \(day)\(suffix) at \(timeStr)"
         }
+        return timeText(words)
     }
 
     private func ordinalSuffix(for day: Int) -> String {
@@ -299,13 +285,13 @@ struct NarrativeCardView: View {
                     if isLandedBeforeGate, let dest {
                         landedSentence(in: dest, flight: fltStr, gate: shiftedArr, color: countdownColor)
                     } else if isStillOnGround, let dep, let dest {
-                        Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                        Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     } else if let dep, let dest {
-                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     } else if let dest {
-                        Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     } else {
-                        Text("\(name)'s flight — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(Text(arrTimeStr).bold()).")
+                        Text("\(name)'s flight — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     }
                 } else if let dest {
                     Text("\(name)'s flight to \(Text(dest).bold())\(fltStr)")
@@ -324,11 +310,11 @@ struct NarrativeCardView: View {
             if isLandedBeforeGate {
                 landedSentence(in: dest, flight: fltStr, gate: arrTime)
             } else if isStillOnGround, let dep {
-                Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+                Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
             } else if let dep {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(about)\(Text(arrTimeStr).bold()).")
+                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
             Text("\(name) is \(verb) to \(Text(dest).bold())")
@@ -345,7 +331,7 @@ struct NarrativeCardView: View {
     /// "Alex has landed in Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST.", with the gate's
     /// countdown in `color`, else the status's (landed before the gate design §3).
     private func landedSentence(in dest: String, flight fltStr: String, gate: Date, color: Color? = nil) -> Text {
-        Text("\(name) has landed in \(Text(dest).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) — at the gate in \(countdownText(to: gate, color: color)) which is \(Text(formattedLocalTime(gate)).bold()).")
+        Text("\(name) has landed in \(Text(dest).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) — at the gate in \(countdownText(to: gate, color: color)) which is \(timeText(formattedLocalTime(gate)).bold()).")
     }
 
     @ViewBuilder
@@ -358,11 +344,11 @@ struct NarrativeCardView: View {
             if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name) \(statePhrase) in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) \(statePhrase) in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(timeText(depTimeStr).bold()).")
             } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name) \(statePhrase) in \(Text(city).bold()) — next flight in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) \(statePhrase) in \(Text(city).bold()) — next flight in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(timeText(depTimeStr).bold()).")
             } else if let city = status.currentCity {
                 Text("\(name) \(statePhrase) in \(Text(city).bold()) between flights")
             } else {
@@ -370,10 +356,10 @@ struct NarrativeCardView: View {
             }
         } else if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is in \(Text(city).bold()) — heading to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is in \(Text(city).bold()) between flights")
         } else {
@@ -392,11 +378,11 @@ struct NarrativeCardView: View {
             if let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name)'s layover has been \(changeVerb) by \(Text(delayStr).bold()) and will now fly to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name)'s layover has been \(changeVerb) by \(Text(delayStr).bold()) and will now fly to \(Text(dest).bold()) in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(timeText(depTimeStr).bold()).")
             } else if let nextTime = nextFlightDepartureTime() {
                 let shiftedTime = nextTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                 let depTimeStr = formattedLocalTime(shiftedTime)
-                Text("\(name)'s layover has been \(changeVerb) by \(Text(delayStr).bold()) — next flight in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name)'s layover has been \(changeVerb) by \(Text(delayStr).bold()) — next flight in \(countdownText(to: shiftedTime, color: countdownColor)) which is \(timeText(depTimeStr).bold()).")
             } else if let city = status.currentCity {
                 Text("\(name)'s layover in \(Text(city).bold()) has been \(changeVerb) by \(Text(delayStr).bold()).")
             } else {
@@ -404,10 +390,10 @@ struct NarrativeCardView: View {
             }
         } else if let city = status.currentCity, let dest = nextFlightCity(), let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is on layover in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is on layover in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is on layover in \(Text(city).bold())")
         } else {
@@ -419,7 +405,7 @@ struct NarrativeCardView: View {
     private var reserveNarrative: some View {
         if let city = status.currentCity, let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
-            Text("\(name) is on reserve in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+            Text("\(name) is on reserve in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(timeText(endTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is on reserve in \(Text(city).bold())")
         } else {
@@ -431,7 +417,7 @@ struct NarrativeCardView: View {
     private var hotStandbyNarrative: some View {
         if let city = status.currentCity, let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
-            Text("\(name) is on hot standby in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+            Text("\(name) is on hot standby in \(Text(city).bold()) — on call until \(countdownText(to: endTime)) which is \(timeText(endTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is on hot standby in \(Text(city).bold())")
         } else {
@@ -445,7 +431,7 @@ struct NarrativeCardView: View {
             eventNarrative(title: eventTitle)
         } else if let city = status.currentCity, let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
-            Text("\(name) is in training in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+            Text("\(name) is in training in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(timeText(endTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is in training in \(Text(city).bold())")
         } else {
@@ -457,10 +443,10 @@ struct NarrativeCardView: View {
     private func eventNarrative(title: String) -> some View {
         if let city = status.currentCity, let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
-            Text("\(name): \(Text(title).bold()) in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+            Text("\(name): \(Text(title).bold()) in \(Text(city).bold()) — finishes in \(countdownText(to: endTime)) which is \(timeText(endTimeStr).bold()).")
         } else if let endTime = status.homeArrivalTime {
             let endTimeStr = formattedLocalTime(endTime)
-            Text("\(name): \(Text(title).bold()) — finishes in \(countdownText(to: endTime)) which is \(Text(endTimeStr).bold()).")
+            Text("\(name): \(Text(title).bold()) — finishes in \(countdownText(to: endTime)) which is \(timeText(endTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name): \(Text(title).bold()) in \(Text(city).bold())")
         } else {
@@ -499,10 +485,10 @@ struct NarrativeCardView: View {
         if let city = resolverCity ?? status.currentCity {
             if let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
                 let depTimeStr = formattedLocalTime(nextTime)
-                Text("\(name) is in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) is in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
             } else if let nextTime = nextFlightDepartureTime() {
                 let depTimeStr = formattedLocalTime(nextTime)
-                Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+                Text("\(name) is in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
             } else {
                 Text("\(name) is in \(Text(city).bold())")
             }
@@ -522,13 +508,13 @@ struct NarrativeCardView: View {
                 ?? AirportDataProvider.shared.airportInfo(forIataCode: homeEvent.arrivalAirport ?? "")?.city
                 ?? "home"
             let depTimeStr = formattedLocalTime(homeEvent.startTime)
-            Text("\(name) is at base in \(Text(city).bold()) — heads home to \(Text(homeCity).bold()) in \(countdownText(to: homeEvent.startTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is at base in \(Text(city).bold()) — heads home to \(Text(homeCity).bold()) in \(countdownText(to: homeEvent.startTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime(), let dest = nextFlightCity() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is at base in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is at base in \(Text(city).bold()) — flies to \(Text(dest).bold()) in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity, let nextTime = nextFlightDepartureTime() {
             let depTimeStr = formattedLocalTime(nextTime)
-            Text("\(name) is at base in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(Text(depTimeStr).bold()).")
+            Text("\(name) is at base in \(Text(city).bold()) — next flight in \(countdownText(to: nextTime)) which is \(timeText(depTimeStr).bold()).")
         } else if let city = status.currentCity {
             Text("\(name) is at base in \(Text(city).bold())")
         } else {
@@ -761,16 +747,15 @@ struct NarrativeCardView: View {
         }
     }
 
-    /// Formats a date as local time with timezone abbreviation, honoring the
-    /// device's 12/24-hour setting, e.g. "3:00pm EST" or "15:00 EST".
+    /// A date in the family's time, marked "L" (time labels design §3.7), honoring the device's 12/24-hour setting:
+    /// "3:00 PM L" or "15:00 L".
     private func formattedLocalTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = prefers24HourClock ? "HH:mm z" : "h:mma z"
-        formatter.amSymbol = "am"
-        formatter.pmSymbol = "pm"
-        formatter.timeZone = TimeZone.current
-        return formatter.string(from: date)
+        ClockLabel.yours(date)
+    }
+
+    /// Words holding the family's time, which VoiceOver reads with "your time" for the "L".
+    private func timeText(_ words: String) -> Text {
+        Text(words).accessibilityLabel(ClockLabel.spoken(words))
     }
 
     // MARK: - Airline Helpers

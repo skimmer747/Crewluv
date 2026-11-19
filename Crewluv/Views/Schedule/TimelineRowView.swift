@@ -90,6 +90,7 @@ struct TimelineRowView: View {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .accessibilityLabel(ClockLabel.spoken(subtitle))
                 }
 
                 Spacer()
@@ -247,40 +248,12 @@ struct TimelineRowView: View {
         }
     }
 
-    // MARK: - Subtitle (local times)
+    // MARK: - Subtitle (the family's times)
 
-    // Thread-safe cache of DateFormatters keyed by timezone identifier.
-    // DateFormatter is expensive to create, so we cache one per timezone.
-    // NSLock protects the dictionary from concurrent access.
-    private static var formatterCache: [String: DateFormatter] = [:]
-    private static let formatterLock = NSLock()
-
-    /// Returns a cached DateFormatter configured for "h:mm a" in the given timezone.
-    /// Creates and caches a new one if none exists yet for that timezone.
-    private static func formatter(for timeZone: TimeZone) -> DateFormatter {
-        let key = timeZone.identifier
-        formatterLock.lock()
-        defer { formatterLock.unlock() }
-
-        if let cached = formatterCache[key] {
-            return cached
-        }
-
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.dateFormat = "h:mma"
-        fmt.timeZone = timeZone
-        formatterCache[key] = fmt
-        return fmt
-    }
-
+    /// "9:02 AM – about 1:15 PM L": the family's times, one "L" at the end of the range (time labels design §3.7).
     private var subtitle: String {
-        let tz = TimeZone.current
-        let fmt = Self.formatter(for: tz)
-        let tzAbbr = (tz.abbreviation() ?? "").lowercased()
-        let start = fmt.string(from: leg.startTime).lowercased()
-        let end = fmt.string(from: leg.endTime).lowercased()
-        return "\(start) \(tzAbbr) – \(isArrivalEstimated ? "about " : "")\(end) \(tzAbbr)"
+        let start = TripMapWording.clockTime(leg.startTime, in: .current, locale: .current)
+        return "\(start) – \(isArrivalEstimated ? "about " : "")\(ClockLabel.yours(leg.endTime))"
     }
 
 }

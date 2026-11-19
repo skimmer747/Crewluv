@@ -94,15 +94,10 @@ struct PilotStatusView: View {
             .max()
     }
 
-    private static func formatHomeArrival(_ date: Date, homeTimezone: String?) -> String {
-        var style = Date.FormatStyle.dateTime
-            .weekday(.abbreviated)
-            .month(.abbreviated)
-            .day()
-            .hour()
-            .minute()
-        style.timeZone = homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
-        return date.formatted(style)
+    /// "Thu, Nov 20, 4:35 PM L": in the family's time, as the status sentence above it has it (time labels design
+    /// §3.7).
+    private static func formatHomeArrival(_ date: Date) -> String {
+        "\(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())), \(ClockLabel.yours(date))"
     }
 
     var body: some View {
@@ -156,7 +151,7 @@ struct PilotStatusView: View {
                         let isGoingHome = label.contains("Home")
                         // A time that's the real plane's estimate reads "about" (Stage 3 spec §9).
                         let isEstimate = estimatedArrival.map { abs($0.timeIntervalSince(homeTime)) < 1 } ?? false
-                        let dateStr = (isEstimate ? "About " : "") + Self.formatHomeArrival(homeTime, homeTimezone: status.homeTimezone)
+                        let dateStr = (isEstimate ? "About " : "") + Self.formatHomeArrival(homeTime)
                         let arrivalSubtitle = [dateStr, status.homeArrivalCity].compactMap { $0 }.joined(separator: " \u{00B7} ")
 
                         scheduleLink {
@@ -276,6 +271,11 @@ struct PilotStatusView: View {
                             .disabled(isSyncing)
                         }
                     }
+
+                    // The key to the family's times' "L" (time labels design §3.5).
+                    Text(ClockLabel.key(at: .now))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 .padding()
             }
@@ -345,22 +345,15 @@ struct PilotStatusView: View {
         return "Leaves In"
     }
 
+    /// "Departs Sunday March 1st at 5:57 PM L", in the family's time (time labels design §3.7).
     private var departureSubtitle: String? {
         guard let departureTime = leaveHomeTarget else { return nil }
-        let timezone = status.homeTimezone.flatMap { TimeZone(identifier: $0) } ?? .current
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE MMMM d"
-        formatter.timeZone = timezone
         let datePart = formatter.string(from: departureTime)
         let day = Calendar.current.component(.day, from: departureTime)
         let suffix = ordinalSuffix(for: day)
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mma"
-        timeFormatter.amSymbol = "am"
-        timeFormatter.pmSymbol = "pm"
-        timeFormatter.timeZone = timezone
-        let timePart = timeFormatter.string(from: departureTime)
-        return "Departs \(datePart)\(suffix) at \(timePart)"
+        return "Departs \(datePart)\(suffix) at \(ClockLabel.yours(departureTime))"
     }
 
     private func ordinalSuffix(for day: Int) -> String {
@@ -427,6 +420,7 @@ struct CountdownCardView: View {
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .accessibilityLabel(ClockLabel.spoken(subtitle))
             }
         }
         .padding(24)
@@ -661,7 +655,8 @@ struct LocationCardView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "clock.fill")
                                 .foregroundColor(.blue)
-                            Text("Current time:")
+                            // The pilot's own time, named by their city (time labels design §3.8).
+                            Text(status.currentCity.map { "Current time in \($0):" } ?? "Current time:")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                             Text(liveLocalTime)
@@ -689,21 +684,27 @@ struct LocationCardView: View {
             if let weather = currentWeather,
                let sunrise = weather.sunrise,
                let sunset = weather.sunset {
-                SunCircleView(
-                    sunrise: sunrise,
-                    sunset: sunset,
-                    isDaylight: weather.isDaylight,
-                    timezone: status.currentTimezone,
-                    nextDepartureTime: scheduledNextDepartureTime,
-                    flightDelayMinutes: status.effectiveFlightDelayMinutes,
-                    homeSunrise: homeWeather?.sunrise,
-                    homeSunset: homeWeather?.sunset,
-                    homeTimezone: status.homeTimezone
-                )
-                .offset(x: 0, y: -6)
-                .onTapGesture {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    showSunDetail = true
+                VStack(spacing: 2) {
+                    SunCircleView(
+                        sunrise: sunrise,
+                        sunset: sunset,
+                        isDaylight: weather.isDaylight,
+                        timezone: status.currentTimezone,
+                        nextDepartureTime: scheduledNextDepartureTime,
+                        flightDelayMinutes: status.effectiveFlightDelayMinutes,
+                        homeSunrise: homeWeather?.sunrise,
+                        homeSunset: homeWeather?.sunset,
+                        homeTimezone: status.homeTimezone
+                    )
+                    .offset(x: 0, y: -6)
+                    .onTapGesture {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        showSunDetail = true
+                    }
+                    // Whose times the dial's labels are: the pilot's (time labels design §3.8).
+                    Text(status.currentCity.map { "\($0) time" } ?? "Pilot's time")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
