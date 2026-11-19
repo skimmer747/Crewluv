@@ -38,13 +38,13 @@ final class TripMapWordingTests: XCTestCase {
     private var dubai: AirportMark { mark("DXB", "Dubai", "Asia/Dubai") }
 
     func test_placeChip_showsTheTimeThere() {
-        XCTAssertEqual(plain(TripMapWording.placeChip(for: cologne, at: now, locale: locale)), "Cologne · 9:14 PM there")
+        XCTAssertEqual(plain(TripMapWording.placeChip(for: cologne, at: now, locale: locale)), "Cologne · 9:14 PM")
     }
 
     func test_nextDepartureChip_tomorrowMorning_inYourTime() {
         let next = leg(from: cologne, to: dubai, start: now.addingTimeInterval(14 * 3600 + 56 * 60), end: now.addingTimeInterval(21 * 3600))
         XCTAssertEqual(plain(TripMapWording.nextDepartureChip(for: next, now: now, calendar: calendar, locale: locale)),
-                       "Next: Dubai, tomorrow 6:10 AM")
+                       "Next: Dubai, tomorrow 6:10 AM L")
     }
 
     func test_landingCountdown_hoursAndMinutes() {
@@ -61,18 +61,18 @@ final class TripMapWordingTests: XCTestCase {
     func test_landingLine_anotherTimeZone_givesBothTimes() {
         let flight = leg(from: louisville, to: cologne, start: now.addingTimeInterval(-6 * 3600), end: now.addingTimeInterval(16 * 60))
         XCTAssertEqual(plain(TripMapWording.landingLine(for: flight, calendar: calendar, locale: locale)),
-                       "Lands Cologne 9:30 PM · 3:30 PM your time")
+                       "Lands Cologne 9:30 PM · 3:30 PM L")
     }
 
     func test_landingLine_yourTimeZone_givesOneTime() {
         let homeward = leg(from: cologne, to: louisville, start: now.addingTimeInterval(-6 * 3600), end: now.addingTimeInterval(16 * 60))
-        XCTAssertEqual(plain(TripMapWording.landingLine(for: homeward, calendar: calendar, locale: locale)), "Lands Louisville 3:30 PM")
+        XCTAssertEqual(plain(TripMapWording.landingLine(for: homeward, calendar: calendar, locale: locale)), "Lands Louisville 3:30 PM L")
         XCTAssertNil(TripMapWording.arrivalLocalTime(for: homeward, calendar: calendar, locale: locale))
     }
 
     func test_landsAt_andArrivalLocalTime_forTheBar() {
         let flight = leg(from: louisville, to: cologne, start: now.addingTimeInterval(-6 * 3600), end: now.addingTimeInterval(16 * 60))
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: flight, calendar: calendar, locale: locale)), "Lands 3:30 PM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: flight, calendar: calendar, locale: locale)), "Lands 3:30 PM L")
         XCTAssertEqual(plain(TripMapWording.arrivalLocalTime(for: flight, calendar: calendar, locale: locale) ?? ""), "9:30 PM in Cologne")
     }
 
@@ -149,11 +149,11 @@ final class TripMapWordingTests: XCTestCase {
     func test_timelineLine_isTheTimeAndWhatThePilotIsDoing() {
         let activity = TripActivity(kind: .layover, place: cologne)
         XCTAssertEqual(plain(TripMapWording.timelineLine(now, activity: activity, calendar: calendar, locale: locale)),
-                       "Fri 3:14 PM · Layover in Cologne")
+                       "Fri 3:14 PM L · Layover in Cologne")
     }
 
     func test_timelineLine_noActivity_isTheTime() {
-        XCTAssertEqual(plain(TripMapWording.timelineLine(now, activity: nil, calendar: calendar, locale: locale)), "Fri 3:14 PM")
+        XCTAssertEqual(plain(TripMapWording.timelineLine(now, activity: nil, calendar: calendar, locale: locale)), "Fri 3:14 PM L")
     }
 
     func test_timelineSpokenValue_readsTheWholeDayAndTheActivity() {

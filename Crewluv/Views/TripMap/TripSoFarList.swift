@@ -4,7 +4,8 @@
 //
 //  The facts dragged all the way up (Stage 2 spec §5.2; best guesses design §3, §4): each flight's events under its
 //  name, newest first, then the trip's totals. The flight between its gates has a border and a tag, so it stands
-//  out from the flights before it. A best guess is drawn lighter, and slanted.
+//  out from the flights before it. A best guess is drawn lighter, and slanted. Its newest event is bold (time labels
+//  design §3.4).
 //
 
 import SwiftUI
@@ -84,8 +85,11 @@ struct TripSoFarList: View {
         ForEach(events) { event in
             Text(event.text)
                 .font(.subheadline)
+                .bold(event.isCurrent)
                 .italic(event.isEstimate)
                 .foregroundStyle(event.isEstimate ? .secondary : .primary)
+                .accessibilityLabel(ClockLabel.spoken(event.text) + (event.isCurrent ? ", latest" : ""))
+                .clockLabelHelp(for: event.text)
         }
     }
 }

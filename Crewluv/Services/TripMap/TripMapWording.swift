@@ -2,9 +2,9 @@
 //  TripMapWording.swift
 //  CrewLuve
 //
-//  Every sentence the trip map shows or speaks (moving map spec §5, §6, §14; Stage 3 spec §9). Times are the
-//  family's own, in `calendar.timeZone`, unless the words say "there". A landing time that's the real plane's
-//  estimate is marked "about".
+//  Every sentence the trip map shows or speaks (moving map spec §5, §6, §14; Stage 3 spec §9). The family's own
+//  times, in `calendar.timeZone`, are marked "L", and a city's follow its name (time labels design §2). VoiceOver says
+//  "your time". A landing time that's the real plane's estimate is marked "about".
 //
 
 import Foundation
@@ -30,16 +30,16 @@ nonisolated enum TripMapWording {
         }
     }
 
-    /// "Cologne · 9:14 PM there".
+    /// "Cologne · 9:14 PM": the city's time, after its name.
     static func placeChip(for place: AirportMark, at now: Date, locale: Locale = .current) -> String {
         guard let zone = place.timeZone else { return place.name }
-        return "\(place.name) · \(clockTime(now, in: zone, locale: locale)) there"
+        return "\(place.name) · \(clockTime(now, in: zone, locale: locale))"
     }
 
-    /// "Next: Dubai, tomorrow 6:10 AM".
+    /// "Next: Dubai, tomorrow 6:10 AM L".
     static func nextDepartureChip(for leg: MapLeg, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         let day = dayPhrase(for: leg.start, now: now, calendar: calendar, locale: locale)
-        return "Next: \(leg.destination.name), \(day) \(clockTime(leg.start, in: calendar.timeZone, locale: locale))"
+        return "Next: \(leg.destination.name), \(day) \(ClockLabel.yours(leg.start, calendar: calendar, locale: locale))"
     }
 
     /// "Home · next trip Wednesday", or "At base · next trip Wednesday" while the pilot waits at base (base waits
@@ -59,38 +59,40 @@ nonisolated enum TripMapWording {
 
     // MARK: - Landing
 
-    /// "Lands Cologne 9:30 PM · 3:30 PM your time", or one time when the destination keeps the family's. With the
-    /// real plane's estimate, "Lands Cologne about 9:18 PM · 3:18 PM your time".
+    /// "Lands Cologne 9:30 PM · 3:30 PM L", or one time, "Lands Louisville 3:30 PM L", when the destination keeps the
+    /// family's clock. With the real plane's estimate, "Lands Cologne about 9:18 PM · 3:18 PM L".
     static func landingLine(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let yours = clockTime(leg.end, in: calendar.timeZone, locale: locale)
-        guard let there = arrivalLocalClock(for: leg, calendar: calendar, locale: locale) else {
-            return "Lands \(leg.destination.name) \(about(leg))\(yours)"
-        }
-        return "Lands \(leg.destination.name) \(about(leg))\(there) · \(yours) your time"
+        "Lands \(leg.destination.name) \(about(leg))\(ClockLabel.pair(leg.end, in: leg.destination.timeZone, calendar: calendar, locale: locale))"
     }
 
-    /// "Reaches the gate at 3:52 PM · 7:52 PM your time", or one time where the destination keeps the family's: the
-    /// facts' landing row once the real plane is down (landed before the gate design §3). "at", as the card's sentence
-    /// and the plane's popup say it, unless the time is the real plane's estimate.
+    /// "Reaches the gate in Anchorage at 3:52 PM · 7:52 PM L", or one time where the destination keeps the family's
+    /// clock: the facts' landing row once the real plane is down (landed before the gate design §3). It names the city,
+    /// so its first time is the city's (time labels design §2). "at", as the card's sentence and the plane's popup say
+    /// it, unless the time is the real plane's estimate.
     static func gateLine(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
         let when = about(leg).isEmpty ? "at " : about(leg)
-        let yours = clockTime(leg.end, in: calendar.timeZone, locale: locale)
-        guard let there = arrivalLocalClock(for: leg, calendar: calendar, locale: locale) else {
-            return "Reaches the gate \(when)\(yours)"
-        }
-        return "Reaches the gate \(when)\(there) · \(yours) your time"
+        let pair = ClockLabel.pair(leg.end, in: leg.destination.timeZone, calendar: calendar, locale: locale)
+        return "Reaches the gate in \(leg.destination.name) \(when)\(pair)"
     }
 
-    /// "Lands 3:30 PM", for the card's bar. With the real plane's estimate, "Lands about 3:18 PM".
+    /// "Took off Taipei 7:42 PM · 6:42 AM L", or one time where the departure airport keeps the family's clock: the
+    /// facts' takeoff row (time labels design §3.3). "about" when it's the schedule's takeoff, not the real plane's.
+    static func takeoffLine(for leg: MapLeg, at takeoff: Date, isEstimate: Bool, calendar: Calendar = .current,
+                            locale: Locale = .current) -> String {
+        let pair = ClockLabel.pair(takeoff, in: leg.origin.timeZone, calendar: calendar, locale: locale)
+        return "Took off \(leg.origin.name) \(isEstimate ? "about " : "")\(pair)"
+    }
+
+    /// "Lands 3:30 PM L", for the card's bar. With the real plane's estimate, "Lands about 3:18 PM L".
     static func landsAt(for leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Lands \(about(leg))\(clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        "Lands \(about(leg))\(ClockLabel.yours(leg.end, calendar: calendar, locale: locale))"
     }
 
-    /// The card's bar's landing time at `now`: "Lands 3:30 PM", or once the real plane is down, before the gate, "At
-    /// the gate 3:30 PM" (landed before the gate design §3).
+    /// The card's bar's landing time at `now`: "Lands 3:30 PM L", or once the real plane is down, before the gate,
+    /// "At the gate 3:30 PM L" (landed before the gate design §3).
     static func barArrival(for leg: MapLeg, at now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         guard leg.isLandedBeforeGate(at: now) else { return landsAt(for: leg, calendar: calendar, locale: locale) }
-        return "At the gate \(clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        return "At the gate \(ClockLabel.yours(leg.end, calendar: calendar, locale: locale))"
     }
 
     /// "9:30 PM in Cologne", or nil when the destination keeps the family's time.
@@ -294,12 +296,12 @@ nonisolated enum TripMapWording {
         date.formatted(style(calendar: calendar, locale: locale).weekday(.abbreviated).hour().minute())
     }
 
-    /// "Sat 1:40 PM · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
-    /// While the flight's real plane is on the ground, `onGround`: "Mon 12:21 PM · On the ground in Rockford", "Mon
-    /// 12:21 PM · Returned to Rockford" or "Mon 7:45 PM · Landed in Anchorage".
+    /// "Sat 1:40 PM L · Layover in Denver": the line under the timeline, when and what (activity markers design §4.2).
+    /// While the flight's real plane is on the ground, `onGround`: "Mon 12:21 PM L · On the ground in Rockford", "Mon
+    /// 12:21 PM L · Returned to Rockford" or "Mon 7:45 PM L · Landed in Anchorage".
     static func timelineLine(_ date: Date, activity: TripActivity?, onGround: FlightOnGround? = nil,
                              calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let time = timelineTime(date, calendar: calendar, locale: locale)
+        let time = "\(timelineTime(date, calendar: calendar, locale: locale)) \(ClockLabel.mark)"
         guard let words = timelineWords(activity, onGround: onGround) else { return time }
         return "\(time) · \(words)"
     }
@@ -350,7 +352,7 @@ nonisolated enum TripMapWording {
             var parts = ["Trip map."]
             if let place = tripMap.pilotLocation(at: now) { parts.append("\(pilotName) is in \(place.name).") }
             if let next = tripMap.nextFlight(after: now) {
-                parts.append("\(nextDepartureChip(for: next, now: now, calendar: calendar, locale: locale)).")
+                parts.append("\(ClockLabel.spoken(nextDepartureChip(for: next, now: now, calendar: calendar, locale: locale))).")
             }
             return parts.joined(separator: " ")
         case .nextTrip:

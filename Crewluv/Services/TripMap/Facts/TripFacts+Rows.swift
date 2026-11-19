@@ -33,7 +33,7 @@ nonisolated extension TripFacts {
     private func flightRows(on leg: MapLeg, at date: Date, now: Date) -> [FactRow] {
         let plane = leg.plane(at: date, isReplay: isReplay)
         return [belowRow(on: leg, at: date), planeRow(on: leg, plane: plane), skyRow(on: leg, at: date),
-                distanceRow(on: leg, plane: plane, at: date), headedRow(on: leg, at: date, now: now)]
+                distanceRow(on: leg, plane: plane, at: date), takeoffRow(on: leg, at: date), headedRow(on: leg, at: date, now: now)]
             .compactMap { $0 }
     }
 
@@ -93,6 +93,7 @@ nonisolated extension TripFacts {
         let parts = [
             next.map { FactsWording.flyingInto($0.kind) },
             next.map { FactsWording.cockpitEvent($0, now: date, calendar: calendar, locale: locale) },
+            next.flatMap(FactsWording.cockpitGap),
             SkyFacts.chase(on: leg, at: date).map(FactsWording.chase),
             SkyFacts.moon(on: leg, at: date).map(FactsWording.moon),
         ].compactMap { $0 }
@@ -133,8 +134,24 @@ nonisolated extension TripFacts {
                        details: [halfway, speed, comparisons?.phrase(forMiles: totalMiles).map(FactsWording.midLine)])
     }
 
-    /// "Lands Cologne 9:30 PM · 3:30 PM your time", or once the real plane is down, before the gate, "Reaches the gate
-    /// at 9:30 PM · 3:30 PM your time" (landed before the gate design §3).
+    /// "Took off Taipei 7:42 PM · 6:42 AM L" once the plane is off the ground (time labels design §3.3): the real
+    /// plane's takeoff where it was seen, else the schedule's, "about". Left out before it, and while a real plane is
+    /// still at its departure airport or back there after an air return. Left out too for a real plane first seen too
+    /// far out to tell when it left: the schedule's time could be an hour off for a late flight.
+    private func takeoffRow(on leg: MapLeg, at date: Date) -> FactRow? {
+        guard !isStillOnGround(leg, at: date) else { return nil }
+        let record = leg.flight?.record
+        if let record, record.takeoff == nil { return nil }
+        let seen = record?.takeoff
+        let schedules = leg.flight?.plan.takeoff ?? FlightProgress.airborneWindow(departure: leg.start, arrival: leg.end)?.start
+        guard let takeoff = seen ?? schedules, takeoff <= date else { return nil }
+        return FactRow(.takeoff, symbol: "airplane.departure",
+                       title: TripMapWording.takeoffLine(for: leg, at: takeoff, isEstimate: seen == nil,
+                                                         calendar: calendar, locale: locale))
+    }
+
+    /// "Lands Cologne 9:30 PM · 3:30 PM L", or once the real plane is down, before the gate, "Reaches the gate at
+    /// 9:30 PM · 3:30 PM L" (landed before the gate design §3).
     private func headedRow(on leg: MapLeg, at date: Date, now: Date) -> FactRow {
         let landingWeather = forecast(for: leg, now: now)
         let title = isLandedBeforeGate(leg, at: date)
@@ -158,7 +175,7 @@ nonisolated extension TripFacts {
         let difference = place.timeZone.flatMap { FactsWording.timeDifference(from: $0, to: calendar.timeZone, at: date) }
         let sun = place.timeZone.flatMap { zone in
             SkyFacts.nextGroundSunEvent(at: place.coordinate, after: date).map {
-                FactsWording.groundSun($0.kind, at: $0.time, in: zone, locale: locale)
+                FactsWording.groundSun($0.kind, at: $0.time, in: zone, city: place.name, locale: locale)
             }
         }
         return FactRow(.whereTheyAre, symbol: "mappin.and.ellipse", title: "In \(place.name)", details: [difference, sun])
@@ -195,7 +212,7 @@ nonisolated extension TripFacts {
     private func leavesRow(at date: Date, now: Date) -> FactRow? {
         guard let first = tripMap.nextFlight(after: date) else { return nil }
         let day = TripMapWording.dayPhrase(for: first.start, now: date, calendar: calendar, locale: locale)
-        let clock = TripMapWording.clockTime(first.start, in: calendar.timeZone, locale: locale)
+        let clock = ClockLabel.yours(first.start, calendar: calendar, locale: locale)
         let flight = first.flightNumber.map { "\($0) to \(first.destination.name)" } ?? "Flying to \(first.destination.name)"
         let landingWeather = forecast(for: first, now: now)
         return FactRow(.leaves, symbol: "airplane.departure", title: "Leaves \(day) \(clock)",

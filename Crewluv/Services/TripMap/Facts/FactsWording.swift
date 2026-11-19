@@ -2,9 +2,9 @@
 //  FactsWording.swift
 //  CrewLuve
 //
-//  The facts' sentences (Stage 2 spec §4, §5): milestones, what's below, the sky, distance and landing. Times are the
-//  family's own, in `calendar.timeZone`, unless the words say "there". Totals and the recap are in
-//  FactsWording+Trip.swift.
+//  The facts' sentences (Stage 2 spec §4, §5): milestones, what's below, the sky, distance and landing. The family's
+//  own times, in `calendar.timeZone`, are marked "L", and a city's follow its name (time labels design §2). Totals and
+//  the recap are in FactsWording+Trip.swift.
 //
 
 import Foundation
@@ -23,8 +23,8 @@ nonisolated enum FactsWording {
         }
     }
 
-    /// The tall stop's list: "Crossed into Kansas · 1:12 PM". A best guess reads "about": "Out over the Pacific ·
-    /// about 4:05 PM" (best guesses design §2).
+    /// The tall stop's list: "Crossed into Kansas · 1:12 PM L". A best guess reads "about": "Out over the Pacific ·
+    /// about 4:05 PM L" (best guesses design §2).
     static func listLine(for milestone: Milestone, calendar: Calendar = .current, locale: Locale = .current) -> String {
         "\(eventTitle(for: milestone.kind)) · \(clock(of: milestone, calendar: calendar, locale: locale))"
     }
@@ -42,24 +42,24 @@ nonisolated enum FactsWording {
 
     /// When an event was, under it in the banner: "Just now" in its first minute, then "12 min ago". A best guess
     /// says so: "About now", "About 12 min ago". At a moment of the replay, where "ago" means nothing, its clock
-    /// time: "10:37 AM", "About 10:37 AM".
+    /// time: "10:37 AM L", "About 10:37 AM L".
     static func eventWhen(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
                           calendar: Calendar = .current, locale: Locale = .current) -> String {
         let about = milestone.isEstimate ? "About " : ""
         if isReplay {
-            return about + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+            return about + ClockLabel.yours(milestone.time, calendar: calendar, locale: locale)
         }
         guard let minutes = minutesSince(milestone.time, at: date) else { return milestone.isEstimate ? "About now" : "Just now" }
         return "\(about)\(TripMapWording.minutesText(minutes)) ago"
     }
 
     /// The widest "when" the banner shows: a best guess more than ten hours ago. A replay's clock time, "About 10:37
-    /// AM", is narrower. The key to the two planes goes by it, so it doesn't move while the same event shows (which
+    /// AM L", is narrower. The key to the two planes goes by it, so it doesn't move while the same event shows (which
     /// plane design §2).
     static let widestEventWhen = "About 88 h 88 min ago"
 
     /// The banner as VoiceOver reads it: "Latest: crossed into Canada, 12 minutes ago.", "Latest: halfway, about
-    /// 40 minutes ago.", or at a moment of the replay "Latest: crossed into Canada, at 10:37 AM."
+    /// 40 minutes ago.", or at a moment of the replay "Latest: crossed into Canada, at 10:37 AM your time."
     static func spokenLatestEvent(_ milestone: Milestone, at date: Date, isReplay: Bool = false,
                                   calendar: Calendar = .current, locale: Locale = .current) -> String {
         let what: String
@@ -72,7 +72,7 @@ nonisolated enum FactsWording {
         let about = milestone.isEstimate ? "about " : ""
         let when: String
         if isReplay {
-            when = "at \(about)\(TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale))"
+            when = "at \(about)\(ClockLabel.spoken(ClockLabel.yours(milestone.time, calendar: calendar, locale: locale)))"
         } else if let minutes = minutesSince(milestone.time, at: date) {
             when = "\(about)\(TripMapWording.spokenMinutes(minutes)) ago"
         } else {
@@ -94,11 +94,11 @@ nonisolated enum FactsWording {
         city.map { "Over \(place.name), near \($0.name)" } ?? "Over \(place.name)"
     }
 
-    /// "Passes 40 mi from home at 1:05 PM", or "Closest to home was 40 mi at 1:05 PM" once it's passed. Where
-    /// nobody saw the real plane the time is a best guess: "Passes 40 mi from home at about 1:05 PM".
+    /// "Passes 40 mi from home at 1:05 PM L", or "Closest to home was 40 mi at 1:05 PM L" once it's passed. Where
+    /// nobody saw the real plane the time is a best guess: "Passes 40 mi from home at about 1:05 PM L".
     static func closestToHome(miles: Int, at time: Date, now: Date, isEstimate: Bool = false,
                               calendar: Calendar = .current, locale: Locale = .current) -> String {
-        let clock = (isEstimate ? "about " : "") + TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale)
+        let clock = (isEstimate ? "about " : "") + ClockLabel.yours(time, calendar: calendar, locale: locale)
         return time > now ? "Passes \(miles) mi from home at \(clock)" : "Closest to home was \(miles) mi at \(clock)"
     }
 
@@ -189,16 +189,22 @@ nonisolated enum FactsWording {
         "\(name(of: event.kind)) from the cockpit in \(minutes(from: now, to: event.time)) min"
     }
 
-    /// The sky row: "Sunset in 25 min, about 12 min after the people below", or "Sunrise at 6:38 AM" an hour or more
-    /// ahead.
+    /// The sky row: "Sunset in 25 min", or "Sunrise at 6:38 AM L" an hour or more ahead.
     static func cockpitEvent(_ event: SkyFacts.SunEvent, now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
         // Under 59 minutes as a countdown, so it never reads "in 60 min".
         let when = event.time.timeIntervalSince(now) < 59 * 60
             ? "in \(minutes(from: now, to: event.time)) min"
-            : "at \(TripMapWording.clockTime(event.time, in: calendar.timeZone, locale: locale))"
-        guard let gap = event.peopleBelowGap else { return "\(name(of: event.kind)) \(when)" }
+            : "at \(ClockLabel.yours(event.time, calendar: calendar, locale: locale))"
+        return "\(name(of: event.kind)) \(when)"
+    }
+
+    /// After the sky row's sunrise or sunset, how much sooner or later the cockpit sees it than the ground below
+    /// (time labels design §3.6): "The pilot sees it 31 min before the ground does". Nil when they see it about
+    /// together.
+    static func cockpitGap(_ event: SkyFacts.SunEvent) -> String? {
+        guard let gap = event.peopleBelowGap else { return nil }
         let side = event.kind == .sunset ? "after" : "before"
-        return "\(name(of: event.kind)) \(when), about \(Int((gap / 60).rounded())) min \(side) the people below"
+        return "The pilot sees it \(Int((gap / 60).rounded())) min \(side) the ground does"
     }
 
     static func flyingInto(_ kind: SkyFacts.SunEvent.Kind) -> String {
@@ -227,9 +233,10 @@ nonisolated enum FactsWording {
         }
     }
 
-    /// On the ground at an airport: "sunrise at 7:02 AM there".
-    static func groundSun(_ kind: SkyFacts.SunEvent.Kind, at time: Date, in zone: TimeZone, locale: Locale = .current) -> String {
-        "\(kind == .sunrise ? "sunrise" : "sunset") at \(TripMapWording.clockTime(time, in: zone, locale: locale)) there"
+    /// On the ground at an airport: "sunrise at 7:02 AM Cologne".
+    static func groundSun(_ kind: SkyFacts.SunEvent.Kind, at time: Date, in zone: TimeZone, city: String,
+                          locale: Locale = .current) -> String {
+        "\(kind == .sunrise ? "sunrise" : "sunset") at \(ClockLabel.place(time, in: zone, city: city, locale: locale))"
     }
 
     // MARK: - Distance (§4.6)
@@ -249,9 +256,9 @@ nonisolated enum FactsWording {
         "\(number(miles, locale: locale)) mi flown"
     }
 
-    /// "Halfway at 4:12 PM", or with the real plane's estimate "Halfway at about 12:05 PM" (Stage 3 spec §8).
+    /// "Halfway at 4:12 PM L", or with the real plane's estimate "Halfway at about 12:05 PM L" (Stage 3 spec §8).
     static func halfway(at time: Date, isEstimate: Bool = false, calendar: Calendar = .current, locale: Locale = .current) -> String {
-        "Halfway at \(isEstimate ? "about " : "")\(TripMapWording.clockTime(time, in: calendar.timeZone, locale: locale))"
+        "Halfway at \(isEstimate ? "about " : "")\(ClockLabel.yours(time, calendar: calendar, locale: locale))"
     }
 
     /// "Averaging about 510 mph", to the nearest 10.
@@ -283,15 +290,14 @@ nonisolated enum FactsWording {
         return "\(amount) \(unit) \(seconds > 0 ? "ahead of" : "behind") you"
     }
 
-    /// "lands 4:05 PM there", or in the family's time when the destination keeps it or its zone isn't known. With
-    /// the real plane's estimate, "lands about 3:52 PM there" (Stage 3 spec §9).
+    /// "lands 4:05 PM Dubai", or in the family's time, "lands 4:05 PM L", when the destination keeps it or its zone
+    /// isn't known. With the real plane's estimate, "lands about 3:52 PM Dubai" (Stage 3 spec §9).
     static func lands(_ leg: MapLeg, calendar: Calendar = .current, locale: Locale = .current) -> String {
         let about = TripMapWording.about(leg)
-        if let there = leg.destination.timeZone,
-           there.secondsFromGMT(for: leg.end) != calendar.timeZone.secondsFromGMT(for: leg.end) {
-            return "lands \(about)\(TripMapWording.clockTime(leg.end, in: there, locale: locale)) there"
+        if let there = leg.destination.timeZone, !ClockLabel.keepsTheSameClock(there, as: calendar.timeZone, at: leg.end) {
+            return "lands \(about)\(ClockLabel.place(leg.end, in: there, city: leg.destination.name, locale: locale))"
         }
-        return "lands \(about)\(TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale))"
+        return "lands \(about)\(ClockLabel.yours(leg.end, calendar: calendar, locale: locale))"
     }
 
     // MARK: - Helpers
@@ -309,9 +315,9 @@ nonisolated enum FactsWording {
         kind == .sunrise ? "Sunrise" : "Sunset"
     }
 
-    /// "1:12 PM", or "about 1:12 PM" for a best guess.
+    /// "1:12 PM L", or "about 1:12 PM L" for a best guess.
     private static func clock(of milestone: Milestone, calendar: Calendar, locale: Locale) -> String {
-        (milestone.isEstimate ? "about " : "") + TripMapWording.clockTime(milestone.time, in: calendar.timeZone, locale: locale)
+        (milestone.isEstimate ? "about " : "") + ClockLabel.yours(milestone.time, calendar: calendar, locale: locale)
     }
 
     /// The minutes from `time` to `date`, to the nearest, held to a year. Nil under a minute.

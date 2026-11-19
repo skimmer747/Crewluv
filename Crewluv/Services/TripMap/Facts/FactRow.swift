@@ -11,7 +11,7 @@ nonisolated struct FactRow: Identifiable, Equatable, Sendable {
 
     nonisolated enum Kind: String, Sendable {
         // In flight (§5.1), with the plane's row for a flight with live data (Stage 3 spec §8)
-        case below, plane, sky, distance, headed
+        case below, plane, sky, distance, takeoff, headed
         // On a layover (§5.3), at home before a trip (§5.4) and in the recap (§5.5)
         case whereTheyAre, nextFlight, leaves, tripAhead, theTrip, onTheWay, tripSoFar, longestFlight
     }
@@ -27,9 +27,10 @@ nonisolated struct FactRow: Identifiable, Equatable, Sendable {
 
     var id: Kind { kind }
 
-    /// The row as VoiceOver reads it, with commas where the screen shows " · ".
+    /// The row as VoiceOver reads it, with commas where the screen shows " · ", and "your time" for the family's
+    /// times' "L".
     var sentence: String {
-        [title, detail?.replacingOccurrences(of: " · ", with: ", ")].compactMap { $0 }.joined(separator: ". ")
+        ClockLabel.spoken([title, detail?.replacingOccurrences(of: " · ", with: ", ")].compactMap { $0 }.joined(separator: ". "))
     }
 
     /// A row whose second line is `details` without the nils.

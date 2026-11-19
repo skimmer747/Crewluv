@@ -44,18 +44,18 @@ final class TripFactsRowsTests: XCTestCase {
 
     func test_rows_inFlight_belowDistanceAndLanding() throws {
         let rows = try facts(equatorMap()).rows(at: FactsTestData.date("2026-03-20T11:10:00Z"), now: FactsTestData.date("2026-03-20T11:10:00Z"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .distance, .headed], "no sky row: midday, eastbound, and no moon")
+        XCTAssertEqual(rows.map(\.kind), [.below, .distance, .takeoff, .headed], "no sky row: midday, eastbound, and no moon")
 
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Over Bravo, near Testville")
-        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at 8:21 AM")
+        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at 8:21 AM L")
 
         let distance = try row(.distance, in: rows)
         XCTAssertEqual(distance.title, "422 mi flown · 960 to go")
-        XCTAssertEqual(plain(distance.detail), "Halfway at 7:45 AM · Averaging about 460 mph · like driving the Alaska Highway")
+        XCTAssertEqual(plain(distance.detail), "Halfway at 7:45 AM L · Averaging about 460 mph · like driving the Alaska Highway")
 
         let headed = try row(.headed, in: rows)
-        XCTAssertEqual(plain(headed.title), "Lands E20 9:22 AM")
+        XCTAssertEqual(plain(headed.title), "Lands E20 9:22 AM L")
         XCTAssertNil(headed.detail)
     }
 
@@ -82,7 +82,7 @@ final class TripFactsRowsTests: XCTestCase {
         let at = FactsTestData.date("2026-11-13T20:30:00Z")
         let sky = try row(.sky, in: try facts(map).rows(at: at, now: at))
         XCTAssertEqual(sky.title, "Flying into the night")
-        XCTAssertEqual(sky.detail, "Sunset in 17 min, about 21 min after the people below")
+        XCTAssertEqual(sky.detail, "Sunset in 17 min · The pilot sees it 21 min after the ground does")
         XCTAssertEqual(sky.symbolName, "sunset.fill")
     }
 
@@ -96,11 +96,11 @@ final class TripFactsRowsTests: XCTestCase {
 
         let here = try row(.whereTheyAre, in: rows)
         XCTAssertEqual(here.title, "In Cologne")
-        XCTAssertEqual(plain(here.detail), "6 hours ahead of you · sunrise at 7:45 AM there")
+        XCTAssertEqual(plain(here.detail), "6 hours ahead of you · sunrise at 7:45 AM Cologne")
 
         let next = try row(.nextFlight, in: rows)
-        XCTAssertEqual(plain(next.title), "Next: Dubai, tomorrow 3:00 PM")
-        XCTAssertEqual(plain(next.detail), "3,086 mi, like driving coast to coast · lands 6:00 AM there")
+        XCTAssertEqual(plain(next.title), "Next: Dubai, tomorrow 3:00 PM L")
+        XCTAssertEqual(plain(next.detail), "3,086 mi, like driving coast to coast · lands 6:00 AM Dubai")
 
         XCTAssertEqual(try row(.tripSoFar, in: rows).detail, "1 city · 4,351 mi · 6 time zones · 1 sunset from the cockpit")
     }
@@ -114,7 +114,7 @@ final class TripFactsRowsTests: XCTestCase {
         XCTAssertEqual(rows.map(\.kind), [.leaves, .tripAhead, .onTheWay])
 
         let leaves = try row(.leaves, in: rows)
-        XCTAssertEqual(plain(leaves.title), "Leaves tomorrow 7:00 AM")
+        XCTAssertEqual(plain(leaves.title), "Leaves tomorrow 7:00 AM L")
         XCTAssertEqual(leaves.detail, "UPS207 to Cologne")
 
         XCTAssertEqual(try row(.tripAhead, in: rows).detail, "4 days · Cologne, Dubai · 14,819 mi · like digging straight through the Earth twice")

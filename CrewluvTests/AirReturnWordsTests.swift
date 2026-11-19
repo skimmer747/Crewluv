@@ -59,7 +59,7 @@ final class AirReturnWordsTests: XCTestCase {
     func test_popup_saysItReturned_andWhenItLands() throws {
         let (leg, at) = try returned()
         let words = PlanePopupWords(leg: leg, plane: .realPlane, at: at, isReplay: false, calendar: calendar, locale: locale)
-        XCTAssertEqual(words.lines.map { plain($0) }, ["Returned to SDF", "Lands about 9:11 AM"])
+        XCTAssertEqual(words.lines.map { plain($0) }, ["Returned to SDF", "Lands about 9:11 AM L"])
     }
 
     // MARK: - The timeline
@@ -77,7 +77,7 @@ final class AirReturnWordsTests: XCTestCase {
         let flying = TripActivity(kind: .flying, place: rockford)
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .returnedTo(rockford),
                                                          calendar: calendar, locale: locale)),
-                       "Fri 12:21 PM · Returned to Rockford")
+                       "Fri 12:21 PM L · Returned to Rockford")
         XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .returnedTo(rockford),
                                                                 calendar: calendar, locale: locale)),
                        "Friday 12:21 PM, returned to Rockford")

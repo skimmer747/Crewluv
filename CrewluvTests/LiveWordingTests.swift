@@ -90,34 +90,34 @@ final class LiveWordingTests: XCTestCase {
 
     func test_landsAt_theRealPlanesEstimate_saysAbout() throws {
         let (ahead, _) = try leg(of: "ahead, in the air", at: "13T12:41:50")
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: ahead, calendar: calendar, locale: locale)), "Lands about 8:30 AM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: ahead, calendar: calendar, locale: locale)), "Lands about 8:30 AM L")
         let (late, _) = try leg(of: "still on the ground twenty minutes after", at: "13T12:35:00")
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: late, calendar: calendar, locale: locale)), "Lands about 9:05 AM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: late, calendar: calendar, locale: locale)), "Lands about 9:05 AM L")
     }
 
     func test_landsAt_theSchedulesTime_andALandedFlights_haveNoAbout() throws {
         let (scheduled, _) = try leg(of: "no live data", at: "13T12:30:00")
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: scheduled, calendar: calendar, locale: locale)), "Lands 8:45 AM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: scheduled, calendar: calendar, locale: locale)), "Lands 8:45 AM L")
         let (early, _) = try leg(of: "on the ground before the plan's takeoff", at: "13T12:10:00")
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: early, calendar: calendar, locale: locale)), "Lands 8:45 AM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: early, calendar: calendar, locale: locale)), "Lands 8:45 AM L")
         let (landed, _) = try leg(of: "landed, seen all the way", at: "13T13:30:00")
-        XCTAssertEqual(plain(TripMapWording.landsAt(for: landed, calendar: calendar, locale: locale)), "Lands 8:21 AM")
+        XCTAssertEqual(plain(TripMapWording.landsAt(for: landed, calendar: calendar, locale: locale)), "Lands 8:21 AM L")
     }
 
     func test_landingLine_theRealPlanesEstimate_saysAboutOnce() throws {
         let (toCologne, _) = try leg(of: "behind, with a late first point and an unseen ocean", at: "14T00:13:00")
         XCTAssertEqual(plain(TripMapWording.landingLine(for: toCologne, calendar: calendar, locale: locale)),
-                       "Lands Cologne about 3:54 AM · 9:54 PM your time")
+                       "Lands Cologne about 3:54 AM · 9:54 PM L")
         let (toPhiladelphia, _) = try leg(of: "ahead, in the air", at: "13T12:41:50")
         XCTAssertEqual(plain(TripMapWording.landingLine(for: toPhiladelphia, calendar: calendar, locale: locale)),
-                       "Lands Philadelphia about 8:30 AM")
+                       "Lands Philadelphia about 8:30 AM L")
     }
 
     func test_factsLands_theRealPlanesEstimate_saysAbout() throws {
         let (toCologne, _) = try leg(of: "behind, with a late first point and an unseen ocean", at: "14T00:13:00")
-        XCTAssertEqual(plain(FactsWording.lands(toCologne, calendar: calendar, locale: locale)), "lands about 3:54 AM there")
+        XCTAssertEqual(plain(FactsWording.lands(toCologne, calendar: calendar, locale: locale)), "lands about 3:54 AM Cologne")
         let (toPhiladelphia, _) = try leg(of: "ahead, in the air", at: "13T12:41:50")
-        XCTAssertEqual(plain(FactsWording.lands(toPhiladelphia, calendar: calendar, locale: locale)), "lands about 8:30 AM")
+        XCTAssertEqual(plain(FactsWording.lands(toPhiladelphia, calendar: calendar, locale: locale)), "lands about 8:30 AM L")
     }
 
     func test_landingCountdown_countsToTheRealPlanesArrival() throws {

@@ -53,30 +53,30 @@ final class PlanePopupWordsTests: XCTestCase {
 
     func test_realPlaneInTheAir_saysTheBarsWords_andWhenItLands() throws {
         XCTAssertEqual(try realPlane("ahead, in the air"),
-                       PlanePopupWords(title: "UPS207 · real plane", lines: ["14 min ahead", "Lands about 8:30 AM"]))
+                       PlanePopupWords(title: "UPS207 · real plane", lines: ["14 min ahead", "Lands about 8:30 AM L"]))
     }
 
     func test_realPlaneStillAtTheGate_afterItsTakeoffTime_saysSo() throws {
         XCTAssertEqual(try realPlane("still on the ground twenty minutes after"),
-                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Still on the ground · 20 min behind", "Lands about 9:05 AM"]))
+                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Still on the ground · 20 min behind", "Lands about 9:05 AM L"]))
     }
 
     func test_realPlaneWithNoLabel_beforeItsTakeoffTime_landsOnTheSchedulesTime_withNoAbout() throws {
         XCTAssertEqual(try realPlane("on the ground before the plan's takeoff"),
-                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Lands 8:45 AM"]))
+                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Lands 8:45 AM L"]))
     }
 
     func test_fadedPlane_isABestGuess_saysWhenItWentOutOfTrackingRange_andLandsAbout() throws {
         // Last seen at 12:41:40 UTC, 7:41 AM in Louisville.
         XCTAssertEqual(try realPlane("ahead, in the air", moment: 2),
                        PlanePopupWords(title: "UPS207 · best guess",
-                                       lines: ["Out of tracking range since 7:41 AM, so it's shown where it should be by now",
-                                               "About 14 min ahead · lands about 8:30 AM"]))
+                                       lines: ["Out of tracking range since 7:41 AM L, so it's shown where it should be by now",
+                                               "About 14 min ahead · lands about 8:30 AM L"]))
     }
 
     func test_landedPlane_saysWhenItReachesTheGate() throws {
         XCTAssertEqual(try realPlane("landed, seen all the way"),
-                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Landed 23 min early", "Reaches the gate at 8:21 AM"]))
+                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Landed 23 min early", "Reaches the gate at 8:21 AM L"]))
     }
 
     func test_planeDownSomewhereElse_saysOnlyWhichPlaneItIs() throws {
@@ -94,7 +94,7 @@ final class PlanePopupWordsTests: XCTestCase {
     func test_replay_saysWhereTheRealPlaneWasAtTheMoment() throws {
         let (leg, at) = try leg(of: "ahead, in the air")
         XCTAssertEqual(words(on: leg, at: at, isReplay: true),
-                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Where it was at 7:41 AM"]))
+                       PlanePopupWords(title: "UPS207 · real plane", lines: ["Where it was at 7:41 AM L"]))
     }
 
     // MARK: - Names and clocks
@@ -113,9 +113,9 @@ final class PlanePopupWordsTests: XCTestCase {
         cologne.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
         // 12:41:50 UTC is 1:41 PM in Cologne, on a 24-hour clock there.
         XCTAssertEqual(words(on: leg, at: at, isReplay: true, calendar: cologne, locale: Locale(identifier: "de_DE")).lines,
-                       ["Where it was at 13:41"])
+                       ["Where it was at 13:41 L"])
         XCTAssertEqual(words(on: leg, at: at, calendar: cologne, locale: Locale(identifier: "de_DE")).lines,
-                       ["14 min ahead", "Lands about 14:30"])
+                       ["14 min ahead", "Lands about 14:30 L"])
     }
 
     // MARK: - The shared cases

@@ -32,5 +32,6 @@ struct FactRowView: View {
         .padding(.vertical, 8)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.sentence)
+        .clockLabelHelp(for: [row.title, row.detail ?? ""].joined(separator: " "))
     }
 }
