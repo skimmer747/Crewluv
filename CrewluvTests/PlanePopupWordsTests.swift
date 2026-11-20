@@ -51,6 +51,26 @@ final class PlanePopupWordsTests: XCTestCase {
         XCTAssertEqual(words(on: leg, .ghost, at: at), PlanePopupWords(title: "On schedule", lines: ["Where UPS207 was scheduled to be"]))
     }
 
+    func test_schedulesOwnPlane_isByTheSchedule_notTrackedLive_andMayStillBeAtTheGate() throws {
+        let expected = PlanePopupWords(title: "UPS207 · by the schedule",
+                                       lines: ["Not tracked live, so it's shown where the schedule has it",
+                                               "If it's running late, it may still be at the gate"])
+        let (noLiveData, now) = try leg(of: "no live data")
+        XCTAssertEqual(words(on: noLiveData, .schedulePlane, at: now), expected)
+        let (leg, at) = try leg(of: "ahead, in the air")
+        let scheduleOnly = MapLeg(id: leg.id, kind: .flight, origin: leg.origin, destination: leg.destination,
+                                  start: leg.start, end: leg.end, flightNumber: leg.flightNumber)
+        XCTAssertEqual(words(on: scheduleOnly, .schedulePlane, at: at), expected)
+    }
+
+    func test_schedulesOwnPlaneInAReplay_saysWhereTheScheduleHadItAtTheMoment() throws {
+        let (leg, at) = try leg(of: "ahead, in the air")
+        let scheduleOnly = MapLeg(id: leg.id, kind: .flight, origin: leg.origin, destination: leg.destination,
+                                  start: leg.start, end: leg.end, flightNumber: leg.flightNumber)
+        XCTAssertEqual(words(on: scheduleOnly, .schedulePlane, at: at, isReplay: true),
+                       PlanePopupWords(title: "UPS207 · by the schedule", lines: ["Where the schedule had it at 7:41 AM L"]))
+    }
+
     func test_realPlaneInTheAir_saysTheBarsWords_andWhenItLands() throws {
         XCTAssertEqual(try realPlane("ahead, in the air"),
                        PlanePopupWords(title: "UPS207 · real plane", lines: ["14 min ahead", "Lands about 8:30 AM L"]))
@@ -105,6 +125,7 @@ final class PlanePopupWordsTests: XCTestCase {
                              start: leg.start, end: leg.end, flightNumber: nil, flight: leg.flight)
         XCTAssertEqual(words(on: unnamed, .ghost, at: at).lines, ["Where the flight was scheduled to be"])
         XCTAssertEqual(words(on: unnamed, at: at).title, "The flight · real plane")
+        XCTAssertEqual(words(on: unnamed, .schedulePlane, at: at).title, "The flight · by the schedule")
     }
 
     func test_timesFollowThisDevicesTimeZoneAndClock() throws {

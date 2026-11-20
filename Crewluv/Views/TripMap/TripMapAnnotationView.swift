@@ -47,9 +47,9 @@ final class TripMapAnnotationView: MKAnnotationView {
     func refresh() {
         guard let marker = (annotation as? TripMapAnnotation)?.marker else { return }
         let host = host(showing: marker)
-        // Only the real plane and its ghost take a tap, which opens their popup on the full-screen map (which plane
-        // design §3). Touches on every other marker go on to the map. A tapped plane keeps its place in the stack, so
-        // the ghost never lifts over the real plane, nor a car over either.
+        // Only the planes take a tap, which opens their popup on the full-screen map (which plane design §3): the real
+        // plane, its ghost, and the schedule's own plane. Touches on every other marker go on to the map. A tapped
+        // plane keeps its place in the stack, so the ghost never lifts over the real plane, nor a car over either.
         isEnabled = marker.planeKind != nil
         zPriority = Self.zPriority(of: marker)
         selectedZPriority = zPriority

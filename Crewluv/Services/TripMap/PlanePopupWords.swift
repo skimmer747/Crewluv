@@ -4,15 +4,17 @@
 //
 //  What a plane's popup on the full-screen map says (which plane design §3): which plane it is, then what the card's
 //  bar says of it, with when it lands, in this device's time zone and clock, marked "L" (time labels design §3.2).
-//  Nothing else writes them.
+//  The schedule's own plane, alone, says it's the schedule's and not tracked live. Nothing else writes them.
 //
 
 import Foundation
 
-/// Which of a flight's two planes: the real one, or the ghost where an on-schedule plane would be.
+/// Which of a flight's planes: the real one, the ghost where an on-schedule plane would be, or the schedule's own plane,
+/// alone while the flight has no real plane.
 nonisolated enum PlaneKind: Equatable, Sendable {
     case realPlane
     case ghost
+    case schedulePlane
 }
 
 nonisolated struct PlanePopupWords: Equatable, Sendable {
@@ -31,9 +33,19 @@ nonisolated struct PlanePopupWords: Equatable, Sendable {
          calendar: Calendar = .current, locale: Locale = .current) {
         let name = leg.flightNumber ?? "the flight"
         func time(_ date: Date) -> String { ClockLabel.yours(date, calendar: calendar, locale: locale) }
-        guard plane == .realPlane else {
+        switch plane {
+        case .ghost:
             self.init(title: "On schedule", lines: ["Where \(name) was scheduled to be"])
             return
+        case .schedulePlane:
+            // It flies the schedule's times while nobody tracks the real plane, which may not have left its gate: it
+            // says so, or a family takes it for the real one taking off (Todd, 20 Nov 2026).
+            let lines = isReplay ? ["Where the schedule had it at \(time(date))"]
+                : ["Not tracked live, so it's shown where the schedule has it", "If it's running late, it may still be at the gate"]
+            self.init(title: "\(Self.capitalized(name)) · by the schedule", lines: lines)
+            return
+        case .realPlane:
+            break
         }
         let title = "\(Self.capitalized(name)) · real plane"
         if isReplay {
