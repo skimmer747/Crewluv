@@ -448,8 +448,8 @@ class PartnerStatusReceiver {
         let displayStatus = resolved?.displayStatus ?? raw.displayStatus
         let isInFlight = resolved?.isInFlight ?? raw.isInFlight
 
-        // Find when the pilot's current trip brings him home: the last homebound
-        // leg — flight or drive — of the trip block he is in (see resolveHomeArrival).
+        // Find when the pilot's current trip brings them home, trip by trip as the
+        // website finds it (see resolveHomeArrival).
         let homeArrival = TripStateResolver.resolveHomeArrival(
             legs: legs, homeAirportCode: raw.homeAirportCode, at: now
         )

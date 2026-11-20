@@ -53,7 +53,7 @@ struct AlertCasesTests {
         let zone = try #require(file["timeZone"] as? String)
         let timeZone = try #require(TimeZone(identifier: zone))
         let cases = try #require(file["cases"] as? [[String: Any]])
-        #expect(cases.count == 57)
+        #expect(cases.count == 59)
 
         for item in cases {
             let name = try #require(item["name"] as? String)

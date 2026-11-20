@@ -75,6 +75,7 @@
 				Models/PilotDisplayStatus.swift,
 				Models/SharedPilotStatus.swift,
 				Models/TripLeg.swift,
+				"Models/TripStateResolver+HomeArrival.swift",
 				Models/TripStateResolver.swift,
 				Services/PartnerCloud/AlertPushWriter.swift,
 				Services/PartnerCloud/DeviceKeyStore.swift,

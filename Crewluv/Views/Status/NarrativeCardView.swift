@@ -84,20 +84,14 @@ struct NarrativeCardView: View {
 
     private var name: String { status.pilotFirstName }
 
-    /// When the upcoming trip brings the pilot home: the **last** arrival at the home
-    /// airport within that trip's contiguous block, counting the drive home as well as
-    /// flights. Bounding to the trip block keeps a mid-trip turn that merely touches
-    /// home — and a later trip's homecoming — from being announced as the return.
+    /// When the upcoming trip brings the pilot home, trip by trip as the "Back Home In" card
+    /// finds it: a turn through home mid-trip isn't the return, and nor is a later trip's
+    /// homecoming after a few hours at home.
     private var homecomingDate: Date? {
-        guard let home = status.homeAirportCode,
-              let trip = upcomingTrip else { return nil }
-        let segment = TripStateResolver.contiguousSegment(covering: trip.departureDate, in: status.tripLegs)
-        return segment
-            .filter { ($0.type == .flight || $0.type == .drive)
-                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame
-                      && $0.endTime > trip.departureDate }
-            .map { TripStateResolver.effectiveEnd(of: $0) }
-            .max()
+        guard let trip = upcomingTrip else { return nil }
+        return TripStateResolver.resolveHomeArrival(
+            forTrip: trip.tripId, legs: status.tripLegs, homeAirportCode: status.homeAirportCode
+        )?.arrivalTime
     }
 
     /// Live countdown + arrival date for when the pilot gets home, e.g.
