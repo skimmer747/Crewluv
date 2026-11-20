@@ -18,7 +18,7 @@ A flight Crewlu Cloud sees draws two planes: the real one, a filled blue circle,
 
 ## 3. The popup
 
-- **Where:** the full-screen map, on the real plane and its ghost. The schedule's own plane, alone on a flight with no live data, has none.
+- **Where:** the full-screen map, on the real plane and its ghost, and on the schedule's own plane, alone on a flight with no real plane at the moment (added 20 Nov 2026: Todd found a late flight's schedule plane taking off on the map with nothing to say it wasn't the real one, still at its gate).
 - **How it opens and closes:** a tap on a plane opens it. A tap anywhere else on the map closes it, and a tap on the other plane moves it there. One at a time. It closes when its plane is no longer drawn, and when a replay starts or stops, since what it says changes.
 - **It moves with its plane,** just above its mark, and its words change as the map's do. Near the top of the clear part of the map, below the top bar, the banner and the key, it goes under the plane, and near a side it slides in. It closes when the next flight's planes take its plane's place.
 - **VoiceOver doesn't see it,** as it doesn't see the key.
@@ -32,6 +32,8 @@ A flight Crewlu Cloud sees draws two planes: the real one, a filled blue circle,
 | The real plane, landed | {flight} · real plane | {label} / Reaches the gate {at or about}{landing} |
 | The real plane, down somewhere else | {flight} · real plane | nothing more |
 | The real plane in a replay | {flight} · real plane | Where it was at {moment} |
+| The schedule's own plane, alone | {flight} · by the schedule | Not tracked live, so it's shown where the schedule has it / If it's running late, it may still be at the gate |
+| The schedule's own plane in a replay | {flight} · by the schedule | Where the schedule had it at {moment} |
 
 - `{flight}` is the flight number, or "the flight" with none. `{label}` is the card's bar's words, left out with none. `{about}` is "about " when the landing time is the real plane's estimate.
 
@@ -63,5 +65,5 @@ XCTest, run by Todd: every row of §3's table on the shared cases' flights, now 
 
 - The website's slide that keeps the planes in view on a thin card.
 - The Schedule page's "about" before a landing estimate.
-- A popup on an airport, the pilot's marker or the schedule's own plane.
+- A popup on an airport or the pilot's marker.
 - A flag on the map where an event happened.

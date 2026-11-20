@@ -30,13 +30,14 @@ nonisolated enum TripMapMarker: Equatable {
         let marker: TripMapMarker
     }
 
-    /// Which of a flight's two planes this is, for the popup a tap opens on the full-screen map (which plane design
-    /// §3): the real plane or its ghost. Nil for every other marker, the schedule's own plane among them.
+    /// Which of a flight's planes this is, for the popup a tap opens on the full-screen map (which plane design §3):
+    /// the real plane, its ghost, or the schedule's own plane. Nil for every other marker.
     var planeKind: PlaneKind? {
         switch self {
         case .realPlane: .realPlane
         case .ghost: .ghost
-        case .airport, .car, .pilot, .plane: nil
+        case .plane: .schedulePlane
+        case .airport, .car, .pilot: nil
         }
     }
 

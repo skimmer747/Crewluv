@@ -2,10 +2,10 @@
 //  TripMapPopupController.swift
 //  CrewLuve
 //
-//  Shows a plane's popup on the full-screen map (which plane design §3): over the real plane or the ghost the family
-//  tapped, laid again wherever the plane is at each update and all through a pan or pinch, with the words of the
-//  moment. It sits over the map in its container and takes no touches, so a tap goes on to the map, which closes the
-//  popup or moves it to the other plane.
+//  Shows a plane's popup on the full-screen map (which plane design §3): over the plane the family tapped, laid again
+//  wherever the plane is at each update and all through a pan or pinch, with the words of the moment. It sits over the
+//  map in its container and takes no touches, so a tap goes on to the map, which closes the popup or moves it to the
+//  other plane.
 //
 
 import MapKit

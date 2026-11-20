@@ -189,8 +189,8 @@ final class TripMapCoordinator: NSObject, MKMapViewDelegate {
         popup?.reposition()
     }
 
-    /// A tap on the real plane or its ghost opens its popup, in place of any other (which plane design §3). Only
-    /// they can be selected: every other marker's view is disabled.
+    /// A tap on a plane, the real one, its ghost or the schedule's own, opens its popup, in place of any other (which
+    /// plane design §3). Only they can be selected: every other marker's view is disabled.
     func mapView(_ mapView: MKMapView, didSelect annotation: any MKAnnotation) {
         guard let annotation = annotation as? TripMapAnnotation, let plane = annotation.marker.planeKind else { return }
         guard let leg = parent.tripMap.flightInMotion(at: parent.date) else {

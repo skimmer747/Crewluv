@@ -17,11 +17,11 @@ final class PlanePopupPlacementTests: XCTestCase {
 
     // MARK: - Which markers
 
-    func test_planeKind_onlyTheRealPlaneAndItsGhostOpenAPopup() {
+    func test_planeKind_onlyThePlanesOpenAPopup() {
         XCTAssertEqual(TripMapMarker.realPlane(angle: 0, isEstimated: false).planeKind, .realPlane)
         XCTAssertEqual(TripMapMarker.realPlane(angle: 1, isEstimated: true).planeKind, .realPlane)
         XCTAssertEqual(TripMapMarker.ghost(angle: 0).planeKind, .ghost)
-        XCTAssertNil(TripMapMarker.plane(angle: 0).planeKind)
+        XCTAssertEqual(TripMapMarker.plane(angle: 0).planeKind, .schedulePlane)
         XCTAssertNil(TripMapMarker.car.planeKind)
         XCTAssertNil(TripMapMarker.pilot(.layover).planeKind)
         XCTAssertNil(TripMapMarker.airport(code: "SDF", palette: .onDarkMap, isDriveOnly: false).planeKind)
