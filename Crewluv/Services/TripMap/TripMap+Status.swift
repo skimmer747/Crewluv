@@ -5,7 +5,8 @@
 //  Which trip the status screen's map shows (moving map spec §5.1, §12):
 //  - at home or base, the next trip, unless it's a night there in the middle of a trip: that trip is under way;
 //  - at home or base within a day of a trip ending, that trip's recap, unless the next trip leaves within 12 hours;
-//  - on a trip, that trip's legs;
+//  - on a trip, the trip under way by its id, with the drives and jumpseats within 12 hours of its flights, and
+//    between trips the flight or drive in motion, as the website's tripMapFor picks them (`TripMapLegs`);
 //  - from a CrewLu too old to send legs, just the flight in the air.
 //
 
@@ -30,13 +31,13 @@ extension TripMap {
         } else if isSettled {
             guard let trip = UpcomingTripInfo.from(tripLegs: tripLegs, at: now, homeAirportCode: status.homeAirportCode) else { return nil }
             legs = tripLegs.filter { $0.tripId == trip.tripId }
-        } else if !tripLegs.isEmpty {
-            let segment = TripStateResolver.contiguousSegment(covering: now, in: tripLegs)
-            // Legs that no longer cover now (stale, or a flight running late past them) still leave the
-            // summary's flight in the air to draw, as the old in-flight map did.
-            legs = segment.isEmpty ? (Self.currentFlightLeg(of: status).map { [$0] } ?? []) : segment
+        } else if let underWay = TripMapLegs.ofTripUnderWay(in: tripLegs, at: now) {
+            legs = underWay
         } else {
-            legs = Self.currentFlightLeg(of: status).map { [$0] } ?? []
+            // Between trips, the flight or drive in motion. With no legs, or legs that no longer cover now (stale, or
+            // a flight running late past them), the summary's flight in the air, as the old in-flight map drew it.
+            let inMotion = TripMapLegs.inMotion(in: tripLegs, at: now) ?? Self.currentFlightLeg(of: status)
+            legs = inMotion.map { [$0] } ?? []
         }
         // A night at home or base in the middle of a trip (CrewLu's `.home` or `.base` leg between two duty periods)
         // reads as settled, and its upcoming trip is the rest of the trip under way. Only a trip with no leg started yet

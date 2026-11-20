@@ -485,16 +485,6 @@ enum TripStateResolver {
         return segments
     }
 
-    /// The contiguous trip block containing `instant` (legs chained with ≤24h gaps),
-    /// or `[]` when no block spans it. Exposed so callers can bound a scan to one trip.
-    static func contiguousSegment(covering instant: Date, in legs: [TripLeg]) -> [TripLeg] {
-        let sorted = legs.sorted { $0.startTime < $1.startTime }
-        return contiguousSegments(sorted).first(where: { seg in
-            guard let f = seg.first, let l = seg.last else { return false }
-            return instant >= f.startTime && instant <= effectiveEnd(of: l)
-        }) ?? []
-    }
-
     private static func displayStatus(for type: TripLeg.LegType) -> PilotDisplayStatus {
         switch type {
         case .flight:     .inFlight
