@@ -3,7 +3,8 @@
 //  CrewluvTests
 //
 //  Which trip the status screen's map shows (TripMap+Status, moving map spec §5.1, §12): at home or base, the next
-//  trip; a night at home or base in the middle of a trip, that trip under way.
+//  trip; a night at home or base in the middle of a trip, that trip under way; away, the trip under way, never the
+//  trips chained after it.
 //
 
 import Foundation
@@ -64,7 +65,41 @@ struct TripMapStatusTests {
         #expect(map.activity(at: hours(-24))?.kind == .home)
     }
 
+    // MARK: - Away, with the next trip hours later
+
+    @Test func test_initStatus_onALayover_isTheTripUnderWay_notTheTripsChainedAfterIt() throws {
+        let away = status(.layover, legs: commuterWeeks, homeAirportCode: "MCO")
+        let map = try #require(TripMap(status: away, at: hours(0)))
+
+        #expect(map.mode == .onTrip)
+        #expect(map.legs.map(\.id) == ["s1-out", "s1-last", "drive-home", "commute-back"],
+                "the trip and its commutes, though the next trip starts hours after them")
+    }
+
+    @Test func test_initStatus_onTheDriveHomeBetweenTrips_isTheDrive() throws {
+        let driving = status(.drivingHome, legs: commuterWeeks, homeAirportCode: "MCO")
+        let map = try #require(TripMap(status: driving, at: hours(13)))
+
+        #expect(map.legs.map(\.id) == ["drive-home"])
+    }
+
     // MARK: - Legs
+
+    /// A commuter, home Orlando and base Louisville, home for a few hours between trips, so no gap between legs
+    /// reaches a day: S1 ends at base, a drive home, a jumpseat back, T2, a jumpseat home, a drive to work, T3.
+    private var commuterWeeks: [TripLeg] {
+        [
+            TripMapTestLegs.leg("s1-out", from: "SDF", to: "ANC", start: hours(-30), hours: 6, tripId: "S1"),
+            TripMapTestLegs.leg("s1-layover", .layover, start: hours(-24), hours: 30, tripId: "S1"),
+            TripMapTestLegs.leg("s1-last", from: "ANC", to: "SDF", start: hours(6), hours: 6, tripId: "S1"),
+            TripMapTestLegs.leg("drive-home", .drive, from: "SDF", to: "MCO", start: hours(12.5), hours: 2, tripId: nil),
+            TripMapTestLegs.leg("commute-back", from: "MCO", to: "SDF", start: hours(18), hours: 1, tripId: nil),
+            TripMapTestLegs.leg("t2-out", from: "SDF", to: "PHL", start: hours(21), hours: 1.5, tripId: "T2"),
+            TripMapTestLegs.leg("t2-back", from: "PHL", to: "SDF", start: hours(24), hours: 2, tripId: "T2"),
+            TripMapTestLegs.leg("jumpseat-home", from: "SDF", to: "MCO", start: hours(28), hours: 1, tripId: nil),
+            TripMapTestLegs.leg("t3-out", from: "SDF", to: "ANC", start: hours(42), hours: 6, tripId: "T3"),
+        ]
+    }
 
     /// SDF → CGN (8 h), a night in Cologne, CGN → SDF (9 h), a night at Louisville as `stop` (`.home` or `.base`),
     /// then SDF → DXB (13 h): one trip, T1, that passes through Louisville, as CrewLu sends it.

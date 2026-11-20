@@ -76,6 +76,7 @@
 				Models/SharedPilotStatus.swift,
 				Models/TripLeg.swift,
 				Models/TripStateResolver.swift,
+				"Models/TripStateResolver+HomeArrival.swift",
 				Services/PartnerCloud/AlertPushWriter.swift,
 				Services/PartnerCloud/DeviceKeyStore.swift,
 				Services/PartnerCloud/LivePartnerDoor.swift,
@@ -410,7 +411,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CrewluveAlerts/CrewluveAlerts.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				DEVELOPMENT_TEAM = UV96Z83C7B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CrewluveAlerts/Info.plist;
@@ -445,7 +446,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = CrewluveAlerts/CrewluveAlerts.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				DEVELOPMENT_TEAM = UV96Z83C7B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CrewluveAlerts/Info.plist;
@@ -482,7 +483,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Crewluv/Crewluv.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				DEVELOPMENT_TEAM = UV96Z83C7B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -524,7 +525,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Crewluv/Crewluv.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				DEVELOPMENT_TEAM = UV96Z83C7B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

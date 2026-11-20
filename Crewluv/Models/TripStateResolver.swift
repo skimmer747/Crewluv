@@ -42,7 +42,8 @@ struct TripEndInfo: Sendable {
     let arrivalTime: Date
     let arrivalLabel: String
     let arrivalCity: String?
-    /// The trips the home arrival belongs to: the trip ids among its block's legs (alert pushes spec §15.3).
+    /// The trips the home arrival belongs to: those `resolveHomeArrival` went through to find it
+    /// (alert pushes spec §15.3).
     var trips: [String] = []
 }
 
@@ -243,43 +244,6 @@ enum TripStateResolver {
             arrivalTime: arrivalTime,
             arrivalLabel: arrivalLabel,
             arrivalCity: cityForSubtitle
-        )
-    }
-
-    // MARK: - Home Arrival (current trip block)
-
-    /// Finds when the pilot's **current** trip brings him home, for the "Back Home In" card.
-    ///
-    /// Bounded to the one contiguous trip block that covers `now` (or the imminent block
-    /// when `now` sits in an at-home gap). A later trip's homebound leg — beyond a >24h
-    /// at-home gap — must NOT hijack this countdown; that produced a homecoming days or
-    /// weeks early. Within the block the **last** arrival home is the true homecoming, so
-    /// a turn that merely touches home mid-trip is ignored.
-    ///
-    /// Includes `.event` legs whose `arrivalAirport` equals the home airport — manual
-    /// events landing at home (e.g. "Drive home in Orlando") count as home arrivals.
-    /// Safe because sims/training are scheduled at the base airport, never home.
-    static func resolveHomeArrival(legs: [TripLeg], homeAirportCode: String?, at now: Date) -> TripEndInfo? {
-        guard let home = homeAirportCode, !home.isEmpty else { return nil }
-        let sorted = legs.sorted { $0.startTime < $1.startTime }
-
-        guard let segment = currentOrNextSegment(sorted, at: now) else { return nil }
-
-        guard let homeLeg = segment
-            .filter({ ($0.type == .flight || $0.type == .event || $0.type == .drive)
-                      && effectiveEnd(of: $0) > now
-                      && $0.arrivalAirport?.caseInsensitiveCompare(home) == .orderedSame })
-            .max(by: { effectiveEnd(of: $0) < effectiveEnd(of: $1) })
-        else { return nil }
-
-        let arrivalTime = effectiveEnd(of: homeLeg)
-        let city = homeLeg.arrivalCity ?? home
-
-        return TripEndInfo(
-            arrivalTime: arrivalTime,
-            arrivalLabel: "Back Home In",
-            arrivalCity: city,
-            trips: Set(segment.compactMap(\.tripId)).sorted()
         )
     }
 
@@ -519,30 +483,6 @@ enum TripStateResolver {
         }
         segments.append(current)
         return segments
-    }
-
-    /// The contiguous trip block the pilot is currently within (`now` inside its span),
-    /// or — when `now` sits in an at-home gap or before all legs — the next block that
-    /// starts after `now`. `nil` only when no block covers or follows `now`.
-    private static func currentOrNextSegment(_ sorted: [TripLeg], at now: Date) -> [TripLeg]? {
-        let segments = contiguousSegments(sorted)
-        if let covering = segments.first(where: { seg in
-            guard let f = seg.first, let l = seg.last else { return false }
-            return now >= f.startTime && now < effectiveEnd(of: l)
-        }) {
-            return covering
-        }
-        return segments.first(where: { ($0.first?.startTime ?? .distantPast) > now })
-    }
-
-    /// The contiguous trip block containing `instant` (legs chained with ≤24h gaps),
-    /// or `[]` when no block spans it. Exposed so callers can bound a scan to one trip.
-    static func contiguousSegment(covering instant: Date, in legs: [TripLeg]) -> [TripLeg] {
-        let sorted = legs.sorted { $0.startTime < $1.startTime }
-        return contiguousSegments(sorted).first(where: { seg in
-            guard let f = seg.first, let l = seg.last else { return false }
-            return instant >= f.startTime && instant <= effectiveEnd(of: l)
-        }) ?? []
     }
 
     private static func displayStatus(for type: TripLeg.LegType) -> PilotDisplayStatus {
