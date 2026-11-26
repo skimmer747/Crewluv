@@ -49,24 +49,27 @@ final class LiveWordingTests: XCTestCase {
 
     // MARK: - The card's bar and the pill
 
-    func test_flightStatus_isTheRealPlanesLabel() throws {
+    func test_flightStatus_isLiveAndTheRealPlanesLabel_whileSeen_orTheBestGuessAlone() throws {
         func status(_ name: String, _ time: String) throws -> String {
             let (leg, at) = try leg(of: name, at: time)
             return TripMapWording.flightStatus(for: leg, at: at)
         }
-        XCTAssertEqual(try status("ahead, in the air", "13T12:41:50"), "14 min ahead")
+        XCTAssertEqual(try status("ahead, in the air", "13T12:41:50"), "Live · 14 min ahead")
         XCTAssertEqual(try status("ahead, in the air", "13T12:45:00"), "About 14 min ahead")
-        XCTAssertEqual(try status("off early and the long way round", "13T12:15:20"), "On schedule")
-        XCTAssertEqual(try status("behind, with a late first point and an unseen ocean", "14T00:13:00"), "55 min behind")
-        XCTAssertEqual(try status("still on the ground just after the plan's takeoff", "13T12:18:00"), "Still on the ground")
-        XCTAssertEqual(try status("still on the ground twenty minutes after", "13T12:35:00"), "Still on the ground · 20 min behind")
+        XCTAssertEqual(try status("off early and the long way round", "13T12:15:20"), "Live · On schedule")
+        XCTAssertEqual(try status("behind, with a late first point and an unseen ocean", "14T00:13:00"), "Live · 55 min behind")
+        XCTAssertEqual(try status("still on the ground just after the plan's takeoff", "13T12:18:00"), "Live · Still on the ground")
+        XCTAssertEqual(try status("still on the ground twenty minutes after", "13T12:35:00"), "Live · Still on the ground · 20 min behind")
     }
 
-    func test_flightStatus_withNoLabel_isInFlight_asBefore() throws {
-        for (name, time) in [("no live data", "13T12:30:00"), ("waiting to be seen", "13T12:30:00"),
-                             ("on the ground somewhere else", "13T13:21:00"), ("on the ground before the plan's takeoff", "13T12:10:00")] {
+    func test_flightStatus_withNoLabel_isLiveAlone_whileSeen_elseNotTrackedLive() throws {
+        for (name, time) in [("on the ground somewhere else", "13T13:21:00"), ("on the ground before the plan's takeoff", "13T12:10:00")] {
             let (leg, at) = try leg(of: name, at: time)
-            XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at), "In flight", name)
+            XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at), "Live", name)
+        }
+        for (name, time) in [("no live data", "13T12:30:00"), ("waiting to be seen", "13T12:30:00")] {
+            let (leg, at) = try leg(of: name, at: time)
+            XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at), "Not tracked live", name)
         }
     }
 
@@ -77,13 +80,13 @@ final class LiveWordingTests: XCTestCase {
 
     func test_topPill_withARealPlane_saysHowItsDoing_andInAReplayInFlight() throws {
         let (map, at) = try map(of: "ahead, in the air", at: "13T12:41:50")
-        XCTAssertEqual(TripMapWording.topPill(for: map, at: at, dayNumber: 1, totalDays: 4), "UPS207 · 14 min ahead")
+        XCTAssertEqual(TripMapWording.topPill(for: map, at: at, dayNumber: 1, totalDays: 4), "UPS207 · Live · 14 min ahead")
         XCTAssertEqual(TripMapWording.topPill(for: map, at: at, dayNumber: 1, totalDays: 4, isReplay: true), "UPS207 · In flight")
     }
 
-    func test_topPill_withNoLiveData_isInFlight_asBefore() throws {
+    func test_topPill_withNoLiveData_isNotTrackedLive() throws {
         let (map, at) = try map(of: "no live data", at: "13T12:30:00")
-        XCTAssertEqual(TripMapWording.topPill(for: map, at: at, dayNumber: 1, totalDays: 4), "UPS207 · In flight")
+        XCTAssertEqual(TripMapWording.topPill(for: map, at: at, dayNumber: 1, totalDays: 4), "UPS207 · Not tracked live")
     }
 
     // MARK: - "About"
@@ -206,9 +209,9 @@ final class LiveWordingTests: XCTestCase {
         }
     }
 
-    func test_cardSummary_withARealPlane_isTheLiveSentence() throws {
+    func test_cardSummary_withARealPlane_isTheLiveSentence_thenTrackedLive() throws {
         let (map, at) = try map(of: "ahead, in the air", at: "13T12:41:50")
-        let expected = "UPS207 to Philadelphia, 14 minutes ahead of schedule. Lands about 8:30 AM your time."
+        let expected = "UPS207 to Philadelphia, 14 minutes ahead of schedule. Lands about 8:30 AM your time. Tracked live."
         XCTAssertEqual(plain(TripMapWording.cardSummary(for: map, now: at, pilotName: "Alex", calendar: calendar, locale: locale)), expected)
         var facts = TripFacts(tripMap: map, geography: nil, comparisons: nil, stories: [:], sunEvents: [:])
         facts.calendar = calendar
@@ -216,14 +219,14 @@ final class LiveWordingTests: XCTestCase {
         XCTAssertEqual(plain(facts.cardSummary(now: at, pilotName: "Alex")), expected)
     }
 
-    func test_cardSummary_withNoLiveData_isTheSchedulesSentence_asBefore() throws {
+    func test_cardSummary_withNoLiveData_isTheSchedulesSentence_thenNotTrackedLive() throws {
         let (map, at) = try map(of: "no live data", at: "13T12:30:00")
         XCTAssertEqual(plain(TripMapWording.cardSummary(for: map, now: at, pilotName: "Alex", calendar: calendar, locale: locale)),
-                       "UPS207 to Philadelphia, landing at 8:45 AM your time. Estimated from the schedule.")
+                       "UPS207 to Philadelphia, landing at 8:45 AM your time. Not tracked live, so it's shown where the schedule has it.")
         var facts = TripFacts(tripMap: map, geography: nil, comparisons: nil, stories: [:], sunEvents: [:])
         facts.calendar = calendar
         facts.locale = locale
         XCTAssertEqual(plain(facts.cardSummary(now: at, pilotName: "Alex")),
-                       "UPS207 to Philadelphia. Lands at 8:45 AM your time. Estimated from the schedule.")
+                       "UPS207 to Philadelphia. Lands at 8:45 AM your time. Not tracked live, so it's shown where the schedule has it.")
     }
 }

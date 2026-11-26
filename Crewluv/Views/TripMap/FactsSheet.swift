@@ -51,7 +51,7 @@ struct FactsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     FactsHeader(headline: facts.sheetHeadline(at: time), timeline: timeline,
-                                activity: facts.tripMap.activity(at: time), onGround: facts.flightOnGround(at: time),
+                                activity: facts.tripMap.activity(at: time), flight: facts.flightNow(at: time),
                                 clock: $clock,
                                 isQuickLayovers: $isQuickLayovers, time: time, now: context.date)
                         .onGeometryChange(for: CGFloat.self) { Self.headerExtent($0) } action: { headerHeight = $0 }

@@ -11,7 +11,7 @@ import SwiftUI
 
 struct TripMapInFlightBar: View {
     let leg: MapLeg
-    /// "In flight", or the real plane against the schedule: "12 min ahead" (`TripMapWording.flightStatus`).
+    /// "Live · 12 min ahead", "Not tracked live", or empty while the first answer is on its way (`TripMapWording.flightStatus`).
     let status: String
     /// "Lands 3:30 PM", or "At the gate 3:30 PM" once the real plane is down (`TripMapWording.barArrival`).
     let arrival: String
@@ -54,9 +54,11 @@ struct TripMapInFlightBar: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Shows live tracking links")
             }
-            Text(status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !status.isEmpty {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

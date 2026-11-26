@@ -42,10 +42,11 @@ final class AirReturnWordsTests: XCTestCase {
 
     // MARK: - The card and the popup
 
-    func test_bar_saysReturnedToTheDepartureAirport_nowOnly() throws {
+    func test_bar_saysLiveAndReturnedToTheDepartureAirport_nowOnly() throws {
         let (leg, at) = try returned()
-        XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at), "Returned to SDF")
-        XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at, isReplay: true), "In flight")
+        XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at), "Live · Returned to SDF")
+        // Back at the gate, its path is the great circle: a replay has the schedule's plane (live or scheduled design §6).
+        XCTAssertEqual(TripMapWording.flightStatus(for: leg, at: at, isReplay: true), "By the schedule")
     }
 
     func test_cardSummary_saysItReturned_andLandsAbout() throws {
@@ -64,10 +65,10 @@ final class AirReturnWordsTests: XCTestCase {
 
     // MARK: - The timeline
 
-    func test_flightOnGround_isReturnedToTheDepartureAirport() throws {
+    func test_flightNow_isReturnedToTheDepartureAirport() throws {
         let (leg, at) = try returned()
-        let onGround = map(of: leg).flightOnGround(at: at)
-        guard case .returnedTo(let airport) = onGround else { return XCTFail("\(String(describing: onGround))") }
+        let flight = map(of: leg).flightNow(at: at)
+        guard case .returnedTo(let airport) = flight else { return XCTFail("\(String(describing: flight))") }
         XCTAssertEqual(airport.code, "SDF")
     }
 
@@ -75,10 +76,10 @@ final class AirReturnWordsTests: XCTestCase {
         // 5:21 PM UTC is 12:21 PM in Louisville.
         let date = FactsTestData.date("2026-11-13T17:21:00Z")
         let flying = TripActivity(kind: .flying, place: rockford)
-        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .returnedTo(rockford),
+        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, flight: .returnedTo(rockford),
                                                          calendar: calendar, locale: locale)),
                        "Fri 12:21 PM L · Returned to Rockford")
-        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .returnedTo(rockford),
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, flight: .returnedTo(rockford),
                                                                 calendar: calendar, locale: locale)),
                        "Friday 12:21 PM, returned to Rockford")
     }
@@ -124,7 +125,7 @@ final class AirReturnWordsTests: XCTestCase {
     func test_facts_inAReplay_areAsBefore() throws {
         let replay = try facts(backAt: "11:20", isReplay: true)
         XCTAssertNotEqual(replay.headline(at: at("11:20")), "Returned to E0")
-        XCTAssertNil(replay.flightOnGround(at: at("11:20")))
+        XCTAssertNil(replay.flightNow(at: at("11:20")))
     }
 
     func test_factsWords_sayReturnedTo() {

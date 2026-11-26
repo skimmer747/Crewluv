@@ -63,8 +63,8 @@ final class StillOnGroundFactsTests: XCTestCase {
         XCTAssertEqual(facts.sheetHeadline(at: at("11:20")), "Still on the ground in E0")
     }
 
-    func test_headline_atTheGateBeforeThePlansTakeoff_isAsBefore() throws {
-        XCTAssertEqual(try facts(atTheGate: "10:10").headline(at: at("10:10")), "Over Alpha")
+    func test_headline_atTheGateBeforeThePlansTakeoff_isOnTheGround() throws {
+        XCTAssertEqual(try facts(atTheGate: "10:10").headline(at: at("10:10")), "On the ground in E0")
     }
 
     func test_headline_inAReplay_isWhereTheMapHasThePlane() throws {
@@ -74,8 +74,10 @@ final class StillOnGroundFactsTests: XCTestCase {
 
     // MARK: - The rows
 
-    func test_rows_atTheGate_sayItsStillOnTheGround_howFarItHasToGo_andNoSky() throws {
+    func test_rows_atTheGate_sayItsTrackedLive_stillOnTheGround_howFarItHasToGo_andNoSky() throws {
         let rows = try facts(atTheGate: "11:20").rows(at: at("11:20"), now: at("11:20"))
+        XCTAssertEqual(rows.first?.kind, .source)
+        XCTAssertEqual(rows.first?.title, "Tracked live")
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Still on the ground in E0")
         // The plan, run from a takeoff that hasn't happened, has the plane at 14° E at 13:06, 9:06 AM in Louisville.
@@ -105,10 +107,12 @@ final class StillOnGroundFactsTests: XCTestCase {
         XCTAssertFalse(try row(.distance, in: rows).detail?.contains("Halfway") ?? false)
     }
 
-    func test_rows_atTheGateBeforeThePlansTakeoff_areAsBefore() throws {
+    func test_rows_atTheGateBeforeThePlansTakeoff_sayItsOnTheGround_howFarItHasToGo_andNoSky() throws {
         let rows = try facts(atTheGate: "10:10").rows(at: at("10:10"), now: at("10:10"))
-        XCTAssertEqual(try row(.below, in: rows).title, "Over Alpha")
-        XCTAssertEqual(try row(.distance, in: rows).title, "0 mi flown · 1,382 to go")
+        XCTAssertEqual(rows.first?.title, "Tracked live")
+        XCTAssertEqual(try row(.below, in: rows).title, "On the ground in E0")
+        XCTAssertEqual(try row(.distance, in: rows).title, "1,382 mi to go")
+        XCTAssertNil(rows.first { $0.kind == .sky })
     }
 
     // MARK: - The banner and the list
@@ -132,16 +136,20 @@ final class StillOnGroundFactsTests: XCTestCase {
 
     // MARK: - The card's sentence and the timeline
 
-    func test_cardSummary_atTheGate_saysSo_withNothingBelowAndNoLatestEvent() throws {
+    func test_cardSummary_atTheGate_saysSo_withNothingBelowAndNoLatestEvent_andThatItsTrackedLive() throws {
         XCTAssertEqual(plain(try facts(atTheGate: "11:20").cardSummary(now: at("11:20"), pilotName: "Alex")),
-                       "TST1 to E20, still on the ground, 1 hour 5 minutes behind schedule. Lands about 10:27 AM your time.")
+                       "TST1 to E20, still on the ground, 1 hour 5 minutes behind schedule. Lands about 10:27 AM your time. " +
+                       "Tracked live.")
     }
 
-    func test_flightOnGround_isStillInTheDepartureAirport_nowOnly() throws {
-        let onGround = try facts(atTheGate: "11:20").flightOnGround(at: at("11:20"))
-        guard case .stillIn(let airport) = onGround else { return XCTFail("\(String(describing: onGround))") }
+    func test_flightNow_isStillInTheDepartureAirport_beforeOrAfterThePlansTakeoff_nowOnly() throws {
+        let late = try facts(atTheGate: "11:20").flightNow(at: at("11:20"))
+        guard case .stillIn(let airport) = late else { return XCTFail("\(String(describing: late))") }
         XCTAssertEqual(airport.code, "E0")
-        XCTAssertNil(try facts(atTheGate: "11:20", isReplay: true).flightOnGround(at: at("11:20")))
-        XCTAssertNil(try facts(atTheGate: "10:10").flightOnGround(at: at("10:10")))
+        XCTAssertNil(try facts(atTheGate: "11:20", isReplay: true).flightNow(at: at("11:20")))
+        // Seen at its gate before the plan's takeoff, it's on the ground there too (live or scheduled design §4.2).
+        let early = try facts(atTheGate: "10:10").flightNow(at: at("10:10"))
+        guard case .stillIn(let gate) = early else { return XCTFail("\(String(describing: early))") }
+        XCTAssertEqual(gate.code, "E0")
     }
 }

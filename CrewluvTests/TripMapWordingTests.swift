@@ -137,7 +137,7 @@ final class TripMapWordingTests: XCTestCase {
         let map = try XCTUnwrap(TripMapTestLegs.map(TripMapTestLegs.europeTrip(), at: start.addingTimeInterval(4 * 3600)))
         let summary = plain(TripMapWording.cardSummary(for: map, now: start.addingTimeInterval(4 * 3600), pilotName: "Alex",
                                                        calendar: calendar, locale: locale))
-        XCTAssertEqual(summary, "UPS207 to Cologne, landing at 3:00 PM your time. Estimated from the schedule.")
+        XCTAssertEqual(summary, "UPS207 to Cologne, landing at 3:00 PM your time. Not tracked live, so it's shown where the schedule has it.")
     }
 
     func test_timelineTime_weekdayAndTime() {

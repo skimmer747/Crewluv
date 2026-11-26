@@ -32,9 +32,9 @@ final class LandedBeforeGateWordsTests: XCTestCase {
         // 12:45 AM UTC on the 14th is 7:45 PM on the 13th in Louisville.
         let date = FactsTestData.date("2026-11-14T00:45:00Z")
         let flying = TripActivity(kind: .flying, place: anchorage)
-        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .landedIn(anchorage), calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, flight: .landedIn(anchorage), calendar: calendar, locale: locale)),
                        "Fri 7:45 PM L · Landed in Anchorage")
-        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .landedIn(anchorage), calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, flight: .landedIn(anchorage), calendar: calendar, locale: locale)),
                        "Friday 7:45 PM, landed in Anchorage")
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, calendar: calendar, locale: locale)),
                        "Fri 7:45 PM L · Flying to Anchorage", "without it, flying, as before")

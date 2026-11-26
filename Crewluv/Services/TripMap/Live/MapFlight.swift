@@ -51,22 +51,33 @@ nonisolated struct MapFlight: Sendable {
         live?.state != .landed && abs(arrival.timeIntervalSince(plan.arrival)) >= 1
     }
 
-    /// Whether the real plane is still on the ground at its departure airport after the plan's takeoff time, when
-    /// this device's clock says `now`: seen there lately, not yet in the air (spec §5.1's `onGround`), and late
-    /// leaving, as its bar says "Still on the ground". Before the plan's takeoff it's taxiing as the schedule has it,
-    /// and nothing says so (which plane design §4). A plane back there after an air return is at it too, at any time
-    /// (air return design §3).
-    func isAtDeparture(at now: Date) -> Bool {
+    /// Where the real plane is on the ground at its departure airport, when this device's clock says `now` (live or
+    /// scheduled design §3): at its gate before the plan's takeoff, `atGate`; still there after it, `stillAtGate`; or
+    /// back there after an air return, `returned`. Nil anywhere else, and when it isn't live.
+    func seenAtDeparture(at now: Date) -> AtDeparture? {
         let progress = self.progress(at: now)
-        if progress.phase == .returned { return true }
-        guard progress.phase == .onGround, case .stillOnGround = progress.label else { return false }
-        return true
+        switch progress.phase {
+        case .returned:
+            return .returned
+        case .onGround:
+            if case .stillOnGround = progress.label { return .stillAtGate }
+            return .atGate
+        case .notLive, .inAir, .estimated, .landed, .elsewhere:
+            return nil
+        }
     }
 
     /// Whether the real plane is back on the ground at its departure airport after flying, when this device's clock
     /// says `now` (air return design §2): the words say "Returned to Rockford" in place of "Still on the ground".
     func hasReturned(at now: Date) -> Bool {
         progress(at: now).phase == .returned
+    }
+
+    /// Whether Crewlu Cloud's answer says nothing of the plane now, when this device's clock says `now`: never seen,
+    /// or seen on the ground over 3 minutes ago (Stage 3 spec §5.1's `notLive`). The flight is then known by the
+    /// schedule alone (live or scheduled design §2).
+    func isNotLive(at now: Date) -> Bool {
+        progress(at: now).phase == .notLive
     }
 
     /// Whether the real plane is down at its arrival airport, by Crewlu Cloud's state, when this device's clock says

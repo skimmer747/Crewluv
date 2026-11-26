@@ -77,7 +77,7 @@ struct FactsPanel: View {
 
     private var timelineControl: some View {
         TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
-                            activity: facts.tripMap.activity(at: time), onGround: facts.flightOnGround(at: time),
+                            activity: facts.tripMap.activity(at: time), flight: facts.flightNow(at: time),
                             time: time, now: now)
     }
 

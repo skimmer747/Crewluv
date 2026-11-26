@@ -13,17 +13,9 @@ struct NarrativeCardView: View {
     var upcomingTrip: UpcomingTripInfo? = nil
     /// The flight in the air lands at the real plane's estimate, so its time reads "about 3:18 PM" (Stage 3 spec §9).
     var isLandingEstimated = false
-    /// The flight in the air's real plane is still on the ground at its departure airport after the plan's takeoff
-    /// time: "Alex is still on the ground in Rockford on UPS flight 2963 to Anchorage", in place of flying, delayed or
-    /// not (which plane design §4).
-    var isStillOnGround = false
-    /// That real plane at its departure airport is back there after an air return: "Alex has returned to Rockford on
-    /// UPS flight 2963 to Anchorage" (air return design §3).
-    var hasReturned = false
-    /// The flight in the air's real plane is down at the arrival airport, before the gate: "Alex has landed in
-    /// Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST", delayed or not (landed before the gate
-    /// design §3).
-    var isLandedBeforeGate = false
+    /// How the flight under way is told, from the screen's model: by its real plane, else by the schedule, saying so
+    /// (live or scheduled design §4). Nil reads as before: flying.
+    var narrativeFlight: NarrativeFlight? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var now = Date()
@@ -252,7 +244,6 @@ struct NarrativeCardView: View {
     @ViewBuilder
     private var inFlightNarrative: some View {
         let verb = currentFlightIsCommercial ? "riding" : "flying"
-        let about = isLandingEstimated ? "about " : ""
         if status.hasFlightDelay, let delayMinutes = status.effectiveFlightDelayMinutes {
             // Flight-time-change narrative (delayed or early)
             let isEarly = status.isEarlyDeparture
@@ -276,12 +267,14 @@ struct NarrativeCardView: View {
                 } else if let arrTime = status.currentFlightArrivalTime {
                     let shiftedArr = arrTime.addingTimeInterval(TimeInterval(delayMinutes * 60))
                     let arrTimeStr = formattedLocalTime(shiftedArr)
-                    if isLandedBeforeGate, let dest {
+                    if narrativeFlight == .landed, let dest {
                         landedSentence(in: dest, flight: fltStr, gate: shiftedArr, color: countdownColor)
-                    } else if isStillOnGround, let dep, let dest {
-                        Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
+                    } else if let dest,
+                              let onTheGround = departureSentence(from: dep, to: dest, flight: fltStr, landing: shiftedArr,
+                                                                  delayPhrase: pastPhrase, color: countdownColor) {
+                        onTheGround
                     } else if let dep, let dest {
-                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
+                        Text("\(name) \(pastPhrase) in \(Text(dep).bold()) and \(flyingPhrase(verb)) to \(Text(dest).bold())\(fltStr)\(untrackedClause) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     } else if let dest {
                         Text("\(name)'s flight to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: shiftedArr, color: countdownColor)) which is \(about)\(timeText(arrTimeStr).bold()).")
                     } else {
@@ -301,25 +294,80 @@ struct NarrativeCardView: View {
             let fltStr = formattedFlightString(status.currentFlightNumber)
             let dep = currentDepartureCity()
             let arrTimeStr = formattedLocalTime(arrTime)
-            if isLandedBeforeGate {
+            if narrativeFlight == .landed {
                 landedSentence(in: dest, flight: fltStr, gate: arrTime)
-            } else if isStillOnGround, let dep {
-                Text("\(name) \(atDeparturePhrase) \(Text(dep).bold())\(fltStr.isEmpty ? " on the flight" : fltStr) to \(Text(dest).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
+            } else if let onTheGround = departureSentence(from: dep, to: dest, flight: fltStr, landing: arrTime) {
+                onTheGround
             } else if let dep {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold()) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
+                Text("\(name) \(flyingPhrase(verb)) to \(Text(dest).bold())\(fltStr) from \(Text(dep).bold())\(untrackedClause) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
             } else {
-                Text("\(name) is \(verb) to \(Text(dest).bold())\(fltStr) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
+                Text("\(name) \(flyingPhrase(verb)) to \(Text(dest).bold())\(fltStr)\(untrackedClause) — landing in \(countdownText(to: arrTime)) which is \(about)\(timeText(arrTimeStr).bold()).")
             }
         } else if let dest = currentArrivalCity() {
-            Text("\(name) is \(verb) to \(Text(dest).bold())")
+            Text("\(name) \(flyingPhrase(verb)) to \(Text(dest).bold())")
         } else {
             Text("\(name) is in flight")
         }
     }
 
-    /// "is still on the ground in" Rockford, or "has returned to" it after an air return (air return design §3).
-    private var atDeparturePhrase: String {
-        hasReturned ? "has returned to" : "is still on the ground in"
+    /// "is flying" to Honolulu, or "should be flying" there by the schedule alone (live or scheduled design §4.1);
+    /// "riding" for a deadhead.
+    private func flyingPhrase(_ verb: String) -> String {
+        switch narrativeFlight {
+        case .shouldBeFlying: "should be \(verb)"
+        case .flying, .atGate, .stillAtGate, .returned, .landed, .dueToTakeOff, nil: "is \(verb)"
+        }
+    }
+
+    /// " — not tracked live", before the landing. Said only for a flight known by the schedule alone, once Crewlu Cloud
+    /// has answered: never while its first answer is on its way (live or scheduled design §2, §4.1).
+    private var untrackedClause: String {
+        narrativeFlight == .shouldBeFlying(saysNotTracked: true) ? " — not tracked live" : ""
+    }
+
+    /// "about " before a landing time that's the real plane's estimate (Stage 3 spec §9), else nothing.
+    private var about: String { isLandingEstimated ? "about " : "" }
+
+    /// The sentence while the flight is on the ground at its departure airport, delayed or not: "Alex is on the ground
+    /// in Louisville on UPS flight 70 to Honolulu — landing in 8h 59m which is 12:11 AM L." with its real plane at the
+    /// gate (live or scheduled design §4.2), "is still on the ground in" after the plan's takeoff (which plane design
+    /// §4), "has returned to" after an air return (air return design §3), or "is due to take off from" by the schedule
+    /// alone (§4.2). With no departure city it names no place: "Alex is back on the ground on UPS flight 70 to …". The
+    /// countdown is in `color`, else the status's. Nil once it's in the air or down.
+    /// - Parameter delayPhrase: "was delayed" or "pushed early", for a flight off its schedule: "Alex was delayed in
+    ///   Louisville and is due to take off on UPS flight 70 to Honolulu — …" (§4.2).
+    private func departureSentence(from dep: String?, to dest: String, flight fltStr: String, landing arrival: Date,
+                                   delayPhrase: String? = nil, color: Color? = nil) -> Text? {
+        // The website always has a city or code to name: the openings without one are the app's own.
+        let opening: Text
+        switch narrativeFlight {
+        case .atGate:
+            opening = Text("\(name) is on the ground\(departurePlace(dep, after: "in"))")
+        case .stillAtGate:
+            opening = Text("\(name) is still on the ground\(departurePlace(dep, after: "in"))")
+        case .returned:
+            opening = if let dep {
+                Text("\(name) has returned to \(Text(dep).bold())")
+            } else {
+                Text("\(name) is back on the ground")
+            }
+        case .dueToTakeOff:
+            opening = if let delayPhrase {
+                Text("\(name) \(delayPhrase)\(departurePlace(dep, after: "in")) and is due to take off")
+            } else {
+                Text("\(name) is due to take off\(departurePlace(dep, after: "from"))")
+            }
+        case .flying, .shouldBeFlying, .landed, nil:
+            return nil
+        }
+        let flight = fltStr.isEmpty ? " on the flight" : fltStr
+        return Text("\(opening)\(flight) to \(Text(dest).bold()) — landing in \(countdownText(to: arrival, color: color)) which is \(about)\(timeText(formattedLocalTime(arrival)).bold()).")
+    }
+
+    /// " in **Louisville**", the departure city after `preposition`, or nothing with no departure city.
+    private func departurePlace(_ dep: String?, after preposition: String) -> Text {
+        guard let dep else { return Text(verbatim: "") }
+        return Text(" \(preposition) \(Text(dep).bold())")
     }
 
     /// "Alex has landed in Anchorage on UPS flight 2963 — at the gate in 8m which is 7:52pm EST.", with the gate's

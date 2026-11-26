@@ -39,14 +39,11 @@ struct PilotStatusView: View {
     /// When the flight in the air reaches its gate, while that's the real plane's estimate, from the screen's
     /// model: the narrative and the countdown say "about" of it (Stage 3 spec §9).
     var estimatedArrival: Date? = nil
-    /// Whether the flight in the air's real plane is still on the ground at its departure airport after the plan's
-    /// takeoff time, from the screen's model: the narrative says so (which plane design §4).
-    var isStillOnGround = false
-    /// Whether that real plane is back at its departure airport after an air return (air return design §3).
-    var hasReturned = false
-    /// Whether the flight in the air's real plane is down at the arrival airport, before the gate, from the screen's
-    /// model: the narrative says so (landed before the gate design §3).
-    var isLandedBeforeGate = false
+    /// Crewlu Cloud hasn't answered since the screen came up, from the screen's model (live or scheduled design §2).
+    var isAwaitingLive = false
+    /// How the flight under way is told, from the screen's model: by its real plane, else by the schedule, saying so
+    /// (live or scheduled design §4). Nil reads as before: flying.
+    var narrativeFlight: NarrativeFlight? = nil
     var onExitDemo: (() -> Void)? = nil
     /// The ••• menu, on Crewlu Cloud outside the demo (spec §7.5).
     var connectionMenu: ConnectionMenu? = nil
@@ -110,8 +107,7 @@ struct PilotStatusView: View {
 
                     // Narrative Card - "What's happening now"
                     NarrativeCardView(status: status, upcomingTrip: upcomingTrip, isLandingEstimated: estimatedArrival != nil,
-                                      isStillOnGround: isStillOnGround, hasReturned: hasReturned,
-                                      isLandedBeforeGate: isLandedBeforeGate)
+                                      narrativeFlight: narrativeFlight)
 
                     // Leaving home (if at home) — the commute drive when commuting,
                     // otherwise the flight departure. Taps open schedule.
@@ -205,7 +201,7 @@ struct PilotStatusView: View {
 
                     // Trip map (moving map spec §5): in flight it takes the location card's
                     // place; on the ground it sits above it.
-                    let tripMap = TripMap(status: status, flights: flights, at: Date())
+                    let tripMap = TripMap(status: status, flights: flights, isAwaitingLive: isAwaitingLive, at: Date())
                     if let tripMap {
                         TripMapCard(tripMap: tripMap, status: status, storyStore: legStoryStore)
                     }

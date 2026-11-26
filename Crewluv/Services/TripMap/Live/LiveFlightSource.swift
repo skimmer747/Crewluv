@@ -29,6 +29,11 @@ final class LiveFlightSource {
     /// Each flight Crewlu Cloud answered, by its leg's id. A leg with none has no live data.
     private(set) var flights: [String: LiveFlight] = [:]
 
+    /// Crewlu Cloud has answered since the source was made, a call to it failed, or this device isn't on Crewlu Cloud
+    /// (live or scheduled design §2). Until then a flight with no live data may yet have some, and the screen says
+    /// nothing of where it comes from. Once true it stays true, a new connection's included.
+    private(set) var hasAnswered = false
+
     /// Crewlu Cloud's clock minus this device's, as of the last answer, so a wrong phone clock doesn't age a fix.
     @ObservationIgnored private(set) var clockOffset: TimeInterval = 0
 
@@ -106,7 +111,11 @@ final class LiveFlightSource {
         }
         let call = Task { [weak self] in
             await self?.askCrewluCloud()
-            self?.asking = nil
+            guard let self else { return }
+            asking = nil
+            // The first answer is told even when it brings no flights: the screen waits for it. Only the first, so
+            // each later answer doesn't wake the screen's observers again.
+            if !hasAnswered { hasAnswered = true }
         }
         asking = call
         await call.value

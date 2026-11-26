@@ -3,7 +3,8 @@
 //  CrewLuve
 //
 //  Everything the facts say about a trip at a moment (Stage 2 spec §3.1, §4.4, §5): the headline, the rows
-//  (TripFacts+Rows.swift), the trip so far and the recap's numbers. Each answer is a lookup in the flights' stories and
+//  (TripFacts+Rows.swift), the trip so far and the recap's numbers. The rules for a flight on the ground at either end,
+//  or known by the schedule alone, are in TripFacts+Departure.swift. Each answer is a lookup in the flights' stories and
 //  sun events, so replay and scrubbing need nothing extra (§4.10). A flight with a real plane is read where the real
 //  plane is, along the path it really flew (Stage 3 spec §8).
 //
@@ -48,6 +49,11 @@ nonisolated struct TripFacts {
     /// plane was seen happened before it, so only a guess ahead can be held.
     func milestones(on leg: MapLeg, at date: Date) -> [Milestone] {
         let all = milestones(on: leg)
+        // Nobody saw a flight by the schedule alone: each of its events is the schedule's guess (live or scheduled
+        // design §5). With no sighting, nothing is held back to the last one.
+        if isGuessedFromSchedule(leg, at: date) {
+            return all.map { Milestone(kind: $0.kind, time: $0.time, isEstimate: true) }
+        }
         guard date < leg.end, let lastSeen = leg.flight?.path.knots.last?.time else { return all }
         return all.filter { $0.time.timeIntervalSince(lastSeen) <= PlanePosition.guessHorizon }
     }
@@ -58,16 +64,18 @@ nonisolated struct TripFacts {
     /// below, else the landing countdown. While the real plane is out of sight they're its best guesses, in the same
     /// plain words (best guesses design §2). Nil on the ground and on a drive, where Stage 1's words stay.
     ///
-    /// A real plane still on the ground at its departure airport after the plan's takeoff time is "Still on the ground
-    /// in Rockford", ahead of all of them: it has crossed nothing yet, whatever the schedule's times say (which plane
-    /// design §4). Once it's down at the arrival airport, before the gate, "Landed in Anchorage" leads in the same way
-    /// (landed before the gate design §3).
+    /// A plane on the ground at its departure airport (live or scheduled design §3) says so ahead of all of them:
+    /// "Scheduled to take off about 3:14 PM L" by the schedule alone, "On the ground in Louisville" or "Still on the
+    /// ground in Louisville" for its real plane (which plane design §4), or "Returned to Rockford" once it's back there
+    /// after an air return (air return design §3). It has crossed nothing yet, whatever the schedule's times say. Once
+    /// it's down at the arrival airport, before the gate, "Landed in Anchorage" leads in the same way (landed before the
+    /// gate design §3).
     /// - Parameter includesEvents: false beside the latest event's banner, which shows the milestone already
     ///   (latest event design §2).
     func headline(at date: Date, includesEvents: Bool = true) -> String? {
         guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight else { return nil }
-        if isStillOnGround(leg, at: date) {
-            return atDepartureWords(on: leg, at: date)
+        if let departure = atDeparture(of: leg, at: date) {
+            return atDepartureWords(departure, on: leg)
         }
         if isLandedBeforeGate(leg, at: date) {
             return FactsWording.landed(in: leg.destination)
@@ -123,10 +131,10 @@ nonisolated struct TripFacts {
     }
 
     /// The newest event of the flight between its gates at `date`, for the banner (latest event design §1). Nil on
-    /// the ground, on a drive, and before the flight's first event, and for a real plane still on the ground at its
-    /// departure airport after the plan's takeoff time, which has passed nothing yet (which plane design §4).
+    /// the ground, on a drive, and before the flight's first event, and for a plane on the ground at its departure
+    /// airport (live or scheduled design §3), which has passed nothing yet.
     func latestEvent(at date: Date) -> LatestEvent? {
-        guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight, !isStillOnGround(leg, at: date) else { return nil }
+        guard let leg = tripMap.legInMotion(at: date), leg.kind == .flight, atDeparture(of: leg, at: date) == nil else { return nil }
         // By time, not by the way along: a best guess and a sighting can disagree a little.
         guard let newest = milestones(on: leg, at: date).filter({ $0.time <= date }).max(by: { $0.time < $1.time }) else { return nil }
         return LatestEvent(
@@ -135,31 +143,12 @@ nonisolated struct TripFacts {
             sentence: FactsWording.spokenLatestEvent(newest, at: date, isReplay: isReplay, calendar: calendar, locale: locale))
     }
 
-    /// Whether the real plane of `leg`, the leg between its gates at `date`, is still on the ground at its departure
-    /// airport after the plan's takeoff time (which plane design §4). The facts then say so in place of what's below,
-    /// and count nothing of the flight as passed. Now only: a replay reads where the map has the plane.
-    func isStillOnGround(_ leg: MapLeg, at date: Date) -> Bool {
-        !isReplay && leg.isStillOnGround(at: date)
-    }
-
-    /// "Still on the ground in Rockford" for the real plane of `leg` at its departure airport at `date` (which plane
-    /// design §4), or "Returned to Rockford" once it's back there after an air return (air return design §3).
-    func atDepartureWords(on leg: MapLeg, at date: Date) -> String {
-        leg.hasReturned(at: date) ? FactsWording.returned(to: leg.origin) : FactsWording.stillOnGround(in: leg.origin)
-    }
-
-    /// Whether the real plane of `leg`, the leg between its gates at `date`, has landed and isn't at the gate yet
-    /// (landed before the gate design §2). The facts then say "Landed in Anchorage" in place of what's below, and the
-    /// list's tag says "Landed". Now only: a replay reads where the map has the plane.
-    func isLandedBeforeGate(_ leg: MapLeg, at date: Date) -> Bool {
-        !isReplay && leg.isLandedBeforeGate(at: date)
-    }
-
-    /// Where the flight between its gates at `date` has its real plane on the ground: the line under the timeline names
-    /// it (which plane design §4, landed before the gate design §3, air return design §3). Nil in a replay, whose
-    /// moment is where the map has the plane.
-    func flightOnGround(at date: Date) -> FlightOnGround? {
-        isReplay ? nil : tripMap.flightOnGround(at: date)
+    /// What the line under the timeline names of the flight between its gates at `date`: where its real plane is on the
+    /// ground (which plane design §4, landed before the gate design §3, air return design §3), or, by the schedule
+    /// alone, that it's due to fly or should be flying (live or scheduled design §4). Nil in a replay, whose moment is
+    /// where the map has the plane.
+    func flightNow(at date: Date) -> FlightNow? {
+        isReplay ? nil : tripMap.flightNow(at: date)
     }
 
     /// Whether a flight with live data shows, which adsb.lol is credited for (Stage 3 spec §8).
@@ -177,15 +166,19 @@ nonisolated struct TripFacts {
 
     // MARK: - The tall stop (§5.2, §5.5)
 
-    /// A real plane still on the ground at its departure airport after the plan's takeoff time has passed none of its
-    /// flight's events, and its flight is left out until it takes off, with no "In the air now" (which plane design
-    /// §4).
+    /// A real plane seen at its departure airport, before or after the plan's takeoff time, has passed none of its
+    /// flight's events, and its flight is left out until it takes off, with no "In the air now" (which plane design §4,
+    /// live or scheduled design §4.2). A flight by the schedule alone is tagged "By the schedule" (live or scheduled
+    /// design §4.1).
     func tripSoFar(at date: Date) -> TripSoFar {
-        let started = tripMap.legs.filter { $0.kind == .flight && $0.start <= date && !isStillOnGround($0, at: date) }.reversed()
+        // A real plane seen at its departure airport is left out until it takes off; one due by the schedule is listed.
+        let started = tripMap.legs.filter {
+            $0.kind == .flight && $0.start <= date && !(atDeparture(of: $0, at: date)?.isSeen ?? false)
+        }.reversed()
         let flights = started.compactMap { leg -> TripSoFar.Flight? in
             // The flight between its gates is always listed, and set apart (§4).
             let tag = leg.isMoving(at: date)
-                ? (isLandedBeforeGate(leg, at: date) ? FactsWording.landedTag : FactsWording.inTheAir(isReplay: isReplay))
+                ? (isLandedBeforeGate(leg, at: date) ? FactsWording.landedTag : flightTag(leg, at: date))
                 : nil
             // Newest first, so the latest is at the top (best guesses design §3). While its flight is between its gates,
             // the newest by time is bold, as the banner has it (time labels design §3.4).
@@ -246,12 +239,15 @@ nonisolated struct TripFacts {
         let isOverWhereLastTracked = unseen.map { $0.seen.city == nil && $0.seen.place.map { $0 == belowPlace } == true } ?? false
         if let live = TripMapWording.liveSummary(for: leg, over: isOverWhereLastTracked ? nil : below, lastSeen: lastSeen,
                                                  now: now, calendar: calendar, locale: locale) {
-            return live
+            return TripMapWording.withSource(live, for: leg, at: now)
         }
+        // By the schedule alone (live or scheduled design §7): when it's due to take off, else what's below, then the
+        // source.
         let lead = leg.flightNumber.map { "\($0) to" } ?? "Flying to"
-        let over = below.map { ", over \($0)" } ?? ""
+        let due = TripMapWording.spokenDueClause(for: leg, at: now, calendar: calendar, locale: locale)
+        let over = due.isEmpty ? (below.map { ", over \($0)" } ?? "") : ""
         let landing = TripMapWording.clockTime(leg.end, in: calendar.timeZone, locale: locale)
-        return "\(lead) \(leg.destination.name)\(over). Lands at \(landing) your time. Estimated from the schedule."
+        return TripMapWording.withSource("\(lead) \(leg.destination.name)\(due)\(over). Lands at \(landing) your time.", for: leg, at: now)
     }
 
     var recapTiles: [RecapTile] {
