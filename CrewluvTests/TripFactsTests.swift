@@ -93,12 +93,14 @@ final class TripFactsTests: XCTestCase {
     func test_tripSoFar_listsThisFlightsMilestones_thenTheTotals() {
         let tripSoFar = equatorFacts().tripSoFar(at: at("12:30"))
         XCTAssertEqual(tripSoFar.flights.map(\.title), ["TST1 · E0 → E20"])
-        // Newest first (best guesses design §3), and the flight is the one in the air.
+        // Newest first (best guesses design §3), and the flight is the one in the air. With no live data, its events are
+        // the schedule's guesses (live or scheduled design §5).
         XCTAssertEqual(tripSoFar.flights.first?.events.map { plain($0.text) }, [
-            "Closest to home, 35 mi · 8:21 AM L", "Out over the Test Sea · 8:03 AM L", "Halfway · 7:45 AM L", "Crossed into Bravo · 7:00 AM L",
+            "Closest to home, 35 mi · about 8:21 AM L", "Out over the Test Sea · about 8:03 AM L", "Halfway · about 7:45 AM L",
+            "Crossed into Bravo · about 7:00 AM L",
         ])
-        XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [false, false, false, false], "the schedule is told as it is")
-        XCTAssertEqual(tripSoFar.flights.first?.tag, "In the air now")
+        XCTAssertEqual(tripSoFar.flights.first?.events.map(\.isEstimate), [true, true, true, true], "the schedule's times are guesses")
+        XCTAssertEqual(tripSoFar.flights.first?.tag, "By the schedule")
         XCTAssertEqual(tripSoFar.totalsTitle, "Trip so far")
         XCTAssertEqual(tripSoFar.totals, "Day 1 of 1 · 1,036 mi")
     }
@@ -166,26 +168,29 @@ final class TripFactsTests: XCTestCase {
 
     func test_cardSummary_inFlight_addsThePlaceBelow_andTheLatestEvent() {
         XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Estimated from the schedule. Latest: crossed into Bravo, 10 minutes ago.")
+                       "TST1 to E20, over Bravo. Lands at 9:22 AM your time. Not tracked live, so it's shown where the schedule has it. " +
+                       "Latest: crossed into Bravo, about 10 minutes ago.")
         XCTAssertEqual(plain(equatorFacts().cardSummary(now: at("10:50"), pilotName: "Alex")),
-                       "TST1 to E20, over Alpha. Lands at 9:22 AM your time. Estimated from the schedule.", "before its first event")
+                       "TST1 to E20, over Alpha. Lands at 9:22 AM your time. Not tracked live, so it's shown where the schedule has it.",
+                       "before its first event")
     }
 
     // MARK: - The latest event (latest event design §1)
 
     func test_latestEvent_isTheNewest_untilTheNext() throws {
+        // With no live data, each event is the schedule's guess, and reads "about" (live or scheduled design §5).
         let facts = equatorFacts()
         XCTAssertNil(facts.latestEvent(at: at("10:59")), "before the first event")
         let crossed = try XCTUnwrap(facts.latestEvent(at: FactsTestData.date("2026-03-20T11:00:30Z")))
-        XCTAssertEqual(crossed, LatestEvent(title: "Crossed into Bravo", when: "Just now", sentence: "Latest: crossed into Bravo, just now."))
-        XCTAssertEqual(facts.latestEvent(at: at("11:12"))?.when, "12 min ago")
+        XCTAssertEqual(crossed, LatestEvent(title: "Crossed into Bravo", when: "About now", sentence: "Latest: crossed into Bravo, about now."))
+        XCTAssertEqual(facts.latestEvent(at: at("11:12"))?.when, "About 12 min ago")
         XCTAssertEqual(facts.latestEvent(at: at("11:44"))?.title, "Crossed into Bravo", "it stays until the next")
         XCTAssertEqual(facts.latestEvent(at: at("11:46"))?.title, "Halfway")
         XCTAssertEqual(facts.latestEvent(at: at("12:10"))?.title, "Out over the Test Sea")
         let closest = try XCTUnwrap(facts.latestEvent(at: at("12:40")))
         XCTAssertEqual(closest.title, "Closest to home, 35 mi")
-        XCTAssertEqual(closest.when, "19 min ago")
-        XCTAssertEqual(closest.sentence, "Latest: closest to home, 35 miles, 19 minutes ago.")
+        XCTAssertEqual(closest.when, "About 19 min ago")
+        XCTAssertEqual(closest.sentence, "Latest: closest to home, 35 miles, about 19 minutes ago.")
         XCTAssertNil(facts.latestEvent(at: at("13:30")), "it has reached the gate")
     }
 
@@ -193,7 +198,7 @@ final class TripFactsTests: XCTestCase {
         let facts = equatorFacts(hasStory: false)
         XCTAssertNil(facts.latestEvent(at: at("11:10")))
         XCTAssertEqual(plain(facts.cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20. Lands at 9:22 AM your time. Estimated from the schedule.")
+                       "TST1 to E20. Lands at 9:22 AM your time. Not tracked live, so it's shown where the schedule has it.")
     }
 
     func test_latestEvent_inAReplay_saysItsClockTime() {

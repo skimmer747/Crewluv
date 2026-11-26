@@ -102,6 +102,7 @@ nonisolated struct TripMap {
     ///   does, it moves only the flight it covers, and only when no leg carries its own.
     /// - `flights`: each flight with live data, by its leg's id (`LiveLegs.flights`). Such a leg's times in
     ///   `tripLegs` are already the real plane's (`LiveLegs.replacingTimes`).
+    /// - `isAwaitingLive`: Crewlu Cloud hasn't answered since the screen came up (live or scheduled design §2).
     /// - `coordinate`: where an airport is, by code.
     static func make(
         tripLegs: [TripLeg],
@@ -112,6 +113,7 @@ nonisolated struct TripMap {
         isWaitingAtBase: Bool = false,
         legacyDelayMinutes: Int?,
         flights: [String: MapFlight] = [:],
+        isAwaitingLive: Bool = false,
         at now: Date,
         coordinate: (String) -> CLLocationCoordinate2D?
     ) -> TripMap? {
@@ -122,6 +124,7 @@ nonisolated struct TripMap {
                    arrivalZoneFallback: sorted.first(where: { $0.startTime >= leg.endTime && $0.type != .flight })?.timezoneIdentifier,
                    extraDelayMinutes: leg.id == legacyDelay?.legID ? legacyDelay?.minutes : nil,
                    flights: flights,
+                   isAwaitingLive: isAwaitingLive,
                    coordinate: coordinate)
         }
         guard let first = legs.first else { return nil }
@@ -159,6 +162,7 @@ nonisolated struct TripMap {
         arrivalZoneFallback: String?,
         extraDelayMinutes: Int?,
         flights: [String: MapFlight],
+        isAwaitingLive: Bool,
         coordinate: (String) -> CLLocationCoordinate2D?
     ) -> MapLeg? {
         let kind: MapLeg.Kind
@@ -174,9 +178,10 @@ nonisolated struct TripMap {
         let destinationZone = (leg.arrivalTimezoneIdentifier ?? arrivalZoneFallback).flatMap(TimeZone.init(identifier:))
         let start = leg.startTime.addingTimeInterval(delay)
         let end = leg.endTime.addingTimeInterval(delay)
-        // A flight with no live data has the schedule's plan and the great circle.
+        // A flight with no live data has the schedule's plan and the great circle, and waits for the first answer.
+        let answered = kind == .flight ? flights[leg.id] : nil
         let flight = kind == .flight
-            ? flights[leg.id] ?? MapFlight(departure: start, arrival: end, from: originCoordinate, to: destinationCoordinate)
+            ? answered ?? MapFlight(departure: start, arrival: end, from: originCoordinate, to: destinationCoordinate)
             : nil
         return MapLeg(
             id: leg.id,
@@ -186,7 +191,8 @@ nonisolated struct TripMap {
             start: start,
             end: end,
             flightNumber: leg.flightNumber,
-            flight: flight
+            flight: flight,
+            isAwaitingLive: kind == .flight && answered == nil && isAwaitingLive
         )
     }
 

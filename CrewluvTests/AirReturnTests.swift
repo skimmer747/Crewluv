@@ -135,13 +135,13 @@ final class AirReturnTests: XCTestCase {
         XCTAssertEqual(LiveLabel(phase: .returned, gapMinutes: -26), .returned)
     }
 
-    func test_mapFlight_hasReturned_andIsAtDeparture_onlyWhileBack() throws {
+    func test_mapFlight_hasReturned_andIsSeenReturnedAtDeparture_onlyWhileBack() throws {
         let cases = try TripMapFixtures.liveCases()
         let back = try cases.flight(named: "an air return, back on the ground")
         let backFlight = try cases.mapFlight(back)
         let now = try cases.moment("13T12:41:00", of: back).at
         XCTAssertTrue(backFlight.hasReturned(at: now))
-        XCTAssertTrue(backFlight.isAtDeparture(at: now))
+        XCTAssertEqual(backFlight.seenAtDeparture(at: now), .returned)
 
         let again = try cases.flight(named: "an air return, then off again")
         let againAt = try cases.moment("13T13:41:40", of: again).at
@@ -150,6 +150,6 @@ final class AirReturnTests: XCTestCase {
         let stray = try cases.flight(named: "a stray point while taxiing")
         let strayAt = try cases.moment("13T12:20:30", of: stray).at
         XCTAssertFalse(try cases.mapFlight(stray).hasReturned(at: strayAt))
-        XCTAssertTrue(try cases.mapFlight(stray).isAtDeparture(at: strayAt), "still on the ground")
+        XCTAssertEqual(try cases.mapFlight(stray).seenAtDeparture(at: strayAt), .stillAtGate, "still on the ground")
     }
 }

@@ -242,6 +242,38 @@ final class LiveFlightSourceTests {
         #expect(minutes(of: "leg-1", in: source) == [0, 2, 4, 6])
     }
 
+    // MARK: - The first answer (live or scheduled design §2)
+
+    @Test func test_hasAnswered_isFalseUntilTheFirstCallSettles_thenTrue_evenWithNoFlights() async {
+        door.liveAnswers = [answer(cursor: 0)]
+        let source = source()
+        #expect(!source.hasAnswered)
+
+        await source.ask()
+
+        #expect(source.hasAnswered)
+        #expect(source.flights.isEmpty)
+    }
+
+    @Test func test_hasAnswered_isTrue_afterACallThatFails() async {
+        door.liveAnswers = [.failure(.unavailable)]
+        let source = source()
+
+        await source.ask()
+
+        #expect(source.hasAnswered)
+    }
+
+    @Test func test_hasAnswered_isTrue_offCrewluCloud_withNothingAsked() async {
+        isOnCrewluCloud = false
+        let source = source()
+
+        await source.ask()
+
+        #expect(source.hasAnswered)
+        #expect(door.lives.isEmpty)
+    }
+
     // MARK: - The Connection
 
     @Test func test_ask_sharingEnded_forgetsTheFlights_andTellsTheStatusSource() async {

@@ -71,23 +71,25 @@ final class LandedBeforeGateTests: XCTestCase {
         XCTAssertNil(map(of: flying).landedAirport(at: at("12:30")))
     }
 
-    func test_landedFlight_isTheFlightBetweenItsGatesWhoseRealPlaneIsDown_byItsID() throws {
+    func test_narrativeFlight_hasLanded_whileTheFlightsRealPlaneIsDown_untilTheGate() throws {
         let cases = try TripMapFixtures.liveCases()
         let landed = try cases.flight(named: "landed, seen all the way")
         let flights = ["f1": try cases.mapFlight(landed)]
         let gate = try XCTUnwrap(flights["f1"]?.progress(at: try cases.moment("13T13:30:00", of: landed).at).liveArrival)
-        func flight(at now: Date) -> String? {
+        func narrative(at now: Date) -> NarrativeFlight? {
             let legs = LiveLegs.replacingTimes(in: [cases.tripLeg(landed)], with: flights, at: now)
-            return LiveLegs.landedFlight(in: legs, flights: flights, at: now)
+            return LiveLegs.narrativeFlight(in: legs, flights: flights, at: now, isAwaitingLive: false)
         }
-        XCTAssertEqual(flight(at: gate.addingTimeInterval(-60)), "f1")
-        XCTAssertNil(flight(at: gate), "at the gate")
-        XCTAssertNil(LiveLegs.landedFlight(in: [cases.tripLeg(landed)], flights: [:], at: gate.addingTimeInterval(-60)))
+        XCTAssertEqual(narrative(at: gate.addingTimeInterval(-60)), .landed)
+        XCTAssertNil(narrative(at: gate), "at the gate")
+        XCTAssertEqual(LiveLegs.narrativeFlight(in: [cases.tripLeg(landed)], flights: [:], at: gate.addingTimeInterval(-60),
+                                                isAwaitingLive: false),
+                       .shouldBeFlying(saysNotTracked: true), "by the schedule alone")
 
         let flying = try cases.flight(named: "ahead, in the air")
         let now = try cases.moment("13T12:41:50", of: flying).at
         let flyingFlights = ["f1": try cases.mapFlight(flying)]
         let legs = LiveLegs.replacingTimes(in: [cases.tripLeg(flying)], with: flyingFlights, at: now)
-        XCTAssertNil(LiveLegs.landedFlight(in: legs, flights: flyingFlights, at: now))
+        XCTAssertEqual(LiveLegs.narrativeFlight(in: legs, flights: flyingFlights, at: now, isAwaitingLive: false), .flying)
     }
 }

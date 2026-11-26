@@ -41,7 +41,7 @@ nonisolated struct PlanePopupWords: Equatable, Sendable {
             // It flies the schedule's times while nobody tracks the real plane, which may not have left its gate: it
             // says so, or a family takes it for the real one taking off (Todd, 20 Nov 2026).
             let lines = isReplay ? ["Where the schedule had it at \(time(date))"]
-                : ["Not tracked live, so it's shown where the schedule has it", "If it's running late, it may still be at the gate"]
+                : [TripMapWording.notTrackedSoBySchedule, TripMapWording.mayBeAtGate]
             self.init(title: "\(Self.capitalized(name)) · by the schedule", lines: lines)
             return
         case .realPlane:

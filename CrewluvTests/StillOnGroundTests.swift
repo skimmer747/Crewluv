@@ -44,45 +44,56 @@ final class StillOnGroundTests: XCTestCase {
 
     // MARK: - When it is
 
-    func test_isStillOnGround_onlyAfterThePlansTakeoffTime_whileItsRealPlaneIsAtItsDepartureAirport() throws {
+    func test_atDeparture_isStillAtGate_onlyAfterThePlansTakeoffTime_whileItsRealPlaneIsAtItsDepartureAirport() throws {
         for (name, time) in [("still on the ground just after the plan's takeoff", "13T12:18:00"),
                              ("still on the ground twenty minutes after", "13T12:35:00")] {
             let (leg, at) = try leg(of: name, at: time)
-            XCTAssertTrue(leg.isStillOnGround(at: at), name)
+            XCTAssertEqual(leg.atDeparture(at: at), .stillAtGate, name)
         }
         for (name, time) in [("on the ground before the plan's takeoff", "13T12:10:00"), ("ahead, in the air", "13T12:41:50"),
                              ("landed, seen all the way", "13T13:30:00"), ("on the ground somewhere else", "13T13:21:00"),
                              ("no live data", "13T12:30:00")] {
             let (leg, at) = try leg(of: name, at: time)
-            XCTAssertFalse(leg.isStillOnGround(at: at), name)
+            XCTAssertNotEqual(leg.atDeparture(at: at), .stillAtGate, name)
         }
     }
 
-    func test_isStillOnGround_atEverySharedMoment_isTheBarsStillOnTheGround() throws {
+    func test_atDeparture_atEverySharedMoment_isStillAtGateOrReturned_asTheBarsStillOnTheGround() throws {
         let cases = try TripMapFixtures.liveCases()
+        // At the gate before the plan's takeoff, or due by the schedule, isn't what the bar calls still on the ground.
+        func late(_ atDeparture: AtDeparture?) -> AtDeparture? {
+            atDeparture == .stillAtGate || atDeparture == .returned ? atDeparture : nil
+        }
         var atTheGate = 0
         for flightCase in cases.flights {
             for moment in flightCase.moments {
                 let leg = try cases.mapLeg(flightCase, at: moment)
                 // A plane back at the gate after an air return is at its departure airport too (air return design §3).
-                let expected = moment.phase == "onGround" && (moment.label?.hasPrefix("Still on the ground") ?? false)
-                    || moment.phase == "returned"
-                XCTAssertEqual(leg.isStillOnGround(at: moment.at), expected, "\(flightCase.name) at \(moment.at)")
-                XCTAssertEqual(try cases.mapFlight(flightCase).isAtDeparture(at: moment.at), expected, "\(flightCase.name) at \(moment.at)")
-                if expected { atTheGate += 1 }
+                let expected: AtDeparture? = if moment.phase == "returned" {
+                    .returned
+                } else if moment.phase == "onGround", moment.label?.hasPrefix("Still on the ground") ?? false {
+                    .stillAtGate
+                } else {
+                    nil
+                }
+                XCTAssertEqual(late(leg.atDeparture(at: moment.at)), expected, "\(flightCase.name) at \(moment.at)")
+                XCTAssertEqual(late(try cases.mapFlight(flightCase).seenAtDeparture(at: moment.at)), expected,
+                               "\(flightCase.name) at \(moment.at)")
+                if expected != nil { atTheGate += 1 }
             }
         }
         XCTAssertGreaterThanOrEqual(atTheGate, 2)
     }
 
-    func test_isAtDeparture_goesByCrewluCloudsClock() throws {
+    func test_seenAtDeparture_goesByCrewluCloudsClock() throws {
         // Crewlu Cloud's clock is 6 minutes ahead of this device's: at 12:12 here it's 12:18 there, after the plan's
         // takeoff time at 12:15.
         let cases = try TripMapFixtures.liveCases()
         let flightCase = try cases.flight(named: "still on the ground just after the plan's takeoff")
         let moment = try cases.moment("13T12:18:00", of: flightCase)
-        XCTAssertTrue(try cases.mapFlight(flightCase, clockOffset: 360).isAtDeparture(at: moment.at.addingTimeInterval(-360)))
-        XCTAssertFalse(try cases.mapFlight(flightCase).isAtDeparture(at: moment.at.addingTimeInterval(-360)))
+        XCTAssertEqual(try cases.mapFlight(flightCase, clockOffset: 360).seenAtDeparture(at: moment.at.addingTimeInterval(-360)),
+                       .stillAtGate)
+        XCTAssertNotEqual(try cases.mapFlight(flightCase).seenAtDeparture(at: moment.at.addingTimeInterval(-360)), .stillAtGate)
     }
 
     func test_flightInMotion_isTheFlightBetweenItsGates_neverADrive() throws {
@@ -96,39 +107,42 @@ final class StillOnGroundTests: XCTestCase {
         XCTAssertNil(map.flightInMotion(at: flight.start.addingTimeInterval(-60)))
     }
 
-    func test_isStillOnGround_isNeverADrive_norAFlightOutsideItsGates() throws {
+    func test_atDeparture_isNeverADrive_norAFlightOutsideItsGates() throws {
         let (leg, at) = try leg(of: "still on the ground twenty minutes after", at: "13T12:35:00")
         let drive = MapLeg(id: "d1", kind: .drive, origin: leg.origin, destination: leg.destination, start: leg.start, end: leg.end,
                            flightNumber: nil)
-        XCTAssertFalse(drive.isStillOnGround(at: at))
+        XCTAssertNil(drive.atDeparture(at: at))
         let over = MapLeg(id: leg.id, kind: .flight, origin: leg.origin, destination: leg.destination, start: leg.start,
                           end: at, flightNumber: leg.flightNumber, flight: leg.flight)
-        XCTAssertFalse(over.isStillOnGround(at: at))
+        XCTAssertNil(over.atDeparture(at: at))
     }
 
-    func test_stillOnGroundAirport_isTheFlightsDepartureAirport_whileItsRealPlaneWaitsThere() throws {
+    func test_flightNow_isStillInTheFlightsDepartureAirport_whileItsRealPlaneWaitsThere() throws {
         let (atTheGate, gateTime) = try leg(of: "still on the ground twenty minutes after", at: "13T12:35:00")
-        XCTAssertEqual(map(of: atTheGate).stillOnGroundAirport(at: gateTime)?.code, "SDF")
+        guard case .stillIn(let airport)? = map(of: atTheGate).flightNow(at: gateTime) else { return XCTFail("still in") }
+        XCTAssertEqual(airport.code, "SDF")
         let (flying, flyingTime) = try leg(of: "ahead, in the air", at: "13T12:41:50")
-        XCTAssertNil(map(of: flying).stillOnGroundAirport(at: flyingTime))
+        XCTAssertNil(map(of: flying).flightNow(at: flyingTime))
     }
 
-    func test_stillOnGroundFlight_isTheFlightBetweenItsGatesWhoseRealPlaneHasntLeft_byItsID() throws {
+    func test_narrativeFlight_isStillAtTheGate_onlyWhileTheFlightsRealPlaneHasntLeftAfterThePlansTakeoff() throws {
         let cases = try TripMapFixtures.liveCases()
-        func flight(_ name: String, at time: String) throws -> String? {
+        func narrative(_ name: String, at time: String) throws -> NarrativeFlight? {
             let flightCase = try cases.flight(named: name)
             let now = try cases.moment(time, of: flightCase).at
             let flights = ["f1": try cases.mapFlight(flightCase)]
             let legs = LiveLegs.replacingTimes(in: [cases.tripLeg(flightCase)], with: flights, at: now)
-            return LiveLegs.stillOnGroundFlight(in: legs, flights: flights, at: now)
+            return LiveLegs.narrativeFlight(in: legs, flights: flights, at: now, isAwaitingLive: false)
         }
-        XCTAssertEqual(try flight("still on the ground twenty minutes after", at: "13T12:35:00"), "f1")
-        XCTAssertEqual(try flight("still on the ground just after the plan's takeoff", at: "13T12:18:00"), "f1")
-        XCTAssertNil(try flight("on the ground before the plan's takeoff", at: "13T12:10:00"))
-        XCTAssertNil(try flight("ahead, in the air", at: "13T12:41:50"))
-        XCTAssertNil(try flight("no live data", at: "13T12:30:00"))
+        XCTAssertEqual(try narrative("still on the ground twenty minutes after", at: "13T12:35:00"), .stillAtGate)
+        XCTAssertEqual(try narrative("still on the ground just after the plan's takeoff", at: "13T12:18:00"), .stillAtGate)
+        XCTAssertEqual(try narrative("on the ground before the plan's takeoff", at: "13T12:10:00"), .atGate)
+        XCTAssertEqual(try narrative("ahead, in the air", at: "13T12:41:50"), .flying)
+        XCTAssertEqual(try narrative("no live data", at: "13T12:30:00"), .shouldBeFlying(saysNotTracked: true))
         let atTheGate = try cases.flight(named: "still on the ground twenty minutes after")
-        XCTAssertNil(LiveLegs.stillOnGroundFlight(in: [cases.tripLeg(atTheGate)], flights: [:], at: try cases.moment("13T12:35:00", of: atTheGate).at))
+        XCTAssertEqual(LiveLegs.narrativeFlight(in: [cases.tripLeg(atTheGate)], flights: [:],
+                                                at: try cases.moment("13T12:35:00", of: atTheGate).at, isAwaitingLive: false),
+                       .shouldBeFlying(saysNotTracked: true), "by the schedule alone")
     }
 
     // MARK: - The words
@@ -137,9 +151,9 @@ final class StillOnGroundTests: XCTestCase {
         // 5:21 PM UTC is 12:21 PM in Louisville.
         let date = FactsTestData.date("2026-11-13T17:21:00Z")
         let flying = TripActivity(kind: .flying, place: anchorage)
-        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, onGround: .stillIn(rockford), calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, flight: .stillIn(rockford), calendar: calendar, locale: locale)),
                        "Fri 12:21 PM L · On the ground in Rockford")
-        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, onGround: .stillIn(rockford), calendar: calendar, locale: locale)),
+        XCTAssertEqual(plain(TripMapWording.timelineSpokenValue(date, activity: flying, flight: .stillIn(rockford), calendar: calendar, locale: locale)),
                        "Friday 12:21 PM, on the ground in Rockford")
         // Without it, flying, as before.
         XCTAssertEqual(plain(TripMapWording.timelineLine(date, activity: flying, calendar: calendar, locale: locale)),

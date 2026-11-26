@@ -42,17 +42,20 @@ final class TripFactsRowsTests: XCTestCase {
 
     // MARK: - In flight (§5.1)
 
-    func test_rows_inFlight_belowDistanceAndLanding() throws {
+    func test_rows_inFlight_sourceBelowDistanceAndLanding() throws {
         let rows = try facts(equatorMap()).rows(at: FactsTestData.date("2026-03-20T11:10:00Z"), now: FactsTestData.date("2026-03-20T11:10:00Z"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .distance, .takeoff, .headed], "no sky row: midday, eastbound, and no moon")
+        XCTAssertEqual(rows.map(\.kind), [.source, .below, .distance, .takeoff, .headed], "no sky row: midday, eastbound, and no moon")
+
+        // With no live data, it's by the schedule alone, and its times are guesses (live or scheduled design §4.1, §5).
+        XCTAssertEqual(try row(.source, in: rows).title, "Not tracked live")
 
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Over Bravo, near Testville")
-        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at 8:21 AM L")
+        XCTAssertEqual(plain(below.detail), "Passes 35 mi from home at about 8:21 AM L")
 
         let distance = try row(.distance, in: rows)
         XCTAssertEqual(distance.title, "422 mi flown · 960 to go")
-        XCTAssertEqual(plain(distance.detail), "Halfway at 7:45 AM L · Averaging about 460 mph · like driving the Alaska Highway")
+        XCTAssertEqual(plain(distance.detail), "Halfway at about 7:45 AM L · Averaging about 460 mph · like driving the Alaska Highway")
 
         let headed = try row(.headed, in: rows)
         XCTAssertEqual(plain(headed.title), "Lands E20 9:22 AM L")

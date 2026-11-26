@@ -118,25 +118,32 @@ nonisolated enum LiveLegs {
         }?.effectiveEnd
     }
 
-    /// The flight between its gates at `now` whose real plane is still on the ground at its departure airport after
-    /// the plan's takeoff time, by its leg's id: the status sentence says so (which plane design §4). Nil with no
-    /// such flight.
-    static func stillOnGroundFlight(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> String? {
-        guard !flights.isEmpty else { return nil }
-        return legs.first { leg in
-            leg.type == .flight && leg.effectiveStart <= now && now < leg.effectiveEnd
-                && (flights[leg.id]?.isAtDeparture(at: now) ?? false)
-        }?.id
-    }
-
-    /// The flight between its gates at `now` whose real plane has landed, by its leg's id: the status sentence says so
-    /// (landed before the gate design §3). Nil with no such flight.
-    static func landedFlight(in legs: [TripLeg], flights: [String: MapFlight], at now: Date) -> String? {
-        guard !flights.isEmpty else { return nil }
-        return legs.first { leg in
-            leg.type == .flight && leg.effectiveStart <= now && now < leg.effectiveEnd
-                && (flights[leg.id]?.hasLanded(at: now) ?? false)
-        }?.id
+    /// How the status sentence tells the flight between its gates at `now` (live or scheduled design §4), from its live
+    /// data where Crewlu Cloud sees it, else by the schedule. Nil with no flight between its gates.
+    /// - Parameters:
+    ///   - legacyDelayMinutes: the summary-wide delay of a CrewLu that doesn't tag legs. While one is in effect it
+    ///     moves the flight's gate times, as the map's (`TripMap.make`) and `TripStateResolver`'s, so all three agree
+    ///     on when it's due to take off.
+    ///   - isAwaitingLive: Crewlu Cloud hasn't answered since the screen came up: "not tracked live" isn't said yet (§2).
+    static func narrativeFlight(in legs: [TripLeg], legacyDelayMinutes: Int? = nil, flights: [String: MapFlight],
+                                at now: Date, isAwaitingLive: Bool) -> NarrativeFlight? {
+        let isDelaySummaryWide = (legacyDelayMinutes ?? 0) != 0 && !legs.contains { ($0.delayMinutes ?? 0) != 0 }
+        let shift = TimeInterval(isDelaySummaryWide ? (legacyDelayMinutes ?? 0) * 60 : 0)
+        guard let leg = legs.first(where: {
+            $0.type == .flight && $0.effectiveStart.addingTimeInterval(shift) <= now && now < $0.effectiveEnd.addingTimeInterval(shift)
+        }) else { return nil }
+        guard let flight = flights[leg.id], !flight.isNotLive(at: now) else {
+            let takeoff = FlightProgress.scheduledTakeoff(departure: leg.effectiveStart.addingTimeInterval(shift),
+                                                          arrival: leg.effectiveEnd.addingTimeInterval(shift))
+            return now < takeoff ? .dueToTakeOff : .shouldBeFlying(saysNotTracked: !isAwaitingLive)
+        }
+        if flight.hasLanded(at: now) { return .landed }
+        switch flight.seenAtDeparture(at: now) {
+        case .atGate: return .atGate
+        case .stillAtGate: return .stillAtGate
+        case .returned: return .returned
+        case .due, nil: return .flying
+        }
     }
 
     /// `legs`, as `replacingTimes` gives them, for the schedule's list, which shows each leg's written times as they

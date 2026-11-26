@@ -31,6 +31,13 @@ nonisolated enum FlightProgress {
                             end: arrival.addingTimeInterval(-taxiInAllowance))
     }
 
+    /// When the schedule's plane takes off for a flight that leaves the gate at `departure` and reaches it at
+    /// `arrival` (both moved by any delay): the start of its time in the air, or the gate departure for a flight with
+    /// none (live or scheduled design §3).
+    static func scheduledTakeoff(departure: Date, arrival: Date) -> Date {
+        airborneWindow(departure: departure, arrival: arrival)?.start ?? departure
+    }
+
     /// How far along its route the schedule's plane is at `date`: 0 at the departure airport, 1 at the arrival
     /// airport, at a steady speed while it's in the air.
     static func scheduledFraction(departure: Date, arrival: Date, at date: Date) -> Double {

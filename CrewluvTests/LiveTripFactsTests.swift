@@ -105,9 +105,10 @@ final class LiveTripFactsTests: XCTestCase {
 
     // MARK: - The rows (§8)
 
-    func test_rows_inTheAir_haveThePlanesRowSecond() throws {
+    func test_rows_inTheAir_leadWithTrackedLive_andHaveThePlanesRowAfterWhatsBelow() throws {
         let rows = try facts(seenUntil: "11:10").rows(at: at("11:10"), now: at("11:10"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .plane, .distance, .takeoff, .headed])
+        XCTAssertEqual(rows.map(\.kind), [.source, .below, .plane, .distance, .takeoff, .headed])
+        XCTAssertEqual(try row(.source, in: rows).title, "Tracked live")
 
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Over Bravo")
@@ -189,12 +190,14 @@ final class LiveTripFactsTests: XCTestCase {
         XCTAssertNil(plane.detail)
     }
 
-    func test_rows_withNoLiveData_areTheSchedules_asBefore() throws {
+    func test_rows_withNoLiveData_areTheSchedules_underNotTrackedLive_withItsTimesGuessed() throws {
         let rows = try facts(of: try FactsTestData.equatorLiveLeg(nil, at: at("11:10"))).rows(at: at("11:10"), now: at("11:10"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .distance, .takeoff, .headed], "no plane's row")
+        XCTAssertEqual(rows.map(\.kind), [.source, .below, .distance, .takeoff, .headed], "no plane's row")
+        XCTAssertEqual(try row(.source, in: rows).title, "Not tracked live")
         XCTAssertEqual(try row(.below, in: rows).title, "Over Bravo, near Testville")
         XCTAssertEqual(try row(.distance, in: rows).title, "422 mi flown · 960 to go")
-        XCTAssertEqual(plain(try row(.distance, in: rows).detail), "Halfway at 7:45 AM L · Averaging about 460 mph · like driving the Alaska Highway")
+        XCTAssertEqual(plain(try row(.distance, in: rows).detail),
+                       "Halfway at about 7:45 AM L · Averaging about 460 mph · like driving the Alaska Highway")
     }
 
     // MARK: - The trip so far, and the credit
@@ -254,10 +257,11 @@ final class LiveTripFactsTests: XCTestCase {
 
     // MARK: - The card for VoiceOver (§9, §15)
 
-    func test_cardSummary_inTheAir_saysWhatsBelowTheRealPlane() throws {
+    func test_cardSummary_inTheAir_saysWhatsBelowTheRealPlane_andThatItsTrackedLive() throws {
         // It lands at 13:05 by its estimate, where the plan has 13:15.
         XCTAssertEqual(plain(try facts(seenUntil: "11:10").cardSummary(now: at("11:10"), pilotName: "Alex")),
-                       "TST1 to E20, 10 minutes ahead of schedule, over Bravo. Lands about 9:11 AM your time. Latest: crossed into Bravo, 15 minutes ago.")
+                       "TST1 to E20, 10 minutes ahead of schedule, over Bravo. Lands about 9:11 AM your time. Tracked live. " +
+                       "Latest: crossed into Bravo, 15 minutes ago.")
     }
 
     func test_latestEvent_whileOutOfSight_isABestGuess_withAbout() throws {

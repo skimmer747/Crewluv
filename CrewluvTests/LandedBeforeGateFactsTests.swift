@@ -53,9 +53,10 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         XCTAssertEqual(try facts(landedAt: "12:58").sheetHeadline(at: at("12:58")), "Landed in E20")
     }
 
-    func test_rows_sayItLanded_howFarItFlew_andWhenItReachesTheGate_withNoSky() throws {
+    func test_rows_sayItsTrackedLive_itLanded_howFarItFlew_andWhenItReachesTheGate_withNoSky() throws {
         let rows = try facts(landedAt: "12:58").rows(at: at("12:58"), now: at("12:58"))
-        XCTAssertEqual(rows.map(\.kind), [.below, .plane, .distance, .takeoff, .headed])
+        XCTAssertEqual(rows.map(\.kind), [.source, .below, .plane, .distance, .takeoff, .headed])
+        XCTAssertEqual(try row(.source, in: rows).title, "Tracked live")
         let below = try row(.below, in: rows)
         XCTAssertEqual(below.title, "Landed in E20")
         XCTAssertNil(below.detail, "nothing of what's below, or of home")
@@ -71,7 +72,7 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         XCTAssertTrue(rows.contains { $0.kind == .sky }, "the sky row, as before")
         XCTAssertEqual(try row(.distance, in: rows).title, "1,382 mi flown · 0 to go")
         XCTAssertTrue(try XCTUnwrap(plain(try row(.headed, in: rows).title)).hasPrefix("Lands E20"))
-        XCTAssertNil(replay.flightOnGround(at: at("12:58")))
+        XCTAssertNil(replay.flightNow(at: at("12:58")))
     }
 
     // MARK: - The list
@@ -82,9 +83,9 @@ final class LandedBeforeGateFactsTests: XCTestCase {
         XCTAssertEqual(try facts(landedAt: "13:03").tripSoFar(at: at("13:03")).flights.map(\.tag), [nil], "at the gate")
     }
 
-    func test_flightOnGround_isLandedInTheArrivalAirport_now() throws {
-        let onGround = try facts(landedAt: "12:58").flightOnGround(at: at("12:58"))
-        guard case .landedIn(let airport) = onGround else { return XCTFail("\(String(describing: onGround))") }
+    func test_flightNow_isLandedInTheArrivalAirport_now() throws {
+        let flight = try facts(landedAt: "12:58").flightNow(at: at("12:58"))
+        guard case .landedIn(let airport) = flight else { return XCTFail("\(String(describing: flight))") }
         XCTAssertEqual(airport.code, "E20")
     }
 

@@ -16,8 +16,8 @@ struct TripTimelineControl: View {
     let timeline: TripTimeline
     /// What the pilot is doing at `time`.
     let activity: TripActivity?
-    /// Where the flight's real plane is on the ground, now: the line under the bar names it in place of flying.
-    let onGround: FlightOnGround?
+    /// What the line under the bar names of the flight now, in place of flying: where its real plane is on the ground, or by the schedule alone.
+    let flight: FlightNow?
     /// The trip time on screen.
     let time: Date
     /// The real time of this tick.
@@ -30,7 +30,7 @@ struct TripTimelineControl: View {
             HStack(spacing: 12) {
                 playButton
                 TripTimelineBar(timeline: timeline, progress: clock.progress(at: time),
-                                spokenValue: TripMapWording.timelineSpokenValue(time, activity: activity, onGround: onGround),
+                                spokenValue: TripMapWording.timelineSpokenValue(time, activity: activity, flight: flight),
                                 onScrub: scrub(to:))
                 if !clock.isLive && !dynamicTypeSize.isAccessibilitySize {
                     liveButton
@@ -40,7 +40,7 @@ struct TripTimelineControl: View {
             if !clock.isLive && dynamicTypeSize.isAccessibilitySize {
                 liveButton
             }
-            Text(TripMapWording.timelineLine(time, activity: activity, onGround: onGround))
+            Text(TripMapWording.timelineLine(time, activity: activity, flight: flight))
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)

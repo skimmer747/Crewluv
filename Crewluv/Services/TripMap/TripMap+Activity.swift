@@ -38,15 +38,6 @@ nonisolated extension TripMap {
         return TripActivity(kind: groundKind(at: date, place: place), place: place)
     }
 
-    /// Where the pilot's flight waits at `date`, while it's between its gates and its real plane is still on the
-    /// ground at its departure airport after the plan's takeoff time: that airport, which the line under the timeline
-    /// names in place of "Flying to" (which plane design §4). Nil otherwise. A replay's moment is flying, as the map
-    /// has the plane, so the facts ask this only of now.
-    func stillOnGroundAirport(at date: Date) -> AirportMark? {
-        guard let flight = flightInMotion(at: date), flight.isStillOnGround(at: date) else { return nil }
-        return flight.origin
-    }
-
     /// The arrival airport of the flight between its gates at `date` whose real plane has landed there, before the
     /// gate: the line under the timeline says "Landed in" it in place of "Flying to" (landed before the gate design §3).
     /// Nil otherwise. A replay's moment is where the map has the plane, so the facts ask this only of now.
@@ -55,13 +46,19 @@ nonisolated extension TripMap {
         return flight.destination
     }
 
-    /// Where the flight between its gates at `date` has its real plane on the ground, as the line under the timeline
-    /// names it in place of "Flying to": still at its departure airport, back there after an air return, or down at
-    /// its arrival airport before the gate. Nil otherwise.
-    func flightOnGround(at date: Date) -> FlightOnGround? {
+    /// What the line under the timeline names of the flight between its gates at `date`, in place of "Flying to"
+    /// (live or scheduled design §4): the real plane on the ground (at its departure airport, back there after an air
+    /// return, or down at its arrival airport before the gate), else the flight known by the schedule alone, due to
+    /// take off or flying by the schedule. Nil otherwise. Now only: the facts ask it only of now.
+    func flightNow(at date: Date) -> FlightNow? {
         if let arrival = landedAirport(at: date) { return .landedIn(arrival) }
-        guard let flight = flightInMotion(at: date), let departure = stillOnGroundAirport(at: date) else { return nil }
-        return flight.hasReturned(at: date) ? .returnedTo(departure) : .stillIn(departure)
+        guard let flight = flightInMotion(at: date) else { return nil }
+        switch flight.atDeparture(at: date) {
+        case .returned: return .returnedTo(flight.origin)
+        case .atGate, .stillAtGate: return .stillIn(flight.origin)
+        case .due: return .dueTo(flight.destination)
+        case nil: return flight.tracking(at: date).isBySchedule ? .shouldBeFlyingTo(flight.destination) : nil
+        }
     }
 
     // MARK: - On the ground

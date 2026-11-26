@@ -57,15 +57,20 @@ class PartnerStatusReceiver {
     /// When the flight between its gates reaches its gate, while that time is the real plane's estimate: the cards
     /// say "about" of it (Stage 3 spec §9). Nil with no such flight.
     private(set) var estimatedArrival: Date?
-    /// Whether the flight between its gates has its real plane still on the ground at its departure airport after the
-    /// plan's takeoff time: the narrative says so (which plane design §4).
-    private(set) var isStillOnGround = false
-    /// Whether that real plane at its departure airport is back there after an air return: the narrative says
-    /// "has returned to" in place of "is still on the ground in" (air return design §3).
-    private(set) var hasReturned = false
-    /// Whether the flight between its gates has its real plane down at the arrival airport, before the gate: the
-    /// narrative says so (landed before the gate design §3).
-    private(set) var isLandedBeforeGate = false
+    /// How the status sentence tells the flight under way: by its real plane where Crewlu Cloud sees it, else by the
+    /// schedule, saying so (live or scheduled design §4). Nil with no flight between its gates.
+    private(set) var narrativeFlight: NarrativeFlight?
+
+    /// Crewlu Cloud hadn't answered since this screen came up, as of the last resolve: nothing yet says where a flight
+    /// comes from (live or scheduled design §2). Never on iCloud, which has no live plane, nor in the demo. It's set in
+    /// the same pass as `flights`, so the map never reads "Not tracked live" for a moment before the first answer's
+    /// flights are in.
+    private(set) var isAwaitingLive = false
+
+    /// Whether Crewlu Cloud hasn't answered yet, now: `isAwaitingLive` takes it at each resolve.
+    private var hasNoLiveAnswerYet: Bool {
+        statusSource.isOnCrewluCloud && !isInDemoMode && !liveSource.hasAnswered
+    }
 
     init(shareManager: CloudKitShareManager) {
         statusSource = .shared
@@ -434,11 +439,10 @@ class PartnerStatusReceiver {
                                        coordinate: Self.airportCoordinate)
         let legs = LiveLegs.replacingTimes(in: scheduledLegs, with: flights, at: now)
         self.flights = flights
+        isAwaitingLive = hasNoLiveAnswerYet
         estimatedArrival = LiveLegs.estimatedArrival(in: legs, flights: flights, at: now)
-        let atDeparture = LiveLegs.stillOnGroundFlight(in: legs, flights: flights, at: now)
-        isStillOnGround = atDeparture != nil
-        hasReturned = atDeparture.flatMap { flights[$0] }?.hasReturned(at: now) ?? false
-        isLandedBeforeGate = LiveLegs.landedFlight(in: legs, flights: flights, at: now) != nil
+        narrativeFlight = LiveLegs.narrativeFlight(in: legs, legacyDelayMinutes: raw.flightDelayMinutes, flights: flights,
+                                                   at: now, isAwaitingLive: isAwaitingLive)
         debugLog("[Resolve] Passing \(legs.count) legs to TripStateResolver, \(flights.count) with live data")
 
         let resolved = TripStateResolver.resolve(legs: legs, flightDelayMinutes: raw.flightDelayMinutes, homeAirportCode: raw.homeAirportCode, baseAirportCode: raw.baseAirportCode, at: now)
@@ -643,6 +647,7 @@ class PartnerStatusReceiver {
     private func followLiveFlights() {
         withObservationTracking {
             _ = liveSource.flights
+            _ = liveSource.hasAnswered
         } onChange: { [weak self] in
             // Called just before the flights change: wait until they have.
             Task { @MainActor [weak self] in
@@ -658,10 +663,9 @@ class PartnerStatusReceiver {
     /// No flight has live data: the map and the cards show the schedule.
     private func clearLiveFlights() {
         flights = [:]
+        isAwaitingLive = false
         estimatedArrival = nil
-        isStillOnGround = false
-        hasReturned = false
-        isLandedBeforeGate = false
+        narrativeFlight = nil
     }
 
     private static func airportCoordinate(_ code: String) -> CLLocationCoordinate2D? {

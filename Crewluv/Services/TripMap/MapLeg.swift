@@ -24,10 +24,13 @@ nonisolated struct MapLeg: Identifiable {
     /// A flight's plan, its path and, once it's been seen in the air, its record. Nil for a drive, and for a flight
     /// that arrives no later than it leaves.
     let flight: MapFlight?
+    /// The flight has no live data yet because Crewlu Cloud hasn't answered since the status screen came up (live or
+    /// scheduled design §2). Set only on a flight with no answer of its own.
+    let isAwaitingLive: Bool
 
     init(
         id: String, kind: Kind, origin: AirportMark, destination: AirportMark, start: Date, end: Date,
-        flightNumber: String?, flight: MapFlight? = nil
+        flightNumber: String?, flight: MapFlight? = nil, isAwaitingLive: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -37,6 +40,7 @@ nonisolated struct MapLeg: Identifiable {
         self.end = end
         self.flightNumber = flightNumber
         self.flight = flight
+        self.isAwaitingLive = isAwaitingLive
     }
 
     /// Whether `end` is the real plane's estimate, which the words mark with "about" (Stage 3 spec §9).
@@ -47,18 +51,6 @@ nonisolated struct MapLeg: Identifiable {
 
     /// True from leaving the gate until reaching the other one.
     func isMoving(at date: Date) -> Bool { start <= date && date < end }
-
-    /// Whether the flight is between its gates at `date` while its real plane is still on the ground at its departure
-    /// airport after the plan's takeoff time (`MapFlight.isAtDeparture`, which plane design §4).
-    func isStillOnGround(at date: Date) -> Bool {
-        isMoving(at: date) && (flight?.isAtDeparture(at: date) ?? false)
-    }
-
-    /// Whether the flight is between its gates at `date` with its real plane back on the ground at its departure
-    /// airport after an air return (`MapFlight.hasReturned`, air return design §2).
-    func hasReturned(at date: Date) -> Bool {
-        isMoving(at: date) && (flight?.hasReturned(at: date) ?? false)
-    }
 
     /// Whether the flight is between its gates at `date` with its real plane already down (`MapFlight.hasLanded`):
     /// landed, and not yet at the gate (landed before the gate design §2).

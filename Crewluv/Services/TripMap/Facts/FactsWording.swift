@@ -108,6 +108,22 @@ nonisolated enum FactsWording {
         "Still on the ground in \(airport.name)"
     }
 
+    /// In place of what's below, a real plane seen at its gate before the plan's takeoff: "On the ground in
+    /// Louisville" (live or scheduled design §4.2).
+    static func onTheGround(in airport: AirportMark) -> String {
+        "On the ground in \(airport.name)"
+    }
+
+    /// In place of what's below, a flight by the schedule alone before its takeoff: "Scheduled to take off about 3:14
+    /// PM L" (live or scheduled design §4.2). The time is the gate's plus the map's own taxi allowance, so "about".
+    static func scheduledTakeoff(at time: Date, calendar: Calendar = .current, locale: Locale = .current) -> String {
+        "Scheduled to take off about \(ClockLabel.yours(time, calendar: calendar, locale: locale))"
+    }
+
+    /// The second line of the facts' first row for a flight by the schedule alone, as the schedule's plane's popup
+    /// says it (live or scheduled design §4.1).
+    static let notTrackedLines = ["Shown where the schedule has it", TripMapWording.mayBeAtGate]
+
     /// In place of what's below, a real plane back on the ground at its departure airport after an air return:
     /// "Returned to Rockford" (air return design §3).
     static func returned(to airport: AirportMark) -> String {

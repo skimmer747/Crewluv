@@ -13,8 +13,8 @@ struct FactsHeader: View {
     let timeline: TripTimeline
     /// What the pilot is doing at `time`.
     let activity: TripActivity?
-    /// Where the flight's real plane is on the ground, now.
-    let onGround: FlightOnGround?
+    /// What the line under the bar names of the flight now, in place of flying: where its real plane is on the ground, or by the schedule alone.
+    let flight: FlightNow?
     @Binding var clock: TripReplayClock
     @Binding var isQuickLayovers: Bool
     /// The trip time on screen.
@@ -30,7 +30,7 @@ struct FactsHeader: View {
                 .accessibilityAddTraits(.isHeader)
                 .clockLabelHelp(for: headline)
             TripTimelineControl(clock: $clock, isQuickLayovers: $isQuickLayovers, timeline: timeline,
-                                activity: activity, onGround: onGround, time: time, now: now)
+                                activity: activity, flight: flight, time: time, now: now)
         }
     }
 }
